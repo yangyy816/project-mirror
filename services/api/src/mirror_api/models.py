@@ -12,6 +12,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -50,7 +51,7 @@ class TimestampMixin:
 class User(IdMixin, TimestampMixin, Base):
     __tablename__ = "users"
 
-    phone_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    phone_hash: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     status: Mapped[str] = mapped_column(String(24), default="pending", nullable=False)
     age_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -72,26 +73,124 @@ class InviteCode(IdMixin, TimestampMixin, Base):
 class PhoneVerificationChallenge(IdMixin, Base):
     __tablename__ = "phone_verification_challenges"
 
-    phone_hash: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    phone_hash: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
     code_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    invite_code_id: Mapped[str | None] = mapped_column(
+        ForeignKey("invite_codes.id", ondelete="RESTRICT"), index=True
+    )
+    purpose: Mapped[str] = mapped_column(String(48), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(128), nullable=False)
     provider_message_id: Mapped[str | None] = mapped_column(String(128))
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
+    __table_args__ = (CheckConstraint("attempts >= 0", name="nonnegative_challenge_attempts"),)
 
 
 class UserSession(IdMixin, Base):
     __tablename__ = "user_sessions"
 
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    family_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    token_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     refresh_token_hash: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    refresh_key_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    rotated_from_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_sessions.id", ondelete="RESTRICT"), unique=True
+    )
+    replaced_by_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_sessions.id", ondelete="RESTRICT"), unique=True
+    )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revocation_reason: Mapped[str | None] = mapped_column(String(64))
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        Index("ix_user_sessions_user_family", "user_id", "family_id"),
+        CheckConstraint(
+            "(rotated_from_id IS NULL OR rotated_from_id <> id) AND "
+            "(replaced_by_id IS NULL OR replaced_by_id <> id)",
+            name="valid_session_lineage",
+        ),
+    )
+
+
+class InviteRedemption(IdMixin, Base):
+    __tablename__ = "invite_redemptions"
+
+    invite_code_id: Mapped[str] = mapped_column(
+        ForeignKey("invite_codes.id", ondelete="RESTRICT"), index=True
+    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    challenge_id: Mapped[str] = mapped_column(String(32), unique=True)
+    request_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    redeemed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["challenge_id"],
+            ["phone_verification_challenges.id"],
+            name="fk_invite_redemption_challenge",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("user_id"),
+    )
+
+
+class AgeAssuranceRecord(IdMixin, Base):
+    __tablename__ = "age_assurance_records"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_reference_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    result: Mapped[str] = mapped_column(String(24), nullable=False)
+    provider_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    request_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_reference_hash"),
+        CheckConstraint(
+            "result IN ('verified','not_verified','indeterminate')",
+            name="valid_age_assurance_result",
+        ),
+        CheckConstraint(
+            "expires_at IS NULL OR expires_at >= verified_at",
+            name="valid_age_assurance_expiry",
+        ),
+    )
+
+
+class PolicyAcceptanceRecord(IdMixin, Base):
+    __tablename__ = "policy_acceptance_records"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    document_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    document_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    document_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    accepted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    source: Mapped[str] = mapped_column(String(48), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        UniqueConstraint("user_id", "document_code", "document_version", "document_digest"),
     )
 
 
@@ -913,15 +1012,25 @@ class IdempotencyRecord(IdMixin, Base):
     )
     actor_key: Mapped[str] = mapped_column(String(96), nullable=False)
     scope: Mapped[str] = mapped_column(String(96), nullable=False)
-    key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     response_status: Mapped[int | None] = mapped_column(Integer)
     response_reference: Mapped[str | None] = mapped_column(String(128))
+    state: Mapped[str] = mapped_column(String(24), default="in_progress", nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
-    __table_args__ = (UniqueConstraint("actor_key", "scope", "key_hash"),)
+    __table_args__ = (
+        UniqueConstraint("actor_key", "scope", "key_hash"),
+        CheckConstraint(
+            "state IN ('in_progress','completed','failed') AND "
+            "((state = 'completed' AND completed_at IS NOT NULL) OR "
+            "(state <> 'completed' AND completed_at IS NULL))",
+            name="valid_idempotency_state",
+        ),
+    )
 
 
 class AIContentProvenance(IdMixin, Base):
@@ -962,6 +1071,9 @@ for immutable_model in (
     SelfTransferValidationResponse,
     AestheticProfileVersion,
     ConsentRecord,
+    InviteRedemption,
+    AgeAssuranceRecord,
+    PolicyAcceptanceRecord,
     CreditLedger,
     AIContentProvenance,
 ):

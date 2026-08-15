@@ -4,6 +4,7 @@ import asyncio
 from dataclasses import dataclass
 
 import redis.asyncio as redis
+from fastapi import Depends
 from sqlalchemy import create_engine, text
 
 from mirror_api.config import Settings, get_settings
@@ -44,10 +45,11 @@ async def _probe_redis(redis_url: str) -> str:
         await client.aclose()
 
 
-async def probe_dependencies(settings: Settings | None = None) -> DependencyStatus:
-    resolved = settings or get_settings()
+async def probe_dependencies(
+    settings: Settings = Depends(get_settings),
+) -> DependencyStatus:
     database, redis_state = await asyncio.gather(
-        asyncio.to_thread(_probe_database, resolved.database_url),
-        _probe_redis(resolved.redis_url),
+        asyncio.to_thread(_probe_database, settings.database_url),
+        _probe_redis(settings.redis_url),
     )
     return DependencyStatus(database=database, redis=redis_state)

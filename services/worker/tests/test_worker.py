@@ -49,6 +49,10 @@ def test_local_runner_is_development_only() -> None:
                 image_generation_provider="disabled",
                 agent_provider="disabled",
                 auth_token_secret="x" * 64,
+                auth_jwt_keyring={"test-jwt-v1": "j" * 64},
+                auth_jwt_active_kid="test-jwt-v1",
+                auth_hmac_keyring={"test-hmac-v1": "h" * 64},
+                auth_hmac_active_kid="test-hmac-v1",
                 auth_callback_url="https://mirror.example/auth/callback",
                 cors_origins=["https://mirror.example"],
                 tencent_secret_id="configured-in-secret-manager",  # noqa: S106

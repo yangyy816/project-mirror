@@ -1,8 +1,16 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 
-from mirror_api.providers.base import AgentPlan, GeneratedImage, SignedObjectURL, VisionResult
+from mirror_api.providers.base import (
+    AgeAssuranceResult,
+    AgeAssuranceStatus,
+    AgentPlan,
+    GeneratedImage,
+    SignedObjectURL,
+    VisionResult,
+)
 from mirror_api.security import validate_storage_key
 
 
@@ -13,9 +21,41 @@ def _stable_id(namespace: str, value: str) -> str:
 class MockSmsProvider:
     """Development provider that records no phone number or verification code."""
 
-    async def send_verification_code(self, *, phone_hash: str, code: str) -> str:
-        del code
-        return f"local-sms-{_stable_id('sms', phone_hash)}"
+    async def send_verification_code(
+        self,
+        *,
+        destination_phone: str,
+        verification_code: str,
+        request_reference: str,
+    ) -> str:
+        del destination_phone, verification_code
+        return f"local-sms-{_stable_id('sms', request_reference)}"
+
+
+class MockAgeAssuranceProvider:
+    """Deterministic test-only age provider that retains no credential plaintext."""
+
+    def __init__(self, *, fixture_statuses: Mapping[str, AgeAssuranceStatus] | None = None) -> None:
+        self._fixture_statuses = dict(fixture_statuses or {})
+
+    @staticmethod
+    def fixture_credential_key(credential: str) -> str:
+        """Create a non-plaintext key for an explicit test fixture mapping."""
+
+        return _stable_id("age-credential", credential)
+
+    async def verify_credential(
+        self, *, credential: str, request_reference: str
+    ) -> AgeAssuranceResult:
+        status = self._fixture_statuses.get(
+            self.fixture_credential_key(credential), "indeterminate"
+        )
+        return AgeAssuranceResult(
+            status=status,
+            provider_reference=f"mock-age-{_stable_id('age-reference', request_reference)}",
+            provider_version="mock-age-v1",
+            policy_version="mock-policy-v1",
+        )
 
 
 class LocalObjectStorageProvider:

@@ -62,6 +62,9 @@
 - PostgreSQL-specific invariant 与 migration 只能由真实 PostgreSQL 验证；SQLite、内存数据库和 Mock DB 不能作为通过证据。
 - Worker 的 Domain/Application 逻辑不得依赖 Celery；Celery 只是 Linux 生产 Task Adapter，Windows 使用 `LocalTaskRunner` 或开发专用 solo 方式。
 - FastAPI/Pydantic → OpenAPI → generated TypeScript client 是单向契约链，禁止长期双写接口类型。
+- 重大第三方组件必须经过 OSS 评估、完整依赖链许可证审查和 Principal 批准；代码许可证不得替代模型、权重与数据集许可证结论。
+- Terra 发现候选组件时只能报告 `THIRD_PARTY_CANDIDATE_FOUND`，不得自行安装依赖、下载权重、接受条款或围绕候选重构架构。
+- 模型与数据资产必须登记来源、版本、校验和、许可证、用途和批准状态；未获批准的权重不得进入 Git、CI 或生产镜像。
 
 ## C. Research Hypotheses 与 Operational Targets
 

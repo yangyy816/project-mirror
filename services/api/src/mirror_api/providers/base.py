@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from datetime import datetime
+from typing import Literal, Protocol
 
 
 @dataclass(frozen=True)
@@ -37,8 +38,42 @@ class PaymentCommand:
     idempotency_key_hash: str
 
 
+AgeAssuranceStatus = Literal["verified", "not_verified", "indeterminate"]
+
+
+@dataclass(frozen=True)
+class AgeAssuranceResult:
+    """The minimum age-assurance conclusion permitted outside a provider boundary."""
+
+    status: AgeAssuranceStatus
+    provider_reference: str
+    provider_version: str
+    policy_version: str
+    expires_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        if self.status not in ("verified", "not_verified", "indeterminate"):
+            raise ValueError(
+                "age assurance status must be verified, not_verified, or indeterminate"
+            )
+
+
 class SmsProvider(Protocol):
-    async def send_verification_code(self, *, phone_hash: str, code: str) -> str: ...
+    async def send_verification_code(
+        self,
+        *,
+        destination_phone: str,
+        verification_code: str,
+        request_reference: str,
+    ) -> str:
+        """Send an OTP and return the provider message identifier."""
+
+
+class AgeAssuranceProvider(Protocol):
+    async def verify_credential(
+        self, *, credential: str, request_reference: str
+    ) -> AgeAssuranceResult:
+        """Exchange an external credential for a minimum 18+ assurance result."""
 
 
 class ObjectStorageProvider(Protocol):

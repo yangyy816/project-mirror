@@ -203,133 +203,6 @@ export interface components {
             /** Intent */
             intent?: string | null;
         };
-        /** Settings */
-        Settings: {
-            /**
-             * App Env
-             * @default development
-             * @enum {string}
-             */
-            app_env: "development" | "test" | "ci" | "production";
-            /**
-             * App Version
-             * @default 0.1.0
-             */
-            app_version: string;
-            /**
-             * Log Level
-             * @default INFO
-             */
-            log_level: string;
-            /**
-             * Debug
-             * @default false
-             */
-            debug: boolean;
-            /**
-             * Database Url
-             * @default postgresql+psycopg://mirror:mirror_dev_only@127.0.0.1:5432/mirror
-             */
-            database_url: string;
-            /**
-             * Redis Url
-             * @default redis://127.0.0.1:6379/0
-             */
-            redis_url: string;
-            /** Cors Origins */
-            cors_origins?: string[];
-            /**
-             * Auth Token Secret
-             * @default development-only-not-for-production
-             */
-            auth_token_secret: string;
-            /**
-             * Auth Callback Url
-             * @default http://127.0.0.1:3000/auth/callback
-             */
-            auth_callback_url: string;
-            /**
-             * Sms Provider
-             * @default mock
-             * @enum {string}
-             */
-            sms_provider: "mock" | "tencent";
-            /**
-             * Storage Provider
-             * @default local
-             * @enum {string}
-             */
-            storage_provider: "local" | "tencent_cos";
-            /**
-             * Local Storage Root
-             * Format: path
-             * @default .local-storage
-             */
-            local_storage_root: string;
-            /**
-             * Object Storage Private
-             * @default true
-             */
-            object_storage_private: boolean;
-            /**
-             * Signed Url Ttl Seconds
-             * @default 300
-             */
-            signed_url_ttl_seconds: number;
-            /**
-             * Vision Provider
-             * @default mock
-             * @enum {string}
-             */
-            vision_provider: "mock" | "disabled" | "verified_external" | "tencent_candidate";
-            /**
-             * Image Generation Provider
-             * @default mock
-             * @enum {string}
-             */
-            image_generation_provider: "mock" | "disabled" | "verified_external" | "tencent_candidate";
-            /**
-             * Agent Provider
-             * @default mock
-             * @enum {string}
-             */
-            agent_provider: "mock" | "disabled" | "verified_external" | "tencent_candidate";
-            /**
-             * Task Runner
-             * @default local
-             * @enum {string}
-             */
-            task_runner: "local" | "celery";
-            /**
-             * Sensitive Processing Enabled
-             * @default false
-             */
-            sensitive_processing_enabled: boolean;
-            /**
-             * Legal Review Status
-             * @default required
-             * @enum {string}
-             */
-            legal_review_status: "required" | "approved";
-            /**
-             * Provider Benchmark Status
-             * @default required
-             * @enum {string}
-             */
-            provider_benchmark_status: "required" | "approved";
-            /** Tencent Secret Id */
-            tencent_secret_id?: string | null;
-            /** Tencent Secret Key */
-            tencent_secret_key?: string | null;
-            /** Tencent Region */
-            tencent_region?: string | null;
-            /** Tencent Cos Bucket */
-            tencent_cos_bucket?: string | null;
-            /** Tencent Sms App Id */
-            tencent_sms_app_id?: string | null;
-            /** Tencent Sms Sign Name */
-            tencent_sms_sign_name?: string | null;
-        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -468,11 +341,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["Settings"] | null;
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -481,15 +350,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

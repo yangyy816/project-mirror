@@ -9,6 +9,13 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "test", "ci", "production"]
+AuthProvider = Literal["mock", "disabled", "verified_external"]
+ProviderVerificationStatus = Literal["unverified", "verified"]
+GateStatus = Literal["required", "approved"]
+RateLimiterBackend = Literal["fake", "redis"]
+
+DEFAULT_AUTH_JWT_KEYRING = {"dev-v1": "development-only-not-for-production"}
+DEFAULT_AUTH_HMAC_KEYRING = {"dev-v1": "development-only-hmac-not-for-production"}
 
 
 class Settings(BaseSettings):
@@ -30,6 +37,30 @@ class Settings(BaseSettings):
     )
     auth_token_secret: str = "development-only-not-for-production"  # noqa: S105
     auth_callback_url: str = "http://127.0.0.1:3000/auth/callback"
+    auth_jwt_issuer: str = "project-mirror-api"
+    auth_jwt_audience: str = "mirror-web"
+    auth_jwt_keyring: dict[str, str] = Field(
+        default_factory=lambda: DEFAULT_AUTH_JWT_KEYRING.copy()
+    )
+    auth_jwt_active_kid: str = "dev-v1"
+    auth_hmac_keyring: dict[str, str] = Field(
+        default_factory=lambda: DEFAULT_AUTH_HMAC_KEYRING.copy()
+    )
+    auth_hmac_active_kid: str = "dev-v1"
+    auth_access_token_ttl_seconds: int = Field(default=300, ge=60, le=300)
+    auth_refresh_token_ttl_seconds: int = Field(default=2_592_000, ge=86_400, le=2_592_000)
+    auth_otp_ttl_seconds: int = Field(default=300, ge=60, le=900)
+    auth_otp_attempt_limit: int = Field(default=5, ge=1, le=10)
+    auth_refresh_cookie_name: str = "mirror_refresh"
+    registration_enabled: bool = False
+    age_assurance_provider: AuthProvider = "mock"
+    age_assurance_provider_status: ProviderVerificationStatus = "unverified"
+    registration_security_gate_status: GateStatus = "required"
+    rate_limiter_backend: RateLimiterBackend = "fake"
+    auth_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3_600)
+    auth_rate_limit_phone_limit: int = Field(default=5, ge=1, le=100)
+    auth_rate_limit_ip_limit: int = Field(default=20, ge=1, le=1_000)
+    auth_rate_limit_device_limit: int = Field(default=10, ge=1, le=1_000)
 
     sms_provider: Literal["mock", "tencent"] = "mock"
     storage_provider: Literal["local", "tencent_cos"] = "local"
@@ -79,6 +110,7 @@ class Settings(BaseSettings):
                     self.vision_provider,
                     self.image_generation_provider,
                     self.agent_provider,
+                    self.age_assurance_provider,
                 )
             ):
                 raise ValueError("test and ci require deterministic mock providers")
@@ -113,13 +145,20 @@ class Settings(BaseSettings):
             failures.append("Phase 0 production AI providers must remain disabled")
         if self.sensitive_processing_enabled:
             failures.append("Phase 0 forbids production sensitive processing")
-        if self.legal_review_status != "required" or self.provider_benchmark_status != "required":
-            failures.append("Phase 0 gates cannot be marked approved")
-        if len(self.auth_token_secret) < 32 or any(
-            marker in self.auth_token_secret.lower()
-            for marker in ("development", "default", "change-me", "password")
+        if not self.registration_enabled and (
+            self.legal_review_status != "required" or self.provider_benchmark_status != "required"
         ):
+            failures.append("Phase 0 gates cannot be marked approved")
+        if self._is_weak_secret(self.auth_token_secret):
             failures.append("secure non-default auth token secret required")
+        if self.auth_jwt_active_kid not in self.auth_jwt_keyring:
+            failures.append("active JWT key id must exist in JWT keyring")
+        if self.auth_hmac_active_kid not in self.auth_hmac_keyring:
+            failures.append("active HMAC key id must exist in HMAC keyring")
+        if any(self._is_weak_secret(secret) for secret in self.auth_jwt_keyring.values()):
+            failures.append("secure non-default JWT keyring required")
+        if any(self._is_weak_secret(secret) for secret in self.auth_hmac_keyring.values()):
+            failures.append("secure non-default HMAC keyring required")
         callback = urlparse(self.auth_callback_url)
         if callback.scheme != "https" or callback.hostname in {"localhost", "127.0.0.1"}:
             failures.append("HTTPS production callback required")
@@ -137,8 +176,28 @@ class Settings(BaseSettings):
             "tencent_sms_sign_name": self.tencent_sms_sign_name,
         }
         failures.extend(f"missing {name}" for name, value in required.items() if not value)
+        if self.registration_enabled:
+            if self.rate_limiter_backend != "redis":
+                failures.append("registration requires Redis rate limiting")
+            if self.sms_provider == "mock":
+                failures.append("registration forbids mock SMS provider")
+            if self.age_assurance_provider != "verified_external":
+                failures.append("registration requires verified age provider")
+            if self.age_assurance_provider_status != "verified":
+                failures.append("registration requires verified age provider status")
+            if self.registration_security_gate_status != "approved":
+                failures.append("registration security gate must be approved")
+            if self.legal_review_status != "approved":
+                failures.append("registration legal review must be approved")
         if failures:
             raise ValueError("unsafe production configuration: " + "; ".join(failures))
+
+    @staticmethod
+    def _is_weak_secret(secret: str) -> bool:
+        return len(secret) < 32 or any(
+            marker in secret.lower()
+            for marker in ("development", "default", "change-me", "password", "example")
+        )
 
 
 @lru_cache

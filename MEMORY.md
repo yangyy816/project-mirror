@@ -37,6 +37,10 @@
 - Project Mirror 使用项目级 `.codex` 定义专属 subagents：规划与最终审查使用 Sol High，边界明确的执行/测试/安全角色使用 Terra High；未指定 subagent 默认 Terra High，不覆盖主交互模型、不固定并发数、不修改全局 Codex 配置。
 - 执行状态统一为 `PROVISIONAL → COMMITTED → EXECUTION_READY → EXECUTING → PASS → FROZEN`；Phase 0 已 FROZEN，Phase 1 COMMITTED，P1-M1 已获授权进入 EXECUTING。
 - Terra 只能实现 Principal 已批准的架构；新架构决策必须停止并上报。计划外实现缺陷使用 `P1-M1-Rxx` 最小 Repair Task，架构变化不得包装成 Repair Task。
+- OSS 复用原则为“复用通用基础设施，保留个性化智能”：重大第三方组件必须分别审查代码、模型/权重、数据与传递依赖许可证，并通过 Principal change control；Terra 只能报告候选，不得自行安装、下载权重或接受条款。
+- Identity-Preserving Makeup Transfer 已提升为 P6 Hybrid Editor 的一级高优先级研究轨道，与 Deterministic、Geometry、Generative Editor 和 Agent Tool Layer 并列；其未来链路为 Reference Makeup Understanding → MakeupStyleRepresentation → StyleProfile personalization → Structured MakeupPlan → region execution → identity/geometry verification → user correction → PreferenceEvent。
+- Stable-Makeup 是高优先级研究参考，生产采用需完整依赖许可证审查；FLUX-Makeup 具有高算法/评估价值，但其被报告的受限 foundation-model 依赖在权威复核和商业清除前使直接生产路径保持 `PRODUCTION_BLOCKED`。
+- 当前 P1-M1 不因 OSS/Makeup 研究增补发生变化：不新增依赖、模型资产或未来 bounded tasks；P6 到达 rolling-wave planning 时再确定独立研究 Milestone 与 GO/NO-GO/FURTHER_RESEARCH Gate。
 
 ## 长期产品与数据边界
 
@@ -119,3 +123,4 @@
 - 2026-08-15：审计提交 `f9398304b1a313540d80db701806d845f046bbb8` 的 run `31872379668` 与 annotated tag `phase0-baseline` 的 run `31872550234` 均三 jobs 全绿；tag 指向该审计提交，Phase 0 已冻结。
 - 2026-08-15：为后续开发新增 8 个项目级 Codex 角色与 Terra High 默认 subagent；Codex CLI 0.148.0-alpha.9 严格解析和三角色只读 smoke 通过，未进入 Phase 1。
 - 2026-08-15：P1-M1 获正式执行授权；不重跑 Master Planning，只追加统一状态机、Terra 架构权限边界和 `P1-M1-Rxx` Repair Task 协议，并明确不得进入 P1-M2。
+- 2026-08-15：通过 Principal change control 登记 OSS/AI 供应链治理，并将 Identity-Preserving Makeup Transfer 提升为未来 P6 一级研究轨道；未改变 P1-M1 DAG，未添加依赖、权重或模型资产。

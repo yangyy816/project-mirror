@@ -29,3 +29,11 @@ Metric contract 比较 provisional synthetic DesiredDelta 与未来 self-transfe
 ## Anti-Homogenization
 
 长期 Gate 至少覆盖：不同 baseline + 相同 delta 保持不同绝对 target；相同问卷回答不坍缩；无 evidence 时 delta≈0/high uncertainty；cross-user target diversity；人口先验无法写入 target geometry；identity anchor 保持。
+
+## Identity-Preserving Makeup Transfer（P6 future Gate）
+
+P6 必须在同一套成年合成身份 benchmark 上比较确定性区域/颜色迁移、经典方法、Stable-Makeup-inspired、许可允许的 FLUX-Makeup research baseline、通用图像编辑模型、商业许可候选以及 hybrid pipeline。早期研究不得使用私有真实用户照片。
+
+最低评估维度为：身份保持、非请求几何保持、参考妆容忠实度、区域准确性、皮肤纹理保持、伪影率、姿态鲁棒性、光照鲁棒性、强度单调可控性和用户偏好对齐。身份保持与显式约束是硬约束，优先级高于参考妆容忠实度；任何静默几何漂移、feature-lock 违反或非目标区域变化都必须使候选结果失败。
+
+自动指标不能替代用户证据。用户对结果的接受、拒绝和区域级纠正可在 P7 形成 `PreferenceEvent`；模型生成结果本身不得进入长期学习。阈值、指标与最终 `MakeupPlan` schema 在 P6 研究获得证据前保持未冻结。

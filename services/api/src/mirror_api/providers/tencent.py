@@ -12,9 +12,21 @@ def _not_verified(capability: str) -> NoReturn:
 
 
 class TencentSmsProvider:
-    async def send_verification_code(self, *, phone_hash: str, code: str) -> str:
-        del phone_hash, code
+    async def send_verification_code(
+        self,
+        *,
+        destination_phone: str,
+        verification_code: str,
+        request_reference: str,
+    ) -> str:
+        del destination_phone, verification_code, request_reference
         _not_verified("SMS")
+
+
+class TencentAgeAssuranceCandidateProvider:
+    async def verify_credential(self, *, credential: str, request_reference: str) -> NoReturn:
+        del credential, request_reference
+        _not_verified("age assurance")
 
 
 class TencentCosProvider:

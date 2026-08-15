@@ -1,4 +1,7 @@
 from mirror_api.providers.base import (
+    AgeAssuranceProvider,
+    AgeAssuranceResult,
+    AgeAssuranceStatus,
     AgentProvider,
     ImageGenerationProvider,
     ObjectStorageProvider,
@@ -8,6 +11,9 @@ from mirror_api.providers.base import (
 )
 
 __all__ = [
+    "AgeAssuranceProvider",
+    "AgeAssuranceResult",
+    "AgeAssuranceStatus",
     "AgentProvider",
     "ImageGenerationProvider",
     "ObjectStorageProvider",

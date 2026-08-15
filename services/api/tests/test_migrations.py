@@ -37,6 +37,23 @@ def test_initial_migration_contains_v02_entities_and_no_superseded_placeholders(
     assert "geometry_preferences" not in migration
 
 
+def test_identity_auth_migration_uses_metadata_index_names() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "0002_identity_auth_foundation.py"
+    ).read_text(encoding="utf-8")
+    for index_name in (
+        "ix_phone_verification_challenges_invite_code_id",
+        "ix_invite_redemptions_invite_code_id",
+        "ix_invite_redemptions_user_id",
+        "ix_age_assurance_records_user_id",
+        "ix_policy_acceptance_records_user_id",
+    ):
+        assert migration.count(f'"{index_name}"') == 2
+
+
 def test_upgrade_downgrade_reupgrade_and_schema_consistency(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

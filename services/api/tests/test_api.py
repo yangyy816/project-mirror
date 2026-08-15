@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
+import mirror_api.dependencies as dependencies
+from mirror_api.config import Settings
 from mirror_api.main import app
 
 
@@ -84,3 +87,26 @@ def test_openapi_contains_inactive_self_conditioned_domain_contracts() -> None:
         "QuestionnaireRunContextContract",
     } <= set(models)
     assert all("race" not in json.dumps(model).lower() for model in models.values())
+
+
+def test_ready_openapi_has_no_public_settings_request_body() -> None:
+    schema = app.openapi()
+    ready_operation = schema["paths"]["/health/ready"]["get"]
+
+    assert "requestBody" not in ready_operation
+    assert "Settings" not in schema["components"]["schemas"]
+
+
+@pytest.mark.asyncio
+async def test_dependency_probe_accepts_explicit_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def available_redis(_: str) -> str:
+        return "available"
+
+    monkeypatch.setattr(dependencies, "_probe_database", lambda _: "available")
+    monkeypatch.setattr(dependencies, "_probe_redis", available_redis)
+
+    status = await dependencies.probe_dependencies(
+        Settings(database_url="postgresql+psycopg://test", redis_url="redis://test")
+    )
+
+    assert status.ready

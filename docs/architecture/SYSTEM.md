@@ -58,3 +58,27 @@ flowchart LR
 ## 非破坏式编辑
 
 Original Asset → EditingSession → ImageVersion DAG → EditOperation 序列 → Renderer → QA → 新 Derived Asset。Undo、Redo、Fork 和 Compare 都通过版本图实现，不覆盖原始 blob。
+
+## P6 Hybrid Editor 能力分层（未来研究边界）
+
+```mermaid
+flowchart TB
+  P5["P5 DesiredDelta / Reference Profile"] --> P6["P6 Hybrid Editor + Agent Runtime"]
+  P6 --> D["Deterministic Editor"]
+  P6 --> G["Geometry Editor"]
+  P6 --> I["Generative Editor"]
+  P6 --> M["Identity-Preserving Makeup Transfer"]
+  P6 --> T["Agent Tool Layer"]
+  M --> U["Reference Makeup Understanding"]
+  U --> R["MakeupStyleRepresentation"]
+  R --> S["StyleProfile Personalization"]
+  S --> P["Structured MakeupPlan"]
+  P --> X["Region-level Execution"]
+  X --> V["Identity / Geometry Verification"]
+  V --> C["User Correction"]
+  C --> E["P7 PreferenceEvent"]
+```
+
+Identity-Preserving Makeup Transfer 是 P6 的一级高优先级研究轨道，不是 `Generative Editor` 内一个不透明的一键函数。它必须把参考人物身份与妆容表示分离，并在 `SelfState`、`StyleProfile`、`DesiredDeltaProfile`、`IdentityConstraints`、显式锁和当前指令共同约束下生成可解释、区域化的 `MakeupPlan`。
+
+妆容操作与几何操作必须分域。除非 `EditPlan` 明确包含几何修改，妆容执行不得改变脸宽、下颌、眼距、眼睛大小、鼻或嘴部几何；可通过妆容实现的感知变化也不得静默改写 `DesiredDeltaProfile`。结果必须先通过身份、非目标几何、区域、纹理和伪影验证，再进入版本图。最终用户纠正可形成 `PreferenceEvent`，模型自产结果本身不能形成长期证据。
