@@ -10,6 +10,7 @@ from fastapi.openapi.utils import get_openapi
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from mirror_api.asset_access_dependencies import create_asset_access_infrastructure
+from mirror_api.asset_deletion_dependencies import create_asset_deletion_infrastructure
 from mirror_api.auth_dependencies import create_auth_infrastructure
 from mirror_api.config import get_settings
 from mirror_api.errors import (
@@ -53,6 +54,11 @@ def create_app() -> FastAPI:
         sessions=auth_infrastructure.sessions,
         storage=object_storage_provider,
     )
+    asset_deletion_infrastructure = create_asset_deletion_infrastructure(
+        settings=settings,
+        sessions=auth_infrastructure.sessions,
+        storage=object_storage_provider,
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -74,6 +80,7 @@ def create_app() -> FastAPI:
     app.state.upload_control_infrastructure = upload_control_infrastructure
     app.state.ingestion_infrastructure = ingestion_infrastructure
     app.state.asset_access_infrastructure = asset_access_infrastructure
+    app.state.asset_deletion_infrastructure = asset_deletion_infrastructure
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

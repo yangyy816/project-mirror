@@ -5,12 +5,19 @@ import secrets
 from typing import Any
 
 from celery import Celery
+from mirror_api.asset_deletion.service import RetryableAssetDeletionFailure
+from mirror_api.asset_deletion.task_contract import AssetDeletionTaskMessage
 from mirror_api.config import get_settings
 from mirror_api.ingestion.task_contract import IngestionTaskMessage
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
 from mirror_worker.ingestion import RetryableWorkerFailure
-from mirror_worker.runtime import run_cleanup_sweep, run_ingestion_message, run_reconciliation
+from mirror_worker.runtime import (
+    run_asset_deletion_message,
+    run_cleanup_sweep,
+    run_ingestion_message,
+    run_reconciliation,
+)
 
 settings = get_settings()
 celery_app = Celery("mirror-worker", broker=settings.redis_url, backend=settings.redis_url)
@@ -28,6 +35,7 @@ celery_app.conf.update(
         "mirror.asset_ingestion.process": {"queue": "mirror.ingestion"},
         "mirror.asset_ingestion.cleanup": {"queue": "mirror.maintenance"},
         "mirror.asset_ingestion.reconcile": {"queue": "mirror.maintenance"},
+        "mirror.asset_deletion.process": {"queue": "mirror.maintenance"},
     },
 )
 
@@ -111,6 +119,24 @@ def reconcile_asset_ingestion(*, request_id: str, limit: int = 100) -> list[str]
         raise RetryableWorkerFailure("ingestion reconciliation failed transiently") from exc
 
 
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.asset_deletion.process",
+    autoretry_for=(RetryableAssetDeletionFailure,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=120,
+    time_limit=150,
+    **INGESTION_RETRY_POLICY,
+)
+def process_asset_deletion(message: dict[str, Any]) -> dict[str, str]:
+    try:
+        return asyncio.run(run_asset_deletion_message(message))
+    except RetryableAssetDeletionFailure:
+        raise
+    except Exception as exc:
+        raise RetryableAssetDeletionFailure("asset deletion execution failed transiently") from exc
+
+
 class CeleryTaskDispatcher:
     def dispatch(self, envelope: TaskEnvelope) -> str:
         envelope.validate()
@@ -128,5 +154,15 @@ class CeleryTaskDispatcher:
             task_id=secrets.token_hex(16),
             headers={"request_id": message.request_id, "job_id": message.job_id},
             queue="mirror.ingestion",
+        )
+        return message.job_id
+
+    def dispatch_asset_deletion(self, message: AssetDeletionTaskMessage) -> str:
+        message.validate()
+        process_asset_deletion.apply_async(
+            args=[message.to_message()],
+            task_id=secrets.token_hex(16),
+            headers={"request_id": message.request_id, "job_id": message.job_id},
+            queue="mirror.maintenance",
         )
         return message.job_id
