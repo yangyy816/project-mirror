@@ -7,8 +7,10 @@
 ## 主要威胁与控制
 
 - 未授权横向访问：对象 key 不可猜测、服务端归属校验、短时签名 URL、私有桶、访问审计。
-- 恶意上传：扩展/MIME/magic bytes、大小/像素、解码重编码、EXIF 清理、病毒/畸形检测和频率限制。
+- 恶意上传：不接受客户端文件名/扩展名作为信任输入；重新验证 MIME/magic、大小/像素/单帧/畸形与解压炸弹，并通过 canonical 解码重编码、metadata 清理和频率限制隔离 payload。通用 malware scanner 仅是未来 production defense-in-depth Gate，P1-M4 不伪造已执行病毒扫描。
 - 上传控制绕过：只有 active + exact purpose grant 可创建 owner-bound intent；key 由服务端生成，短时签名只允许精确 PUT 和声明约束。complete 只形成 quarantine `uploaded_unverified`，不能绕过 M4 晋升。
+- 摄入绕过与 decoder 攻击：只有 owner-bound authoritative Job 可读取 quarantine；实际 magic/format/MIME、单帧、raw byte、边长、像素和解压炸弹均重新验证。raw container 永不 server-side copy 为 Asset；只晋升经过 EXIF orientation、metadata 清除、canonical 重编码和二次解码验证的输出。
+- 异步双写与崩溃：PostgreSQL Job 是权威，Celery 采用 at-least-once。固定 sanitized key、create-if-absent、同 digest 验证、行锁、唯一 final evidence、stale lease recovery 和幂等 orphan/quarantine cleanup 防止重复 Asset 或半晋升。
 - 撤回竞态与迟到上传：withdrawal 立即禁止新签名并 tombstone 未晋升 intents；已签 URL 仅在短 TTL 内残余有效，迟到对象不可处理且必须删除。complete/cancel/withdraw 使用行锁和 event evidence。
 - 路径穿越与 SSRF：存储 key 严格语法；Provider 不接受用户给出的任意 URL。
 - 验证码滥用：手机号哈希索引、频率/设备/IP 限制、短有效期、尝试次数、一次消费、日志脱敏。
@@ -22,6 +24,7 @@
 - 内部滥用：最小权限、分权审批、后台访问审计、break-glass 告警和定期复核。
 - 日志泄露：字段白名单、手机号/Token/URL/Prompt/图片内容禁止记录。
 - 本地存储逃逸：Local ingress 仅非生产、write-only、tokenized；解析后的路径必须在固定 root 内，拒绝路径/软链接逃逸、oversize、MIME/checksum 不一致和 token replay。生产拒绝 Local。
+- Decoder 供应链：图片解析库是高风险 runtime dependency，必须锁定精确版本、许可证、wheel feature 和漏洞证据；不得由 Worker 调用 shell、ImageMagick CLI、任意动态插件或网络 decoder。原始异常和 metadata 不得进入日志/错误。
 
 ## 上线安全门
 

@@ -50,6 +50,24 @@ flowchart LR
 
 UploadIntent 与 append-only events 是隔离控制面，不是 Asset。对象 key 由服务端生成且不含用户标识；客户端不能提供路径、bucket 或任意 URL。M3 complete 只确认 Provider object metadata 并形成 `uploaded_unverified`，不解码、不分析、不创建 Job/Asset。授权撤回立即阻止新签名并 tombstone 未晋升 intents；已签 URL 的最大残余窗口受短 TTL 限制，迟到对象不可进入 M4 并由清理删除。
 
+## Safe Image Ingestion（P1-M4）
+
+`uploaded_unverified` 只能通过显式、owner-bound ingestion Job 进入 Worker。PostgreSQL Job 是权威状态，Celery/Local runner 只提供 at-least-once dispatch；消息只携带 job ID。Worker 在读取前和最终晋升事务中重复校验 actor、Consent、intent 状态与 TTL。
+
+```mermaid
+flowchart LR
+  U["uploaded_unverified"] --> J["Authoritative ingestion Job"]
+  J --> R["Bounded private read"]
+  R --> V["Magic / decode / limits"]
+  V --> S["EXIF transpose + metadata strip + canonical JPEG"]
+  S --> Q["Re-decode / hash / dimensions"]
+  Q --> P["Transactional promotion"]
+  P --> O["Immutable Original Asset"]
+  P --> E["Append-only ingestion evidence"]
+```
+
+Raw quarantine bytes 从不成为 Asset。sanitized object 先以固定 opaque key create-if-absent，随后由单一 PostgreSQL 事务创建 Original Asset、final evidence 和 promoted event。重复 delivery、Worker crash、对象写入后事务失败及事务成功后 raw cleanup 失败均通过唯一约束、同 key 同 digest 验证和幂等 reconciler/cleanup 恢复。P1-M4 不执行人脸、landmark、质量评分或 AI 分析。
+
 ## Agent Runtime
 
 Agent 的职责是 Understand → Plan → Call Tools → Verify → Explain → Learn。LLM 不得直接写数据库、访问 COS 或扣减额度。EditPlan 必须结构化，列出操作、参数、保持项、强度和验证条件。

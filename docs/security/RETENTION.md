@@ -12,6 +12,8 @@ Baseline 删除、Consent 撤回、账户删除、Baseline 替换、分析失效
 
 尚未晋升的 quarantine object 使用短 TTL。UploadIntent 过期、取消、用途授权撤回或账户冻结后立即失去处理资格并进入幂等清理；即使旧签名 URL 在 TTL 内收到迟到上传，也只能删除，不能恢复 intent 或晋升。Intent/Event 可按安全审计期限保留不含 URL、token、object bytes 的最小证据。
 
+新完成上传保存版本化 quarantine retention deadline；首个 operational target 为 1 小时且配置上限为 24 小时。成功晋升或 deterministic rejection 后立即请求删除 raw object；删除失败不得复制第二个 Asset，而由幂等 cleanup 重试。对象先写入但晋升事务未提交产生的 sanitized orphan 必须按 job/final evidence 对账删除。Original Asset 的保留与用户删除权在 P1-M5 建立，M4 不提供下载或恢复旁路。
+
 ## 导出
 
 导出包仅包含当前用户数据，使用一次性短时下载链接，生成与下载均审计。禁止导出内部风控信号、其他用户数据、供应商密钥或系统 Prompt。

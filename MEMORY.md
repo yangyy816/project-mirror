@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 1 — Application Foundation（COMMITTED）
-- 当前 Milestone：P1-M3 — Purpose Consent, Authorization and Private Upload Control Plane（FROZEN）
+- 当前 Milestone：P1-M4 — Safe Image Ingestion and Asset Lifecycle（EXECUTING）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -45,6 +45,7 @@
 - P1-M2-T06 经 Principal change control 允许 `@playwright/test@1.62.1` 作为 pinned test-only dev dependency；npm 元数据与包内 LICENSE 均为 Apache-2.0，Node 要求 `>=20`，不得进入生产 runtime 或调用真实 Provider。完整记录见 `docs/security/PLAYWRIGHT_ADOPTION.md`。
 - P7 的前向方向已升级为 `Visual Memory OS & Persistent Preference Learning`，状态保持 PROVISIONAL。用户确认的 Visual/Behavioral/Explicit Truth 是权威证据；AestheticProfile、图、向量/视觉索引、Memory Card 与 semantic/temporal/procedural views 均为可重建 materialized state。未保存的 AI 输出无长期权威，当前指令优先，删除必须传播到全部派生表示；不新增当前依赖、模型资产、schema、ADR 或 P7 tasks。完整方向见 `docs/architecture/VISUAL_MEMORY_OS.md`。
 - P1-M3 采用 ADR-018：政策接受与用途 Consent 分离；grant/withdrawal 和 UploadIntentEvent append-only；浏览器 ingress 先进入 owner-bound quarantine UploadIntent，绝不直接成为 Asset/Original。只有 active 且持精确有效用途授权的用户可获得一次性短时 upload grant；complete 仅形成 `uploaded_unverified`，M4 才负责解码、重编码、EXIF 清理和 Original 晋升。Local write-only ingress 只用于非生产合成 fixture，生产真实上传继续 fail closed。
+- P1-M4 采用 ADR-019：`complete` 保持 M3 的 `uploaded_unverified` 语义，另由显式 owner-bound ingestion Job 启动摄入；PostgreSQL Job 是权威，Celery/Local runner 只作 at-least-once Adapter。raw quarantine 永不成为 Asset；首版只接受单帧 JPEG/PNG/WebP，经 magic/decode/byte/边长/像素 Gate、EXIF orientation、metadata 清除、RGB/白底和版本化 canonical JPEG 重编码及二次解码后，才可在单一事务中创建一个 immutable Original Asset。Worker 在读取前和晋升前重复检查 active/Consent/TTL；固定输出 key、唯一 final evidence 和幂等 cleanup 处理重复 delivery 与对象/数据库双写故障。Pillow 只是 decoder 候选，必须先过独立供应链 Gate 和 Principal `THIRD_PARTY_APPROVED`。
 
 ## 长期产品与数据边界
 
@@ -150,3 +151,4 @@
 - 2026-08-16：P1-M3-T06 经 Principal 本地验收。ADR-018 七个 `/api/v1` Consent/UploadIntent 接口已接入真实 application services，响应不暴露 object key，grant URL/headers 仅出现在 create 响应，本地 PUT ingress 继续隐藏于 OpenAPI；旧 `/api/v1/assets` 501 stub 已移除。Auth/DB/Redis/storage 通过共享 infrastructure 注入，上传频率、并发 intent 与累计 bytes 可配置；OpenAPI 单向生成 TypeScript 零漂移。R05 补齐浏览器私有上传所需 PUT 与完整性/授权 CORS headers；HTTP 定向 23 项、完整 API 139 项、contracts Vitest/typecheck、52 个 Web tests 与 Next production build 通过。
 - 2026-08-16：P1-M3 candidate `26fe43213519cebd4eda157b46035cc0beb43cc5` 经 Principal Gate PASS。全新 PostgreSQL migration lifecycle、145 项 Python/Redis/Celery、`pnpm check`、3 项 Playwright、全镜像/五服务、供应链和精确 index Gitleaks 均通过；R06 仅补齐 Worker 生产 fixture 的非零 purpose policy digest。远端 run `31897237022` 的 `quality-and-integration`、`secret-scan`、`docker-validation` 与三项 artifacts 全绿；P1-M3 状态为 PASS，等待 acceptance closure CI 后 FROZEN。
 - 2026-08-16：P1-M3 acceptance closure `05c9f00d88d3b647060ef60012c284d710252bb3` 的远端 run `31897780247` 三个 jobs 全绿，并生成 `project-audit-evidence`、`project-docker-evidence` 与零结果 Gitleaks SARIF；Principal 将 P1-M3 前向更新为 FROZEN，下一步只对 P1-M4 做 rolling-wave refinement。
+- 2026-08-16：P1-M3 最终冻结状态提交 `f6da0101aa7ac87479380b1dae9b4f0361a6b406` 的 run `31898073537` 三个 jobs 全绿，并产出三项未过期 artifacts；从该 SHA 创建 `codex/phase1-m4-safe-ingestion`。P1-M4 rolling-wave refinement 通过 ADR-019 与执行协议冻结显式 Job、decoder/sanitizer、双重授权检查、幂等晋升、crash recovery、quarantine/orphan cleanup 与 M5 边界；实现前先执行 decoder 供应链 Gate。
