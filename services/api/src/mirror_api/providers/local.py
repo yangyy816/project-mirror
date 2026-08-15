@@ -122,9 +122,14 @@ class LocalObjectStorageProvider:
         )
         async with self._lock:
             self._download_grants[grant_id] = state
+        route = (
+            "_local/private-export-download"
+            if DATA_EXPORT_KEY.fullmatch(object_key)
+            else "_local/private-download"
+        )
         return PrivateDownloadGrant(
             method="GET",
-            url=f"{self._base_url}/_local/private-download/{grant_id}",
+            url=f"{self._base_url}/{route}/{grant_id}",
             required_headers=MappingProxyType({DOWNLOAD_AUTHORIZATION_HEADER: proof}),
             expires_at=expires_at,
         )

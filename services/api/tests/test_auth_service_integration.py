@@ -15,6 +15,7 @@ from mirror_api.models import InviteCode, User, UserSession, new_id
 from mirror_api.providers.base import AgeAssuranceProvider, AgeAssuranceResult
 from mirror_api.providers.mock import MockAgeAssuranceProvider
 from mirror_api.rate_limit import FakeRateLimiter
+from mirror_api.security import issue_access_token
 
 pytestmark = pytest.mark.integration
 
@@ -118,6 +119,77 @@ def build_service(
         allow_new_registrations=allow_new_registrations,
         now=now,
     )
+
+
+@pytest.mark.asyncio
+async def test_account_deletion_status_auth_is_narrow_and_does_not_restore_session() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("NOT VERIFIED LOCALLY: TEST_DATABASE_URL PostgreSQL is unavailable")
+    now = datetime.now(UTC) - timedelta(seconds=1)
+    engine = create_async_engine(database_url)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    service = build_service(sessions, RecordingSmsProvider(), now=lambda: now)
+    user = User(id=new_id(), phone_hash="d" * 128, status="deletion_requested")
+    session_row = UserSession(
+        id=new_id(),
+        user_id=user.id,
+        family_id=new_id(),
+        token_id="e" * 64,
+        refresh_token_hash="f" * 128,
+        refresh_key_id="fixture-v1",
+        expires_at=now + timedelta(days=1),
+        revoked_at=now,
+        revocation_reason="account_deletion",
+        created_at=now,
+    )
+    token = issue_access_token(
+        subject=user.id,
+        session_id=session_row.id,
+        scope="active",
+        keyring={"fixture-v1": "j" * 64},
+        active_key_id="fixture-v1",
+        issuer="mirror-test",
+        audience="mirror-web",
+        now=now,
+    )
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(text("TRUNCATE TABLE users CASCADE"))
+        async with sessions() as session:
+            session.add(user)
+            await session.commit()
+            session.add(session_row)
+            await session.commit()
+
+        with pytest.raises(AuthFailure):
+            await service.authenticate_access_token(access_token=token)
+        actor = await service.authenticate_account_deletion_status_token(access_token=token)
+        assert actor.user_id == user.id
+        assert actor.session_id == session_row.id
+        assert actor.scope == "deletion_status"
+
+        async with sessions() as session:
+            persisted = await session.get(UserSession, session_row.id)
+            assert persisted is not None
+            persisted.revocation_reason = "logout"
+            await session.commit()
+        with pytest.raises(AuthFailure):
+            await service.authenticate_account_deletion_status_token(access_token=token)
+
+        async with sessions() as session:
+            persisted = await session.get(UserSession, session_row.id)
+            persisted_user = await session.get(User, user.id)
+            assert persisted is not None and persisted_user is not None
+            persisted.revocation_reason = "account_deletion"
+            persisted_user.status = "active"
+            await session.commit()
+        with pytest.raises(AuthFailure):
+            await service.authenticate_account_deletion_status_token(access_token=token)
+    finally:
+        async with engine.begin() as connection:
+            await connection.execute(text("TRUNCATE TABLE users CASCADE"))
+        await engine.dispose()
 
 
 @pytest.mark.asyncio

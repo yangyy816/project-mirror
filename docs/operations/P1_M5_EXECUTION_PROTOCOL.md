@@ -112,3 +112,10 @@ Exit:
 - Allowed repair: add forward-only `0007_account_quarantine_evidence` with an owner-bound `target_upload_intent_id`, a `quarantine` object kind allowed only under account-deletion authority, one evidence row per authority and target, and PostgreSQL negative invariants for cross-owner or invalid-authority use.
 - Forbidden: modifying `0001`–`0006`, changing account-deletion authority, adding new public APIs, retaining raw bytes, or treating a pre-expiry delete as final evidence.
 - Validation: `0007 → 0006 → 0007`, Alembic drift, real PostgreSQL append-only/owner/authority tests, late-upload safety test, Ruff and strict mypy.
+
+### CC-P1-M5-02 — Narrow post-admission deletion-status authorization
+
+- Status: `ACCEPTED`
+- Reason: immediate session-family revocation otherwise makes the accepted `GET /api/v1/users/me/deletion-requests/current` contract permanently unreachable after admission.
+- Decision: only this read-only endpoint may accept the still-unexpired access JWT of a family revoked specifically for `account_deletion`, and only when the owner is `deletion_requested` or `deleted`. It cannot refresh, issue credentials, restore a session or authorize any other endpoint.
+- Validation: ordinary endpoints and refresh reject the revoked family; wrong revocation reason, active users, expired/tampered JWTs and cross-user claims fail closed; the status response exposes only request/job/status/timestamps.

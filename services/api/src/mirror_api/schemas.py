@@ -152,6 +152,51 @@ class IngestionJobResponse(StrictContractModel):
     finalized_at: datetime | None = None
 
 
+class AssetResponse(StrictContractModel):
+    asset_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    asset_role: Literal["original", "derived", "synthetic"]
+    mime_type: Literal["image/jpeg"]
+    byte_size: int = Field(gt=0)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    created_at: datetime
+
+
+class AssetListResponse(StrictContractModel):
+    assets: list[AssetResponse]
+
+
+class PrivateDownloadGrantResponse(StrictContractModel):
+    method: Literal["GET"]
+    url: str
+    required_headers: dict[str, str]
+    expires_at: datetime
+
+
+class AssetDeletionResponse(StrictContractModel):
+    deletion_request_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    job_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    status: Literal["requested", "processing", "completed", "failed"]
+
+
+class DataExportResponse(StrictContractModel):
+    export_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    job_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    status: Literal["requested", "processing", "ready", "failed", "expired"]
+    schema_version: Literal["mirror-data-export-v1"]
+    requested_at: datetime
+    ready_at: datetime | None = None
+    expires_at: datetime | None = None
+
+
+class AccountDeletionResponse(StrictContractModel):
+    deletion_request_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    job_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    status: Literal["requested", "processing", "completed", "failed"]
+    requested_at: datetime
+    completed_at: datetime | None = None
+
+
 class SelfStateContract(StrictContractModel):
     id: str
     version: int = Field(gt=0)

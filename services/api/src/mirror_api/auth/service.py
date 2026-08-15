@@ -615,6 +615,45 @@ class AuthService:
                 scope=scope,
             )
 
+    async def authenticate_account_deletion_status_token(
+        self, *, access_token: str
+    ) -> AuthenticatedActor:
+        """Authorize only deletion-status reads after account-driven session revocation."""
+        try:
+            claims = verify_access_token(
+                access_token,
+                keyring=self._jwt_keyring,
+                issuer=self._jwt_issuer,
+                audience=self._jwt_audience,
+            )
+            user_id = claims["sub"]
+            session_id = claims["sid"]
+            scope = claims["scope"]
+        except (KeyError, SecurityValidationError) as exc:
+            raise AuthFailure() from exc
+        if not all(isinstance(value, str) for value in (user_id, session_id, scope)):
+            raise AuthFailure()
+        async with self._sessions() as session:
+            user = await session.get(User, user_id)
+            current_session = await session.get(UserSession, session_id)
+            if (
+                user is None
+                or current_session is None
+                or current_session.user_id != user.id
+                or current_session.revoked_at is None
+                or current_session.revocation_reason != "account_deletion"
+                or current_session.expires_at < self._now()
+                or user.status not in ("deletion_requested", "deleted")
+                or scope != "active"
+            ):
+                raise AuthFailure()
+            return AuthenticatedActor(
+                user_id=user.id,
+                session_id=current_session.id,
+                status=user.status,
+                scope="deletion_status",
+            )
+
     def required_policy(self, *, code: str, version: str, digest: str) -> PolicyRequirement:
         """Return an approved policy requirement, otherwise fail closed."""
         for requirement in self._required_policies:

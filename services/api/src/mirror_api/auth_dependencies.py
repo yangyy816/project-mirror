@@ -133,6 +133,19 @@ async def get_current_actor(
         raise _auth_failure(exc) from exc
 
 
+async def get_account_deletion_status_actor(
+    auth_service: AuthService = Depends(get_auth_service),
+    authorization: str | None = Header(default=None),
+) -> AuthenticatedActor:
+    scheme, _, token = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise _auth_failure(AuthFailure())
+    try:
+        return await auth_service.authenticate_account_deletion_status_token(access_token=token)
+    except AuthFailure as exc:
+        raise _auth_failure(exc) from exc
+
+
 def _verify_csrf(
     request: Request, settings: Settings, *, require_refresh_cookie: bool
 ) -> str | None:

@@ -25,6 +25,7 @@ from mirror_api.ingestion_dependencies import create_ingestion_infrastructure
 from mirror_api.middleware import LocalUploadAccessLogRedactionMiddleware, RequestIDMiddleware
 from mirror_api.routers import (
     auth_router,
+    data_rights_router,
     health_router,
     ingestion_router,
     local_upload_router,
@@ -115,6 +116,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(upload_control_router)
     app.include_router(ingestion_router)
+    app.include_router(data_rights_router)
     app.include_router(local_upload_router)
     app.include_router(stubs_router)
 

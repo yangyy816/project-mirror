@@ -44,6 +44,7 @@ P1-M4 can promote a safe canonical object into an immutable Original Asset, but 
 - The Worker tombstones pending upload/ingestion work, withdraws active purpose grants through append-only evidence, deletes owned objects/exports and irreversibly disconnects direct account lookup material. Minimal legally required audit/financial/security facts may remain only in isolated, de-identified form.
 - Physical deletion follows dependency order and writes append-only completion evidence. No API may report completion until storage and database propagation evidence agree.
 - P1-M5 covers only Phase 1 entities that exist now. Future Questionnaire/Profile/Edit/Visual Memory phases must extend the propagation graph before their own Gate.
+- `CC-P1-M5-02`: account deletion still revokes every session family immediately. The already-issued short access JWT may authorize only `GET /api/v1/users/me/deletion-requests/current` until its existing expiry when the referenced session was revoked specifically for `account_deletion` and the user is `deletion_requested` or `deleted`. This narrow read-only status capability cannot refresh, issue credentials, restore a session or authorize any other endpoint.
 
 ### Public API boundary
 

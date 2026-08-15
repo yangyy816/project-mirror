@@ -211,7 +211,7 @@ def test_upload_control_openapi_has_all_endpoints_and_no_local_ingress() -> None
         assert set(methods) <= set(paths[path])
     for path in paths:
         assert "_local/private-upload" not in path
-    assert "/api/v1/assets" not in paths
+    assert "/api/v1/assets" in paths
     for path, methods in expected.items():
         for method in methods:
             if method == "post":
