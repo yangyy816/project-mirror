@@ -217,6 +217,10 @@ async def test_create_upload_and_complete_are_owner_bound_and_idempotent(tmp_pat
         assert completed.intent.status == "uploaded_unverified" and completed.completed
         assert replayed.intent.status == "uploaded_unverified" and not replayed.completed
         async with sessions() as session:
+            intent = await session.get(UploadIntent, created.intent.intent_id)
+            assert intent is not None
+            assert intent.uploaded_at is not None
+            assert intent.quarantine_retention_deadline == intent.uploaded_at + timedelta(hours=1)
             assert await session.scalar(select(func.count()).select_from(Asset)) == 0
             assert await session.scalar(select(func.count()).select_from(UploadIntent)) == 1
             assert await session.scalar(select(func.count()).select_from(UploadIntentEvent)) == 3

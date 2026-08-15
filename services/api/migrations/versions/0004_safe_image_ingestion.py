@@ -178,6 +178,33 @@ def _install_ingestion_triggers() -> None:
     )
     op.execute(
         """
+        CREATE FUNCTION mirror_protect_cancelled_ingestion_job() RETURNS trigger AS $$
+        BEGIN
+            IF OLD.job_type = 'asset_ingestion' AND OLD.status = 'cancelled' AND (
+                NEW.job_type IS DISTINCT FROM OLD.job_type
+                OR NEW.status IS DISTINCT FROM OLD.status
+                OR NEW.idempotency_key_hash IS DISTINCT FROM OLD.idempotency_key_hash
+                OR NEW.request_id IS DISTINCT FROM OLD.request_id
+                OR NEW.payload::jsonb IS DISTINCT FROM OLD.payload::jsonb
+                OR NEW.owner_user_id IS DISTINCT FROM OLD.owner_user_id
+                OR NEW.ingestion_upload_intent_id IS DISTINCT FROM OLD.ingestion_upload_intent_id
+                OR NEW.attempt_count IS DISTINCT FROM OLD.attempt_count
+                OR NEW.lease_token IS DISTINCT FROM OLD.lease_token
+                OR NEW.lease_acquired_at IS DISTINCT FROM OLD.lease_acquired_at
+                OR NEW.lease_expires_at IS DISTINCT FROM OLD.lease_expires_at
+                OR NEW.finalized_at IS DISTINCT FROM OLD.finalized_at
+                OR NEW.result_asset_id IS DISTINCT FROM OLD.result_asset_id
+                OR NEW.result_code IS DISTINCT FROM OLD.result_code
+            ) THEN
+                RAISE EXCEPTION 'cancelled ingestion job is immutable';
+            END IF;
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+        """
+    )
+    op.execute(
+        """
         CREATE FUNCTION mirror_validate_ingestion_job_attempt_consistency() RETURNS trigger AS $$
         DECLARE
             target_job_id varchar(32);
@@ -265,6 +292,11 @@ def _install_ingestion_triggers() -> None:
         "FOR EACH ROW EXECUTE FUNCTION mirror_protect_promoted_ingestion_asset();"
     )
     op.execute(
+        "CREATE TRIGGER trg_jobs_protect_cancelled_ingestion "
+        "BEFORE UPDATE ON jobs "
+        "FOR EACH ROW EXECUTE FUNCTION mirror_protect_cancelled_ingestion_job();"
+    )
+    op.execute(
         "CREATE CONSTRAINT TRIGGER trg_jobs_validate_ingestion_attempt_consistency "
         "AFTER INSERT OR UPDATE ON jobs DEFERRABLE INITIALLY DEFERRED "
         "FOR EACH ROW EXECUTE FUNCTION mirror_validate_ingestion_job_attempt_consistency();"
@@ -280,6 +312,7 @@ def _remove_ingestion_triggers() -> None:
     op.execute("DROP TRIGGER IF EXISTS trg_job_attempts_validate_ingestion_consistency ON job_attempts")
     op.execute("DROP TRIGGER IF EXISTS trg_jobs_validate_ingestion_attempt_consistency ON jobs")
     op.execute("DROP TRIGGER IF EXISTS trg_assets_protect_promoted_ingestion ON assets")
+    op.execute("DROP TRIGGER IF EXISTS trg_jobs_protect_cancelled_ingestion ON jobs")
     op.execute("DROP TRIGGER IF EXISTS trg_job_attempts_protect_ingestion ON job_attempts")
     op.execute("DROP TRIGGER IF EXISTS trg_upload_intents_validate_ingestion_final ON upload_intents")
     op.execute("DROP TRIGGER IF EXISTS trg_jobs_validate_ingestion_final ON jobs")
@@ -287,6 +320,7 @@ def _remove_ingestion_triggers() -> None:
     op.execute("DROP TRIGGER IF EXISTS trg_asset_ingestion_records_validate ON asset_ingestion_records")
     op.execute("DROP FUNCTION IF EXISTS mirror_protect_ingestion_job_attempt()")
     op.execute("DROP FUNCTION IF EXISTS mirror_protect_promoted_ingestion_asset()")
+    op.execute("DROP FUNCTION IF EXISTS mirror_protect_cancelled_ingestion_job()")
     op.execute("DROP FUNCTION IF EXISTS mirror_validate_ingestion_job_attempt_consistency()")
     op.execute("DROP FUNCTION IF EXISTS mirror_validate_ingestion_intent_final()")
     op.execute("DROP FUNCTION IF EXISTS mirror_validate_ingestion_job_final()")
@@ -414,6 +448,10 @@ def upgrade() -> None:
         "AND finalized_at IS NOT NULL AND result_asset_id IS NOT NULL "
         "AND result_code IS NOT NULL) OR "
         "(status = 'rejected' AND attempt_count > 0 AND lease_token IS NULL "
+        "AND lease_acquired_at IS NULL AND lease_expires_at IS NULL "
+        "AND finalized_at IS NOT NULL AND result_asset_id IS NULL "
+        "AND result_code IS NOT NULL) OR "
+        "(status = 'cancelled' AND attempt_count = 0 AND lease_token IS NULL "
         "AND lease_acquired_at IS NULL AND lease_expires_at IS NULL "
         "AND finalized_at IS NOT NULL AND result_asset_id IS NULL "
         "AND result_code IS NOT NULL))",

@@ -1061,6 +1061,10 @@ class Job(IdMixin, TimestampMixin, Base):
             "(status = 'rejected' AND attempt_count > 0 AND lease_token IS NULL "
             "AND lease_acquired_at IS NULL AND lease_expires_at IS NULL "
             "AND finalized_at IS NOT NULL AND result_asset_id IS NULL "
+            "AND result_code IS NOT NULL) OR "
+            "(status = 'cancelled' AND attempt_count = 0 AND lease_token IS NULL "
+            "AND lease_acquired_at IS NULL AND lease_expires_at IS NULL "
+            "AND finalized_at IS NOT NULL AND result_asset_id IS NULL "
             "AND result_code IS NOT NULL))",
             name="valid_ingestion_job_lifecycle",
         ),

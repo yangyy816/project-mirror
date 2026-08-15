@@ -50,6 +50,7 @@ def create_upload_control_infrastructure(
             rate_window_seconds=settings.upload_rate_limit_window_seconds,
             max_active_intents=settings.upload_max_active_intents,
             max_pending_bytes=settings.upload_max_pending_bytes,
+            quarantine_retention_seconds=settings.upload_quarantine_retention_seconds,
         ),
     )
 

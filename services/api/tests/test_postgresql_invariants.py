@@ -522,6 +522,31 @@ def make_ingestion_job(user_id: str, intent_id: str, suffix: str) -> Job:
     )
 
 
+def test_preclaim_cancelled_ingestion_job_has_no_attempt_or_evidence_and_is_immutable(
+    session: Session,
+) -> None:
+    user, intent = create_uploaded_ingestion_fixture(session, "z")
+    job = make_ingestion_job(user.id, intent.id, "y")
+    session.add(job)
+    session.commit()
+
+    now = datetime.now(UTC)
+    intent.status = "cancelled"
+    intent.cancelled_at = now
+    job.status = "cancelled"
+    job.finalized_at = now
+    job.result_code = "ingestion_cancelled_before_claim"
+    session.commit()
+
+    assert job.attempt_count == 0
+    assert session.scalar(select(func.count()).select_from(JobAttempt)) == 0
+    assert session.scalar(select(func.count()).select_from(AssetIngestionRecord)) == 0
+    with pytest.raises(DBAPIError, match="cancelled ingestion job is immutable"):
+        session.execute(
+            text("UPDATE jobs SET result_code='rewritten' WHERE id=:id"), {"id": job.id}
+        )
+
+
 def test_ingestion_final_evidence_is_owner_bound_append_only_and_promoted_shape_is_strict(
     session: Session,
 ) -> None:

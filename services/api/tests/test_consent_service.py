@@ -254,6 +254,7 @@ async def test_withdrawal_is_concurrent_idempotent_and_tombstones_pending_intent
                 status="uploaded_unverified",
                 grant_expires_at=NOW + timedelta(minutes=5),
                 uploaded_at=NOW,
+                quarantine_retention_deadline=NOW + timedelta(hours=1),
                 created_at=NOW,
                 updated_at=NOW,
             ),

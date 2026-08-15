@@ -360,10 +360,17 @@ class UploadIntentService:
         rate_window_seconds: int = 60,
         max_active_intents: int = 3,
         max_pending_bytes: int = 60 * 1024 * 1024,
+        quarantine_retention_seconds: int = 60 * 60,
         now: Callable[[], datetime] | None = None,
         object_key_factory: Callable[[], str] | None = None,
     ) -> None:
-        if min(rate_limit, rate_window_seconds, max_active_intents, max_pending_bytes) < 1:
+        if min(
+            rate_limit,
+            rate_window_seconds,
+            max_active_intents,
+            max_pending_bytes,
+            quarantine_retention_seconds,
+        ) < 1 or quarantine_retention_seconds > 24 * 60 * 60:
             raise ValueError("upload admission limits must be positive")
         self._sessions = session_factory
         self._storage = storage
@@ -375,6 +382,7 @@ class UploadIntentService:
         self._rate_window_seconds = rate_window_seconds
         self._max_active_intents = max_active_intents
         self._max_pending_bytes = max_pending_bytes
+        self._quarantine_retention_seconds = quarantine_retention_seconds
         self._now = now or (lambda: datetime.now(UTC))
         self._object_key_factory = object_key_factory or (
             lambda: f"quarantine/v1/{secrets.token_hex(32)}"
@@ -557,6 +565,9 @@ class UploadIntentService:
                 else:
                     intent.status = "uploaded_unverified"
                     intent.uploaded_at = metadata.uploaded_at
+                    intent.quarantine_retention_deadline = metadata.uploaded_at + timedelta(
+                        seconds=self._quarantine_retention_seconds
+                    )
                     intent.updated_at = now
                     session.add(self._event(intent.id, "upload_completed", request_id, now))
                     self._complete_idempotency(record, intent.id, 200, now)
