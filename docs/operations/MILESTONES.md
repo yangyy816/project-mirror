@@ -2,11 +2,12 @@
 
 ## 当前执行状态
 
-| Scope   | State     | Evidence / Boundary                                               |
-| ------- | --------- | ----------------------------------------------------------------- |
-| Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`    |
-| Phase 1 | COMMITTED | Application Foundation；仅 P1-M1 已通过 Gate，Phase 1 尚未 PASS   |
-| P1-M1   | PASS      | candidate `99c4fcc`；run `31886292870` 全绿；closure CI 后 FROZEN |
+| Scope   | State     | Evidence / Boundary                                              |
+| ------- | --------- | ---------------------------------------------------------------- |
+| Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`   |
+| Phase 1 | COMMITTED | Application Foundation；仅 P1-M1 已通过 Gate，Phase 1 尚未 PASS  |
+| P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿 |
+| P1-M2   | COMMITTED | Web Authentication and Onboarding；等待 rolling-wave refinement  |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 

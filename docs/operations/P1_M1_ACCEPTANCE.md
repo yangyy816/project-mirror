@@ -5,11 +5,13 @@
 - Milestone: `P1-M1 — Invite-only Identity and Authentication Backend`
 - Candidate SHA: `99c4fcc7e1fea5e240da09b45e532b9d9c793088`
 - Candidate run: [31886292870](https://github.com/yangyy816/project-mirror/actions/runs/31886292870)
+- Closure SHA: `1276a7466b7f4e9b0cd9fddaefcd13d5af3a05b0`
+- Closure run: [31886590832](https://github.com/yangyy816/project-mirror/actions/runs/31886590832)
 - Principal decision: `PASS`
-- Freeze state: pending the closure commit's complete remote CI
+- Freeze state: `FROZEN`
 
-`PASS` records that T01–T08 and all mandatory M1 evidence were accepted. `FROZEN` is not
-issued until this acceptance record itself has passed the complete workflow.
+`PASS` records that T01–T08 and all mandatory M1 evidence were accepted. The acceptance record's
+closure run completed successfully, so the Milestone is now `FROZEN`.
 
 ## Accepted scope
 
@@ -65,6 +67,12 @@ Artifacts are present and unexpired:
 The artifact labels above are historical workflow naming debt; the closure commit renames future
 evidence labels without changing Gate behavior.
 
+Closure run `31886590832` also completed all three jobs successfully and produced:
+
+- `project-audit-evidence` (`9247443574`)
+- `project-docker-evidence` (`9247435143`)
+- `gitleaks-results.sarif` (`9247412492`)
+
 ## Material repairs closed
 
 - R13: idempotency replay cannot reissue access for consumed, revoked or expired sessions.
@@ -83,3 +91,5 @@ evidence labels without changing Gate behavior.
   milestone.
 
 `P1-M1_GATE: PASS`
+
+`P1-M1_STATE: FROZEN`

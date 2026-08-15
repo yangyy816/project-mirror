@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 1 — Application Foundation（COMMITTED）
-- 当前 Milestone：P1-M1 — Invite-only Identity and Authentication Backend（PASS；等待 closure CI 后 FROZEN）
+- 当前 Milestone：P1-M2 — Web Authentication and Onboarding（COMMITTED；等待 rolling-wave refinement）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -35,7 +35,7 @@
 - 未共享、未执行的 `0001_phase0_foundation` 已在首次权威 PostgreSQL 验收前按 v0.2 一次性重生成；从下一次 migration 起只允许前向追加。
 - Phase 0 OpenAPI 暴露 inactive domain schemas 供生成契约使用，但没有新增成功型业务 endpoint；未实施业务仍为 501/401。
 - Project Mirror 使用项目级 `.codex` 定义专属 subagents：规划与最终审查使用 Sol High，边界明确的执行/测试/安全角色使用 Terra High；未指定 subagent 默认 Terra High，不覆盖主交互模型、不固定并发数、不修改全局 Codex 配置。
-- 执行状态统一为 `PROVISIONAL → COMMITTED → EXECUTION_READY → EXECUTING → PASS → FROZEN`；Phase 0 已 FROZEN，Phase 1 COMMITTED，P1-M1 candidate Gate 已 PASS，等待验收文档提交的 closure CI 后进入 FROZEN。
+- 执行状态统一为 `PROVISIONAL → COMMITTED → EXECUTION_READY → EXECUTING → PASS → FROZEN`；Phase 0 与 P1-M1 已 FROZEN，Phase 1 COMMITTED，P1-M2 等待 rolling-wave refinement。
 - Terra 只能实现 Principal 已批准的架构；新架构决策必须停止并上报。计划外实现缺陷使用 `P1-M1-Rxx` 最小 Repair Task，架构变化不得包装成 Repair Task。
 - OSS 复用原则为“复用通用基础设施，保留个性化智能”：重大第三方组件必须分别审查代码、模型/权重、数据与传递依赖许可证，并通过 Principal change control；Terra 只能报告候选，不得自行安装、下载权重或接受条款。
 - Identity-Preserving Makeup Transfer 已提升为 P6 Hybrid Editor 的一级高优先级研究轨道，与 Deterministic、Geometry、Generative Editor 和 Agent Tool Layer 并列；其未来链路为 Reference Makeup Understanding → MakeupStyleRepresentation → StyleProfile personalization → Structured MakeupPlan → region execution → identity/geometry verification → user correction → PreferenceEvent。
@@ -127,3 +127,4 @@
 - 2026-08-15：P1-M1 T05/T07 经 Principal 接受。R13 阻止已消费、撤销或过期 session 的登录/刷新幂等重放重新签发访问令牌，并补齐 refresh reuse、logout family revoke、邀请码并发上限、OTP 失败持久化/过期、Provider 失败重试、年龄非通过状态与幂等冲突场景；Compose PostgreSQL 17/Redis 8 定向 23 项、容器 API 其余 85 项、宿主契约 11 项、Ruff 与 strict mypy 均通过。API 镜像未复制仓库级 `packages/contracts`，因此容器内契约文件读取不作为通过证据，完整仓库契约仍由宿主与 CI 验证。
 - 2026-08-15：P1-M1 T06 经 Principal 接受。七个 `/api/v1` 认证/用户接口、Bearer 当前会话校验、真实 onboarding 缺口、精确政策配置、refresh/logout Origin + 双提交 CSRF、HttpOnly 轮换 Cookie、SecretStr 错误脱敏、CORS DELETE 与 OpenAPI → generated TypeScript 已闭环。R14 补充真实 session 撤销后的 access 拒绝及浏览器预检；安全复核发现直接账号枚举后，Principal 以 ADR-016 冻结通用 challenge 受理语义，R15 使用幂等 decoy 202 关闭枚举且不发送短信或创建真实 challenge。最终 Compose PostgreSQL 17/Redis 8 完整 API suite 96 PASS，无 skip；Ruff、strict mypy、Prettier、契约生成/漂移/typecheck/Vitest 均通过。真实 SMS Provider 的响应时间侧信道须在 P9 启用前重新 Gate。
 - 2026-08-15：P1-M1 T08 candidate `99c4fcc7e1fea5e240da09b45e532b9d9c793088` 经 Principal 验收。R16 修复 SMS 成功后 finalize 失败使幂等 claim 永久停留 `in_progress`；真实 PostgreSQL 回归和完整 Compose API suite `98 passed`、零 skip。迁移 `0001→0002→0001→0002`、Ruff、strict mypy、`pnpm check`、契约漂移、Python/Node 漏洞审计和精确 index Gitleaks 均通过。远端 run `31886292870` 的三个 jobs 与三项 artifacts 全部成功；P1-M1 Gate 为 PASS，等待 closure CI 后 FROZEN。
+- 2026-08-15：P1-M1 acceptance closure `1276a7466b7f4e9b0cd9fddaefcd13d5af3a05b0` 的远端 run `31886590832` 三个 jobs 全绿，并生成 `project-audit-evidence`、`project-docker-evidence` 与 `gitleaks-results.sarif`；Principal 将 P1-M1 状态前向更新为 FROZEN，下一步仅对 P1-M2 做 rolling-wave refinement。
