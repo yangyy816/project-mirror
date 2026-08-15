@@ -582,13 +582,70 @@
         }
       }
     },
-    "/api/v1/assets": {
+    "/api/v1/users/me/consents": {
+      "get": {
+        "tags": [
+          "private-upload-control"
+        ],
+        "summary": "Get Current Consent",
+        "operationId": "get_current_consent_api_v1_users_me_consents_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurposeConsentStateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
-          "phase-boundaries"
+          "private-upload-control"
         ],
-        "summary": "Create Asset",
-        "operationId": "create_asset_api_v1_assets_post",
+        "summary": "Grant Current Consent",
+        "operationId": "grant_current_consent_api_v1_users_me_consents_post",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -600,28 +657,36 @@
               "maxLength": 128,
               "title": "Idempotency-Key"
             }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PlaceholderRequest"
-              }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
-        },
+        ],
         "responses": {
-          "200": {
+          "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PurposeConsentGrantResponse"
+                }
               }
             }
           },
-          "501": {
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
@@ -629,7 +694,432 @@
                 }
               }
             },
-            "description": "Not Implemented"
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/consents/{grant_id}/withdrawals": {
+      "post": {
+        "tags": [
+          "private-upload-control"
+        ],
+        "summary": "Withdraw Current Consent",
+        "operationId": "withdraw_current_consent_api_v1_users_me_consents__grant_id__withdrawals_post",
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Grant Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurposeConsentWithdrawalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assets/upload-intents": {
+      "post": {
+        "tags": [
+          "private-upload-control"
+        ],
+        "summary": "Create Upload Intent",
+        "operationId": "create_upload_intent_api_v1_assets_upload_intents_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadIntentCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadIntentCreationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assets/upload-intents/{intent_id}": {
+      "get": {
+        "tags": [
+          "private-upload-control"
+        ],
+        "summary": "Get Upload Intent",
+        "operationId": "get_upload_intent_api_v1_assets_upload_intents__intent_id__get",
+        "parameters": [
+          {
+            "name": "intent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Intent Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadIntentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "private-upload-control"
+        ],
+        "summary": "Cancel Upload Intent",
+        "operationId": "cancel_upload_intent_api_v1_assets_upload_intents__intent_id__delete",
+        "parameters": [
+          {
+            "name": "intent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Intent Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assets/upload-intents/{intent_id}/complete": {
+      "post": {
+        "tags": [
+          "private-upload-control"
+        ],
+        "summary": "Complete Upload Intent",
+        "operationId": "complete_upload_intent_api_v1_assets_upload_intents__intent_id__complete_post",
+        "parameters": [
+          {
+            "name": "intent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Intent Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadIntentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
           },
           "422": {
             "description": "Validation Error",
@@ -1170,6 +1660,229 @@
         ],
         "title": "PolicyAcceptanceResponse"
       },
+      "PrivateUploadGrantResponse": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "const": "PUT",
+            "title": "Method"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "required_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Required Headers"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "method",
+          "url",
+          "required_headers",
+          "expires_at"
+        ],
+        "title": "PrivateUploadGrantResponse"
+      },
+      "PurposeConsentGrantResponse": {
+        "properties": {
+          "grant_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Grant Id"
+          },
+          "granted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Granted At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "grant_id",
+          "granted_at",
+          "expires_at"
+        ],
+        "title": "PurposeConsentGrantResponse"
+      },
+      "PurposeConsentRequirementResponse": {
+        "properties": {
+          "consent_type": {
+            "type": "string",
+            "const": "facial_data_processing",
+            "title": "Consent Type"
+          },
+          "purpose_code": {
+            "type": "string",
+            "title": "Purpose Code"
+          },
+          "purpose_version": {
+            "type": "string",
+            "title": "Purpose Version"
+          },
+          "policy_code": {
+            "type": "string",
+            "title": "Policy Code"
+          },
+          "policy_version": {
+            "type": "string",
+            "title": "Policy Version"
+          },
+          "policy_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Policy Digest"
+          },
+          "operations": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "private_upload",
+                "security_validation"
+              ]
+            },
+            "type": "array",
+            "title": "Operations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "consent_type",
+          "purpose_code",
+          "purpose_version",
+          "policy_code",
+          "policy_version",
+          "policy_digest",
+          "operations"
+        ],
+        "title": "PurposeConsentRequirementResponse"
+      },
+      "PurposeConsentStateResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "granted",
+              "withdrawn",
+              "missing"
+            ],
+            "title": "Status"
+          },
+          "requirement": {
+            "$ref": "#/components/schemas/PurposeConsentRequirementResponse"
+          },
+          "grant_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grant Id"
+          },
+          "granted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "absent",
+                  "expired",
+                  "version_mismatch"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Missing Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "requirement"
+        ],
+        "title": "PurposeConsentStateResponse"
+      },
+      "PurposeConsentWithdrawalResponse": {
+        "properties": {
+          "withdrawal_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Withdrawal Id"
+          },
+          "grant_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Grant Id"
+          },
+          "withdrawn_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Withdrawn At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "withdrawal_id",
+          "grant_id",
+          "withdrawn_at"
+        ],
+        "title": "PurposeConsentWithdrawalResponse"
+      },
       "SessionRequest": {
         "properties": {
           "challenge_id": {
@@ -1247,6 +1960,157 @@
           "expires_at"
         ],
         "title": "SmsChallengeResponse"
+      },
+      "UploadIntentCreateRequest": {
+        "properties": {
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ],
+            "title": "Content Type"
+          },
+          "byte_size": {
+            "type": "integer",
+            "maximum": 20971520.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Byte Size"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "content_type",
+          "byte_size",
+          "sha256"
+        ],
+        "title": "UploadIntentCreateRequest"
+      },
+      "UploadIntentCreationResponse": {
+        "properties": {
+          "intent": {
+            "$ref": "#/components/schemas/UploadIntentResponse"
+          },
+          "upload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrivateUploadGrantResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "intent",
+          "upload"
+        ],
+        "title": "UploadIntentCreationResponse"
+      },
+      "UploadIntentResponse": {
+        "properties": {
+          "intent_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Intent Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "awaiting_upload",
+              "uploaded_unverified",
+              "processing",
+              "promoted",
+              "rejected",
+              "cancelled",
+              "expired"
+            ],
+            "title": "Status"
+          },
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ],
+            "title": "Content Type"
+          },
+          "byte_size": {
+            "type": "integer",
+            "title": "Byte Size"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256"
+          },
+          "grant_expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Grant Expires At"
+          },
+          "uploaded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded At"
+          },
+          "cancelled_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelled At"
+          },
+          "expired_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expired At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "intent_id",
+          "status",
+          "content_type",
+          "byte_size",
+          "sha256",
+          "grant_expires_at",
+          "uploaded_at",
+          "cancelled_at",
+          "expired_at"
+        ],
+        "title": "UploadIntentResponse"
       },
       "ValidationError": {
         "properties": {

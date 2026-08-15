@@ -174,7 +174,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/assets": {
+    "/api/v1/users/me/consents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Current Consent */
+        get: operations["get_current_consent_api_v1_users_me_consents_get"];
+        put?: never;
+        /** Grant Current Consent */
+        post: operations["grant_current_consent_api_v1_users_me_consents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/consents/{grant_id}/withdrawals": {
         parameters: {
             query?: never;
             header?: never;
@@ -183,8 +201,60 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Asset */
-        post: operations["create_asset_api_v1_assets_post"];
+        /** Withdraw Current Consent */
+        post: operations["withdraw_current_consent_api_v1_users_me_consents__grant_id__withdrawals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assets/upload-intents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Upload Intent */
+        post: operations["create_upload_intent_api_v1_assets_upload_intents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assets/upload-intents/{intent_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Upload Intent */
+        get: operations["get_upload_intent_api_v1_assets_upload_intents__intent_id__get"];
+        put?: never;
+        post?: never;
+        /** Cancel Upload Intent */
+        delete: operations["cancel_upload_intent_api_v1_assets_upload_intents__intent_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assets/upload-intents/{intent_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete Upload Intent */
+        post: operations["complete_upload_intent_api_v1_assets_upload_intents__intent_id__complete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -372,6 +442,86 @@ export interface components {
             /** Activated */
             activated: boolean;
         };
+        /** PrivateUploadGrantResponse */
+        PrivateUploadGrantResponse: {
+            /**
+             * Method
+             * @constant
+             */
+            method: "PUT";
+            /** Url */
+            url: string;
+            /** Required Headers */
+            required_headers: {
+                [key: string]: string;
+            };
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** PurposeConsentGrantResponse */
+        PurposeConsentGrantResponse: {
+            /** Grant Id */
+            grant_id: string;
+            /**
+             * Granted At
+             * Format: date-time
+             */
+            granted_at: string;
+            /** Expires At */
+            expires_at: string | null;
+        };
+        /** PurposeConsentRequirementResponse */
+        PurposeConsentRequirementResponse: {
+            /**
+             * Consent Type
+             * @constant
+             */
+            consent_type: "facial_data_processing";
+            /** Purpose Code */
+            purpose_code: string;
+            /** Purpose Version */
+            purpose_version: string;
+            /** Policy Code */
+            policy_code: string;
+            /** Policy Version */
+            policy_version: string;
+            /** Policy Digest */
+            policy_digest: string;
+            /** Operations */
+            operations: ("private_upload" | "security_validation")[];
+        };
+        /** PurposeConsentStateResponse */
+        PurposeConsentStateResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "granted" | "withdrawn" | "missing";
+            requirement: components["schemas"]["PurposeConsentRequirementResponse"];
+            /** Grant Id */
+            grant_id?: string | null;
+            /** Granted At */
+            granted_at?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+            /** Missing Reason */
+            missing_reason?: ("absent" | "expired" | "version_mismatch") | null;
+        };
+        /** PurposeConsentWithdrawalResponse */
+        PurposeConsentWithdrawalResponse: {
+            /** Withdrawal Id */
+            withdrawal_id: string;
+            /** Grant Id */
+            grant_id: string;
+            /**
+             * Withdrawn At
+             * Format: date-time
+             */
+            withdrawn_at: string;
+        };
         /** SessionRequest */
         SessionRequest: {
             /** Challenge Id */
@@ -401,6 +551,53 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /** UploadIntentCreateRequest */
+        UploadIntentCreateRequest: {
+            /**
+             * Content Type
+             * @enum {string}
+             */
+            content_type: "image/jpeg" | "image/png" | "image/webp";
+            /** Byte Size */
+            byte_size: number;
+            /** Sha256 */
+            sha256: string;
+        };
+        /** UploadIntentCreationResponse */
+        UploadIntentCreationResponse: {
+            intent: components["schemas"]["UploadIntentResponse"];
+            upload: components["schemas"]["PrivateUploadGrantResponse"] | null;
+        };
+        /** UploadIntentResponse */
+        UploadIntentResponse: {
+            /** Intent Id */
+            intent_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "awaiting_upload" | "uploaded_unverified" | "processing" | "promoted" | "rejected" | "cancelled" | "expired";
+            /**
+             * Content Type
+             * @enum {string}
+             */
+            content_type: "image/jpeg" | "image/png" | "image/webp";
+            /** Byte Size */
+            byte_size: number;
+            /** Sha256 */
+            sha256: string;
+            /**
+             * Grant Expires At
+             * Format: date-time
+             */
+            grant_expires_at: string;
+            /** Uploaded At */
+            uploaded_at: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Expired At */
+            expired_at: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -923,20 +1120,16 @@ export interface operations {
             };
         };
     };
-    create_asset_api_v1_assets_post: {
+    get_current_consent_api_v1_users_me_consents_get: {
         parameters: {
             query?: never;
-            header: {
-                "Idempotency-Key": string;
+            header?: {
+                authorization?: string | null;
             };
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PlaceholderRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -944,7 +1137,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PurposeConsentStateResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Validation Error */
@@ -956,13 +1158,312 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Not Implemented */
-            501: {
+        };
+    };
+    grant_current_consent_api_v1_users_me_consents_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurposeConsentGrantResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdraw_current_consent_api_v1_users_me_consents__grant_id__withdrawals_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                authorization?: string | null;
+            };
+            path: {
+                grant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurposeConsentWithdrawalResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_upload_intent_api_v1_assets_upload_intents_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadIntentCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadIntentCreationResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_upload_intent_api_v1_assets_upload_intents__intent_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                intent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadIntentResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_upload_intent_api_v1_assets_upload_intents__intent_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                intent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_upload_intent_api_v1_assets_upload_intents__intent_id__complete_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                authorization?: string | null;
+            };
+            path: {
+                intent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadIntentResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

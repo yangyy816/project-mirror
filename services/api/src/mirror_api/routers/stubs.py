@@ -35,16 +35,6 @@ async def _create_stub(
     not_implemented(capability)
 
 
-@router.post("/assets", responses={501: {"model": ErrorEnvelope}})
-async def create_asset(
-    payload: PlaceholderRequest,
-    idempotency_key: str = Header(min_length=8, max_length=128, alias="Idempotency-Key"),
-    actor_id: str = Depends(require_authenticated_actor),
-) -> None:
-    del actor_id
-    await _create_stub("secure_asset_upload", payload, idempotency_key)
-
-
 @router.post("/questionnaires/runs", responses={501: {"model": ErrorEnvelope}})
 async def create_questionnaire_run(
     payload: PlaceholderRequest,

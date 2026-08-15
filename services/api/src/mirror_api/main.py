@@ -19,15 +19,27 @@ from mirror_api.errors import (
     validation_error_handler,
 )
 from mirror_api.middleware import LocalUploadAccessLogRedactionMiddleware, RequestIDMiddleware
-from mirror_api.routers import auth_router, health_router, local_upload_router, stubs_router
+from mirror_api.routers import (
+    auth_router,
+    health_router,
+    local_upload_router,
+    stubs_router,
+    upload_control_router,
+)
 from mirror_api.schemas import add_foundation_contract_schemas
 from mirror_api.storage_dependencies import create_object_storage_provider
+from mirror_api.upload_control_dependencies import create_upload_control_infrastructure
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     auth_infrastructure = create_auth_infrastructure(settings)
     object_storage_provider = create_object_storage_provider(settings)
+    upload_control_infrastructure = create_upload_control_infrastructure(
+        settings,
+        auth_infrastructure,
+        object_storage_provider,
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -46,17 +58,20 @@ def create_app() -> FastAPI:
     )
     app.state.auth_infrastructure = auth_infrastructure
     app.state.object_storage_provider = object_storage_provider
+    app.state.upload_control_infrastructure = upload_control_infrastructure
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
-        allow_methods=["DELETE", "GET", "POST", "OPTIONS"],
+        allow_methods=["DELETE", "GET", "POST", "PUT", "OPTIONS"],
         allow_headers=[
             "Content-Type",
             "Authorization",
             "Idempotency-Key",
             "X-CSRF-Token",
             "X-Device-ID",
+            "X-Content-SHA256",
+            "X-Mirror-Upload-Authorization",
             "X-Request-ID",
         ],
     )
@@ -68,6 +83,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, unexpected_error_handler)
     app.include_router(health_router)
     app.include_router(auth_router)
+    app.include_router(upload_control_router)
     app.include_router(local_upload_router)
     app.include_router(stubs_router)
 

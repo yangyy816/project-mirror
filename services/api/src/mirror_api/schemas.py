@@ -75,6 +75,75 @@ class PolicyAcceptanceResponse(StrictContractModel):
     activated: bool
 
 
+class PurposeConsentRequirementResponse(StrictContractModel):
+    consent_type: Literal["facial_data_processing"]
+    purpose_code: str
+    purpose_version: str
+    policy_code: str
+    policy_version: str
+    policy_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    operations: list[Literal["private_upload", "security_validation"]]
+
+
+class PurposeConsentStateResponse(StrictContractModel):
+    status: Literal["granted", "withdrawn", "missing"]
+    requirement: PurposeConsentRequirementResponse
+    grant_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
+    granted_at: datetime | None = None
+    expires_at: datetime | None = None
+    missing_reason: Literal["absent", "expired", "version_mismatch"] | None = None
+
+
+class PurposeConsentGrantResponse(StrictContractModel):
+    grant_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    granted_at: datetime
+    expires_at: datetime | None
+
+
+class PurposeConsentWithdrawalResponse(StrictContractModel):
+    withdrawal_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    grant_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    withdrawn_at: datetime
+
+
+class UploadIntentCreateRequest(StrictContractModel):
+    content_type: Literal["image/jpeg", "image/png", "image/webp"]
+    byte_size: int = Field(gt=0, le=20 * 1024 * 1024)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class UploadIntentResponse(StrictContractModel):
+    intent_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    status: Literal[
+        "awaiting_upload",
+        "uploaded_unverified",
+        "processing",
+        "promoted",
+        "rejected",
+        "cancelled",
+        "expired",
+    ]
+    content_type: Literal["image/jpeg", "image/png", "image/webp"]
+    byte_size: int
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    grant_expires_at: datetime
+    uploaded_at: datetime | None
+    cancelled_at: datetime | None
+    expired_at: datetime | None
+
+
+class PrivateUploadGrantResponse(StrictContractModel):
+    method: Literal["PUT"]
+    url: str
+    required_headers: dict[str, str]
+    expires_at: datetime
+
+
+class UploadIntentCreationResponse(StrictContractModel):
+    intent: UploadIntentResponse
+    upload: PrivateUploadGrantResponse | None
+
+
 class SelfStateContract(StrictContractModel):
     id: str
     version: int = Field(gt=0)

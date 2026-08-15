@@ -5,7 +5,12 @@ from typing import Any, cast
 
 import redis.asyncio as redis
 from fastapi import Depends, Header, Request, Response, status
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from mirror_api.auth import AuthFailure, AuthService, PolicyRequirement
 from mirror_api.auth.types import AuthenticatedActor, SessionResult
@@ -29,7 +34,9 @@ CSRF_HEADER_NAME = "X-CSRF-Token"
 @dataclass(frozen=True)
 class AuthInfrastructure:
     engine: AsyncEngine
+    sessions: async_sessionmaker[AsyncSession]
     service: AuthService
+    rate_limiter: RateLimiter
     redis_client: Any | None
 
 
@@ -54,6 +61,8 @@ def create_auth_infrastructure(settings: Settings) -> AuthInfrastructure:
         limiter = RedisRateLimiter(redis_client)
     return AuthInfrastructure(
         engine=engine,
+        sessions=sessions,
+        rate_limiter=limiter,
         redis_client=redis_client,
         service=AuthService(
             session_factory=sessions,

@@ -96,6 +96,14 @@ class Settings(BaseSettings):
     auth_rate_limit_device_limit: int = Field(default=10, ge=1, le=1_000)
     auth_required_policies: list[RequiredPolicySetting] = Field(default_factory=list)
     facial_data_purpose: PurposeConsentSetting = Field(default_factory=PurposeConsentSetting)
+    upload_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3_600)
+    upload_rate_limit_user_limit: int = Field(default=10, ge=1, le=1_000)
+    upload_max_active_intents: int = Field(default=3, ge=1, le=100)
+    upload_max_pending_bytes: int = Field(
+        default=60 * 1024 * 1024,
+        ge=20 * 1024 * 1024,
+        le=2 * 1024 * 1024 * 1024,
+    )
 
     sms_provider: Literal["mock", "tencent"] = "mock"
     storage_provider: Literal["local", "tencent_cos"] = "local"

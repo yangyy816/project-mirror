@@ -48,14 +48,36 @@ def test_cors_allows_delete_for_current_session_logout(client: TestClient) -> No
     assert "DELETE" in response.headers["access-control-allow-methods"]
 
 
+def test_cors_allows_private_upload_put_and_integrity_headers(client: TestClient) -> None:
+    response = client.options(
+        "/_local/private-upload/opaque-fixture",
+        headers={
+            "Origin": "http://127.0.0.1:3000",
+            "Access-Control-Request-Method": "PUT",
+            "Access-Control-Request-Headers": (
+                "content-type,x-content-sha256,x-mirror-upload-authorization"
+            ),
+        },
+    )
+    assert response.status_code == 200
+    assert "PUT" in response.headers["access-control-allow-methods"]
+    allowed = response.headers["access-control-allow-headers"].lower()
+    assert "x-content-sha256" in allowed
+    assert "x-mirror-upload-authorization" in allowed
+
+
 def test_protected_boundary_rejects_unauthorized_access(client: TestClient) -> None:
     response = client.post(
-        "/api/v1/assets",
+        "/api/v1/assets/upload-intents",
         headers={"Idempotency-Key": "upload-test-0001"},
-        json={},
+        json={
+            "content_type": "image/png",
+            "byte_size": 1,
+            "sha256": "a" * 64,
+        },
     )
     assert response.status_code == 401
-    assert response.json()["code"] == "authentication_required"
+    assert response.json()["code"] == "authentication_failed"
 
 
 def test_idempotency_key_is_required(client: TestClient) -> None:
