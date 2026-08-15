@@ -4,6 +4,7 @@
 
 - 身份与授权：User、InviteCode、InviteRedemption、PhoneVerificationChallenge、UserSession、AgeAssuranceRecord、PolicyAcceptanceRecord、Consent。
 - 资产与审计：Asset、AssetVariant、AssetAccessAudit。
+- 上传控制：UploadIntent、append-only UploadIntentEvent；quarantine intent/object 不是 Asset，M4 验证晋升前不得作为 Original 引用。
 - 题库资产：QuestionBankVersion、SyntheticIdentity、QuestionAsset。
 - 个人审美：AestheticProfile、AestheticProfileVersion、ReferenceSet、PreferenceEvent。
 - 自身状态：BaselineFaceModel、BaselineMeasurement、SelfState、BaselineMorphologyDescriptor。
@@ -31,6 +32,7 @@ P7 未来将研究 `AcceptedVisualEpisode`、Visual Memory Bundle、Memory Card�
 - PaymentEvent 以 provider + provider_event_id 去重，浏览器成功页不是支付依据。
 - InviteRedemption、AgeAssuranceRecord 和 PolicyAcceptanceRecord 是 append-only 审计事实；邀请码只在 OTP 成功消费、新用户创建与兑换的同一事务中增加使用量。`User.age_confirmed_at` 如存在只是投影，不是年龄证据权威来源。
 - PhoneVerificationChallenge、UserSession、IdempotencyRecord 和 session family 只保存用途隔离的 HMAC 或不可枚举引用，绝不保存手机号、OTP、邀请码、refresh token 或年龄凭证原文。refresh token 重用会撤销其 family；pending 用户在有效年龄与政策记录齐备前不能成为 active。
+- Consent grant/withdrawal 与 UploadIntentEvent 只追加；withdrawal 精确引用有效 grant。UploadIntent 可更新受限 operational state，但每次 transition 必须有 event，owner、consent、opaque quarantine key、声明 metadata 与状态时间由 PostgreSQL 约束。`uploaded_unverified` 不等于安全图片或 Original Asset。
 - 未来 P7 中，未保存/确认的 AI 输出不得成为持久审美证据；AestheticProfile 与所有视觉/语义/时序/程序索引必须能由仍获授权的 evidence 重建，源证据删除必须使所有依赖派生表示删除或失效。
 
 ## 版本策略

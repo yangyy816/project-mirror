@@ -10,6 +10,8 @@
 
 Baseline 删除、Consent 撤回、账户删除、Baseline 替换、分析失效或政策版本变化必须传播到 BaselineFaceModel/Measurement、SelfState、MorphologyDescriptor、QuestionRoute/Instance、DesiredDelta、self-transfer artifacts 和 Profile evidence。Audit 只有在法律/安全理由成立时去标识保留，不能借审计名义保留不必要的 facial-derived values。
 
+尚未晋升的 quarantine object 使用短 TTL。UploadIntent 过期、取消、用途授权撤回或账户冻结后立即失去处理资格并进入幂等清理；即使旧签名 URL 在 TTL 内收到迟到上传，也只能删除，不能恢复 intent 或晋升。Intent/Event 可按安全审计期限保留不含 URL、token、object bytes 的最小证据。
+
 ## 导出
 
 导出包仅包含当前用户数据，使用一次性短时下载链接，生成与下载均审计。禁止导出内部风控信号、其他用户数据、供应商密钥或系统 Prompt。

@@ -17,6 +17,7 @@
 - key 相同但 fingerprint 不同：返回稳定 `409 idempotency_conflict`，不得执行第二次。
 - 首次事务失败且未提交任何领域状态：记录可安全重试状态；外部副作用必须使用下游幂等键。
 - 短信 challenge 的重放不得再次发送短信；它必须返回首次 challenge 的安全引用或当前受限状态。邀请码在 challenge 中只能绑定而不能消费，最终兑换与用户创建/OTP 消费必须是同一事务。刷新 token 的轮换不是可自由重放的创建操作：旧 token 重用会撤销整个 session family。
+- Consent grant/withdrawal 以 user + exact purpose/grant + endpoint scope 隔离；同 key 重放返回同一事件，payload/version/scope 改变则冲突。UploadIntent 创建的同 key replay 只有在首次 grant 尚有效时才能返回同一创建结果；过期后不得静默重签，必须用新 key 创建新 intent。complete/cancel 的重放返回同一终态，不重复 Provider delete 或创建 Asset。
 
 ## Expiry
 

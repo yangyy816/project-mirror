@@ -8,12 +8,15 @@
 | Phase 1 | COMMITTED | Application Foundation；仅 P1-M1 已通过 Gate，Phase 1 尚未 PASS  |
 | P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿 |
 | P1-M2   | FROZEN    | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿 |
+| P1-M3   | EXECUTING | ADR-018 + `P1_M3_EXECUTION_PROTOCOL.md`；禁止进入 M4 实现        |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
 P1-M1 的逐项证据与 deferred production Gates 见 `P1_M1_ACCEPTANCE.md`。
 
 P1-M2 的浏览器、Linux CI、repairs 与 deferred production Gates 见 `P1_M2_ACCEPTANCE.md`。
+
+P1-M3 的用途授权、quarantine upload control 与 M4 边界见 `ADR-018-purpose-consent-and-quarantine-upload.md` 和 `P1_M3_EXECUTION_PROTOCOL.md`。
 
 ## Future rolling-wave positioning
 

@@ -33,6 +33,23 @@ flowchart LR
 - `SmsProvider` 与 `AgeAssuranceProvider` 都是 Adapter 边界。手机号和一次性年龄凭证只可在必要的瞬时 Provider 调用中出现，业务持久化与日志只使用最小、不可逆的关联值。
 - 生产注册取决于已验证 Provider、Redis 限流、密钥和安全/法律 Gate；缺失时必须关闭或 fail closed。Phase 1 不接入真实短信或年龄凭证供应商。
 
+## Purpose Consent 与 Quarantine Upload Control（P1-M3）
+
+政策接受不授权 facial-data 处理。active 用户必须对服务端配置的精确 purpose/version/policy digest/scope 创建 append-only grant，withdrawal 通过新事件引用被撤回 grant。当前有效状态由事件计算，历史不覆盖。
+
+```mermaid
+flowchart LR
+  A["Active actor"] --> C["Exact purpose consent"]
+  C --> I["Owner-bound UploadIntent"]
+  I --> S["Private short-lived upload grant"]
+  S --> Q["Quarantine object"]
+  Q --> U["uploaded_unverified"]
+  U --> M4["M4 decode / sanitize / promote"]
+  M4 --> O["Immutable Original Asset"]
+```
+
+UploadIntent 与 append-only events 是隔离控制面，不是 Asset。对象 key 由服务端生成且不含用户标识；客户端不能提供路径、bucket 或任意 URL。M3 complete 只确认 Provider object metadata 并形成 `uploaded_unverified`，不解码、不分析、不创建 Job/Asset。授权撤回立即阻止新签名并 tombstone 未晋升 intents；已签 URL 的最大残余窗口受短 TTL 限制，迟到对象不可进入 M4 并由清理删除。
+
 ## Agent Runtime
 
 Agent 的职责是 Understand → Plan → Call Tools → Verify → Explain → Learn。LLM 不得直接写数据库、访问 COS 或扣减额度。EditPlan 必须结构化，列出操作、参数、保持项、强度和验证条件。

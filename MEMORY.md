@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 1 — Application Foundation（COMMITTED）
-- 当前 Milestone：P1-M2 — Web Authentication and Onboarding（FROZEN）
+- 当前 Milestone：P1-M3 — Purpose Consent, Authorization and Private Upload Control Plane（EXECUTING）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -44,6 +44,7 @@
 - 当前 P1-M2 不因 OSS/Makeup 研究增补发生变化：不新增依赖、模型资产或未来 bounded tasks；P6 到达 rolling-wave planning 时再确定独立研究 Milestone 与 GO/NO-GO/FURTHER_RESEARCH Gate。
 - P1-M2-T06 经 Principal change control 允许 `@playwright/test@1.62.1` 作为 pinned test-only dev dependency；npm 元数据与包内 LICENSE 均为 Apache-2.0，Node 要求 `>=20`，不得进入生产 runtime 或调用真实 Provider。完整记录见 `docs/security/PLAYWRIGHT_ADOPTION.md`。
 - P7 的前向方向已升级为 `Visual Memory OS & Persistent Preference Learning`，状态保持 PROVISIONAL。用户确认的 Visual/Behavioral/Explicit Truth 是权威证据；AestheticProfile、图、向量/视觉索引、Memory Card 与 semantic/temporal/procedural views 均为可重建 materialized state。未保存的 AI 输出无长期权威，当前指令优先，删除必须传播到全部派生表示；不新增当前依赖、模型资产、schema、ADR 或 P7 tasks。完整方向见 `docs/architecture/VISUAL_MEMORY_OS.md`。
+- P1-M3 采用 ADR-018：政策接受与用途 Consent 分离；grant/withdrawal 和 UploadIntentEvent append-only；浏览器 ingress 先进入 owner-bound quarantine UploadIntent，绝不直接成为 Asset/Original。只有 active 且持精确有效用途授权的用户可获得一次性短时 upload grant；complete 仅形成 `uploaded_unverified`，M4 才负责解码、重编码、EXIF 清理和 Original 晋升。Local write-only ingress 只用于非生产合成 fixture，生产真实上传继续 fail closed。
 
 ## 长期产品与数据边界
 
@@ -140,3 +141,5 @@
 - 2026-08-15：P1-M2 远端候选经 R05/R06 收口。R05 以 `vitest.config.ts` 关闭 Linux Bash glob 展开导致的测试命令故障；R06 补齐 Linux Next standalone 缺失的 `@swc/helpers/esm` 并处理 Windows junction realpath。最终 candidate `f4dd6f0a58635e0d8505a5fa0ce0c2ed366982aa` 的 run `31892402898` 三个 jobs 全绿，Chromium 安装与 Browser integration 实际执行，三项 artifacts 可下载且 Gitleaks SARIF 零结果；P1-M2 Gate 为 PASS，等待 acceptance closure CI 后 FROZEN。
 - 2026-08-15：接受 P7 Visual Memory OS 方向补充；新增 MEM-01–MEM-12、AcceptedVisualEpisode、分层/时序/程序记忆、Admission/Write/Memory Gate、Active Visual Exemplars、Context Compiler、删除重编译与 MirrorMemoryBench 研究边界。P6 只承担 final-save provenance 前向兼容，不提前实现 P7。
 - 2026-08-15：P1-M2 acceptance closure `0614ccf8fe526c6bfecc53da7117722247788ce7` 的 run `31892788852` 三个 jobs 全绿；Chromium browser Gate、契约、迁移、供应链、Gitleaks、Docker 与三项 artifacts 均实际通过。Principal 将 P1-M2 前向更新为 FROZEN；下一步只对 P1-M3 做 rolling-wave refinement。
+- 2026-08-15：P1-M2 最终冻结状态提交 `aef81b1ec862b20138cf974da320640c7168b8b1` 的 run `31893106522` 三个 jobs 全绿，并产出 `project-audit-evidence`、`project-docker-evidence` 和零结果 Gitleaks SARIF；从该 SHA 创建 `codex/phase1-m3-upload-control`。
+- 2026-08-15：P1-M3 rolling-wave refinement 通过 ADR-018 与执行协议冻结 purpose Consent、quarantine UploadIntent、一次性短时签名、owner-bound authorization、withdrawal tombstone、Local ingress 与 M4 promotion 边界；M3 进入 EXECUTING，不创建 Original Asset、不解码图片、不调用真实 COS 或处理真人 fixture。
