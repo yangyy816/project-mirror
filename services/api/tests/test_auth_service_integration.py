@@ -49,6 +49,31 @@ class FailOnceSmsProvider(RecordingSmsProvider):
         )
 
 
+class DisableInviteAfterSmsProvider(RecordingSmsProvider):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], invite_id: str) -> None:
+        super().__init__()
+        self._sessions = session_factory
+        self._invite_id = invite_id
+        self._disabled = False
+
+    async def send_verification_code(
+        self, *, destination_phone: str, verification_code: str, request_reference: str
+    ) -> str:
+        message_id = await super().send_verification_code(
+            destination_phone=destination_phone,
+            verification_code=verification_code,
+            request_reference=request_reference,
+        )
+        if not self._disabled:
+            async with self._sessions() as session:
+                async with session.begin():
+                    invite = await session.get(InviteCode, self._invite_id, with_for_update=True)
+                    assert invite is not None
+                    invite.disabled_at = datetime.now(UTC)
+            self._disabled = True
+        return message_id
+
+
 class FailOnceAgeProvider:
     def __init__(self) -> None:
         self.calls = 0
@@ -93,6 +118,95 @@ def build_service(
         allow_new_registrations=allow_new_registrations,
         now=now,
     )
+
+
+@pytest.mark.asyncio
+async def test_postgresql_finalize_failure_marks_claim_failed_and_allows_same_key_retry() -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("NOT VERIFIED LOCALLY: TEST_DATABASE_URL PostgreSQL is unavailable")
+    engine = create_async_engine(database_url)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    phone = "".join(("1", "3", "8", "0", "0", "1", "3", "8", "0", "0", "4"))
+    invite_id = new_id()
+    sms = DisableInviteAfterSmsProvider(sessions, invite_id)
+    service = build_service(sessions, sms)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "TRUNCATE TABLE idempotency_records, phone_verification_challenges, users, "
+                    "invite_codes CASCADE"
+                )
+            )
+        async with sessions() as session:
+            async with session.begin():
+                session.add(
+                    InviteCode(
+                        id=invite_id,
+                        code_hash=service._hmac("finalize-invite", "invite"),
+                    )
+                )
+
+        with pytest.raises(AuthFailure):
+            await service.request_challenge(
+                phone=phone,
+                invite_code="finalize-invite",
+                idempotency_key="finalize-retry-key",
+                request_id="finalize-first-request",
+                ip_key="finalize-ip",
+                device_key="finalize-device",
+            )
+        async with sessions() as session:
+            claim_state = await session.scalar(
+                text(
+                    "SELECT state FROM idempotency_records "
+                    "WHERE scope = 'auth.challenge' AND key_hash = :key_hash"
+                ),
+                {"key_hash": service._idempotency_key("finalize-retry-key")},
+            )
+            challenge_count = await session.scalar(
+                text("SELECT count(*) FROM phone_verification_challenges")
+            )
+            assert claim_state == "failed"
+            assert challenge_count == 0
+            invite = await session.get(InviteCode, invite_id, with_for_update=True)
+            assert invite is not None
+            invite.disabled_at = None
+            await session.commit()
+
+        retried = await service.request_challenge(
+            phone=phone,
+            invite_code="finalize-invite",
+            idempotency_key="finalize-retry-key",
+            request_id="finalize-retry-request",
+            ip_key="finalize-ip",
+            device_key="finalize-device",
+        )
+        assert retried.challenge_id
+        assert len(sms.codes) == 2
+        async with sessions() as session:
+            completed_claim = await session.scalar(
+                text(
+                    "SELECT state FROM idempotency_records "
+                    "WHERE scope = 'auth.challenge' AND key_hash = :key_hash"
+                ),
+                {"key_hash": service._idempotency_key("finalize-retry-key")},
+            )
+            challenge_count = await session.scalar(
+                text("SELECT count(*) FROM phone_verification_challenges")
+            )
+            assert completed_claim == "completed"
+            assert challenge_count == 1
+    finally:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "TRUNCATE TABLE idempotency_records, phone_verification_challenges, users, "
+                    "invite_codes CASCADE"
+                )
+            )
+        await engine.dispose()
 
 
 @pytest.mark.asyncio

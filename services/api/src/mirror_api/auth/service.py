@@ -294,59 +294,70 @@ class AuthService:
                 if failed_record is not None and failed_record.state == "in_progress":
                     failed_record.state = "failed"
             raise AuthFailure() from exc
-        async with transaction(self._sessions) as session:
-            repo = AuthRepository(session)
-            pending_record = await repo.idempotency(
-                actor_key=actor_key, scope=scope, key_hash=key_hash, lock=True
-            )
-            if pending_record is None or pending_record.state != "in_progress":
-                raise AuthFailure()
-            user = await repo.locked_user_for_phone(phone_hash)
-            invite_id: str | None = None
-            if user is None:
-                if not self._allow_new_registrations:
-                    raise AuthFailure()
-                invite = await session.scalar(
-                    select(InviteCode).where(InviteCode.code_hash == invite_hash).with_for_update()
+        try:
+            async with transaction(self._sessions) as session:
+                repo = AuthRepository(session)
+                pending_record = await repo.idempotency(
+                    actor_key=actor_key, scope=scope, key_hash=key_hash, lock=True
                 )
-                if not self._invite_usable(invite, self._now()):
+                if pending_record is None or pending_record.state != "in_progress":
                     raise AuthFailure()
-                assert invite is not None
-                invite_id = invite.id
-            challenge = PhoneVerificationChallenge(
-                id=new_id(),
-                phone_hash=phone_hash,
-                code_hash=self._hmac(otp, "otp"),
-                invite_code_id=invite_id,
-                purpose="authenticate",
-                request_id=request_id,
-                provider_message_id=provider_message_id,
-                expires_at=self._now() + timedelta(seconds=self._otp_ttl_seconds),
-            )
-            session.add(challenge)
-            await session.flush()
-            (
-                pending_record.response_reference,
-                pending_record.response_status,
-                pending_record.state,
-                pending_record.completed_at,
-            ) = (
-                challenge.id,
-                1,
-                "completed",
-                self._now(),
-            )
-            self._audit(
-                session,
-                actor_type="preauth",
-                actor_id=None,
-                action="challenge_accepted",
-                target_type="auth_challenge",
-                target_id=challenge.id,
-                request_id=request_id,
-                event="challenge_accepted",
-            )
-            return ChallengeResult(challenge.id, challenge.expires_at)
+                user = await repo.locked_user_for_phone(phone_hash)
+                invite_id: str | None = None
+                if user is None:
+                    if not self._allow_new_registrations:
+                        raise AuthFailure()
+                    invite = await session.scalar(
+                        select(InviteCode)
+                        .where(InviteCode.code_hash == invite_hash)
+                        .with_for_update()
+                    )
+                    if not self._invite_usable(invite, self._now()):
+                        raise AuthFailure()
+                    assert invite is not None
+                    invite_id = invite.id
+                challenge = PhoneVerificationChallenge(
+                    id=new_id(),
+                    phone_hash=phone_hash,
+                    code_hash=self._hmac(otp, "otp"),
+                    invite_code_id=invite_id,
+                    purpose="authenticate",
+                    request_id=request_id,
+                    provider_message_id=provider_message_id,
+                    expires_at=self._now() + timedelta(seconds=self._otp_ttl_seconds),
+                )
+                session.add(challenge)
+                await session.flush()
+                (
+                    pending_record.response_reference,
+                    pending_record.response_status,
+                    pending_record.state,
+                    pending_record.completed_at,
+                ) = (
+                    challenge.id,
+                    1,
+                    "completed",
+                    self._now(),
+                )
+                self._audit(
+                    session,
+                    actor_type="preauth",
+                    actor_id=None,
+                    action="challenge_accepted",
+                    target_type="auth_challenge",
+                    target_id=challenge.id,
+                    request_id=request_id,
+                    event="challenge_accepted",
+                )
+                return ChallengeResult(challenge.id, challenge.expires_at)
+        except AuthFailure:
+            async with transaction(self._sessions) as session:
+                failed_record = await AuthRepository(session).idempotency(
+                    actor_key=actor_key, scope=scope, key_hash=key_hash, lock=True
+                )
+                if failed_record is not None and failed_record.state == "in_progress":
+                    failed_record.state = "failed"
+            raise
 
     async def create_session(
         self, *, challenge_id: str, otp: str, idempotency_key: str, request_id: str
