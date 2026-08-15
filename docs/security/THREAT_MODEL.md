@@ -22,6 +22,7 @@
 - 审美同质化/隐藏目标：所有 target 相对 SelfState，人口先验不得给出期望几何；持续执行 no-response convergence 与 cross-user target diversity Gate。
 - 敏感路由：routing schema 不含种族、民族、国籍等分类，只允许连续必要几何、可靠性、覆盖和不确定性。
 - 内部滥用：最小权限、分权审批、后台访问审计、break-glass 告警和定期复核。
+- 数据权利旁路：Asset 列表、详情、download grant、删除与导出均以 owner SQL predicate 绑定；删除请求先 tombstone 再 dispatch，旧 grant 不延长且新 grant 被拒绝。导出使用固定 manifest/schema、safe archive path、短 TTL 和 owner-bound one-time grant，排除 raw quarantine、secret、内部风控和跨用户数据。
 - 日志泄露：字段白名单、手机号/Token/URL/Prompt/图片内容禁止记录。
 - 本地存储逃逸：Local ingress 仅非生产、write-only、tokenized；解析后的路径必须在固定 root 内，拒绝路径/软链接逃逸、oversize、MIME/checksum 不一致和 token replay。生产拒绝 Local。
 - Decoder 供应链：图片解析库是高风险 runtime dependency，必须锁定精确版本、许可证、wheel feature 和漏洞证据；不得由 Worker 调用 shell、ImageMagick CLI、任意动态插件或网络 decoder。原始异常和 metadata 不得进入日志/错误。

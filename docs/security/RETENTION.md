@@ -16,6 +16,8 @@ Baseline 删除、Consent 撤回、账户删除、Baseline 替换、分析失效
 
 ## 导出
 
+P1-M5 将删除请求与物理删除证据分离。请求一经接受即停止新签名和新处理；对象删除由 reference-only Worker 幂等执行，只有对象存储与 PostgreSQL propagation evidence 一致时才能报告完成。Original metadata 不为删除而改写。导出包使用版本化短期 retention deadline，并在到期后由相同的可重试证据链清理。
+
 导出包仅包含当前用户数据，使用一次性短时下载链接，生成与下载均审计。禁止导出内部风控信号、其他用户数据、供应商密钥或系统 Prompt。
 
 ## 例外

@@ -10,6 +10,7 @@
 | P1-M2   | FROZEN    | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿 |
 | P1-M3   | FROZEN    | closure `05c9f00`；run `31897780247` 三 jobs 与 artifacts 全绿   |
 | P1-M4   | FROZEN    | closure `fd910f2`；run `31903994976` 三 jobs 与 artifacts 全绿   |
+| P1-M5   | EXECUTING | ADR-020 + `P1_M5_EXECUTION_PROTOCOL.md`；仅合成非人脸 fixture    |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
@@ -23,7 +24,9 @@ P1-M3 的本地/远端 Gate、repairs 与 deferred production Gates 见 `P1_M3_A
 
 P1-M4 的安全解码、canonical re-encode、Job/recovery、晋升和 M5 边界见 `ADR-019-safe-image-ingestion-and-promotion.md` 与 `P1_M4_EXECUTION_PROTOCOL.md`。
 
-P1-M4 的本地/远端 Gate、repairs 与 deferred production Gates 见 `P1_M4_ACCEPTANCE.md`。P1-M5 尚未 rolling-wave refinement，不得从本状态提交推断已进入 M5。
+P1-M4 的本地/远端 Gate、repairs 与 deferred production Gates 见 `P1_M4_ACCEPTANCE.md`。
+
+P1-M5 的私有 Asset 访问、异步删除、数据导出、账户删除传播和 P1-M6 边界见 `ADR-020-user-data-rights-and-asset-lifecycle.md` 与 `P1_M5_EXECUTION_PROTOCOL.md`。
 
 ## Future rolling-wave positioning
 

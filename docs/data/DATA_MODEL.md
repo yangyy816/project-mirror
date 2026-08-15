@@ -3,7 +3,8 @@
 ## 领域分组
 
 - 身份与授权：User、InviteCode、InviteRedemption、PhoneVerificationChallenge、UserSession、AgeAssuranceRecord、PolicyAcceptanceRecord、Consent。
-- 资产与审计：Asset、AssetVariant、AssetAccessAudit、append-only AssetIngestionRecord。
+- 资产与审计：Asset、AssetVariant、append-only AssetAccessAudit/AssetIngestionRecord、AssetDeletionRequest/Event 与 ObjectDeletionEvidence。
+- 数据权利：DataExportRequest/Event、AccountDeletionRequest/Event；请求与物理完成证据分离，未来领域必须在各自 Phase 扩展账户删除传播图。
 - 上传控制：UploadIntent、append-only UploadIntentEvent；quarantine intent/object 不是 Asset，M4 验证晋升前不得作为 Original 引用。
 - 题库资产：QuestionBankVersion、SyntheticIdentity、QuestionAsset。
 - 个人审美：AestheticProfile、AestheticProfileVersion、ReferenceSet、PreferenceEvent。
