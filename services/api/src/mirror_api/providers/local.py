@@ -16,6 +16,7 @@ from mirror_api.providers.base import (
     DeleteResult,
     PrivateUploadGrant,
     QuarantineObjectMetadata,
+    SanitizedObjectConflictError,
     SanitizedObjectMetadata,
 )
 from mirror_api.security import ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, validate_storage_key
@@ -253,7 +254,7 @@ class LocalObjectStorageProvider:
                     and hmac.compare_digest(existing.sha256, checksum_sha256)
                     and existing.content_type == content_type
                 ):
-                    raise LocalStorageOperationError("sanitized_object_conflict") from exc
+                    raise SanitizedObjectConflictError() from exc
                 return existing
             return SanitizedObjectMetadata(
                 byte_size=content_length,

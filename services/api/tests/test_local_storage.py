@@ -12,9 +12,9 @@ from fastapi import FastAPI, Request, Response
 
 from mirror_api.errors import APIError, api_error_handler
 from mirror_api.middleware import LocalUploadAccessLogRedactionMiddleware, RequestIDMiddleware
+from mirror_api.providers import SanitizedObjectConflictError
 from mirror_api.providers.local import (
     LocalObjectStorageProvider,
-    LocalStorageOperationError,
     sanitized_object_key_for_job,
 )
 from mirror_api.routers.local_upload import router as local_upload_router
@@ -320,7 +320,7 @@ async def test_local_storage_reads_quarantine_and_manages_sanitized_objects(tmp_
         body=_body(sanitized),
     ) == created
     conflicting = b"different-synthetic-canonical-jpeg"
-    with pytest.raises(LocalStorageOperationError) as conflict:
+    with pytest.raises(SanitizedObjectConflictError) as conflict:
         await provider.create_sanitized_object_if_absent(
             object_key=sanitized_key,
             content_type="image/jpeg",
@@ -328,7 +328,11 @@ async def test_local_storage_reads_quarantine_and_manages_sanitized_objects(tmp_
             checksum_sha256=sha256(conflicting).hexdigest(),
             body=_body(conflicting),
         )
-    assert conflict.value.reason == "sanitized_object_conflict"
+    assert str(conflict.value) == "sanitized object conflict"
+    assert sanitized_key not in str(conflict.value)
+    assert sanitized_checksum not in str(conflict.value)
+    assert conflicting.decode() not in str(conflict.value)
+    assert sha256(conflicting).hexdigest() not in str(conflict.value)
     assert await provider.delete_sanitized_object(object_key=sanitized_key) == "deleted"
     assert await provider.delete_sanitized_object(object_key=sanitized_key) == "not_found"
 

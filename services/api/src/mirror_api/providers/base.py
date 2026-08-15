@@ -6,6 +6,13 @@ from datetime import datetime
 from typing import Literal, Protocol
 
 
+class SanitizedObjectConflictError(Exception):
+    """A canonical sanitized key already exists with different content."""
+
+    def __init__(self) -> None:
+        super().__init__("sanitized object conflict")
+
+
 @dataclass(frozen=True)
 class PrivateUploadGrant:
     method: Literal["PUT"]
