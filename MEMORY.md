@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 1 — Application Foundation（COMMITTED）
-- 当前 Milestone：P1-M3 — Purpose Consent, Authorization and Private Upload Control Plane（EXECUTING）
+- 当前 Milestone：P1-M3 — Purpose Consent, Authorization and Private Upload Control Plane（FROZEN）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -149,3 +149,4 @@
 - 2026-08-16：P1-M3-T05 经 Principal 本地验收。UploadIntent application 在同一用户锁/事务中校验 active actor、精确有效 Consent、HMAC 幂等与并发/累计声明配额；服务端生成 opaque key，每个 intent 只签发一次，查询/complete/cancel 均以 owner SQL predicate 绑定。complete 只比对 Provider metadata 并进入 `uploaded_unverified`，撤回、过期或 mismatch 先持久 tombstone 再删除 quarantine，cleanup 失败仍保持 fail-closed；不创建 Asset/Job。R04 修正 PostgreSQL `JSON` scope 不可直接相等比较，显式转为 `JSONB` 保持精确语义；8 项定向测试和完整 API 136 项通过，仅使用合成非人脸 bytes。
 - 2026-08-16：P1-M3-T06 经 Principal 本地验收。ADR-018 七个 `/api/v1` Consent/UploadIntent 接口已接入真实 application services，响应不暴露 object key，grant URL/headers 仅出现在 create 响应，本地 PUT ingress 继续隐藏于 OpenAPI；旧 `/api/v1/assets` 501 stub 已移除。Auth/DB/Redis/storage 通过共享 infrastructure 注入，上传频率、并发 intent 与累计 bytes 可配置；OpenAPI 单向生成 TypeScript 零漂移。R05 补齐浏览器私有上传所需 PUT 与完整性/授权 CORS headers；HTTP 定向 23 项、完整 API 139 项、contracts Vitest/typecheck、52 个 Web tests 与 Next production build 通过。
 - 2026-08-16：P1-M3 candidate `26fe43213519cebd4eda157b46035cc0beb43cc5` 经 Principal Gate PASS。全新 PostgreSQL migration lifecycle、145 项 Python/Redis/Celery、`pnpm check`、3 项 Playwright、全镜像/五服务、供应链和精确 index Gitleaks 均通过；R06 仅补齐 Worker 生产 fixture 的非零 purpose policy digest。远端 run `31897237022` 的 `quality-and-integration`、`secret-scan`、`docker-validation` 与三项 artifacts 全绿；P1-M3 状态为 PASS，等待 acceptance closure CI 后 FROZEN。
+- 2026-08-16：P1-M3 acceptance closure `05c9f00d88d3b647060ef60012c284d710252bb3` 的远端 run `31897780247` 三个 jobs 全绿，并生成 `project-audit-evidence`、`project-docker-evidence` 与零结果 Gitleaks SARIF；Principal 将 P1-M3 前向更新为 FROZEN，下一步只对 P1-M4 做 rolling-wave refinement。

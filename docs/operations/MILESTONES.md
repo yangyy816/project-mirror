@@ -8,7 +8,7 @@
 | Phase 1 | COMMITTED | Application Foundation；P1-M1/M2 frozen，P1-M3 Gate 已 PASS      |
 | P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿 |
 | P1-M2   | FROZEN    | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿 |
-| P1-M3   | PASS      | candidate `26fe432`；run `31897237022` 三 jobs 全绿；待 closure  |
+| P1-M3   | FROZEN    | closure `05c9f00`；run `31897780247` 三 jobs 与 artifacts 全绿   |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
