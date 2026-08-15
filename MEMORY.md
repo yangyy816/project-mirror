@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 1 — Application Foundation（COMMITTED）
-- 当前 Milestone：P1-M4 — Safe Image Ingestion and Asset Lifecycle（EXECUTING）
+- 当前 Milestone：P1-M4 — Safe Image Ingestion and Asset Lifecycle（FROZEN）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -36,7 +36,7 @@
 - Phase 0 OpenAPI 暴露 inactive domain schemas 供生成契约使用，但没有新增成功型业务 endpoint；未实施业务仍为 501/401。
 - Project Mirror 使用项目级 `.codex` 定义专属 subagents：规划与最终审查使用 Sol High，边界明确的执行/测试/安全角色使用 Terra High；未指定 subagent 默认 Terra High，不覆盖主交互模型、不固定并发数、不修改全局 Codex 配置。
 - 新增第三层 `pm_fast_worker`，精确使用 `gpt-5.3-codex-spark` + `medium`，仅路由通过 Small/Precise/Atomic/Reversible/Known-validation 全部条件的 micro task；Spark 不是默认模型，不得决定架构、安全/数据库语义或 Project Mirror 敏感领域 invariant，不确定时回退 Terra。
-- 执行状态统一为 `PROVISIONAL → COMMITTED → EXECUTION_READY → EXECUTING → PASS → FROZEN`；Phase 0 与 P1-M1 已 FROZEN，Phase 1 COMMITTED，P1-M2 已完成 rolling-wave refinement 并进入 EXECUTING。
+- 执行状态统一为 `PROVISIONAL → COMMITTED → EXECUTION_READY → EXECUTING → PASS → FROZEN`；Phase 0 与 P1-M1/M2/M3/M4 已 FROZEN，Phase 1 COMMITTED；下一步只能对 P1-M5 做 rolling-wave refinement。
 - Terra 只能实现 Principal 已批准的架构；新架构决策必须停止并上报。计划外实现缺陷使用 `P1-M1-Rxx` 最小 Repair Task，架构变化不得包装成 Repair Task。
 - OSS 复用原则为“复用通用基础设施，保留个性化智能”：重大第三方组件必须分别审查代码、模型/权重、数据与传递依赖许可证，并通过 Principal change control；Terra 只能报告候选，不得自行安装、下载权重或接受条款。
 - Identity-Preserving Makeup Transfer 已提升为 P6 Hybrid Editor 的一级高优先级研究轨道和能力子系统，与 Deterministic、Geometry、Generative Editor 和 Agent Tool Layer 并列，不得降格为单一 `makeup_transfer()` 工具；其未来链路为 Reference Makeup Understanding → MakeupStyleRepresentation → StyleProfile personalization → Structured MakeupPlan → region execution → identity/geometry verification → user correction → PreferenceEvent。
@@ -161,3 +161,4 @@
 - 2026-08-16：P1-M4-R06 关闭 T08 Gate 前置缺陷。API/Worker 镜像显式复制权威 `packages/contracts/openapi.json`，CI Celery 启动显式监听 default/ingestion/maintenance 三队列并在 Docker job 运行完整 Worker suite；对 7 个既有 Python 文件仅执行 Ruff 机械格式化，不改变 migration 或领域语义。重建后的 Worker 容器对完整 API+Worker suite 在真实 PostgreSQL/Redis/Celery 上零 skip 全绿，93 文件 Ruff format、lint、61 source strict mypy、Prettier 与 Compose model 均 PASS。
 - 2026-08-16：P1-M4-R07/R08 关闭远端 secret-scan 的历史 fixture 误报。R07 将当前测试中的旧协调器幂等测试值改为等价的确定性非凭据值；因 CI 使用 `fetch-depth: 0`，旧提交 `192610b` 仍会被完整历史扫描命中，R08 因此新增同时锁定 exact commit、exact path 与 exact match 的最窄 allowlist，并显式 `extend.useDefault = true` 保留 Gitleaks 默认规则。Gitleaks 8.28.0 对 44 个 commits 和精确 index 快照均无泄漏；同一模式置于其他路径的负向控制仍被 `generic-api-key` 拦截，证明未放宽当前或无关扫描。
 - 2026-08-16：P1-M4 candidate `b28f0e6b547df94ded12ce6323efb06ae269a11e` 经 Principal Gate PASS。远端 run `31903655766` 的 `quality-and-integration`、`secret-scan`、`docker-validation` 全绿，PostgreSQL migration、Redis/Celery、完整 Python/TypeScript、浏览器、契约、供应链、Docker 和 Gitleaks 均实际执行，三项 artifacts 存在且未过期；P1-M4 当前为 PASS，等待 acceptance closure CI 后才能 FROZEN。
+- 2026-08-16：P1-M4 acceptance closure `fd910f203a61a6aea2f2fa6fb9412216ddd0aa05` 的远端 run `31903994976` 三个 jobs 全绿，并生成 `project-audit-evidence`、`project-docker-evidence` 与零结果 Gitleaks SARIF；Principal 将 P1-M4 前向更新为 FROZEN，下一步只允许对 P1-M5 做 rolling-wave refinement，不在本次冻结提交中进入 M5。

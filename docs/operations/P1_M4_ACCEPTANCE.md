@@ -6,11 +6,11 @@
 - Candidate SHA: `b28f0e6b547df94ded12ce6323efb06ae269a11e`
 - Candidate run: [31903655766](https://github.com/yangyy816/project-mirror/actions/runs/31903655766)
 - Principal decision: `PASS`
-- Acceptance SHA: `PENDING_CLOSURE_COMMIT`
-- Closure run: `PENDING_REMOTE_CI`
-- Freeze state: `PASS_AWAITING_CLOSURE`
+- Acceptance SHA: `fd910f203a61a6aea2f2fa6fb9412216ddd0aa05`
+- Closure run: [31903994976](https://github.com/yangyy816/project-mirror/actions/runs/31903994976)
+- Freeze state: `FROZEN`
 
-T01–T08 and all mandatory M4 evidence are accepted. The Milestone becomes `FROZEN` only after this acceptance record's own commit completes the same full remote Gate.
+T01–T08 and all mandatory M4 evidence are accepted. The acceptance record's own commit completed the same full remote Gate, so the Milestone is frozen.
 
 ## Accepted scope
 
@@ -59,6 +59,18 @@ Artifacts are present, downloadable and unexpired:
 - `project-docker-evidence` (`9251783200`): Compose log.
 - `gitleaks-results.sarif` (`9251759661`): Gitleaks SARIF evidence.
 
+Acceptance closure run `31903994976` is bound to SHA `fd910f203a61a6aea2f2fa6fb9412216ddd0aa05` and repeated the complete Gate successfully:
+
+- `quality-and-integration` (`95058922805`)
+- `secret-scan` (`95058922706`)
+- `docker-validation` (`95058922730`)
+
+Closure artifacts are present and unexpired:
+
+- `project-audit-evidence` (`9251886050`)
+- `project-docker-evidence` (`9251865957`)
+- `gitleaks-results.sarif` (`9251844014`)
+
 The historical workflow display name `phase-0-gates` and Node action-runtime deprecation annotations are nonblocking maintenance debt; the current jobs and mandatory steps above executed.
 
 ## Material repairs closed
@@ -81,4 +93,4 @@ The historical workflow display name `phase-0-gates` and Node action-runtime dep
 
 `P1-M4_GATE: PASS`
 
-`P1-M4_STATE: PASS_AWAITING_CLOSURE`
+`P1-M4_STATE: FROZEN`
