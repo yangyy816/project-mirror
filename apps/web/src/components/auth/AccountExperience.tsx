@@ -5,6 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useBrowserAuth } from "../../lib/auth";
+import type { AccountDeletionResponse } from "../../lib/auth/api";
+import {
+  AccountDeletionStatus,
+  DataRightsExperience,
+} from "../data-rights/DataRightsExperience";
 
 import { SessionLoading, SessionRecovery } from "./SessionStatus";
 
@@ -13,6 +18,8 @@ export function AccountExperience() {
   const { session, snapshot } = useBrowserAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [logoutFailed, setLogoutFailed] = useState(false);
+  const [accountDeletion, setAccountDeletion] =
+    useState<AccountDeletionResponse | null>(null);
   const logoutLock = useRef(false);
 
   useEffect(() => {
@@ -68,6 +75,10 @@ export function AccountExperience() {
     return <SessionLoading />;
   }
 
+  if (accountDeletion !== null) {
+    return <AccountDeletionStatus initialRequest={accountDeletion} />;
+  }
+
   return (
     <section aria-labelledby="account-title" className="w-full max-w-2xl">
       <p className="text-sm font-medium tracking-[0.18em] text-rose">
@@ -85,6 +96,7 @@ export function AccountExperience() {
           <dd className="font-medium">已激活</dd>
         </div>
       </dl>
+      <DataRightsExperience onAccountDeletionStarted={setAccountDeletion} />
       <Button
         type="button"
         variant="secondary"

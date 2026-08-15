@@ -111,3 +111,80 @@ test("missing CSRF and revoked refresh fail closed without account-content flash
   await expect(page).toHaveURL(/\/join$/);
   await expect(page.getByText("账号基础已就绪")).toHaveCount(0);
 });
+
+test("active user manages assets and a real asynchronous data export without persisting grants", async ({
+  page,
+  request,
+}) => {
+  await completeAuthentication(page, "synthetic-invite");
+  await page.getByRole("button", { name: "开始年龄核验" }).click();
+  await page.getByRole("checkbox").check();
+  await request.post(`${apiOrigin}/__test/fail-next`, {
+    data: { target: "assets" },
+  });
+  await page.getByRole("button", { name: "确认并继续" }).click();
+  await expect(page).toHaveURL(/\/account$/);
+
+  await expect(page.getByText("请求未完成，请稍后重试。")).toBeVisible();
+  await page.getByRole("button", { name: "重试读取资产" }).click();
+  await expect(page.getByText("32 × 24")).toBeVisible();
+
+  await page.getByRole("button", { name: "查看详情" }).click();
+  await expect(page.getByLabel("资产详情")).toContainText("image/jpeg");
+
+  const assetDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "下载", exact: true }).click();
+  await expect((await assetDownload).suggestedFilename()).toMatch(
+    /^mirror-asset-[a-f0-9]{32}\.jpg$/,
+  );
+
+  await page.getByRole("button", { name: "删除", exact: true }).click();
+  await expect(page.getByText("删除请求状态：处理中")).toBeVisible();
+  await expect(page.getByText("暂无可访问资产。")).toBeVisible();
+
+  await page.getByRole("button", { name: "申请数据导出" }).click();
+  await expect(page.getByText("导出状态：准备中")).toBeVisible();
+  await expect(page.getByText("导出状态：可下载")).toBeVisible();
+  const exportDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "下载数据导出" }).click();
+  await expect((await exportDownload).suggestedFilename()).toBe(
+    "project-mirror-data-export.zip",
+  );
+
+  expect(await page.evaluate(() => localStorage.length)).toBe(0);
+  expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
+  expect(page.url()).not.toContain("grant");
+  expect(page.url()).not.toContain("token");
+});
+
+test("guarded account deletion hides ordinary content and only polls deletion status", async ({
+  page,
+  request,
+}) => {
+  await completeAuthentication(page, "synthetic-invite");
+  await activateAccount(page);
+  await expect(
+    page.getByRole("button", { name: "永久删除账号" }),
+  ).toBeDisabled();
+  await page.getByLabel("输入“删除我的账号”确认").fill("删除我的账号");
+  await page.getByRole("button", { name: "永久删除账号" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "账号删除处理中" }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "我的图片资产" })).toHaveCount(
+    0,
+  );
+  await expect(page).toHaveURL(/\/join$/);
+  await expect(
+    page.getByRole("heading", { name: "加入 Project Mirror 私测" }),
+  ).toBeVisible();
+
+  const state = await (await request.get(`${apiOrigin}/__test/state`)).json();
+  expect(state).toMatchObject({
+    session: false,
+    account_deletion_status: "completed",
+  });
+  expect(await page.evaluate(() => localStorage.length)).toBe(0);
+  expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
+});

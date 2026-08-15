@@ -37,11 +37,11 @@ export function BrowserAuthProvider({
   config: WebAuthConfig;
   session?: BrowserAuthSession;
 }>) {
-  const [session] = useState(
-    () =>
-      suppliedSession ??
-      new BrowserAuthSession(new GeneratedBrowserAuthApi(config), config),
-  );
+  const [session] = useState(() => {
+    if (suppliedSession !== undefined) return suppliedSession;
+    const api = new GeneratedBrowserAuthApi(config);
+    return new BrowserAuthSession(api, config, api);
+  });
   const snapshot = useSyncExternalStore(
     (listener) => session.subscribe(listener),
     () => session.getSnapshot(),

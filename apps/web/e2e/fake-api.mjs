@@ -6,6 +6,10 @@ const appOrigin = "http://127.0.0.1:4300";
 const challengeId = "c".repeat(32);
 const userId = "d".repeat(32);
 const recordId = "e".repeat(32);
+const assetId = "a".repeat(32);
+const exportId = "b".repeat(32);
+const deletionRequestId = "f".repeat(32);
+const jobId = "9".repeat(32);
 const refreshCookie =
   "mirror_refresh=synthetic-refresh; HttpOnly; SameSite=Lax; Path=/";
 const csrfCookie = "mirror_csrf=synthetic-csrf; SameSite=Lax; Path=/";
@@ -19,6 +23,12 @@ function reset() {
     policy: false,
     lastInvitePresent: false,
     challengeCount: 0,
+    assetPresent: true,
+    exportStatus: null,
+    exportPolls: 0,
+    accountDeletionStatus: null,
+    accountDeletionPolls: 0,
+    failNextAssetList: false,
   };
 }
 
@@ -88,7 +98,7 @@ const server = createServer(async (request, response) => {
     response.writeHead(204, {
       ...corsHeaders(),
       "Access-Control-Allow-Headers":
-        "Authorization, Content-Type, Idempotency-Key, X-CSRF-Token",
+        "Authorization, Content-Type, Idempotency-Key, X-CSRF-Token, X-Mirror-Grant",
       "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     });
     response.end();
@@ -117,7 +127,17 @@ const server = createServer(async (request, response) => {
       active: state.adult && state.policy,
       last_invite_present: state.lastInvitePresent,
       challenge_count: state.challengeCount,
+      asset_present: state.assetPresent,
+      export_status: state.exportStatus,
+      account_deletion_status: state.accountDeletionStatus,
     });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/__test/fail-next") {
+    const body = await jsonBody(request);
+    if (body.target === "assets") state.failNextAssetList = true;
+    send(response, 204, null);
     return;
   }
 
@@ -163,6 +183,227 @@ const server = createServer(async (request, response) => {
       { challenge_id: challengeId, expires_at: "2099-01-01T00:00:00Z" },
       { "Set-Cookie": csrfCookie },
     );
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/v1/assets") {
+    if (!isAuthorized(request)) {
+      error(response, 401);
+      return;
+    }
+    if (state.failNextAssetList) {
+      state.failNextAssetList = false;
+      error(response, 503, "temporarily_unavailable");
+      return;
+    }
+    send(response, 200, {
+      assets: state.assetPresent
+        ? [
+            {
+              asset_id: assetId,
+              asset_role: "synthetic",
+              mime_type: "image/jpeg",
+              byte_size: 128,
+              width: 32,
+              height: 24,
+              created_at: "2099-01-01T00:00:00Z",
+            },
+          ]
+        : [],
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/assets/${assetId}`
+  ) {
+    if (!isAuthorized(request) || !state.assetPresent) {
+      error(response, state.assetPresent ? 401 : 404, "not_found");
+      return;
+    }
+    send(response, 200, {
+      asset_id: assetId,
+      asset_role: "synthetic",
+      mime_type: "image/jpeg",
+      byte_size: 128,
+      width: 32,
+      height: 24,
+      created_at: "2099-01-01T00:00:00Z",
+    });
+    return;
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === `/api/v1/assets/${assetId}/download-grants`
+  ) {
+    if (!isAuthorized(request) || !state.assetPresent) {
+      error(response, state.assetPresent ? 401 : 404, "not_found");
+      return;
+    }
+    send(response, 201, {
+      method: "GET",
+      url: `http://${host}:${port}/__download/asset`,
+      required_headers: { "X-Mirror-Grant": "synthetic-asset-grant" },
+      expires_at: "2099-01-01T00:00:00Z",
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === "/__download/asset" &&
+    request.headers["x-mirror-grant"] === "synthetic-asset-grant" &&
+    state.assetPresent
+  ) {
+    response.writeHead(200, {
+      ...corsHeaders(),
+      "Content-Type": "image/jpeg",
+      "Content-Length": "4",
+    });
+    response.end(Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+    return;
+  }
+
+  if (
+    request.method === "DELETE" &&
+    url.pathname === `/api/v1/assets/${assetId}`
+  ) {
+    if (!isAuthorized(request) || !state.assetPresent) {
+      error(response, state.assetPresent ? 401 : 404, "not_found");
+      return;
+    }
+    state.assetPresent = false;
+    send(response, 202, {
+      deletion_request_id: deletionRequestId,
+      job_id: jobId,
+      status: "requested",
+    });
+    return;
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === "/api/v1/users/me/data-exports"
+  ) {
+    if (!isAuthorized(request)) {
+      error(response, 401);
+      return;
+    }
+    state.exportStatus = "requested";
+    state.exportPolls = 0;
+    send(response, 202, {
+      export_id: exportId,
+      job_id: jobId,
+      status: state.exportStatus,
+      schema_version: "mirror-data-export-v1",
+      requested_at: "2099-01-01T00:00:00Z",
+      ready_at: null,
+      expires_at: null,
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/users/me/data-exports/${exportId}`
+  ) {
+    if (!isAuthorized(request) || state.exportStatus === null) {
+      error(response, state.exportStatus === null ? 404 : 401, "not_found");
+      return;
+    }
+    state.exportPolls += 1;
+    state.exportStatus = state.exportPolls >= 2 ? "ready" : "processing";
+    send(response, 200, {
+      export_id: exportId,
+      job_id: jobId,
+      status: state.exportStatus,
+      schema_version: "mirror-data-export-v1",
+      requested_at: "2099-01-01T00:00:00Z",
+      ready_at: state.exportStatus === "ready" ? "2099-01-01T00:00:01Z" : null,
+      expires_at:
+        state.exportStatus === "ready" ? "2099-01-02T00:00:01Z" : null,
+    });
+    return;
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === `/api/v1/users/me/data-exports/${exportId}/download-grants`
+  ) {
+    if (!isAuthorized(request) || state.exportStatus !== "ready") {
+      error(response, 404, "not_found");
+      return;
+    }
+    send(response, 201, {
+      method: "GET",
+      url: `http://${host}:${port}/__download/export`,
+      required_headers: { "X-Mirror-Grant": "synthetic-export-grant" },
+      expires_at: "2099-01-01T00:00:00Z",
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === "/__download/export" &&
+    request.headers["x-mirror-grant"] === "synthetic-export-grant"
+  ) {
+    response.writeHead(200, {
+      ...corsHeaders(),
+      "Content-Type": "application/zip",
+      "Content-Length": "4",
+    });
+    response.end(Buffer.from("PK\u0005\u0006"));
+    return;
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === "/api/v1/users/me/deletion-requests"
+  ) {
+    if (!isAuthorized(request)) {
+      error(response, 401);
+      return;
+    }
+    state.accountDeletionStatus = "requested";
+    state.accountDeletionPolls = 0;
+    state.session = false;
+    send(response, 202, {
+      deletion_request_id: deletionRequestId,
+      job_id: jobId,
+      status: state.accountDeletionStatus,
+      requested_at: "2099-01-01T00:00:00Z",
+      completed_at: null,
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === "/api/v1/users/me/deletion-requests/current"
+  ) {
+    if (
+      !request.headers.authorization?.startsWith("Bearer ") ||
+      state.accountDeletionStatus === null
+    ) {
+      error(response, 401);
+      return;
+    }
+    state.accountDeletionPolls += 1;
+    state.accountDeletionStatus =
+      state.accountDeletionPolls >= 2 ? "completed" : "processing";
+    send(response, 200, {
+      deletion_request_id: deletionRequestId,
+      job_id: jobId,
+      status: state.accountDeletionStatus,
+      requested_at: "2099-01-01T00:00:00Z",
+      completed_at:
+        state.accountDeletionStatus === "completed"
+          ? "2099-01-01T00:00:01Z"
+          : null,
+    });
     return;
   }
 

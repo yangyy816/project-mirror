@@ -1,6 +1,7 @@
 export { GeneratedBrowserAuthApi, readCookieValue } from "./api";
 export type {
   BrowserAuthApi,
+  BrowserDataRightsApi,
   BrowserFetch,
   SessionCredentials,
   SmsChallengeInput,

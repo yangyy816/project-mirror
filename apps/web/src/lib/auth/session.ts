@@ -1,9 +1,15 @@
 import type { WebAuthConfig } from "../web-auth-config";
 
 import type {
+  AccountDeletionResponse,
   AgeAssuranceResponse,
+  AssetDeletionResponse,
+  AssetListResponse,
+  AssetResponse,
   BrowserAuthApi,
+  BrowserDataRightsApi,
   CurrentUserResponse,
+  DataExportResponse,
   PolicyAcceptanceResponse,
   SmsChallengeInput,
   SmsChallengeResponse,
@@ -43,6 +49,7 @@ export class BrowserAuthSession {
   constructor(
     private readonly api: BrowserAuthApi,
     readonly config: WebAuthConfig,
+    private readonly dataRightsApi?: BrowserDataRightsApi,
   ) {}
 
   getSnapshot(): BrowserSessionSnapshot {
@@ -155,6 +162,112 @@ export class BrowserAuthSession {
     });
   }
 
+  async listAssets(): Promise<AssetListResponse> {
+    return this.runDataRights(() =>
+      this.withAuthorizedRequest((token) =>
+        this.requireDataRightsApi().listAssets(token),
+      ),
+    );
+  }
+
+  async getAsset(assetId: string): Promise<AssetResponse> {
+    return this.runDataRights(() =>
+      this.withAuthorizedRequest((token) =>
+        this.requireDataRightsApi().getAsset(assetId, token),
+      ),
+    );
+  }
+
+  async downloadAsset(
+    assetId: string,
+    logicalSubmission: string,
+  ): Promise<Blob> {
+    return this.runDataRights(async () => {
+      const key = await this.idempotency.retain(logicalSubmission);
+      const blob = await this.withAuthorizedRequest((token) =>
+        this.requireDataRightsApi().downloadAsset(assetId, token, key),
+      );
+      this.idempotency.restart(logicalSubmission);
+      return blob;
+    });
+  }
+
+  async deleteAsset(
+    assetId: string,
+    logicalSubmission: string,
+  ): Promise<AssetDeletionResponse> {
+    return this.runDataRights(async () => {
+      const key = await this.idempotency.retain(logicalSubmission);
+      const result = await this.withAuthorizedRequest((token) =>
+        this.requireDataRightsApi().deleteAsset(assetId, token, key),
+      );
+      this.idempotency.restart(logicalSubmission);
+      return result;
+    });
+  }
+
+  async createDataExport(
+    logicalSubmission: string,
+  ): Promise<DataExportResponse> {
+    return this.runDataRights(async () => {
+      const key = await this.idempotency.retain(logicalSubmission);
+      const result = await this.withAuthorizedRequest((token) =>
+        this.requireDataRightsApi().createDataExport(token, key),
+      );
+      this.idempotency.restart(logicalSubmission);
+      return result;
+    });
+  }
+
+  async getDataExport(exportId: string): Promise<DataExportResponse> {
+    return this.runDataRights(() =>
+      this.withAuthorizedRequest((token) =>
+        this.requireDataRightsApi().getDataExport(exportId, token),
+      ),
+    );
+  }
+
+  async downloadDataExport(
+    exportId: string,
+    logicalSubmission: string,
+  ): Promise<Blob> {
+    return this.runDataRights(async () => {
+      const key = await this.idempotency.retain(logicalSubmission);
+      const blob = await this.withAuthorizedRequest((token) =>
+        this.requireDataRightsApi().downloadDataExport(exportId, token, key),
+      );
+      this.idempotency.restart(logicalSubmission);
+      return blob;
+    });
+  }
+
+  async createAccountDeletion(
+    logicalSubmission: string,
+  ): Promise<AccountDeletionResponse> {
+    return this.runDataRights(async () => {
+      const key = await this.idempotency.retain(logicalSubmission);
+      const result = await this.withAuthorizedRequest((token) =>
+        this.requireDataRightsApi().createAccountDeletion(token, key),
+      );
+      this.idempotency.restart(logicalSubmission);
+      return result;
+    });
+  }
+
+  async getCurrentAccountDeletion(): Promise<AccountDeletionResponse> {
+    try {
+      return await this.requireDataRightsApi().getCurrentAccountDeletion(
+        this.requireAccessToken(),
+      );
+    } catch (error) {
+      throw this.sanitize(error);
+    }
+  }
+
+  clearAfterAccountDeletion(): void {
+    this.clearToAnonymous();
+  }
+
   async refresh(): Promise<void> {
     if (this.refreshPromise === null) {
       this.refreshPromise = this.refreshAccessToken().finally(() => {
@@ -230,6 +343,13 @@ export class BrowserAuthSession {
     return this.accessToken;
   }
 
+  private requireDataRightsApi(): BrowserDataRightsApi {
+    if (this.dataRightsApi === undefined) {
+      throw new BrowserAuthError("authentication_failed");
+    }
+    return this.dataRightsApi;
+  }
+
   private applyUser(user: CurrentUserResponse): void {
     const status =
       user.status === "active" && user.scope === "active"
@@ -255,6 +375,14 @@ export class BrowserAuthSession {
       return await operation();
     } catch (error) {
       throw this.fail(error);
+    }
+  }
+
+  private async runDataRights<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      throw this.sanitize(error);
     }
   }
 

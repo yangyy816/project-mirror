@@ -126,6 +126,148 @@ export class GeneratedBrowserAuthApi {
     return this.unwrap(result);
   }
 
+  async listAssets(accessToken: string) {
+    const result = await this.client.GET("/api/v1/assets", {
+      params: { header: authHeader(accessToken) },
+      credentials: "include",
+      fetch: this.fetchImpl,
+    });
+    return this.unwrap(result);
+  }
+
+  async getAsset(assetId: string, accessToken: string) {
+    const result = await this.client.GET("/api/v1/assets/{asset_id}", {
+      params: {
+        path: { asset_id: assetId },
+        header: authHeader(accessToken),
+      },
+      credentials: "include",
+      fetch: this.fetchImpl,
+    });
+    return this.unwrap(result);
+  }
+
+  async downloadAsset(
+    assetId: string,
+    accessToken: string,
+    idempotencyKey: string,
+  ): Promise<Blob> {
+    const result = await this.client.POST(
+      "/api/v1/assets/{asset_id}/download-grants",
+      {
+        params: {
+          path: { asset_id: assetId },
+          header: {
+            ...authHeader(accessToken),
+            ...idempotencyHeaders(idempotencyKey),
+          },
+        },
+        credentials: "include",
+        fetch: this.fetchImpl,
+      },
+    );
+    return this.redeemDownload(this.unwrap(result));
+  }
+
+  async deleteAsset(
+    assetId: string,
+    accessToken: string,
+    idempotencyKey: string,
+  ) {
+    const result = await this.client.DELETE("/api/v1/assets/{asset_id}", {
+      params: {
+        path: { asset_id: assetId },
+        header: {
+          ...authHeader(accessToken),
+          ...idempotencyHeaders(idempotencyKey),
+        },
+      },
+      credentials: "include",
+      fetch: this.fetchImpl,
+    });
+    return this.unwrap(result);
+  }
+
+  async createDataExport(accessToken: string, idempotencyKey: string) {
+    const result = await this.client.POST("/api/v1/users/me/data-exports", {
+      params: {
+        header: {
+          ...authHeader(accessToken),
+          ...idempotencyHeaders(idempotencyKey),
+        },
+      },
+      credentials: "include",
+      fetch: this.fetchImpl,
+    });
+    return this.unwrap(result);
+  }
+
+  async getDataExport(exportId: string, accessToken: string) {
+    const result = await this.client.GET(
+      "/api/v1/users/me/data-exports/{export_id}",
+      {
+        params: {
+          path: { export_id: exportId },
+          header: authHeader(accessToken),
+        },
+        credentials: "include",
+        fetch: this.fetchImpl,
+      },
+    );
+    return this.unwrap(result);
+  }
+
+  async downloadDataExport(
+    exportId: string,
+    accessToken: string,
+    idempotencyKey: string,
+  ): Promise<Blob> {
+    const result = await this.client.POST(
+      "/api/v1/users/me/data-exports/{export_id}/download-grants",
+      {
+        params: {
+          path: { export_id: exportId },
+          header: {
+            ...authHeader(accessToken),
+            ...idempotencyHeaders(idempotencyKey),
+          },
+        },
+        credentials: "include",
+        fetch: this.fetchImpl,
+      },
+    );
+    return this.redeemDownload(this.unwrap(result));
+  }
+
+  async createAccountDeletion(accessToken: string, idempotencyKey: string) {
+    const result = await this.client.POST(
+      "/api/v1/users/me/deletion-requests",
+      {
+        params: {
+          header: {
+            ...authHeader(accessToken),
+            ...idempotencyHeaders(idempotencyKey),
+          },
+        },
+        credentials: "include",
+        fetch: this.fetchImpl,
+      },
+    );
+    return this.unwrap(result);
+  }
+
+  async getCurrentAccountDeletion(accessToken: string) {
+    const result = await this.client.GET(
+      "/api/v1/users/me/deletion-requests/current",
+      {
+        params: { header: authHeader(accessToken) },
+        credentials: "include",
+        fetch: this.fetchImpl,
+      },
+    );
+    return this.unwrap(result);
+  }
+
   async recordAgeAssurance(
     credential: string,
     accessToken: string,
@@ -193,6 +335,24 @@ export class GeneratedBrowserAuthApi {
     }
     return result.data;
   }
+
+  private async redeemDownload(grant: {
+    method: "GET";
+    url: string;
+    required_headers: Record<string, string>;
+  }): Promise<Blob> {
+    const response = await this.fetchImpl(
+      new Request(grant.url, {
+        method: grant.method,
+        headers: grant.required_headers,
+        credentials: "include",
+      }),
+    );
+    if (!response.ok) {
+      throw sanitizeAuthFailure(response.status, undefined);
+    }
+    return response.blob();
+  }
 }
 
 export type AccessTokenResponse = Awaited<
@@ -209,6 +369,21 @@ export type PolicyAcceptanceResponse = Awaited<
 >;
 export type SmsChallengeResponse = Awaited<
   ReturnType<GeneratedBrowserAuthApi["requestSmsChallenge"]>
+>;
+export type AccountDeletionResponse = Awaited<
+  ReturnType<GeneratedBrowserAuthApi["createAccountDeletion"]>
+>;
+export type AssetDeletionResponse = Awaited<
+  ReturnType<GeneratedBrowserAuthApi["deleteAsset"]>
+>;
+export type AssetListResponse = Awaited<
+  ReturnType<GeneratedBrowserAuthApi["listAssets"]>
+>;
+export type AssetResponse = Awaited<
+  ReturnType<GeneratedBrowserAuthApi["getAsset"]>
+>;
+export type DataExportResponse = Awaited<
+  ReturnType<GeneratedBrowserAuthApi["createDataExport"]>
 >;
 
 export interface BrowserAuthApi {
@@ -233,4 +408,39 @@ export interface BrowserAuthApi {
     idempotencyKey: string,
   ): Promise<PolicyAcceptanceResponse>;
   logout(accessToken: string): Promise<void>;
+}
+
+export interface BrowserDataRightsApi {
+  listAssets(accessToken: string): Promise<AssetListResponse>;
+  getAsset(assetId: string, accessToken: string): Promise<AssetResponse>;
+  downloadAsset(
+    assetId: string,
+    accessToken: string,
+    idempotencyKey: string,
+  ): Promise<Blob>;
+  deleteAsset(
+    assetId: string,
+    accessToken: string,
+    idempotencyKey: string,
+  ): Promise<AssetDeletionResponse>;
+  createDataExport(
+    accessToken: string,
+    idempotencyKey: string,
+  ): Promise<DataExportResponse>;
+  getDataExport(
+    exportId: string,
+    accessToken: string,
+  ): Promise<DataExportResponse>;
+  downloadDataExport(
+    exportId: string,
+    accessToken: string,
+    idempotencyKey: string,
+  ): Promise<Blob>;
+  createAccountDeletion(
+    accessToken: string,
+    idempotencyKey: string,
+  ): Promise<AccountDeletionResponse>;
+  getCurrentAccountDeletion(
+    accessToken: string,
+  ): Promise<AccountDeletionResponse>;
 }

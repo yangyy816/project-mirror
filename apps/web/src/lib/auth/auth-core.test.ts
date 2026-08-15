@@ -9,10 +9,89 @@ import { BrowserAuthSession } from "./session";
 import type {
   AccessTokenResponse,
   BrowserAuthApi,
+  BrowserDataRightsApi,
   CurrentUserResponse,
   SessionCredentials,
   SmsChallengeInput,
 } from "./api";
+
+class FakeDataRightsApi implements BrowserDataRightsApi {
+  listResult: () => Promise<{
+    assets: [];
+  }> = async () => ({ assets: [] });
+  statusTokens: string[] = [];
+
+  async listAssets() {
+    return this.listResult();
+  }
+
+  async getAsset() {
+    return {
+      asset_id: "a".repeat(32),
+      asset_role: "synthetic" as const,
+      mime_type: "image/jpeg" as const,
+      byte_size: 4,
+      width: 1,
+      height: 1,
+      created_at: "2099-01-01T00:00:00Z",
+    };
+  }
+
+  async downloadAsset() {
+    return new Blob();
+  }
+
+  async deleteAsset() {
+    return {
+      deletion_request_id: "d".repeat(32),
+      job_id: "j".repeat(32),
+      status: "requested" as const,
+    };
+  }
+
+  async createDataExport() {
+    return this.dataExport("requested");
+  }
+
+  async getDataExport() {
+    return this.dataExport("ready");
+  }
+
+  async downloadDataExport() {
+    return new Blob();
+  }
+
+  async createAccountDeletion() {
+    return this.accountDeletion("requested");
+  }
+
+  async getCurrentAccountDeletion(accessToken: string) {
+    this.statusTokens.push(accessToken);
+    return this.accountDeletion("completed");
+  }
+
+  private dataExport(status: "requested" | "ready") {
+    return {
+      export_id: "e".repeat(32),
+      job_id: "j".repeat(32),
+      status,
+      schema_version: "mirror-data-export-v1" as const,
+      requested_at: "2099-01-01T00:00:00Z",
+      ready_at: status === "ready" ? "2099-01-01T00:00:01Z" : null,
+      expires_at: status === "ready" ? "2099-01-02T00:00:01Z" : null,
+    };
+  }
+
+  private accountDeletion(status: "requested" | "completed") {
+    return {
+      deletion_request_id: "d".repeat(32),
+      job_id: "j".repeat(32),
+      status,
+      requested_at: "2099-01-01T00:00:00Z",
+      completed_at: status === "completed" ? "2099-01-01T00:00:01Z" : null,
+    };
+  }
+}
 
 const config = parseWebAuthConfig({
   appEnv: "test",
@@ -432,6 +511,56 @@ describe("browser memory session", () => {
     expect(storage.getItem).not.toHaveBeenCalled();
     expect(storage.setItem).not.toHaveBeenCalled();
     expect(storage.removeItem).not.toHaveBeenCalled();
+  });
+});
+
+describe("data-rights session boundary", () => {
+  it("keeps an active session available after a transient data-rights failure", async () => {
+    const auth = new FakeAuthApi();
+    auth.current = async () => activeUser;
+    const dataRights = new FakeDataRightsApi();
+    dataRights.listResult = async () => {
+      throw new BrowserAuthError("network_error", 503);
+    };
+    const session = new BrowserAuthSession(auth, config, dataRights);
+    await session.bootstrap();
+
+    await expect(session.listAssets()).rejects.toMatchObject({
+      code: "network_error",
+      status: 503,
+    });
+    expect(session.getSnapshot()).toMatchObject({
+      status: "active",
+      user: activeUser,
+    });
+
+    dataRights.listResult = async () => ({ assets: [] });
+    await expect(session.listAssets()).resolves.toEqual({ assets: [] });
+  });
+
+  it("polls account deletion with the existing access token and never refreshes the revoked family", async () => {
+    vi.stubGlobal("crypto", {
+      getRandomValues(bytes: Uint8Array) {
+        bytes.fill(7);
+        return bytes;
+      },
+    });
+    const auth = new FakeAuthApi();
+    auth.current = async () => activeUser;
+    const dataRights = new FakeDataRightsApi();
+    const session = new BrowserAuthSession(auth, config, dataRights);
+    await session.bootstrap();
+    expect(auth.refreshCalls).toBe(1);
+
+    await session.createAccountDeletion("account-deletion");
+    await expect(session.getCurrentAccountDeletion()).resolves.toMatchObject({
+      status: "completed",
+    });
+
+    expect(auth.refreshCalls).toBe(1);
+    expect(dataRights.statusTokens).toEqual(["refreshed-token"]);
+    session.clearAfterAccountDeletion();
+    expect(session.getSnapshot()).toMatchObject({ status: "anonymous" });
   });
 });
 
