@@ -87,7 +87,7 @@ async def test_coordinator_dispatches_new_job_once_and_leaves_failure_recoverabl
     still_accepted = await failing.create(
         user_id="b" * 32,
         intent_id="c" * 32,
-        idempotency_key="coordinator-key-2",
+        idempotency_key="a" * 16,
         request_id=REQUEST_ID,
     )
     assert still_accepted.job.status == "pending"
