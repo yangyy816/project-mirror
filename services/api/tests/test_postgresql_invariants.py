@@ -20,6 +20,7 @@ from mirror_api.models import (
     AssetDeletionEvent,
     AssetDeletionRequest,
     AssetIngestionRecord,
+    AssetVariant,
     BaselineFaceModel,
     ConsentRecord,
     CreditAccount,
@@ -1057,10 +1058,19 @@ def test_asset_deletion_requires_owner_job_tombstone_and_append_only_evidence(
 ) -> None:
     user = User(id=new_id(), phone_hash="j" * 64, status="active")
     asset = make_asset(user.id, "original", "rights-asset")
+    derived = make_asset(user.id, "derived", "rights-derived")
+    variant = AssetVariant(
+        id=new_id(),
+        source_asset_id=asset.id,
+        result_asset_id=derived.id,
+        variant_type="sanitized_preview",
+    )
     job = make_rights_job(user.id, "asset_deletion", "k")
     session.add(user)
     session.commit()
-    session.add_all([asset, job])
+    session.add_all([asset, derived, job])
+    session.commit()
+    session.add(variant)
     session.commit()
 
     request = AssetDeletionRequest(
@@ -1077,9 +1087,11 @@ def test_asset_deletion_requires_owner_job_tombstone_and_append_only_evidence(
     session.rollback()
 
     asset = session.get(Asset, asset.id)
+    derived = session.get(Asset, derived.id)
     job = session.get(Job, job.id)
-    assert asset is not None and job is not None
+    assert asset is not None and derived is not None and job is not None
     asset.deleted_at = datetime.now(UTC)
+    derived.deleted_at = asset.deleted_at
     request = AssetDeletionRequest(
         id=new_id(),
         owner_user_id=user.id,
@@ -1103,12 +1115,44 @@ def test_asset_deletion_requires_owner_job_tombstone_and_append_only_evidence(
         id=new_id(),
         owner_user_id=user.id,
         asset_deletion_request_id=request.id,
+        target_asset_id=asset.id,
         object_kind="asset",
         outcome="deleted",
         result_code="deleted",
     )
     session.add(evidence)
     session.commit()
+    derived_evidence = ObjectDeletionEvidence(
+        id=new_id(),
+        owner_user_id=user.id,
+        asset_deletion_request_id=request.id,
+        target_asset_id=derived.id,
+        object_kind="asset",
+        outcome="not_found",
+        result_code="already_absent",
+    )
+    session.add(derived_evidence)
+    session.commit()
+    unreachable = make_asset(user.id, "derived", "rights-unreachable")
+    unreachable.deleted_at = datetime.now(UTC)
+    session.add(unreachable)
+    session.commit()
+    session.add(
+        ObjectDeletionEvidence(
+            id=new_id(),
+            owner_user_id=user.id,
+            asset_deletion_request_id=request.id,
+            target_asset_id=unreachable.id,
+            object_kind="asset",
+            outcome="deleted",
+            result_code="deleted",
+        )
+    )
+    with pytest.raises(DBAPIError, match="outside dependency graph"):
+        session.commit()
+    session.rollback()
+    evidence = session.get(ObjectDeletionEvidence, evidence.id)
+    assert evidence is not None
     with pytest.raises(DBAPIError, match="immutable record"):
         session.delete(evidence)
         session.commit()

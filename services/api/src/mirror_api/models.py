@@ -587,13 +587,19 @@ class ObjectDeletionEvidence(IdMixin, Base):
         ForeignKey("users.id", ondelete="RESTRICT"), index=True, nullable=False
     )
     asset_deletion_request_id: Mapped[str | None] = mapped_column(
-        ForeignKey("asset_deletion_requests.id", ondelete="RESTRICT"), unique=True
+        ForeignKey("asset_deletion_requests.id", ondelete="RESTRICT")
     )
     data_export_request_id: Mapped[str | None] = mapped_column(
-        ForeignKey("data_export_requests.id", ondelete="RESTRICT"), unique=True
+        ForeignKey("data_export_requests.id", ondelete="RESTRICT")
     )
     account_deletion_request_id: Mapped[str | None] = mapped_column(
         ForeignKey("account_deletion_requests.id", ondelete="RESTRICT"), index=True
+    )
+    target_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), index=True
+    )
+    target_data_export_request_id: Mapped[str | None] = mapped_column(
+        ForeignKey("data_export_requests.id", ondelete="RESTRICT"), index=True
     )
     object_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     outcome: Mapped[str] = mapped_column(String(24), nullable=False)
@@ -606,6 +612,33 @@ class ObjectDeletionEvidence(IdMixin, Base):
             "num_nonnulls(asset_deletion_request_id, data_export_request_id, "
             "account_deletion_request_id) = 1",
             name="one_object_deletion_authority",
+        ),
+        CheckConstraint(
+            "(object_kind = 'asset' AND target_asset_id IS NOT NULL "
+            "AND target_data_export_request_id IS NULL) OR "
+            "(object_kind = 'data_export' AND target_asset_id IS NULL "
+            "AND target_data_export_request_id IS NOT NULL)",
+            name="one_object_deletion_target",
+        ),
+        UniqueConstraint(
+            "asset_deletion_request_id",
+            "target_asset_id",
+            name="unique_asset_deletion_target_evidence",
+        ),
+        UniqueConstraint(
+            "data_export_request_id",
+            "target_data_export_request_id",
+            name="unique_export_deletion_target_evidence",
+        ),
+        UniqueConstraint(
+            "account_deletion_request_id",
+            "target_asset_id",
+            name="unique_account_asset_deletion_evidence",
+        ),
+        UniqueConstraint(
+            "account_deletion_request_id",
+            "target_data_export_request_id",
+            name="unique_account_export_deletion_evidence",
         ),
         CheckConstraint("object_kind IN ('asset','data_export')", name="valid_deleted_object_kind"),
         CheckConstraint("outcome IN ('deleted','not_found')", name="valid_object_deletion_outcome"),
