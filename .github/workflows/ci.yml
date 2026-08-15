@@ -88,6 +88,17 @@ jobs:
         run: python -m pytest services/api/tests services/worker/tests
       - name: TypeScript quality and build
         run: pnpm check
+      - name: Install Playwright Chromium
+        run: pnpm --filter @mirror/web exec playwright install --with-deps chromium
+      - name: Browser integration
+        run: pnpm --filter @mirror/web test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-failure-evidence
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
       - name: Contract regeneration drift
         run: |
           python -m mirror_api.scripts.export_openapi

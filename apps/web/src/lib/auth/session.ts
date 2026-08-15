@@ -64,7 +64,10 @@ export class BrowserAuthSession {
       await this.refresh();
       await this.resumeCurrentUser();
     } catch (error) {
-      if (error instanceof BrowserAuthError && error.status === 401) {
+      if (
+        error instanceof BrowserAuthError &&
+        (error.status === 401 || error.code === "csrf_unavailable")
+      ) {
         this.clearToAnonymous();
       } else {
         this.update({

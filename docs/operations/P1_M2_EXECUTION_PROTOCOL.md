@@ -67,6 +67,7 @@ flowchart LR
 ## P1-M2-T06 — Browser integration and M2 Gate
 
 - Scope: browser E2E harness、security/contract tests、acceptance evidence；缺陷只上报 Repair Task。
+- Change control: `@playwright/test` 可在 `docs/security/PLAYWRIGHT_ADOPTION.md` 完成上游、许可证、完整性和依赖审计后作为 pinned test-only dev dependency 使用；不得进入生产 runtime 或调用真实 Provider。
 - Required evidence: real production Next build + browser; deterministic Fake API/age bridge; generated contract; Python/TS full suite; Docker/Compose; dependency/license audit; Gitleaks; complete GitHub Actions on one SHA。
 - Browser scenarios: new invited flow、existing login、OTP/error recovery、pending age/policy、refresh reload、CSRF failure、active shell、logout、unauthorized navigation、no sensitive storage/URL/log。
 - Gate: zero mandatory skip; Principal alone declares `P1-M2: PASS`, closure CI 后才 `FROZEN`。

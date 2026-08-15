@@ -42,6 +42,7 @@
 - Identity-Preserving Makeup Transfer 已提升为 P6 Hybrid Editor 的一级高优先级研究轨道和能力子系统，与 Deterministic、Geometry、Generative Editor 和 Agent Tool Layer 并列，不得降格为单一 `makeup_transfer()` 工具；其未来链路为 Reference Makeup Understanding → MakeupStyleRepresentation → StyleProfile personalization → Structured MakeupPlan → region execution → identity/geometry verification → user correction → PreferenceEvent。
 - Stable-Makeup 是高优先级研究参考，生产采用需完整依赖许可证审查；FLUX-Makeup 具有高算法/评估价值，但其被报告的受限 foundation-model 依赖在权威复核和商业清除前使直接生产路径保持 `PRODUCTION_BLOCKED`。
 - 当前 P1-M2 不因 OSS/Makeup 研究增补发生变化：不新增依赖、模型资产或未来 bounded tasks；P6 到达 rolling-wave planning 时再确定独立研究 Milestone 与 GO/NO-GO/FURTHER_RESEARCH Gate。
+- P1-M2-T06 经 Principal change control 允许 `@playwright/test@1.62.1` 作为 pinned test-only dev dependency；npm 元数据与包内 LICENSE 均为 Apache-2.0，Node 要求 `>=20`，不得进入生产 runtime 或调用真实 Provider。完整记录见 `docs/security/PLAYWRIGHT_ADOPTION.md`。
 
 ## 长期产品与数据边界
 
@@ -72,6 +73,7 @@
 - Docker Desktop/Engine 29.7.2 与 Compose 5.3.1 可用，运行 Linux/WSL2 engine；PostgreSQL 17.6 与 Redis 8.2.1 通过 Compose 提供测试基础设施，不要求在 Windows 主机单独安装。
 - PowerShell 的脚本执行策略会阻止 `npm.ps1`；使用 `pnpm.cmd` 或可执行文件入口，不修改系统执行策略。
 - Vitest/Vite 在受限 Windows 沙箱中会因 `net use`/esbuild 子进程产生 `spawn EPERM`；测试入口仅在 Windows 拦截无关的网络盘探测，实际编译子进程验收需允许正常创建。普通 Windows 与 Linux CI 不受该限制。
+- pnpm 内容寻址 store 位于 `D:\.pnpm-store`；受限沙箱无法访问 workspace 外 store 时会误触发 node_modules 重建，pnpm install/check/audit 应在获准的外部环境执行，局部静态检查可直接调用 workspace 内 `.bin`。
 
 ## Phase 0 当前验证状态
 
@@ -132,3 +134,5 @@
 - 2026-08-15：P1-M2 rolling-wave refinement 通过 ADR-017 与执行协议冻结浏览器会话、内存 access token、HttpOnly refresh + CSRF、single-flight refresh、外部年龄 popup bridge、精确政策 manifest、受限页面和 E2E Gate；P1-M2 进入 EXECUTING，未改变冻结的 M1 API。
 - 2026-08-15：前向修订 P6 定位：Identity-Preserving Makeup Transfer 是一级能力子系统而非单工具，与 SelfState、StyleProfile、DesiredDeltaProfile、IdentityConstraints 和 PreferenceEvent 形成端到端链路；当前 P1-M2 无任务、依赖或 Gate 变化。
 - 2026-08-15：接受精细模型路由政策；在保留 Sol High / Terra High 架构和 Terra 默认的前提下新增 `pm_fast_worker` Spark micro-task tier。官方文档与动态模型目录确认精确标识及 `low/medium/high/xhigh`；Codex CLI `0.148.0-alpha.9` 已以 strict-config、read-only、`medium` 完成直接 Spark 和按名 `pm_fast_worker` 委派 smoke。WindowsApps 原始可执行文件受 ACL 保护，验证使用 app-managed `.codex/.sandbox-bin/codex.exe`；ephemeral 会话无法建立子线程，普通 read-only 委派已通过。
+- 2026-08-15：P1-M2 T03–T05 经 Principal 本地接受：可访问手机号/邀请码/OTP 流、严格外部年龄 popup、精确政策逐项接受、内存会话 Provider、`/join`、无受保护内容闪现的 `/account`、刷新恢复与可确认 logout 已实现。R01 修复测试类型边界；R02 阻止退出网络失败伪装成功；真实 Web unit suite 当前 52 PASS，production build 通过。
+- 2026-08-15：P1-M2 T06 本地候选 Gate 建立 Playwright + deterministic Fake API/age provider；真实 Microsoft Edge + Next standalone 的 3 个端到端场景通过。R03 将 bootstrap 缺少 CSRF 安全降级为 anonymous 并要求重认证；R04 分离 Vitest 与 Playwright 收集边界。完整 `pnpm check`、Docker build/五服务 health、容器 PostgreSQL/Redis 97 PASS、Worker/Celery 5 PASS、隔离数据库 migration lifecycle、OpenAPI 零漂移和 Python/Node 漏洞审计均通过；等待 candidate SHA 的远端 CI。

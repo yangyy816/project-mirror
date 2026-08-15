@@ -326,6 +326,22 @@ describe("browser memory session", () => {
     });
   });
 
+  it("treats a missing bootstrap CSRF cookie as an anonymous session", async () => {
+    const api = new FakeAuthApi();
+    api.refresh = async () => {
+      throw new BrowserAuthError("csrf_unavailable");
+    };
+    const session = new BrowserAuthSession(api, config);
+
+    await session.bootstrap();
+
+    expect(session.getSnapshot()).toEqual({
+      status: "anonymous",
+      user: null,
+      error: null,
+    });
+  });
+
   it("replays a protected request once after a 401 and then enters active", async () => {
     const api = new FakeAuthApi();
     api.current = async (accessToken) => {

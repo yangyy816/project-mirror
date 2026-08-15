@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "node --import ../../scripts/vite-windows-sandbox.mjs node_modules/vitest/vitest.mjs run --pool=threads --maxWorkers=1"
+    "test": "node --import ../../scripts/vite-windows-sandbox.mjs node_modules/vitest/vitest.mjs run --pool=threads --maxWorkers=1 --exclude e2e/**",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@mirror/config": "workspace:*",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.3.1",
+    "@playwright/test": "1.62.1",
     "@testing-library/jest-dom": "6.8.0",
     "@testing-library/react": "16.3.0",
     "@types/node": "24.3.0",
