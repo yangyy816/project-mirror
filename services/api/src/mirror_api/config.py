@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "test", "ci", "production"]
@@ -16,6 +16,14 @@ RateLimiterBackend = Literal["fake", "redis"]
 
 DEFAULT_AUTH_JWT_KEYRING = {"dev-v1": "development-only-not-for-production"}
 DEFAULT_AUTH_HMAC_KEYRING = {"dev-v1": "development-only-hmac-not-for-production"}
+
+
+class RequiredPolicySetting(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    document_code: str = Field(min_length=1, max_length=64)
+    document_version: str = Field(min_length=1, max_length=64)
+    document_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class Settings(BaseSettings):
@@ -61,6 +69,7 @@ class Settings(BaseSettings):
     auth_rate_limit_phone_limit: int = Field(default=5, ge=1, le=100)
     auth_rate_limit_ip_limit: int = Field(default=20, ge=1, le=1_000)
     auth_rate_limit_device_limit: int = Field(default=10, ge=1, le=1_000)
+    auth_required_policies: list[RequiredPolicySetting] = Field(default_factory=list)
 
     sms_provider: Literal["mock", "tencent"] = "mock"
     storage_provider: Literal["local", "tencent_cos"] = "local"
@@ -189,6 +198,8 @@ class Settings(BaseSettings):
                 failures.append("registration security gate must be approved")
             if self.legal_review_status != "approved":
                 failures.append("registration legal review must be approved")
+            if not self.auth_required_policies:
+                failures.append("registration requires configured policy requirements")
         if failures:
             raise ValueError("unsafe production configuration: " + "; ".join(failures))
 

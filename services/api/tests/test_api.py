@@ -36,17 +36,16 @@ def test_request_id_is_preserved_when_safe(client: TestClient) -> None:
     assert response.headers["X-Request-ID"] == request_id
 
 
-def test_unimplemented_boundary_uses_error_envelope(client: TestClient) -> None:
-    response = client.post(
-        "/api/v1/auth/sms-challenges",
-        headers={"Idempotency-Key": "auth-test-0001"},
-        json={"intent": "test"},
+def test_cors_allows_delete_for_current_session_logout(client: TestClient) -> None:
+    response = client.options(
+        "/api/v1/auth/sessions/current",
+        headers={
+            "Origin": "http://127.0.0.1:3000",
+            "Access-Control-Request-Method": "DELETE",
+        },
     )
-    body = response.json()
-    assert response.status_code == 501
-    assert body["code"] == "capability_not_implemented"
-    assert body["request_id"] == response.headers["X-Request-ID"]
-    assert body["details"]["capability"] == "phone_authentication"
+    assert response.status_code == 200
+    assert "DELETE" in response.headers["access-control-allow-methods"]
 
 
 def test_protected_boundary_rejects_unauthorized_access(client: TestClient) -> None:

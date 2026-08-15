@@ -47,11 +47,14 @@ async def api_error_handler(request: Request, exc: APIError) -> JSONResponse:
 
 
 async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    # `security` imports APIError for upload validation, so keep this import lazy.
+    from mirror_api.security import sanitize_request_validation_details
+
     body = ErrorEnvelope(
         code="request_validation_failed",
         message="请求参数不符合接口契约。",
         request_id=_request_id(request),
-        details=list(exc.errors()),
+        details=sanitize_request_validation_details(list(exc.errors())),
     )
     return JSONResponse(status_code=422, content=body.model_dump(mode="json"))
 

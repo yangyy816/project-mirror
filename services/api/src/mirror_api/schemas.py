@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 
 class HealthResponse(BaseModel):
@@ -18,12 +19,60 @@ class VersionResponse(BaseModel):
     api_version: str = "v1"
 
 
+class StrictContractModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
 class PlaceholderRequest(BaseModel):
     intent: str | None = None
 
 
-class StrictContractModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class SmsChallengeRequest(StrictContractModel):
+    phone: SecretStr = Field(min_length=1, max_length=32)
+    invite_code: SecretStr | None = Field(default=None, min_length=1, max_length=128)
+
+
+class SmsChallengeResponse(StrictContractModel):
+    challenge_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    expires_at: datetime
+
+
+class SessionRequest(StrictContractModel):
+    challenge_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    otp: SecretStr = Field(min_length=1, max_length=16)
+
+
+class AccessTokenResponse(StrictContractModel):
+    access_token: str
+    token_type: Literal["Bearer"] = "Bearer"  # noqa: S105
+    scope: Literal["pending", "active"]
+
+
+class CurrentUserResponse(StrictContractModel):
+    user_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    status: Literal["pending", "active"]
+    scope: Literal["pending", "active"]
+    onboarding_requirements: list[Literal["age_assurance", "policy_acceptance"]]
+
+
+class AgeAssuranceRequest(StrictContractModel):
+    credential: SecretStr = Field(min_length=1, max_length=4_096)
+
+
+class AgeAssuranceResponse(StrictContractModel):
+    record_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    result: Literal["verified", "not_verified", "indeterminate"]
+    activated: bool
+
+
+class PolicyAcceptanceRequest(StrictContractModel):
+    document_code: str = Field(min_length=1, max_length=64)
+    document_version: str = Field(min_length=1, max_length=64)
+    document_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class PolicyAcceptanceResponse(StrictContractModel):
+    activated: bool
 
 
 class SelfStateContract(StrictContractModel):

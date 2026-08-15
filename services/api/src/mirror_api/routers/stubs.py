@@ -35,14 +35,6 @@ async def _create_stub(
     not_implemented(capability)
 
 
-@router.post("/auth/sms-challenges", responses={501: {"model": ErrorEnvelope}})
-async def create_sms_challenge(
-    payload: PlaceholderRequest,
-    idempotency_key: str = Header(min_length=8, max_length=128, alias="Idempotency-Key"),
-) -> None:
-    await _create_stub("phone_authentication", payload, idempotency_key)
-
-
 @router.post("/assets", responses={501: {"model": ErrorEnvelope}})
 async def create_asset(
     payload: PlaceholderRequest,

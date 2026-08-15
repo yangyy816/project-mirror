@@ -47,3 +47,13 @@ class AgeAssuranceOutcome:
     record_id: str
     result: str
     activated: bool
+
+
+@dataclass(frozen=True)
+class AuthenticatedActor:
+    """The minimal current-session identity exposed to HTTP dependencies."""
+
+    user_id: str
+    session_id: str
+    status: str
+    scope: str

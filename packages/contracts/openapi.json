@@ -72,7 +72,7 @@
     "/api/v1/auth/sms-challenges": {
       "post": {
         "tags": [
-          "phase-boundaries"
+          "authentication"
         ],
         "summary": "Create Sms Challenge",
         "operationId": "create_sms_challenge_api_v1_auth_sms_challenges_post",
@@ -94,21 +94,23 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PlaceholderRequest"
+                "$ref": "#/components/schemas/SmsChallengeRequest"
               }
             }
           }
         },
         "responses": {
-          "200": {
+          "202": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SmsChallengeResponse"
+                }
               }
             }
           },
-          "501": {
+          "401": {
             "content": {
               "application/json": {
                 "schema": {
@@ -116,7 +118,456 @@
                 }
               }
             },
-            "description": "Not Implemented"
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sessions": {
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Create Session",
+        "operationId": "create_session_api_v1_auth_sessions_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/token/refresh": {
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Refresh Session",
+        "operationId": "refresh_session_api_v1_auth_token_refresh_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sessions/current": {
+      "delete": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Logout Current Session",
+        "operationId": "logout_current_session_api_v1_auth_sessions_current_delete",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me": {
+      "get": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Get Current User",
+        "operationId": "get_current_user_api_v1_users_me_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/age-assurances": {
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Create Age Assurance",
+        "operationId": "create_age_assurance_api_v1_users_me_age_assurances_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgeAssuranceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgeAssuranceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/policy-acceptances": {
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Accept Policy",
+        "operationId": "accept_policy_api_v1_users_me_policy_acceptances_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyAcceptanceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyAcceptanceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
           },
           "422": {
             "description": "Validation Error",
@@ -444,6 +895,128 @@
   },
   "components": {
     "schemas": {
+      "AccessTokenResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "const": "Bearer",
+            "title": "Token Type",
+            "default": "Bearer"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "active"
+            ],
+            "title": "Scope"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "access_token",
+          "scope"
+        ],
+        "title": "AccessTokenResponse"
+      },
+      "AgeAssuranceRequest": {
+        "properties": {
+          "credential": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 1,
+            "format": "password",
+            "title": "Credential",
+            "writeOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "title": "AgeAssuranceRequest"
+      },
+      "AgeAssuranceResponse": {
+        "properties": {
+          "record_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Record Id"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "not_verified",
+              "indeterminate"
+            ],
+            "title": "Result"
+          },
+          "activated": {
+            "type": "boolean",
+            "title": "Activated"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_id",
+          "result",
+          "activated"
+        ],
+        "title": "AgeAssuranceResponse"
+      },
+      "CurrentUserResponse": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "User Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "active"
+            ],
+            "title": "Status"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "active"
+            ],
+            "title": "Scope"
+          },
+          "onboarding_requirements": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "age_assurance",
+                "policy_acceptance"
+              ]
+            },
+            "type": "array",
+            "title": "Onboarding Requirements"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "user_id",
+          "status",
+          "scope",
+          "onboarding_requirements"
+        ],
+        "title": "CurrentUserResponse"
+      },
       "ErrorEnvelope": {
         "properties": {
           "code": {
@@ -553,6 +1126,127 @@
         },
         "type": "object",
         "title": "PlaceholderRequest"
+      },
+      "PolicyAcceptanceRequest": {
+        "properties": {
+          "document_code": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Document Code"
+          },
+          "document_version": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Document Version"
+          },
+          "document_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Document Digest"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_code",
+          "document_version",
+          "document_digest"
+        ],
+        "title": "PolicyAcceptanceRequest"
+      },
+      "PolicyAcceptanceResponse": {
+        "properties": {
+          "activated": {
+            "type": "boolean",
+            "title": "Activated"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "activated"
+        ],
+        "title": "PolicyAcceptanceResponse"
+      },
+      "SessionRequest": {
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Challenge Id"
+          },
+          "otp": {
+            "type": "string",
+            "maxLength": 16,
+            "minLength": 1,
+            "format": "password",
+            "title": "Otp",
+            "writeOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "challenge_id",
+          "otp"
+        ],
+        "title": "SessionRequest"
+      },
+      "SmsChallengeRequest": {
+        "properties": {
+          "phone": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "format": "password",
+            "title": "Phone",
+            "writeOnly": true
+          },
+          "invite_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1,
+                "format": "password",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invite Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "phone"
+        ],
+        "title": "SmsChallengeRequest"
+      },
+      "SmsChallengeResponse": {
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Challenge Id"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "challenge_id",
+          "expires_at"
+        ],
+        "title": "SmsChallengeResponse"
       },
       "ValidationError": {
         "properties": {

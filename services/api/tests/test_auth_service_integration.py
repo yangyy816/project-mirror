@@ -75,6 +75,7 @@ def build_service(
     *,
     age_provider: AgeAssuranceProvider | None = None,
     required_policies: tuple[PolicyRequirement, ...] = (),
+    allow_new_registrations: bool = True,
     now: Callable[[], datetime] | None = None,
 ) -> AuthService:
     return AuthService(
@@ -89,8 +90,138 @@ def build_service(
         jwt_issuer="mirror-test",
         jwt_audience="mirror-web",
         required_policies=required_policies,
-        now=now or (lambda: datetime(2026, 8, 15, tzinfo=UTC)),
+        allow_new_registrations=allow_new_registrations,
+        now=now,
     )
+
+
+@pytest.mark.asyncio
+async def test_postgresql_challenge_acceptance_uses_decoys_without_sms_or_real_challenges(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("NOT VERIFIED LOCALLY: TEST_DATABASE_URL PostgreSQL is unavailable")
+    monkeypatch.setattr(
+        "mirror_api.auth.service.normalize_china_phone", lambda _: "+86synthetic-fixture"
+    )
+    engine = create_async_engine(database_url)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    sms = RecordingSmsProvider()
+    service = build_service(sessions, sms, allow_new_registrations=False)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "TRUNCATE TABLE idempotency_records, phone_verification_challenges, users, "
+                    "invite_codes CASCADE"
+                )
+            )
+        decoy = await service.request_challenge(
+            phone="synthetic-new-user",
+            invite_code="unused",
+            idempotency_key="disabled-registration-new",
+            request_id="disabled-registration-new",
+            ip_key="fixture-ip",
+            device_key="fixture-device",
+        )
+        replayed_decoy = await service.request_challenge(
+            phone="synthetic-new-user",
+            invite_code="unused",
+            idempotency_key="disabled-registration-new",
+            request_id="disabled-registration-replay",
+            ip_key="fixture-ip",
+            device_key="fixture-device",
+        )
+        assert decoy == replayed_decoy
+        assert sms.codes == []
+        with pytest.raises(AuthFailure):
+            await service.create_session(
+                challenge_id=decoy.challenge_id,
+                otp="000000",
+                idempotency_key="decoy-session-key",
+                request_id="decoy-session-request",
+            )
+        with pytest.raises(AuthFailure, match="idempotency_conflict"):
+            await service.request_challenge(
+                phone="synthetic-new-user",
+                invite_code="different-unused-invite",
+                idempotency_key="disabled-registration-new",
+                request_id="disabled-registration-conflict",
+                ip_key="fixture-ip",
+                device_key="fixture-device",
+            )
+        enabled_service = build_service(sessions, sms, allow_new_registrations=True)
+        missing_invite_decoy = await enabled_service.request_challenge(
+            phone="synthetic-new-user-without-invite",
+            invite_code=None,
+            idempotency_key="missing-invite-decoy",
+            request_id="missing-invite-decoy",
+            ip_key="fixture-ip",
+            device_key="fixture-device",
+        )
+        assert missing_invite_decoy.challenge_id != decoy.challenge_id
+        assert sms.codes == []
+        async with sessions() as session:
+            async with session.begin():
+                session.add(
+                    User(
+                        id=new_id(),
+                        phone_hash=service._hmac("+86synthetic-fixture", "phone"),
+                        status="pending",
+                    )
+                )
+        challenge = await service.request_challenge(
+            phone="synthetic-existing-user",
+            invite_code=None,
+            idempotency_key="disabled-registration-existing",
+            request_id="disabled-registration-existing",
+            ip_key="fixture-ip",
+            device_key="fixture-device",
+        )
+        assert challenge.challenge_id
+        assert len(sms.codes) == 1
+        async with sessions() as session:
+            decoy_record = await session.execute(
+                text(
+                    "SELECT response_status, response_reference, completed_at "
+                    "FROM idempotency_records WHERE actor_key = :actor_key "
+                    "AND scope = 'auth.challenge' AND key_hash = :key_hash"
+                ),
+                {
+                    "actor_key": f"preauth:{service._hmac('+86synthetic-fixture', 'phone')}",
+                    "key_hash": service._idempotency_key("disabled-registration-new"),
+                },
+            )
+            status, reference, completed_at = decoy_record.one()
+            assert status == 0
+            assert reference == decoy.challenge_id
+            assert completed_at is not None
+            real_record = await session.execute(
+                text(
+                    "SELECT response_status, response_reference "
+                    "FROM idempotency_records WHERE actor_key = :actor_key "
+                    "AND scope = 'auth.challenge' AND key_hash = :key_hash"
+                ),
+                {
+                    "actor_key": f"preauth:{service._hmac('+86synthetic-fixture', 'phone')}",
+                    "key_hash": service._idempotency_key("disabled-registration-existing"),
+                },
+            )
+            assert real_record.one() == (1, challenge.challenge_id)
+            challenge_count = await session.scalar(
+                text("SELECT count(*) FROM phone_verification_challenges")
+            )
+            assert challenge_count == 1
+    finally:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "TRUNCATE TABLE idempotency_records, phone_verification_challenges, users, "
+                    "invite_codes CASCADE"
+                )
+            )
+        await engine.dispose()
 
 
 @pytest.mark.asyncio
@@ -146,6 +277,10 @@ async def test_postgresql_challenge_session_refresh_replay_and_reuse_revoke() ->
             request_id="request-session",
         )
         assert created.scope == "pending"
+        actor = await service.authenticate_access_token(access_token=created.access_token)
+        assert actor.user_id == created.user_id
+        assert actor.session_id == created.session_id
+        assert actor.scope == "pending"
         replayed_session = await service.create_session(
             challenge_id=challenge.challenge_id,
             otp=sms.codes[0],
@@ -179,6 +314,10 @@ async def test_postgresql_challenge_session_refresh_replay_and_reuse_revoke() ->
                 idempotency_key="refresh-reuse",
                 request_id="request-refresh-reuse",
             )
+        with pytest.raises(AuthFailure):
+            await service.authenticate_access_token(access_token=created.access_token)
+        with pytest.raises(AuthFailure):
+            await service.authenticate_access_token(access_token=refreshed.access_token)
         with pytest.raises(AuthFailure):
             await service.refresh_session(
                 refresh_token=created.refresh_token,
@@ -302,7 +441,11 @@ async def test_postgresql_age_policy_idempotency_and_single_activation_audit() -
             )
         async with sessions() as session:
             activation_count = await session.scalar(
-                text("SELECT count(*) FROM audit_logs WHERE action = 'user_activated'")
+                text(
+                    "SELECT count(*) FROM audit_logs "
+                    "WHERE action = 'user_activated' AND target_id = :user_id"
+                ),
+                {"user_id": user_id},
             )
         assert activation_count == 1
     finally:

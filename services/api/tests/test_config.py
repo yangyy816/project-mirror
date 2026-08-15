@@ -19,6 +19,13 @@ def production_settings(**overrides: object) -> dict[str, object]:
         "auth_hmac_keyring": {"prod-2026": "h" * 64},
         "auth_hmac_active_kid": "prod-2026",
         "auth_callback_url": "https://mirror.example/auth/callback",
+        "auth_required_policies": [
+            {
+                "document_code": "privacy",
+                "document_version": "v1",
+                "document_digest": "d" * 64,
+            }
+        ],
         "sms_provider": "tencent",
         "storage_provider": "tencent_cos",
         "task_runner": "celery",
@@ -111,6 +118,18 @@ def test_ci_requires_deterministic_providers_and_celery() -> None:
                 "age_assurance_provider": "verified_external",
             },
             "registration requires verified age provider status",
+        ),
+        (
+            {
+                "registration_enabled": True,
+                "rate_limiter_backend": "redis",
+                "age_assurance_provider": "verified_external",
+                "age_assurance_provider_status": "verified",
+                "registration_security_gate_status": "approved",
+                "legal_review_status": "approved",
+                "auth_required_policies": [],
+            },
+            "registration requires configured policy requirements",
         ),
         ({"auth_jwt_keyring": {"prod-2026": "default-key"}}, "secure non-default JWT keyring"),
     ],

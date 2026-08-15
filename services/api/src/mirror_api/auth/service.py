@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from mirror_api.auth.repository import AuthRepository
 from mirror_api.auth.types import (
     AgeAssuranceOutcome,
+    AuthenticatedActor,
     AuthFailure,
     ChallengeResult,
     PersistedAuthFailure,
@@ -40,6 +41,7 @@ from mirror_api.security import (
     hmac_digest,
     issue_access_token,
     normalize_china_phone,
+    verify_access_token,
     verify_hmac,
     verify_refresh_token,
 )
@@ -68,6 +70,7 @@ class AuthService:
         challenge_phone_rate_limit: int = 5,
         challenge_ip_rate_limit: int = 20,
         challenge_device_rate_limit: int = 10,
+        allow_new_registrations: bool = True,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         self._sessions = session_factory
@@ -89,6 +92,7 @@ class AuthService:
         self._challenge_phone_rate_limit = challenge_phone_rate_limit
         self._challenge_ip_rate_limit = challenge_ip_rate_limit
         self._challenge_device_rate_limit = challenge_device_rate_limit
+        self._allow_new_registrations = allow_new_registrations
         self._now = now or (lambda: datetime.now(UTC))
 
     def _hmac(self, value: str, purpose: HMACPurpose) -> str:
@@ -234,6 +238,11 @@ class AuthService:
                 if record.request_fingerprint != request_fingerprint:
                     raise AuthFailure("idempotency_conflict")
                 if record.state == "completed" and record.response_reference is not None:
+                    if record.response_status == 0 and record.completed_at is not None:
+                        return ChallengeResult(
+                            record.response_reference,
+                            record.completed_at + timedelta(seconds=self._otp_ttl_seconds),
+                        )
                     challenge = await repo.locked_challenge(record.response_reference)
                     if challenge is None:
                         raise AuthFailure()
@@ -246,8 +255,30 @@ class AuthService:
                 invite = await session.scalar(
                     select(InviteCode).where(InviteCode.code_hash == invite_hash).with_for_update()
                 )
-                if not self._invite_usable(invite, self._now()):
-                    raise AuthFailure()
+                if not self._allow_new_registrations or not self._invite_usable(
+                    invite, self._now()
+                ):
+                    accepted_at = self._now()
+                    decoy_id = new_id()
+                    (
+                        record.response_reference,
+                        record.response_status,
+                        record.state,
+                        record.completed_at,
+                    ) = (decoy_id, 0, "completed", accepted_at)
+                    self._audit(
+                        session,
+                        actor_type="preauth",
+                        actor_id=None,
+                        action="challenge_accepted",
+                        target_type="auth_challenge",
+                        target_id=decoy_id,
+                        request_id=request_id,
+                        event="challenge_accepted",
+                    )
+                    return ChallengeResult(
+                        decoy_id, accepted_at + timedelta(seconds=self._otp_ttl_seconds)
+                    )
         otp = generate_otp()
         try:
             provider_message_id = await self._sms.send_verification_code(
@@ -273,6 +304,8 @@ class AuthService:
             user = await repo.locked_user_for_phone(phone_hash)
             invite_id: str | None = None
             if user is None:
+                if not self._allow_new_registrations:
+                    raise AuthFailure()
                 invite = await session.scalar(
                     select(InviteCode).where(InviteCode.code_hash == invite_hash).with_for_update()
                 )
@@ -292,8 +325,14 @@ class AuthService:
             )
             session.add(challenge)
             await session.flush()
-            pending_record.response_reference, pending_record.state, pending_record.completed_at = (
+            (
+                pending_record.response_reference,
+                pending_record.response_status,
+                pending_record.state,
+                pending_record.completed_at,
+            ) = (
                 challenge.id,
+                1,
                 "completed",
                 self._now(),
             )
@@ -301,11 +340,11 @@ class AuthService:
                 session,
                 actor_type="preauth",
                 actor_id=None,
-                action="challenge_created",
-                target_type="phone_verification_challenge",
+                action="challenge_accepted",
+                target_type="auth_challenge",
                 target_id=challenge.id,
                 request_id=request_id,
-                event="challenge_created",
+                event="challenge_accepted",
             )
             return ChallengeResult(challenge.id, challenge.expires_at)
 
@@ -529,6 +568,75 @@ class AuthService:
                 request_id=request_id,
                 event="session_family_logged_out",
             )
+
+    async def authenticate_access_token(self, *, access_token: str) -> AuthenticatedActor:
+        """Validate a short-lived bearer token against its current user and session state."""
+        try:
+            claims = verify_access_token(
+                access_token,
+                keyring=self._jwt_keyring,
+                issuer=self._jwt_issuer,
+                audience=self._jwt_audience,
+            )
+            user_id = claims["sub"]
+            session_id = claims["sid"]
+            scope = claims["scope"]
+        except (KeyError, SecurityValidationError) as exc:
+            raise AuthFailure() from exc
+        if not all(isinstance(value, str) for value in (user_id, session_id, scope)):
+            raise AuthFailure()
+        async with self._sessions() as session:
+            user = await session.get(User, user_id)
+            current_session = await session.get(UserSession, session_id)
+            if (
+                user is None
+                or current_session is None
+                or current_session.user_id != user.id
+                or current_session.revoked_at is not None
+                or current_session.expires_at < self._now()
+                or scope != self._scope_for(user)
+            ):
+                raise AuthFailure()
+            return AuthenticatedActor(
+                user_id=user.id,
+                session_id=current_session.id,
+                status=user.status,
+                scope=scope,
+            )
+
+    def required_policy(self, *, code: str, version: str, digest: str) -> PolicyRequirement:
+        """Return an approved policy requirement, otherwise fail closed."""
+        for requirement in self._required_policies:
+            if (
+                requirement.document_code == code
+                and requirement.document_version == version
+                and requirement.document_digest == digest
+            ):
+                return requirement
+        raise AuthFailure()
+
+    async def onboarding_requirements(self, *, user_id: str) -> tuple[str, ...]:
+        """Return only the current age and policy gates still missing for this user."""
+        async with self._sessions() as session:
+            user = await session.get(User, user_id)
+            if user is None:
+                raise AuthFailure()
+            if user.status == "active":
+                return ()
+            repo = AuthRepository(session)
+            requirements: list[str] = []
+            if not await repo.has_current_verified_assurance(user.id, self._now()):
+                requirements.append("age_assurance")
+            for requirement in self._required_policies:
+                if not await repo.has_policy(
+                    user.id,
+                    code=requirement.document_code,
+                    version=requirement.document_version,
+                    digest=requirement.document_digest,
+                ):
+                    requirements.append("policy_acceptance")
+                    break
+            return tuple(requirements)
 
     async def record_age_assurance(
         self, *, user_id: str, credential: str, idempotency_key: str, request_id: str
