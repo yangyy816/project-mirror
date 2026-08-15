@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "node --import ../../scripts/vite-windows-sandbox.mjs node_modules/vitest/vitest.mjs run --pool=threads --maxWorkers=1 --exclude e2e/**",
+    "test": "node --import ../../scripts/vite-windows-sandbox.mjs node_modules/vitest/vitest.mjs run --pool=threads --maxWorkers=1",
     "test:e2e": "playwright test"
   },
   "dependencies": {
