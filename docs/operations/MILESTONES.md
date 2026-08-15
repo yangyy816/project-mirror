@@ -5,10 +5,10 @@
 | Scope   | State     | Evidence / Boundary                                              |
 | ------- | --------- | ---------------------------------------------------------------- |
 | Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`   |
-| Phase 1 | COMMITTED | Application Foundation；仅 P1-M1 已通过 Gate，Phase 1 尚未 PASS  |
+| Phase 1 | COMMITTED | Application Foundation；P1-M1/M2 frozen，P1-M3 Gate 已 PASS      |
 | P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿 |
 | P1-M2   | FROZEN    | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿 |
-| P1-M3   | EXECUTING | ADR-018 + `P1_M3_EXECUTION_PROTOCOL.md`；禁止进入 M4 实现        |
+| P1-M3   | PASS      | candidate `26fe432`；run `31897237022` 三 jobs 全绿；待 closure  |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
@@ -17,6 +17,8 @@ P1-M1 的逐项证据与 deferred production Gates 见 `P1_M1_ACCEPTANCE.md`。
 P1-M2 的浏览器、Linux CI、repairs 与 deferred production Gates 见 `P1_M2_ACCEPTANCE.md`。
 
 P1-M3 的用途授权、quarantine upload control 与 M4 边界见 `ADR-018-purpose-consent-and-quarantine-upload.md` 和 `P1_M3_EXECUTION_PROTOCOL.md`。
+
+P1-M3 的本地/远端 Gate、repairs 与 deferred production Gates 见 `P1_M3_ACCEPTANCE.md`。
 
 ## Future rolling-wave positioning
 
