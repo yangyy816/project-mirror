@@ -4,13 +4,13 @@ from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pytest
+from mirror_api.ingestion.task_contract import IngestionTaskMessage
 from mirror_api.ingestion.types import IngestionJobClaim, IngestionJobResult, IngestionJobView
 
 from mirror_worker.ingestion import (
     CleanupResult,
     IngestionReconciler,
     IngestionTaskExecutor,
-    IngestionTaskMessage,
     RetryableWorkerFailure,
     SweepResult,
 )

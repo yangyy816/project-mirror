@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 
 from mirror_api.config import Settings, get_settings
+from mirror_api.ingestion.task_contract import IngestionTaskMessage
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
-from mirror_worker.ingestion import IngestionTaskMessage
 from mirror_worker.runtime import run_ingestion_message
 
 

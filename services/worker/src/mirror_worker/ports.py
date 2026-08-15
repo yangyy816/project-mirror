@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from mirror_api.ingestion.task_contract import IngestionTaskMessage
+
 from mirror_worker.application import TaskEnvelope
-from mirror_worker.ingestion import IngestionTaskMessage
 
 
 class TaskDispatcher(Protocol):

@@ -5,6 +5,7 @@ import os
 
 import pytest
 from mirror_api.config import Settings
+from mirror_api.ingestion.task_contract import IngestionTaskMessage
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
 from mirror_worker.celery_adapter import (
@@ -16,7 +17,6 @@ from mirror_worker.celery_adapter import (
     process_asset_ingestion,
     reconcile_asset_ingestion,
 )
-from mirror_worker.ingestion import IngestionTaskMessage
 from mirror_worker.local import LocalTaskRunner
 
 

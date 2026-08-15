@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from mirror_api.ingestion.service import IngestionService
+from mirror_api.ingestion.task_contract import IngestionTaskMessage
 from mirror_api.models import Asset, Job, UploadIntent, User, new_id
 from mirror_api.providers.local import (
     UPLOAD_AUTHORIZATION_HEADER,
@@ -27,7 +28,6 @@ from mirror_worker.cleanup import SqlAlchemyIngestionCleanup
 from mirror_worker.ingestion import (
     IngestionMaintenance,
     IngestionTaskExecutor,
-    IngestionTaskMessage,
     RetryableWorkerFailure,
 )
 

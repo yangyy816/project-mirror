@@ -6,9 +6,10 @@ from typing import Any
 
 from celery import Celery
 from mirror_api.config import get_settings
+from mirror_api.ingestion.task_contract import IngestionTaskMessage
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
-from mirror_worker.ingestion import IngestionTaskMessage, RetryableWorkerFailure
+from mirror_worker.ingestion import RetryableWorkerFailure
 from mirror_worker.runtime import run_cleanup_sweep, run_ingestion_message, run_reconciliation
 
 settings = get_settings()

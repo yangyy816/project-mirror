@@ -5,17 +5,16 @@ from typing import Any
 
 from mirror_api.config import Settings, get_settings
 from mirror_api.ingestion.service import IngestionService
+from mirror_api.ingestion.task_contract import IngestionDispatcher, IngestionTaskMessage
 from mirror_api.storage_dependencies import create_object_storage_provider
 from mirror_api.upload_control.types import ConsentRequirement
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 from mirror_worker.cleanup import SqlAlchemyIngestionCleanup
 from mirror_worker.ingestion import (
-    IngestionDispatcher,
     IngestionMaintenance,
     IngestionReconciler,
     IngestionTaskExecutor,
-    IngestionTaskMessage,
 )
 
 
