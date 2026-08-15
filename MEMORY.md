@@ -124,3 +124,4 @@
 - 2026-08-15：为后续开发新增 8 个项目级 Codex 角色与 Terra High 默认 subagent；Codex CLI 0.148.0-alpha.9 严格解析和三角色只读 smoke 通过，未进入 Phase 1。
 - 2026-08-15：P1-M1 获正式执行授权；不重跑 Master Planning，只追加统一状态机、Terra 架构权限边界和 `P1-M1-Rxx` Repair Task 协议，并明确不得进入 P1-M2。
 - 2026-08-15：通过 Principal change control 登记 OSS/AI 供应链治理，并将 Identity-Preserving Makeup Transfer 提升为未来 P6 一级研究轨道；未改变 P1-M1 DAG，未添加依赖、权重或模型资产。
+- 2026-08-15：P1-M1 T05/T07 经 Principal 接受。R13 阻止已消费、撤销或过期 session 的登录/刷新幂等重放重新签发访问令牌，并补齐 refresh reuse、logout family revoke、邀请码并发上限、OTP 失败持久化/过期、Provider 失败重试、年龄非通过状态与幂等冲突场景；Compose PostgreSQL 17/Redis 8 定向 23 项、容器 API 其余 85 项、宿主契约 11 项、Ruff 与 strict mypy 均通过。API 镜像未复制仓库级 `packages/contracts`，因此容器内契约文件读取不作为通过证据，完整仓库契约仍由宿主与 CI 验证。

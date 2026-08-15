@@ -35,13 +35,19 @@ def session() -> Generator[Session]:
     engine = create_engine(database_url)
     with engine.begin() as connection:
         connection.execute(
-            text("TRUNCATE TABLE phone_verification_challenges, users, invite_codes CASCADE")
+            text(
+                "TRUNCATE TABLE idempotency_records, phone_verification_challenges, users, "
+                "invite_codes CASCADE"
+            )
         )
     with Session(engine) as db_session:
         yield db_session
     with engine.begin() as connection:
         connection.execute(
-            text("TRUNCATE TABLE phone_verification_challenges, users, invite_codes CASCADE")
+            text(
+                "TRUNCATE TABLE idempotency_records, phone_verification_challenges, users, "
+                "invite_codes CASCADE"
+            )
         )
     engine.dispose()
 
@@ -295,7 +301,10 @@ def test_identity_migration_backfills_legacy_phase0_rows(monkeypatch: pytest.Mon
     engine = create_engine(database_url)
     with engine.begin() as connection:
         connection.execute(
-            text("TRUNCATE TABLE phone_verification_challenges, users, invite_codes CASCADE")
+            text(
+                "TRUNCATE TABLE idempotency_records, phone_verification_challenges, users, "
+                "invite_codes CASCADE"
+            )
         )
         connection.execute(
             text(
@@ -374,6 +383,9 @@ def test_identity_migration_backfills_legacy_phase0_rows(monkeypatch: pytest.Mon
     assert idempotency == {"state": "in_progress", "completed_at": None}
     with engine.begin() as connection:
         connection.execute(
-            text("TRUNCATE TABLE phone_verification_challenges, users, invite_codes CASCADE")
+            text(
+                "TRUNCATE TABLE idempotency_records, phone_verification_challenges, users, "
+                "invite_codes CASCADE"
+            )
         )
     engine.dispose()
