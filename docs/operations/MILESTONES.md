@@ -5,11 +5,11 @@
 | Scope   | State     | Evidence / Boundary                                              |
 | ------- | --------- | ---------------------------------------------------------------- |
 | Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`   |
-| Phase 1 | COMMITTED | Application Foundation；P1-M1/M2/M3 frozen，P1-M4 executing      |
+| Phase 1 | COMMITTED | Application Foundation；P1-M1/M2/M3 frozen，P1-M4 Gate passed    |
 | P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿 |
 | P1-M2   | FROZEN    | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿 |
 | P1-M3   | FROZEN    | closure `05c9f00`；run `31897780247` 三 jobs 与 artifacts 全绿   |
-| P1-M4   | EXECUTING | ADR-019 + `P1_M4_EXECUTION_PROTOCOL.md`；仅合成非人脸 fixture    |
+| P1-M4   | PASS      | candidate `b28f0e6`；run `31903655766` 三 jobs 与 artifacts 全绿 |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
@@ -22,6 +22,8 @@ P1-M3 的用途授权、quarantine upload control 与 M4 边界见 `ADR-018-purp
 P1-M3 的本地/远端 Gate、repairs 与 deferred production Gates 见 `P1_M3_ACCEPTANCE.md`。
 
 P1-M4 的安全解码、canonical re-encode、Job/recovery、晋升和 M5 边界见 `ADR-019-safe-image-ingestion-and-promotion.md` 与 `P1_M4_EXECUTION_PROTOCOL.md`。
+
+P1-M4 的本地/远端 Gate、repairs 与 deferred production Gates 见 `P1_M4_ACCEPTANCE.md`；当前等待 acceptance closure CI，尚未标记 `FROZEN`。
 
 ## Future rolling-wave positioning
 
