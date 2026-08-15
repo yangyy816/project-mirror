@@ -51,6 +51,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)
+      interval: 5s
+      timeout: 4s
+      retries: 20
+      start_period: 10s
     ports:
       - "8000:8000"
 
@@ -64,6 +74,19 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - celery
+        - -A
+        - mirror_worker.app:celery_app
+        - inspect
+        - ping
+        - --timeout=5
+      interval: 10s
+      timeout: 8s
+      retries: 12
+      start_period: 10s
 
   web:
     build:
@@ -75,7 +98,18 @@ services:
       API_BASE_URL: http://api:8000
       NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/').then(response => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))
+      interval: 5s
+      timeout: 4s
+      retries: 20
+      start_period: 10s
     ports:
       - "3000:3000"
 

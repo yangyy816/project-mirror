@@ -38,6 +38,8 @@ Web 镜像最小补齐被 trace 遗漏的 ESM helper 后，完整 Compose 五服
 
 `.github/workflows/ci.yml` 使用 PostgreSQL 17.6 与 Redis 8.2.1，执行 migration upgrade/downgrade/re-upgrade/check、直接 SQL invariant tests、Linux Celery round trip、Python/TypeScript gates、contract drift、dependency/license/SBOM、Docker/Compose smoke 与 Gitleaks。当前仓库没有 remote，`gh` 不可用，初始工作树尚未提交，因此 GitHub Actions 不能实际触发；配置存在不等于远端 CI PASS。
 
+首次远端 baseline run `31871452535`（commit `39b14c68a05438b302f0f5b9471d8a0a1bef06e0`）中，`quality-and-integration` 与 `secret-scan` PASS；`docker-validation` 的镜像构建与 Compose 启动 PASS，但第一条 API curl 返回 `Recv failure: Connection reset by peer`。根因为 API、Worker、Web 缺少 Compose healthcheck，`up --wait` 只能等待容器进入 running，不能证明服务已接受请求，分类为 `CI_CONFIGURATION_DEFECT`。修复必须加入真实服务健康检查并让 Web 依赖 API healthy，再执行本地 Compose 与完整远端 CI。
+
 ## 结论
 
 `PHASE 0: CONDITIONAL`。本地 Docker/Linux/PostgreSQL/Redis/Celery/Gitleaks 权威执行已通过；唯一剩余未验证 Gate 是完整 GitHub Actions run。需要人工完成 GitHub 认证、配置 remote 并建立初始提交后，在同一 Phase 0 验收任务中触发并审查 workflow；在此之前不得冻结为 PASS。
