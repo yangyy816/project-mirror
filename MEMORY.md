@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 1 — Application Foundation（COMMITTED）
-- 当前 Milestone：P1-M2 — Web Authentication and Onboarding（PASS，等待 closure CI 后 FROZEN）
+- 当前 Milestone：P1-M2 — Web Authentication and Onboarding（FROZEN）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -139,3 +139,4 @@
 - 2026-08-15：P1-M2 T06 本地候选 Gate 建立 Playwright + deterministic Fake API/age provider；真实 Microsoft Edge + Next standalone 的 3 个端到端场景通过。R03 将 bootstrap 缺少 CSRF 安全降级为 anonymous 并要求重认证；R04 分离 Vitest 与 Playwright 收集边界。完整 `pnpm check`、Docker build/五服务 health、容器 PostgreSQL/Redis 97 PASS、Worker/Celery 5 PASS、隔离数据库 migration lifecycle、OpenAPI 零漂移和 Python/Node 漏洞审计均通过；等待 candidate SHA 的远端 CI。
 - 2026-08-15：P1-M2 远端候选经 R05/R06 收口。R05 以 `vitest.config.ts` 关闭 Linux Bash glob 展开导致的测试命令故障；R06 补齐 Linux Next standalone 缺失的 `@swc/helpers/esm` 并处理 Windows junction realpath。最终 candidate `f4dd6f0a58635e0d8505a5fa0ce0c2ed366982aa` 的 run `31892402898` 三个 jobs 全绿，Chromium 安装与 Browser integration 实际执行，三项 artifacts 可下载且 Gitleaks SARIF 零结果；P1-M2 Gate 为 PASS，等待 acceptance closure CI 后 FROZEN。
 - 2026-08-15：接受 P7 Visual Memory OS 方向补充；新增 MEM-01–MEM-12、AcceptedVisualEpisode、分层/时序/程序记忆、Admission/Write/Memory Gate、Active Visual Exemplars、Context Compiler、删除重编译与 MirrorMemoryBench 研究边界。P6 只承担 final-save provenance 前向兼容，不提前实现 P7。
+- 2026-08-15：P1-M2 acceptance closure `0614ccf8fe526c6bfecc53da7117722247788ce7` 的 run `31892788852` 三个 jobs 全绿；Chromium browser Gate、契约、迁移、供应链、Gitleaks、Docker 与三项 artifacts 均实际通过。Principal 将 P1-M2 前向更新为 FROZEN；下一步只对 P1-M3 做 rolling-wave refinement。

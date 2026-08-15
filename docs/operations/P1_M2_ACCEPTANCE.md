@@ -5,11 +5,12 @@
 - Milestone: `P1-M2 — Web Authentication and Onboarding`
 - Candidate SHA: `f4dd6f0a58635e0d8505a5fa0ce0c2ed366982aa`
 - Candidate run: [31892402898](https://github.com/yangyy816/project-mirror/actions/runs/31892402898)
+- Closure SHA: `0614ccf8fe526c6bfecc53da7117722247788ce7`
+- Closure run: [31892788852](https://github.com/yangyy816/project-mirror/actions/runs/31892788852)
 - Principal decision: `PASS`
-- Freeze state: `PASS` pending acceptance-closure CI
+- Freeze state: `FROZEN`
 
-`PASS` means T01–T06 and all mandatory M2 evidence have been accepted. The Milestone becomes
-`FROZEN` only after this acceptance record's closure commit completes the same full remote Gate.
+T01–T06 and all mandatory M2 evidence were accepted. The acceptance record's closure run completed the same full remote Gate, so the Milestone is now `FROZEN`.
 
 ## Accepted scope
 
@@ -59,6 +60,14 @@ Artifacts are present, downloadable and unexpired:
 
 The historical GitHub display name `phase-0-gates` and Node 20 action-runtime deprecation annotations are nonblocking workflow identity/runtime debt; the actual workflow jobs and mandatory steps above executed.
 
+Closure run `31892788852` also completed all three jobs successfully:
+
+- `quality-and-integration` (`95031466111`)
+- `secret-scan` (`95031466073`)
+- `docker-validation` (`95031466118`)
+
+It produced unexpired `project-audit-evidence` (`9249029176`), `project-docker-evidence` (`9249005521`) and `gitleaks-results.sarif` (`9248984210`).
+
 ## Material repairs closed
 
 - R01: corrected T04 test typing and an ambiguous duplicate text query.
@@ -76,4 +85,4 @@ The historical GitHub display name `phase-0-gates` and Node 20 action-runtime de
 
 `P1-M2_GATE: PASS`
 
-`P1-M2_STATE: PASS_PENDING_CLOSURE_CI`
+`P1-M2_STATE: FROZEN`
