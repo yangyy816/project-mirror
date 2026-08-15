@@ -150,6 +150,91 @@ def _install_ingestion_triggers() -> None:
         """
     )
     op.execute(
+        """
+        CREATE FUNCTION mirror_protect_promoted_ingestion_asset() RETURNS trigger AS $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM asset_ingestion_records
+                WHERE outcome = 'promoted' AND result_asset_id = OLD.id
+            ) AND (
+                NEW.owner_user_id IS DISTINCT FROM OLD.owner_user_id
+                OR NEW.asset_role IS DISTINCT FROM OLD.asset_role
+                OR NEW.synthetic IS DISTINCT FROM OLD.synthetic
+                OR NEW.is_ai_generated IS DISTINCT FROM OLD.is_ai_generated
+                OR NEW.is_ai_modified IS DISTINCT FROM OLD.is_ai_modified
+                OR NEW.storage_key IS DISTINCT FROM OLD.storage_key
+                OR NEW.mime_type IS DISTINCT FROM OLD.mime_type
+                OR NEW.byte_size IS DISTINCT FROM OLD.byte_size
+                OR NEW.width IS DISTINCT FROM OLD.width
+                OR NEW.height IS DISTINCT FROM OLD.height
+                OR NEW.sha256 IS DISTINCT FROM OLD.sha256
+            ) THEN
+                RAISE EXCEPTION 'promoted ingestion asset identity and blob metadata are immutable';
+            END IF;
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+        """
+    )
+    op.execute(
+        """
+        CREATE FUNCTION mirror_validate_ingestion_job_attempt_consistency() RETURNS trigger AS $$
+        DECLARE
+            target_job_id varchar(32);
+            ingestion_job jobs%ROWTYPE;
+            current_attempt job_attempts%ROWTYPE;
+        BEGIN
+            IF TG_TABLE_NAME = 'jobs' THEN
+                target_job_id := NEW.id;
+            ELSIF TG_OP = 'DELETE' THEN
+                target_job_id := OLD.job_id;
+            ELSE
+                target_job_id := NEW.job_id;
+            END IF;
+
+            SELECT * INTO ingestion_job FROM jobs WHERE id = target_job_id;
+            IF NOT FOUND OR ingestion_job.job_type <> 'asset_ingestion' THEN
+                RETURN NULL;
+            END IF;
+
+            IF ingestion_job.status = 'pending' THEN
+                IF EXISTS (
+                    SELECT 1 FROM job_attempts
+                    WHERE job_id = ingestion_job.id AND status = 'leased'
+                ) THEN
+                    RAISE EXCEPTION 'pending ingestion job cannot retain a leased attempt';
+                END IF;
+            ELSIF ingestion_job.status = 'leased' THEN
+                SELECT * INTO current_attempt FROM job_attempts
+                WHERE job_id = ingestion_job.id AND attempt = ingestion_job.attempt_count;
+                IF NOT FOUND OR current_attempt.status <> 'leased'
+                   OR current_attempt.lease_token IS DISTINCT FROM ingestion_job.lease_token
+                   OR EXISTS (
+                       SELECT 1 FROM job_attempts
+                       WHERE job_id = ingestion_job.id AND status = 'leased'
+                         AND attempt <> ingestion_job.attempt_count
+                   ) THEN
+                    RAISE EXCEPTION 'leased ingestion job requires exactly its current leased attempt';
+                END IF;
+            ELSIF ingestion_job.status IN ('promoted', 'rejected') THEN
+                SELECT * INTO current_attempt FROM job_attempts
+                WHERE job_id = ingestion_job.id AND attempt = ingestion_job.attempt_count;
+                IF NOT FOUND OR current_attempt.status <> ingestion_job.status
+                   OR current_attempt.finished_at IS NULL
+                   OR current_attempt.result_code IS DISTINCT FROM ingestion_job.result_code
+                   OR EXISTS (
+                       SELECT 1 FROM job_attempts
+                       WHERE job_id = ingestion_job.id AND status = 'leased'
+                   ) THEN
+                    RAISE EXCEPTION 'final ingestion job requires its matching completed current attempt';
+                END IF;
+            END IF;
+            RETURN NULL;
+        END;
+        $$ LANGUAGE plpgsql;
+        """
+    )
+    op.execute(
         "CREATE TRIGGER trg_asset_ingestion_records_validate "
         "BEFORE INSERT ON asset_ingestion_records "
         "FOR EACH ROW EXECUTE FUNCTION mirror_validate_asset_ingestion_record();"
@@ -174,15 +259,35 @@ def _install_ingestion_triggers() -> None:
         "BEFORE INSERT OR UPDATE OR DELETE ON job_attempts "
         "FOR EACH ROW EXECUTE FUNCTION mirror_protect_ingestion_job_attempt();"
     )
+    op.execute(
+        "CREATE TRIGGER trg_assets_protect_promoted_ingestion "
+        "BEFORE UPDATE ON assets "
+        "FOR EACH ROW EXECUTE FUNCTION mirror_protect_promoted_ingestion_asset();"
+    )
+    op.execute(
+        "CREATE CONSTRAINT TRIGGER trg_jobs_validate_ingestion_attempt_consistency "
+        "AFTER INSERT OR UPDATE ON jobs DEFERRABLE INITIALLY DEFERRED "
+        "FOR EACH ROW EXECUTE FUNCTION mirror_validate_ingestion_job_attempt_consistency();"
+    )
+    op.execute(
+        "CREATE CONSTRAINT TRIGGER trg_job_attempts_validate_ingestion_consistency "
+        "AFTER INSERT OR UPDATE OR DELETE ON job_attempts DEFERRABLE INITIALLY DEFERRED "
+        "FOR EACH ROW EXECUTE FUNCTION mirror_validate_ingestion_job_attempt_consistency();"
+    )
 
 
 def _remove_ingestion_triggers() -> None:
+    op.execute("DROP TRIGGER IF EXISTS trg_job_attempts_validate_ingestion_consistency ON job_attempts")
+    op.execute("DROP TRIGGER IF EXISTS trg_jobs_validate_ingestion_attempt_consistency ON jobs")
+    op.execute("DROP TRIGGER IF EXISTS trg_assets_protect_promoted_ingestion ON assets")
     op.execute("DROP TRIGGER IF EXISTS trg_job_attempts_protect_ingestion ON job_attempts")
     op.execute("DROP TRIGGER IF EXISTS trg_upload_intents_validate_ingestion_final ON upload_intents")
     op.execute("DROP TRIGGER IF EXISTS trg_jobs_validate_ingestion_final ON jobs")
     op.execute("DROP TRIGGER IF EXISTS trg_asset_ingestion_records_immutable ON asset_ingestion_records")
     op.execute("DROP TRIGGER IF EXISTS trg_asset_ingestion_records_validate ON asset_ingestion_records")
     op.execute("DROP FUNCTION IF EXISTS mirror_protect_ingestion_job_attempt()")
+    op.execute("DROP FUNCTION IF EXISTS mirror_protect_promoted_ingestion_asset()")
+    op.execute("DROP FUNCTION IF EXISTS mirror_validate_ingestion_job_attempt_consistency()")
     op.execute("DROP FUNCTION IF EXISTS mirror_validate_ingestion_intent_final()")
     op.execute("DROP FUNCTION IF EXISTS mirror_validate_ingestion_job_final()")
     op.execute("DROP FUNCTION IF EXISTS mirror_validate_asset_ingestion_record()")

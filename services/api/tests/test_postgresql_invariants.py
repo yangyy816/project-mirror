@@ -593,6 +593,19 @@ def test_ingestion_final_evidence_is_owner_bound_append_only_and_promoted_shape_
         )
     session.rollback()
 
+    with pytest.raises(DBAPIError, match="promoted ingestion asset identity"):
+        session.execute(
+            text("UPDATE assets SET synthetic=true WHERE id=:id"),
+            {"id": original.id},
+        )
+    session.rollback()
+
+    session.execute(
+        text("UPDATE assets SET deleted_at=now() WHERE id=:id"),
+        {"id": original.id},
+    )
+    session.commit()
+
     other = User(id=new_id(), phone_hash="d" * 64, status="active")
     other_asset = make_asset(other.id, "original", "other-original")
     other_asset.synthetic = False
@@ -685,6 +698,143 @@ def test_ingestion_rejected_record_cannot_reference_asset(session: Session) -> N
                 "asset": new_id(),
             },
         )
+
+
+def test_ingestion_job_and_attempt_states_must_commit_consistently(session: Session) -> None:
+    user, intent = create_uploaded_ingestion_fixture(session, "r")
+    job = make_ingestion_job(user.id, intent.id, "s")
+    session.add(job)
+    session.commit()
+
+    first_started_at = datetime.now(UTC)
+    first_lease_token = new_id()
+    job.status = "leased"
+    job.attempt_count = 1
+    job.lease_token = first_lease_token
+    job.lease_acquired_at = first_started_at
+    job.lease_expires_at = first_started_at + timedelta(minutes=5)
+    intent.status = "processing"
+    intent.processing_started_at = first_started_at
+    with pytest.raises(DBAPIError, match="current leased attempt"):
+        session.commit()
+    session.rollback()
+
+    job = session.get(Job, job.id)
+    intent = session.get(UploadIntent, intent.id)
+    assert job is not None
+    assert intent is not None
+    job.status = "leased"
+    job.attempt_count = 1
+    job.lease_token = first_lease_token
+    job.lease_acquired_at = first_started_at
+    job.lease_expires_at = first_started_at + timedelta(minutes=5)
+    intent.status = "processing"
+    intent.processing_started_at = first_started_at
+    first_attempt = JobAttempt(
+        id=new_id(),
+        job_id=job.id,
+        attempt=1,
+        status="leased",
+        lease_token=first_lease_token,
+    )
+    session.add(first_attempt)
+    session.commit()
+
+    job.status = "pending"
+    job.lease_token = None
+    job.lease_acquired_at = None
+    job.lease_expires_at = None
+    with pytest.raises(DBAPIError, match="cannot retain a leased attempt"):
+        session.commit()
+    session.rollback()
+
+    job = session.get(Job, job.id)
+    first_attempt = session.get(JobAttempt, first_attempt.id)
+    assert job is not None
+    assert first_attempt is not None
+    retry_finished_at = datetime.now(UTC)
+    job.status = "pending"
+    job.lease_token = None
+    job.lease_acquired_at = None
+    job.lease_expires_at = None
+    first_attempt.status = "retryable_failure"
+    first_attempt.result_code = "storage_retryable"
+    first_attempt.finished_at = retry_finished_at
+    session.commit()
+
+    second_started_at = retry_finished_at + timedelta(seconds=1)
+    second_lease_token = new_id()
+    job.status = "leased"
+    job.attempt_count = 2
+    job.lease_token = second_lease_token
+    job.lease_acquired_at = second_started_at
+    job.lease_expires_at = second_started_at + timedelta(minutes=5)
+    second_attempt = JobAttempt(
+        id=new_id(),
+        job_id=job.id,
+        attempt=2,
+        status="leased",
+        lease_token=second_lease_token,
+    )
+    session.add(second_attempt)
+    session.commit()
+
+    finalized_at = second_started_at + timedelta(seconds=1)
+    job.status = "rejected"
+    job.lease_token = None
+    job.lease_acquired_at = None
+    job.lease_expires_at = None
+    job.finalized_at = finalized_at
+    job.result_code = "invalid_image"
+    intent.status = "rejected"
+    intent.finalized_at = finalized_at
+    second_attempt.status = "rejected"
+    second_attempt.result_code = "different_result"
+    second_attempt.finished_at = finalized_at
+    session.add(
+        AssetIngestionRecord(
+            id=new_id(),
+            owner_user_id=user.id,
+            upload_intent_id=intent.id,
+            job_id=job.id,
+            outcome="rejected",
+            result_code="invalid_image",
+            finalized_at=finalized_at,
+        )
+    )
+    with pytest.raises(DBAPIError, match="matching completed current attempt"):
+        session.commit()
+    session.rollback()
+
+    job = session.get(Job, job.id)
+    intent = session.get(UploadIntent, intent.id)
+    second_attempt = session.get(JobAttempt, second_attempt.id)
+    assert job is not None
+    assert intent is not None
+    assert second_attempt is not None
+    job.status = "rejected"
+    job.lease_token = None
+    job.lease_acquired_at = None
+    job.lease_expires_at = None
+    job.finalized_at = finalized_at
+    job.result_code = "invalid_image"
+    intent.status = "rejected"
+    intent.finalized_at = finalized_at
+    second_attempt.status = "rejected"
+    second_attempt.result_code = "invalid_image"
+    second_attempt.finished_at = finalized_at
+    session.add(
+        AssetIngestionRecord(
+            id=new_id(),
+            owner_user_id=user.id,
+            upload_intent_id=intent.id,
+            job_id=job.id,
+            outcome="rejected",
+            result_code="invalid_image",
+            finalized_at=finalized_at,
+        )
+    )
+    session.commit()
 
 
 def test_ingestion_job_is_unique_per_intent_under_concurrency(session: Session) -> None:
