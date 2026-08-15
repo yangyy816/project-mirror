@@ -393,6 +393,225 @@ class AssetAccessAudit(IdMixin, Base):
     )
 
 
+class AssetDeletionRequest(IdMixin, Base):
+    __tablename__ = "asset_deletion_requests"
+
+    owner_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    asset_id: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    job_id: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    idempotency_key_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="requested", nullable=False)
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result_code: Mapped[str | None] = mapped_column(String(64))
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["asset_id", "owner_user_id"],
+            ["assets.id", "assets.owner_user_id"],
+            name="fk_asset_deletion_requests_asset_owner",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["job_id", "owner_user_id"],
+            ["jobs.id", "jobs.owner_user_id"],
+            name="fk_asset_deletion_requests_job_owner",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "status IN ('requested','processing','completed','failed')",
+            name="valid_asset_deletion_status",
+        ),
+        CheckConstraint(
+            "(status = 'requested' AND started_at IS NULL AND completed_at IS NULL "
+            "AND result_code IS NULL) OR "
+            "(status = 'processing' AND started_at IS NOT NULL AND completed_at IS NULL "
+            "AND result_code IS NULL) OR "
+            "(status IN ('completed','failed') AND started_at IS NOT NULL "
+            "AND completed_at IS NOT NULL AND result_code IS NOT NULL)",
+            name="valid_asset_deletion_shape",
+        ),
+    )
+
+
+class AssetDeletionEvent(IdMixin, Base):
+    __tablename__ = "asset_deletion_events"
+
+    request_id: Mapped[str] = mapped_column(
+        ForeignKey("asset_deletion_requests.id", ondelete="RESTRICT"), index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    result_code: Mapped[str | None] = mapped_column(String(64))
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ('requested','processing_started','completed','failed')",
+            name="valid_asset_deletion_event_type",
+        ),
+    )
+
+
+class DataExportRequest(IdMixin, Base):
+    __tablename__ = "data_export_requests"
+
+    owner_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    job_id: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    idempotency_key_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="requested", nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(48), nullable=False)
+    storage_key: Mapped[str | None] = mapped_column(String(255), unique=True)
+    sha256: Mapped[str | None] = mapped_column(String(64))
+    byte_size: Mapped[int | None] = mapped_column(BigInteger)
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result_code: Mapped[str | None] = mapped_column(String(64))
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["job_id", "owner_user_id"],
+            ["jobs.id", "jobs.owner_user_id"],
+            name="fk_data_export_requests_job_owner",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "status IN ('requested','processing','ready','failed','expired')",
+            name="valid_data_export_status",
+        ),
+        CheckConstraint(
+            "byte_size IS NULL OR byte_size > 0", name="positive_data_export_byte_size"
+        ),
+        CheckConstraint(
+            "(status NOT IN ('ready','expired')) OR "
+            "(storage_key IS NOT NULL AND sha256 IS NOT NULL AND byte_size IS NOT NULL "
+            "AND ready_at IS NOT NULL AND expires_at > ready_at)",
+            name="ready_data_export_has_artifact",
+        ),
+        CheckConstraint(
+            "status <> 'expired' OR (deleted_at IS NOT NULL AND result_code IS NOT NULL)",
+            name="expired_data_export_has_evidence",
+        ),
+    )
+
+
+class DataExportEvent(IdMixin, Base):
+    __tablename__ = "data_export_events"
+
+    request_id: Mapped[str] = mapped_column(
+        ForeignKey("data_export_requests.id", ondelete="RESTRICT"), index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    result_code: Mapped[str | None] = mapped_column(String(64))
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ('requested','processing_started','ready','failed','expired')",
+            name="valid_data_export_event_type",
+        ),
+    )
+
+
+class AccountDeletionRequest(IdMixin, Base):
+    __tablename__ = "account_deletion_requests"
+
+    owner_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    job_id: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    idempotency_key_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="requested", nullable=False)
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result_code: Mapped[str | None] = mapped_column(String(64))
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["job_id", "owner_user_id"],
+            ["jobs.id", "jobs.owner_user_id"],
+            name="fk_account_deletion_requests_job_owner",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "status IN ('requested','processing','completed','failed')",
+            name="valid_account_deletion_status",
+        ),
+        CheckConstraint(
+            "(status = 'requested' AND started_at IS NULL AND completed_at IS NULL "
+            "AND result_code IS NULL) OR "
+            "(status = 'processing' AND started_at IS NOT NULL AND completed_at IS NULL "
+            "AND result_code IS NULL) OR "
+            "(status IN ('completed','failed') AND started_at IS NOT NULL "
+            "AND completed_at IS NOT NULL AND result_code IS NOT NULL)",
+            name="valid_account_deletion_shape",
+        ),
+    )
+
+
+class AccountDeletionEvent(IdMixin, Base):
+    __tablename__ = "account_deletion_events"
+
+    request_id: Mapped[str] = mapped_column(
+        ForeignKey("account_deletion_requests.id", ondelete="RESTRICT"), index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    result_code: Mapped[str | None] = mapped_column(String(64))
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ('requested','processing_started','completed','failed')",
+            name="valid_account_deletion_event_type",
+        ),
+    )
+
+
+class ObjectDeletionEvidence(IdMixin, Base):
+    __tablename__ = "object_deletion_evidence"
+
+    owner_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    asset_deletion_request_id: Mapped[str | None] = mapped_column(
+        ForeignKey("asset_deletion_requests.id", ondelete="RESTRICT"), unique=True
+    )
+    data_export_request_id: Mapped[str | None] = mapped_column(
+        ForeignKey("data_export_requests.id", ondelete="RESTRICT"), unique=True
+    )
+    account_deletion_request_id: Mapped[str | None] = mapped_column(
+        ForeignKey("account_deletion_requests.id", ondelete="RESTRICT"), index=True
+    )
+    object_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(24), nullable=False)
+    result_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "num_nonnulls(asset_deletion_request_id, data_export_request_id, "
+            "account_deletion_request_id) = 1",
+            name="one_object_deletion_authority",
+        ),
+        CheckConstraint("object_kind IN ('asset','data_export')", name="valid_deleted_object_kind"),
+        CheckConstraint("outcome IN ('deleted','not_found')", name="valid_object_deletion_outcome"),
+    )
+
+
 class BaselineFaceModel(IdMixin, Base):
     """Versioned measurement evidence; this row is not a trained ML model."""
 

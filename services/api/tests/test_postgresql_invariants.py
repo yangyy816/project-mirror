@@ -11,20 +11,28 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
 from mirror_api.models import (
+    AccountDeletionEvent,
+    AccountDeletionRequest,
     AestheticProfile,
     AestheticProfileVersion,
     Asset,
+    AssetAccessAudit,
+    AssetDeletionEvent,
+    AssetDeletionRequest,
     AssetIngestionRecord,
     BaselineFaceModel,
     ConsentRecord,
     CreditAccount,
     CreditLedger,
+    DataExportEvent,
+    DataExportRequest,
     DesiredDeltaProfileVersion,
     EditingSession,
     IdentityConstraintVersion,
     ImageVersion,
     Job,
     JobAttempt,
+    ObjectDeletionEvidence,
     QuestionBankVersion,
     QuestionnaireRun,
     SelfState,
@@ -1030,3 +1038,230 @@ def test_questionnaire_run_binds_baseline_and_self_state_versions(session: Sessi
     session.commit()
     assert run.baseline_face_model_id
     assert run.self_state_version_id == profile_version.self_state_version_id
+
+
+def make_rights_job(user_id: str, job_type: str, suffix: str) -> Job:
+    return Job(
+        id=new_id(),
+        owner_user_id=user_id,
+        job_type=job_type,
+        status="pending",
+        idempotency_key_hash=(suffix * 64)[:64],
+        request_id=f"rights-{suffix}",
+        payload={"schema_version": "data-rights-task-v1"},
+    )
+
+
+def test_asset_deletion_requires_owner_job_tombstone_and_append_only_evidence(
+    session: Session,
+) -> None:
+    user = User(id=new_id(), phone_hash="j" * 64, status="active")
+    asset = make_asset(user.id, "original", "rights-asset")
+    job = make_rights_job(user.id, "asset_deletion", "k")
+    session.add(user)
+    session.commit()
+    session.add_all([asset, job])
+    session.commit()
+
+    request = AssetDeletionRequest(
+        id=new_id(),
+        owner_user_id=user.id,
+        asset_id=asset.id,
+        job_id=job.id,
+        idempotency_key_hash="l" * 64,
+        status="requested",
+    )
+    session.add(request)
+    with pytest.raises(DBAPIError, match="immediate asset tombstone"):
+        session.commit()
+    session.rollback()
+
+    asset = session.get(Asset, asset.id)
+    job = session.get(Job, job.id)
+    assert asset is not None and job is not None
+    asset.deleted_at = datetime.now(UTC)
+    request = AssetDeletionRequest(
+        id=new_id(),
+        owner_user_id=user.id,
+        asset_id=asset.id,
+        job_id=job.id,
+        idempotency_key_hash="l" * 64,
+        status="requested",
+    )
+    session.add(request)
+    session.commit()
+    event = AssetDeletionEvent(id=new_id(), request_id=request.id, event_type="requested")
+    session.add(event)
+    session.commit()
+
+    with pytest.raises(DBAPIError, match="immutable record"):
+        event.event_type = "failed"
+        session.commit()
+    session.rollback()
+
+    evidence = ObjectDeletionEvidence(
+        id=new_id(),
+        owner_user_id=user.id,
+        asset_deletion_request_id=request.id,
+        object_kind="asset",
+        outcome="deleted",
+        result_code="deleted",
+    )
+    session.add(evidence)
+    session.commit()
+    with pytest.raises(DBAPIError, match="immutable record"):
+        session.delete(evidence)
+        session.commit()
+
+
+def test_account_deletion_requires_immediate_freeze_and_owner_bound_job(
+    session: Session,
+) -> None:
+    user = User(id=new_id(), phone_hash="m" * 64, status="active")
+    job = make_rights_job(user.id, "account_deletion", "n")
+    session.add(user)
+    session.commit()
+    session.add(job)
+    session.commit()
+    request = AccountDeletionRequest(
+        id=new_id(),
+        owner_user_id=user.id,
+        job_id=job.id,
+        idempotency_key_hash="o" * 64,
+        status="requested",
+    )
+    session.add(request)
+    with pytest.raises(DBAPIError, match="immediate user freeze"):
+        session.commit()
+    session.rollback()
+
+    user = session.get(User, user.id)
+    job = session.get(Job, job.id)
+    assert user is not None and job is not None
+    user.status = "deletion_requested"
+    request = AccountDeletionRequest(
+        id=new_id(),
+        owner_user_id=user.id,
+        job_id=job.id,
+        idempotency_key_hash="o" * 64,
+        status="requested",
+    )
+    session.add(request)
+    session.commit()
+    event = AccountDeletionEvent(id=new_id(), request_id=request.id, event_type="requested")
+    session.add(event)
+    session.commit()
+
+    wrong_asset = make_asset(user.id, "original", "wrong-authority")
+    wrong_asset.deleted_at = datetime.now(UTC)
+    wrong_job = make_rights_job(user.id, "data_export", "p")
+    session.add_all([wrong_asset, wrong_job])
+    session.commit()
+    session.add(
+        AssetDeletionRequest(
+            id=new_id(),
+            owner_user_id=user.id,
+            asset_id=wrong_asset.id,
+            job_id=wrong_job.id,
+            idempotency_key_hash="q" * 64,
+            status="requested",
+        )
+    )
+    with pytest.raises(DBAPIError, match="matching owner-bound job"):
+        session.commit()
+
+
+def test_export_shape_and_access_audit_are_enforced(session: Session) -> None:
+    user = User(id=new_id(), phone_hash="r" * 64, status="active")
+    job = make_rights_job(user.id, "data_export", "s")
+    asset = make_asset(user.id, "original", "audit-asset")
+    session.add(user)
+    session.commit()
+    session.add_all([job, asset])
+    session.commit()
+    export = DataExportRequest(
+        id=new_id(),
+        owner_user_id=user.id,
+        job_id=job.id,
+        idempotency_key_hash="t" * 64,
+        status="requested",
+        schema_version="data-export-v1",
+    )
+    session.add(export)
+    session.commit()
+    export.status = "processing"
+    session.commit()
+    export.status = "ready"
+    with pytest.raises(IntegrityError):
+        session.commit()
+    session.rollback()
+
+    audit = AssetAccessAudit(
+        id=new_id(),
+        asset_id=asset.id,
+        actor_user_id=user.id,
+        action="download_grant_created",
+        request_id="audit-request",
+    )
+    session.add(audit)
+    session.commit()
+    with pytest.raises(DBAPIError, match="immutable record"):
+        audit.action = "changed"
+        session.commit()
+
+    session.rollback()
+    export = session.get(DataExportRequest, export.id)
+    assert export is not None
+    now = datetime.now(UTC)
+    export.status = "ready"
+    export.storage_key = "users/fixture/exports/export.zip"
+    export.sha256 = "u" * 64
+    export.byte_size = 100
+    export.ready_at = now
+    export.expires_at = now + timedelta(minutes=15)
+    session.commit()
+    event = DataExportEvent(id=new_id(), request_id=export.id, event_type="ready")
+    session.add(event)
+    session.commit()
+
+
+def test_data_rights_request_authority_and_state_are_monotonic(session: Session) -> None:
+    user = User(id=new_id(), phone_hash="v" * 64, status="active")
+    asset = make_asset(user.id, "original", "rights-state")
+    asset.deleted_at = datetime.now(UTC)
+    job = make_rights_job(user.id, "asset_deletion", "w")
+    session.add(user)
+    session.commit()
+    session.add_all([asset, job])
+    session.commit()
+    request = AssetDeletionRequest(
+        id=new_id(),
+        owner_user_id=user.id,
+        asset_id=asset.id,
+        job_id=job.id,
+        idempotency_key_hash="x" * 64,
+        status="requested",
+    )
+    session.add(request)
+    session.commit()
+
+    request.idempotency_key_hash = "y" * 64
+    with pytest.raises(DBAPIError, match="authority is immutable"):
+        session.commit()
+    session.rollback()
+
+    request = session.get(AssetDeletionRequest, request.id)
+    assert request is not None
+    request.status = "completed"
+    request.started_at = datetime.now(UTC)
+    request.completed_at = datetime.now(UTC)
+    request.result_code = "deleted"
+    with pytest.raises(DBAPIError, match="invalid data-rights request status transition"):
+        session.commit()
+    session.rollback()
+
+    request = session.get(AssetDeletionRequest, request.id)
+    assert request is not None
+    session.delete(request)
+    with pytest.raises(DBAPIError, match="authority is append-only"):
+        session.commit()
