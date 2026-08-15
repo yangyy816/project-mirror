@@ -3,9 +3,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import cast
 
-from sqlalchemy import Select, select, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import Select, exists, func, select, update
+from sqlalchemy import cast as sql_cast
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from mirror_api.models import ConsentRecord, IdempotencyRecord, UploadIntent, User, new_id
 
@@ -120,3 +122,148 @@ class ConsentRepository:
             .returning(UploadIntent.id)
         )
         return tuple(result.scalars().all())
+
+
+class UploadIntentRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def locked_user(self, user_id: str) -> User | None:
+        return cast(
+            User | None,
+            await self.session.scalar(select(User).where(User.id == user_id).with_for_update()),
+        )
+
+    async def active_exact_consent(
+        self,
+        *,
+        user_id: str,
+        consent_type: str,
+        purpose: str,
+        purpose_version: str,
+        scope: dict[str, object],
+        policy_code: str,
+        policy_version: str,
+        policy_digest: str,
+        now: datetime,
+    ) -> ConsentRecord | None:
+        withdrawal = aliased(ConsentRecord)
+        withdrawn = exists(
+            select(withdrawal.id).where(
+                withdrawal.action == "withdraw",
+                withdrawal.supersedes_id == ConsentRecord.id,
+            )
+        )
+        return cast(
+            ConsentRecord | None,
+            await self.session.scalar(
+                select(ConsentRecord)
+                .where(
+                    ConsentRecord.user_id == user_id,
+                    ConsentRecord.action == "grant",
+                    ConsentRecord.consent_type == consent_type,
+                    ConsentRecord.purpose == purpose,
+                    ConsentRecord.purpose_version == purpose_version,
+                    ConsentRecord.scope.cast(JSONB) == sql_cast(scope, JSONB),
+                    ConsentRecord.policy_code == policy_code,
+                    ConsentRecord.policy_version == policy_version,
+                    ConsentRecord.policy_digest == policy_digest,
+                    (ConsentRecord.expires_at.is_(None) | (ConsentRecord.expires_at > now)),
+                    ~withdrawn,
+                )
+                .order_by(ConsentRecord.created_at.desc())
+                .limit(1)
+                .with_for_update()
+            ),
+        )
+
+    async def locked_intent(self, *, user_id: str, intent_id: str) -> UploadIntent | None:
+        return cast(
+            UploadIntent | None,
+            await self.session.scalar(
+                select(UploadIntent)
+                .where(
+                    UploadIntent.id == intent_id,
+                    UploadIntent.owner_user_id == user_id,
+                )
+                .with_for_update()
+            ),
+        )
+
+    async def intent(self, *, user_id: str, intent_id: str) -> UploadIntent | None:
+        return cast(
+            UploadIntent | None,
+            await self.session.scalar(
+                select(UploadIntent).where(
+                    UploadIntent.id == intent_id,
+                    UploadIntent.owner_user_id == user_id,
+                )
+            ),
+        )
+
+    async def pending_usage(self, *, user_id: str) -> tuple[int, int]:
+        row = (
+            await self.session.execute(
+                select(
+                    func.count(UploadIntent.id),
+                    func.coalesce(func.sum(UploadIntent.declared_byte_size), 0),
+                ).where(
+                    UploadIntent.owner_user_id == user_id,
+                    UploadIntent.status.in_(("awaiting_upload", "uploaded_unverified")),
+                )
+            )
+        ).one()
+        return int(row[0]), int(row[1])
+
+    async def idempotency(
+        self, *, actor_key: str, scope: str, key_hash: str, lock: bool = False
+    ) -> IdempotencyRecord | None:
+        statement: Select[tuple[IdempotencyRecord]] = select(IdempotencyRecord).where(
+            IdempotencyRecord.actor_key == actor_key,
+            IdempotencyRecord.scope == scope,
+            IdempotencyRecord.key_hash == key_hash,
+        )
+        if lock:
+            statement = statement.with_for_update()
+        return cast(IdempotencyRecord | None, await self.session.scalar(statement))
+
+    async def claim_idempotency(
+        self,
+        *,
+        actor_key: str,
+        scope: str,
+        key_hash: str,
+        request_fingerprint: str,
+        expires_at: datetime,
+        user_id: str,
+    ) -> tuple[IdempotencyRecord, bool]:
+        statement = (
+            insert(IdempotencyRecord)
+            .values(
+                id=new_id(),
+                user_id=user_id,
+                actor_key=actor_key,
+                scope=scope,
+                key_hash=key_hash,
+                request_fingerprint=request_fingerprint,
+                state="in_progress",
+                expires_at=expires_at,
+            )
+            .on_conflict_do_nothing(index_elements=["actor_key", "scope", "key_hash"])
+            .returning(IdempotencyRecord.id)
+        )
+        inserted_id = await self.session.scalar(statement)
+        if inserted_id is not None:
+            record = await self.session.get(IdempotencyRecord, inserted_id)
+            if record is None:  # pragma: no cover - PostgreSQL RETURNING invariant
+                raise RuntimeError("idempotency claim disappeared")
+            return record, True
+        record = await self.idempotency(
+            actor_key=actor_key,
+            scope=scope,
+            key_hash=key_hash,
+            lock=True,
+        )
+        if record is None:  # pragma: no cover - unsupported concurrent delete
+            raise RuntimeError("idempotency claim was not found")
+        return record, False
