@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from mirror_api.image_sanitizer import ImageSanitizerConfig
+
 Environment = Literal["development", "test", "ci", "production"]
 AuthProvider = Literal["mock", "disabled", "verified_external"]
 ProviderVerificationStatus = Literal["unverified", "verified"]
@@ -111,6 +113,19 @@ class Settings(BaseSettings):
     local_upload_base_url: str = "http://127.0.0.1:8000"
     object_storage_private: bool = True
     signed_url_ttl_seconds: int = Field(default=300, ge=60, le=900)
+    image_sanitizer_version: Literal["image-sanitizer-v1"] = "image-sanitizer-v1"
+    image_sanitizer_max_input_bytes: int = Field(
+        default=20 * 1024 * 1024, ge=1, le=20 * 1024 * 1024
+    )
+    image_sanitizer_max_output_bytes: int = Field(
+        default=20 * 1024 * 1024, ge=1, le=20 * 1024 * 1024
+    )
+    image_sanitizer_min_edge_pixels: int = Field(default=64, ge=1, le=8192)
+    image_sanitizer_max_edge_pixels: int = Field(default=8192, ge=64, le=8192)
+    image_sanitizer_max_pixel_count: int = Field(default=40_000_000, ge=4096, le=40_000_000)
+    image_sanitizer_spool_memory_bytes: int = Field(
+        default=1024 * 1024, ge=1024, le=20 * 1024 * 1024
+    )
 
     vision_provider: Literal["mock", "disabled", "verified_external", "tencent_candidate"] = "mock"
     image_generation_provider: Literal[
@@ -165,6 +180,13 @@ class Settings(BaseSettings):
                 )
             ):
                 raise ValueError("local upload ingress must use a loopback HTTP origin")
+        if self.image_sanitizer_min_edge_pixels > self.image_sanitizer_max_edge_pixels:
+            raise ValueError("image sanitizer minimum edge cannot exceed maximum edge")
+        if (
+            self.image_sanitizer_max_pixel_count
+            < self.image_sanitizer_min_edge_pixels * self.image_sanitizer_min_edge_pixels
+        ):
+            raise ValueError("image sanitizer pixel limit is below its minimum dimensions")
 
         if self.app_env in {"test", "ci"}:
             if any(
@@ -271,3 +293,16 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def image_sanitizer_config(settings: Settings) -> ImageSanitizerConfig:
+    """Create the single versioned sanitizer configuration from validated settings."""
+    return ImageSanitizerConfig(
+        version=settings.image_sanitizer_version,
+        max_input_bytes=settings.image_sanitizer_max_input_bytes,
+        max_output_bytes=settings.image_sanitizer_max_output_bytes,
+        min_edge_pixels=settings.image_sanitizer_min_edge_pixels,
+        max_edge_pixels=settings.image_sanitizer_max_edge_pixels,
+        max_pixel_count=settings.image_sanitizer_max_pixel_count,
+        spool_memory_bytes=settings.image_sanitizer_spool_memory_bytes,
+    )

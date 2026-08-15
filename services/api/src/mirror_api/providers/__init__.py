@@ -9,6 +9,7 @@ from mirror_api.providers.base import (
     PaymentProvider,
     PrivateUploadGrant,
     QuarantineObjectMetadata,
+    SanitizedObjectMetadata,
     SmsProvider,
     VisionProvider,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "PaymentProvider",
     "PrivateUploadGrant",
     "QuarantineObjectMetadata",
+    "SanitizedObjectMetadata",
     "SmsProvider",
     "VisionProvider",
 ]

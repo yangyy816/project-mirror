@@ -12,7 +12,11 @@ from fastapi import FastAPI, Request, Response
 
 from mirror_api.errors import APIError, api_error_handler
 from mirror_api.middleware import LocalUploadAccessLogRedactionMiddleware, RequestIDMiddleware
-from mirror_api.providers.local import LocalObjectStorageProvider
+from mirror_api.providers.local import (
+    LocalObjectStorageProvider,
+    LocalStorageOperationError,
+    sanitized_object_key_for_job,
+)
 from mirror_api.routers.local_upload import router as local_upload_router
 
 
@@ -270,3 +274,97 @@ async def test_local_storage_rejects_paths_and_symlink_components(
             content_length=len(fixture),
             checksum_sha256=checksum,
         )
+
+
+@pytest.mark.asyncio
+async def test_local_storage_reads_quarantine_and_manages_sanitized_objects(tmp_path: Path) -> None:
+    provider = LocalObjectStorageProvider(root=tmp_path)
+    raw = b"synthetic-non-face-quarantine-bytes"
+    raw_checksum = sha256(raw).hexdigest()
+    quarantine_key = _object_key("7")
+    grant = await provider.create_private_upload_grant(
+        object_key=quarantine_key,
+        content_type="image/png",
+        content_length=len(raw),
+        checksum_sha256=raw_checksum,
+    )
+    await provider.receive_private_upload(
+        grant_id=urlsplit(grant.url).path.rsplit("/", 1)[-1],
+        authorization=grant.required_headers["X-Mirror-Upload-Authorization"],
+        content_type="image/png",
+        content_length=len(raw),
+        checksum_sha256=raw_checksum,
+        body=_body(raw, split_at=5),
+    )
+    collected = b"".join(
+        [chunk async for chunk in provider.stream_quarantine_object(object_key=quarantine_key)]
+    )
+    assert collected == raw
+
+    sanitized = b"synthetic-canonical-jpeg"
+    sanitized_checksum = sha256(sanitized).hexdigest()
+    sanitized_key = sanitized_object_key_for_job("a" * 32)
+    created = await provider.create_sanitized_object_if_absent(
+        object_key=sanitized_key,
+        content_type="image/jpeg",
+        content_length=len(sanitized),
+        checksum_sha256=sanitized_checksum,
+        body=_body(sanitized, split_at=3),
+    )
+    assert created.sha256 == sanitized_checksum
+    assert await provider.create_sanitized_object_if_absent(
+        object_key=sanitized_key,
+        content_type="image/jpeg",
+        content_length=len(sanitized),
+        checksum_sha256=sanitized_checksum,
+        body=_body(sanitized),
+    ) == created
+    conflicting = b"different-synthetic-canonical-jpeg"
+    with pytest.raises(LocalStorageOperationError) as conflict:
+        await provider.create_sanitized_object_if_absent(
+            object_key=sanitized_key,
+            content_type="image/jpeg",
+            content_length=len(conflicting),
+            checksum_sha256=sha256(conflicting).hexdigest(),
+            body=_body(conflicting),
+        )
+    assert conflict.value.reason == "sanitized_object_conflict"
+    assert await provider.delete_sanitized_object(object_key=sanitized_key) == "deleted"
+    assert await provider.delete_sanitized_object(object_key=sanitized_key) == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_local_sanitized_write_cleans_temporary_bytes_and_rejects_symlinks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    provider = LocalObjectStorageProvider(root=tmp_path)
+    key = sanitized_object_key_for_job("b" * 32)
+
+    async def interrupted_body() -> AsyncIterator[bytes]:
+        yield b"partial"
+        raise RuntimeError("synthetic storage interruption")
+
+    with pytest.raises(RuntimeError, match="synthetic storage interruption"):
+        await provider.create_sanitized_object_if_absent(
+            object_key=key,
+            content_type="image/jpeg",
+            content_length=20,
+            checksum_sha256="a" * 64,
+            body=interrupted_body(),
+        )
+    assert list(tmp_path.rglob("*.part")) == []
+
+    sanitized_root = tmp_path / "sanitized"
+    outside = tmp_path / "outside"
+    outside.mkdir(exist_ok=True)
+    try:
+        sanitized_root.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        original_is_symlink = Path.is_symlink
+        monkeypatch.setattr(
+            Path,
+            "is_symlink",
+            lambda path: path == sanitized_root or original_is_symlink(path),
+        )
+    with pytest.raises(ValueError, match="symlink"):
+        await provider.inspect_sanitized_object(object_key=key)

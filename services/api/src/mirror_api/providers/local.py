@@ -6,7 +6,7 @@ import hmac
 import os
 import re
 import secrets
-from collections.abc import AsyncIterable, Callable
+from collections.abc import AsyncIterable, AsyncIterator, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -16,13 +16,23 @@ from mirror_api.providers.base import (
     DeleteResult,
     PrivateUploadGrant,
     QuarantineObjectMetadata,
+    SanitizedObjectMetadata,
 )
 from mirror_api.security import ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, validate_storage_key
 
 QUARANTINE_KEY = re.compile(r"^quarantine/v1/[0-9a-f]{64}$")
+SANITIZED_KEY = re.compile(r"^sanitized/v1/[0-9a-f]{32}$")
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 UPLOAD_AUTHORIZATION_HEADER = "X-Mirror-Upload-Authorization"
 UPLOAD_CHECKSUM_HEADER = "X-Content-SHA256"
+STORAGE_CHUNK_BYTES = 64 * 1024
+
+
+def sanitized_object_key_for_job(job_id: str) -> str:
+    """Derive the only canonical sanitized storage key from an opaque job id."""
+    if not re.fullmatch(r"[0-9a-f]{32}", job_id):
+        raise ValueError("job id must use the opaque 32-character syntax")
+    return f"sanitized/v1/{job_id}"
 
 
 class LocalStorageOperationError(Exception):
@@ -181,6 +191,100 @@ class LocalObjectStorageProvider:
         self._metadata.pop(object_key, None)
         return "deleted" if existed else "not_found"
 
+    async def stream_quarantine_object(self, *, object_key: str) -> AsyncIterator[bytes]:
+        """Read only a server-issued quarantine key in bounded chunks."""
+        target = self._resolve_object_path(object_key)
+        if not await asyncio.to_thread(target.is_file):
+            raise LocalStorageOperationError("quarantine_not_found")
+        handle = await asyncio.to_thread(target.open, "rb")
+        try:
+            while True:
+                chunk = await asyncio.to_thread(handle.read, STORAGE_CHUNK_BYTES)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            await asyncio.to_thread(handle.close)
+
+    async def create_sanitized_object_if_absent(
+        self,
+        *,
+        object_key: str,
+        content_type: str,
+        content_length: int,
+        checksum_sha256: str,
+        body: AsyncIterable[bytes],
+    ) -> SanitizedObjectMetadata:
+        self._validate_sanitized_declaration(
+            object_key=object_key,
+            content_type=content_type,
+            content_length=content_length,
+            checksum_sha256=checksum_sha256,
+        )
+        target = self._resolve_sanitized_path(object_key)
+        temporary = self._resolve_temporary_path("sanitized")
+        await asyncio.to_thread(self._create_empty_file, temporary)
+        digest = hashlib.sha256()
+        received = 0
+        published = False
+        try:
+            async for chunk in body:
+                if not isinstance(chunk, bytes):
+                    raise LocalStorageOperationError("invalid_sanitized_body")
+                received += len(chunk)
+                if received > content_length or received > MAX_UPLOAD_BYTES:
+                    raise LocalStorageOperationError("sanitized_body_too_large")
+                digest.update(chunk)
+                if chunk:
+                    await asyncio.to_thread(self._append_chunk, temporary, chunk)
+            if received != content_length:
+                raise LocalStorageOperationError("sanitized_body_length_mismatch")
+            if not hmac.compare_digest(digest.hexdigest(), checksum_sha256):
+                raise LocalStorageOperationError("sanitized_checksum_mismatch")
+            try:
+                await asyncio.to_thread(self._publish_without_overwrite, temporary, target)
+                published = True
+            except LocalStorageOperationError as exc:
+                if exc.reason != "object_already_exists":
+                    raise
+                existing = await self.inspect_sanitized_object(object_key=object_key)
+                if existing is None or not (
+                    existing.byte_size == content_length
+                    and hmac.compare_digest(existing.sha256, checksum_sha256)
+                    and existing.content_type == content_type
+                ):
+                    raise LocalStorageOperationError("sanitized_object_conflict") from exc
+                return existing
+            return SanitizedObjectMetadata(
+                byte_size=content_length,
+                content_type="image/jpeg",
+                sha256=checksum_sha256,
+            )
+        finally:
+            if not published:
+                await asyncio.to_thread(temporary.unlink, missing_ok=True)
+
+    async def inspect_sanitized_object(
+        self, *, object_key: str
+    ) -> SanitizedObjectMetadata | None:
+        target = self._resolve_sanitized_path(object_key)
+        if not await asyncio.to_thread(target.is_file):
+            return None
+        byte_size, checksum = await asyncio.to_thread(self._file_size_and_sha256, target)
+        if byte_size <= 0 or byte_size > MAX_UPLOAD_BYTES:
+            raise LocalStorageOperationError("invalid_sanitized_object")
+        return SanitizedObjectMetadata(
+            byte_size=byte_size,
+            content_type="image/jpeg",
+            sha256=checksum,
+        )
+
+    async def delete_sanitized_object(self, *, object_key: str) -> DeleteResult:
+        target = self._resolve_sanitized_path(object_key)
+        existed = await asyncio.to_thread(target.is_file)
+        await asyncio.to_thread(target.unlink, missing_ok=True)
+        return "deleted" if existed else "not_found"
+
     async def _consume_grant(self, *, grant_id: str, authorization: str) -> _PendingGrant:
         async with self._lock:
             state = self._grants.get(grant_id)
@@ -207,9 +311,7 @@ class LocalObjectStorageProvider:
         content_length: int,
         checksum_sha256: str,
     ) -> None:
-        validate_storage_key(object_key)
-        if not QUARANTINE_KEY.fullmatch(object_key):
-            raise ValueError("object key must use the opaque quarantine syntax")
+        self._validate_quarantine_key(object_key)
         if content_type not in ALLOWED_MIME_TYPES:
             raise ValueError("unsupported declared content type")
         if content_length <= 0 or content_length > MAX_UPLOAD_BYTES:
@@ -217,15 +319,54 @@ class LocalObjectStorageProvider:
         if not SHA256_HEX.fullmatch(checksum_sha256):
             raise ValueError("declared checksum must be lowercase SHA-256")
 
-    def _resolve_object_path(self, object_key: str) -> Path:
+    def _validate_sanitized_declaration(
+        self,
+        *,
+        object_key: str,
+        content_type: str,
+        content_length: int,
+        checksum_sha256: str,
+    ) -> None:
+        self._validate_sanitized_key(object_key)
+        if content_type != "image/jpeg":
+            raise ValueError("sanitized objects must use canonical JPEG")
+        if content_length <= 0 or content_length > MAX_UPLOAD_BYTES:
+            raise ValueError("sanitized content length is outside the allowed boundary")
+        if not SHA256_HEX.fullmatch(checksum_sha256):
+            raise ValueError("sanitized checksum must be lowercase SHA-256")
+
+    @staticmethod
+    def _validate_quarantine_key(object_key: str) -> None:
         validate_storage_key(object_key)
         if not QUARANTINE_KEY.fullmatch(object_key):
             raise ValueError("object key must use the opaque quarantine syntax")
+
+    @staticmethod
+    def _validate_sanitized_key(object_key: str) -> None:
+        validate_storage_key(object_key)
+        if not SANITIZED_KEY.fullmatch(object_key):
+            raise ValueError("object key must use the opaque sanitized syntax")
+
+    def _resolve_object_path(self, object_key: str) -> Path:
+        self._validate_quarantine_key(object_key)
         candidate = self._root.joinpath(*object_key.split("/"))
         self._reject_symlink_components(candidate.parent)
+        if candidate.is_symlink():
+            raise ValueError("symlinks are forbidden in local quarantine storage")
         resolved = candidate.resolve(strict=False)
         if not resolved.is_relative_to(self._root):
             raise ValueError("object path escapes the local quarantine root")
+        return resolved
+
+    def _resolve_sanitized_path(self, object_key: str) -> Path:
+        self._validate_sanitized_key(object_key)
+        candidate = self._root.joinpath(*object_key.split("/"))
+        self._reject_symlink_components(candidate.parent)
+        if candidate.is_symlink():
+            raise ValueError("symlinks are forbidden in local sanitized storage")
+        resolved = candidate.resolve(strict=False)
+        if not resolved.is_relative_to(self._root):
+            raise ValueError("object path escapes the local sanitized root")
         return resolved
 
     def _resolve_temporary_path(self, grant_id: str) -> Path:
@@ -258,6 +399,16 @@ class LocalObjectStorageProvider:
     def _append_chunk(path: Path, chunk: bytes) -> None:
         with path.open("ab") as handle:
             handle.write(chunk)
+
+    @staticmethod
+    def _file_size_and_sha256(path: Path) -> tuple[int, str]:
+        digest = hashlib.sha256()
+        byte_size = 0
+        with path.open("rb") as handle:
+            while chunk := handle.read(STORAGE_CHUNK_BYTES):
+                byte_size += len(chunk)
+                digest.update(chunk)
+        return byte_size, digest.hexdigest()
 
     def _publish_without_overwrite(self, temporary: Path, target: Path) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)

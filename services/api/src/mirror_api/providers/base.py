@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import AsyncIterable, AsyncIterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
@@ -21,6 +21,15 @@ class QuarantineObjectMetadata:
     sha256: str
     etag: str
     uploaded_at: datetime
+
+
+@dataclass(frozen=True)
+class SanitizedObjectMetadata:
+    """Server-derived facts about a canonical sanitized object."""
+
+    byte_size: int
+    content_type: Literal["image/jpeg"]
+    sha256: str
 
 
 DeleteResult = Literal["deleted", "not_found"]
@@ -106,6 +115,24 @@ class ObjectStorageProvider(Protocol):
     ) -> QuarantineObjectMetadata | None: ...
 
     async def delete_quarantine_object(self, *, object_key: str) -> DeleteResult: ...
+
+    def stream_quarantine_object(self, *, object_key: str) -> AsyncIterator[bytes]: ...
+
+    async def create_sanitized_object_if_absent(
+        self,
+        *,
+        object_key: str,
+        content_type: Literal["image/jpeg"],
+        content_length: int,
+        checksum_sha256: str,
+        body: AsyncIterable[bytes],
+    ) -> SanitizedObjectMetadata: ...
+
+    async def inspect_sanitized_object(
+        self, *, object_key: str
+    ) -> SanitizedObjectMetadata | None: ...
+
+    async def delete_sanitized_object(self, *, object_key: str) -> DeleteResult: ...
 
 
 class VisionProvider(Protocol):

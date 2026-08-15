@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from mirror_api.config import Settings
+from mirror_api.config import Settings, image_sanitizer_config
 
 
 def production_settings(**overrides: object) -> dict[str, object]:
@@ -66,6 +66,19 @@ def test_public_object_storage_is_always_rejected() -> None:
 def test_local_upload_ingress_is_restricted_to_loopback(url: str) -> None:
     with pytest.raises(ValidationError, match="loopback HTTP origin"):
         Settings(local_upload_base_url=url)
+
+
+def test_image_sanitizer_configuration_rejects_inconsistent_bounds() -> None:
+    with pytest.raises(ValidationError, match="minimum edge"):
+        Settings(image_sanitizer_min_edge_pixels=128, image_sanitizer_max_edge_pixels=64)
+    with pytest.raises(ValidationError, match="pixel limit"):
+        Settings(image_sanitizer_min_edge_pixels=128, image_sanitizer_max_pixel_count=4096)
+
+
+def test_image_sanitizer_configuration_is_versioned_and_mapped() -> None:
+    config = image_sanitizer_config(Settings(image_sanitizer_spool_memory_bytes=4096))
+    assert config.version == "image-sanitizer-v1"
+    assert config.spool_memory_bytes == 4096
 
 
 @pytest.mark.parametrize("operations", ([], ["private_upload", "private_upload"]))

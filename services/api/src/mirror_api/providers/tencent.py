@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import NoReturn
+from collections.abc import AsyncIterable, AsyncIterator
+from typing import Literal, NoReturn
+
+from mirror_api.providers.base import DeleteResult, SanitizedObjectMetadata
 
 
 def _not_verified(capability: str) -> NoReturn:
@@ -46,6 +49,33 @@ class TencentCosProvider:
         _not_verified("COS")
 
     async def delete_quarantine_object(self, *, object_key: str) -> NoReturn:
+        del object_key
+        _not_verified("COS")
+
+    async def stream_quarantine_object(self, *, object_key: str) -> AsyncIterator[bytes]:
+        del object_key
+        _not_verified("COS")
+        yield b""  # pragma: no cover
+
+    async def create_sanitized_object_if_absent(
+        self,
+        *,
+        object_key: str,
+        content_type: Literal["image/jpeg"],
+        content_length: int,
+        checksum_sha256: str,
+        body: AsyncIterable[bytes],
+    ) -> NoReturn:
+        del object_key, content_type, content_length, checksum_sha256, body
+        _not_verified("COS")
+
+    async def inspect_sanitized_object(
+        self, *, object_key: str
+    ) -> SanitizedObjectMetadata | None:
+        del object_key
+        _not_verified("COS")
+
+    async def delete_sanitized_object(self, *, object_key: str) -> DeleteResult:
         del object_key
         _not_verified("COS")
 
