@@ -57,7 +57,7 @@ flowchart LR
 ## P1-M4-T05 — Implement ingestion application services and authoritative Jobs
 
 - Scope: ingestion repository/UoW/service、idempotent Job creation/status、claim/lease/finalize/reconcile、audit and PostgreSQL tests。
-- Requirements: owner + active + exact Consent recheck；one Job per intent；purpose-separated idempotency；DB Job authoritative；dispatch failure leaves recoverable pending state；promotion transaction creates one Asset and final evidence；stable rejection taxonomy。
+- Requirements: owner + active + exact Consent recheck；one Job per intent；purpose-separated idempotency；DB Job authoritative；dispatch failure leaves recoverable pending state；promotion transaction creates one Asset and final evidence；stable rejection taxonomy。若 M3 在首次 claim 前已 tombstone intent，则按 ADR-019 `CC-P1-M4-01` 以 zero-attempt terminal `cancelled` 结束 Job，不读取 bytes、不创建虚假 attempt/final ingestion record；已开始 attempt 后的撤回仍形成 rejected evidence。
 - Security: Job payload excludes object key/bytes；all user reads owner-bound in SQL；withdrawal/freeze/delete/expiry blocks read or final promotion。
 - Validation: unit + real PostgreSQL concurrency、idempotency conflict/replay、claim/lease/stale、double promotion、withdraw races、DB/object failure matrix。
 - Collision domain: ingestion application/repository/UoW and tests；不得实现 HTTP/Celery adapter。

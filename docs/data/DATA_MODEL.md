@@ -33,7 +33,7 @@ P7 未来将研究 `AcceptedVisualEpisode`、Visual Memory Bundle、Memory Card�
 - InviteRedemption、AgeAssuranceRecord 和 PolicyAcceptanceRecord 是 append-only 审计事实；邀请码只在 OTP 成功消费、新用户创建与兑换的同一事务中增加使用量。`User.age_confirmed_at` 如存在只是投影，不是年龄证据权威来源。
 - PhoneVerificationChallenge、UserSession、IdempotencyRecord 和 session family 只保存用途隔离的 HMAC 或不可枚举引用，绝不保存手机号、OTP、邀请码、refresh token 或年龄凭证原文。refresh token 重用会撤销其 family；pending 用户在有效年龄与政策记录齐备前不能成为 active。
 - Consent grant/withdrawal 与 UploadIntentEvent 只追加；withdrawal 精确引用有效 grant。UploadIntent 可更新受限 operational state，但每次 transition 必须有 event，owner、consent、opaque quarantine key、声明 metadata 与状态时间由 PostgreSQL 约束。`uploaded_unverified` 不等于安全图片或 Original Asset。
-- 一个 UploadIntent 最多有一个 authoritative ingestion Job 和一个 final AssetIngestionRecord。promoted record 必须精确引用同 owner 的 immutable Original Asset；rejected record 不得引用 Asset。Job/JobAttempt 是可恢复的 operational state，AssetIngestionRecord 与 UploadIntentEvent 是不可覆盖的最终证据。
+- 一个 UploadIntent 最多有一个 authoritative ingestion Job。实际开始过 attempt 的 Job 最多有一个 final AssetIngestionRecord：promoted record 必须精确引用同 owner 的 immutable Original Asset，rejected record 不得引用 Asset。若 intent 在首次 claim 前已 tombstone，Job 可在 `attempt_count=0` 时 terminal-cancelled，且不得伪造 JobAttempt 或 AssetIngestionRecord；Job 的 cancelled 结果、UploadIntentEvent 与 AuditLog 共同形成取消证据。Job/JobAttempt 是可恢复的 operational state，AssetIngestionRecord 与 UploadIntentEvent 是不可覆盖的业务证据。
 - Original Asset 只记录 canonical sanitized output 的 opaque storage key、实际 MIME、摘要、大小和方向校正后尺寸。客户端声明与 raw quarantine key 不能复制成 Asset metadata；raw object 永远不是 Asset。
 - 未来 P7 中，未保存/确认的 AI 输出不得成为持久审美证据；AestheticProfile 与所有视觉/语义/时序/程序索引必须能由仍获授权的 evidence 重建，源证据删除必须使所有依赖派生表示删除或失效。
 

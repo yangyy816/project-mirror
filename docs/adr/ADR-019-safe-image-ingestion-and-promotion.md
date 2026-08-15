@@ -32,6 +32,7 @@ P1-M3 已冻结 owner-bound `UploadIntent` 与私有 quarantine 上传控制面�
 
 - `0004` 只做前向追加：强化 owner-bound Job/JobAttempt、UploadIntent 的 processing/final timestamps 与 quarantine retention deadline，并新增 append-only `AssetIngestionRecord` 作为 promoted/rejected 最终证据。不得修改 `0001`、`0002` 或 `0003`。
 - 一个 UploadIntent 最多对应一个 authoritative ingestion Job 和一个 final ingestion record；一个 promoted record 精确引用一个新建 `Asset(asset_role=original)`。rejected record 不得引用 Asset。
+- `AssetIngestionRecord` 只记录实际开始过 attempt 的 promoted/rejected 摄入结果。若 Job 创建后、首次 claim 前，UploadIntent 已因用户取消、授权撤回或其他 M3 tombstone 进入 `cancelled`，Job 必须在不读取 quarantine bytes、不伪造 JobAttempt 的情况下进入 terminal `cancelled`；此时 `attempt_count=0`、无 Asset、无 `AssetIngestionRecord`，并保存稳定的非敏感 `result_code` 与审计事件。terminal cancelled Job 不得恢复为 pending/leased 或改写结果。
 - Original Asset 的 `storage_key`、MIME、摘要、大小和尺寸从 sanitized output 产生，不复用客户端声明。raw quarantine object 从不成为 Asset，也不得被 Profile、编辑、分析或下载接口引用。
 - sanitized object 使用由 job ID 派生的固定 opaque key并以 create-if-absent 写入。若相同 key 已存在，只有摘要、大小和 MIME 全部一致才可继续；否则 fail closed。
 - 语义晋升点是持有 intent/job 行锁的 PostgreSQL 事务：再次验证 user/consent/intent 权限，创建 immutable Original Asset、追加 ingestion evidence 与 `promoted` event，并完成 Job。唯一约束保证重复 delivery 不会创建第二个 Asset。
@@ -40,6 +41,7 @@ P1-M3 已冻结 owner-bound `UploadIntent` 与私有 quarantine 上传控制面�
 ### 4. 撤回、失败与恢复
 
 - Worker 在读取 quarantine 前及最终晋升事务中都必须重新验证 active actor、当前精确 Consent、intent owner/status 和 retention deadline。撤回、账户冻结、取消、过期或删除请求在任一检查失败时都阻止晋升。
+- 撤回发生在首次 claim 前且 M3 已 tombstone intent 时，claim/reconciler 只终结 pending Job 为 `cancelled`，不创建虚假 attempt 或 rejected ingestion evidence；撤回发生在 attempt 已开始后，现有 attempt 必须完成为 `rejected` 并追加 rejected evidence。该区分保证“从未处理”和“处理开始后被阻断”可审计且不混淆。
 - deterministic invalid input 形成稳定的 `rejected` evidence 和安全错误码；基础设施/存储/数据库瞬态错误保持 Job 可重试，不得被伪装为内容拒绝。
 - Job claim、attempt number、lease/stale recovery 与 retry policy 必须由 PostgreSQL 状态和唯一约束证明；Worker crash 后可安全重投。Redis/Celery 状态不是权威。
 - 新上传完成时写入固定 quarantine retention deadline。默认 1 小时、最大 24 小时；到期未晋升对象由幂等 sweeper tombstone 并删除。迟到或撤回后的 bytes 永不恢复处理资格。
@@ -69,6 +71,10 @@ P1-M3 已冻结 owner-bound `UploadIntent` 与私有 quarantine 上传控制面�
 ## Consequences
 
 摄入增加一次显式 Job 创建与查询，且需要 `0004`、storage stream/write/delete 能力、sanitizer、Job reconciler、Worker task 和 cleanup。统一 JPEG 会移除透明度与原容器编码，但显著缩小攻击面并建立稳定、无 metadata 的后续处理输入；该变化必须在用户界面进入上传阶段前说明。
+
+## Change Control
+
+- `CC-P1-M4-01`（2026-08-16，Accepted）：补充 pre-claim tombstone 语义。原因是 M3 可在 ingestion Job 创建后、首次 claim 前原子取消 `uploaded_unverified` intent；原始 promoted/rejected-only Job 状态无法在不伪造 attempt 的情况下终结该 Job。新增 terminal `cancelled` 仅表达“摄入从未开始”，不改变 raw 永不成为 Asset、双重授权检查、promoted/rejected evidence 或生产 fail-closed 约束。
 
 ## Security / Privacy Considerations
 

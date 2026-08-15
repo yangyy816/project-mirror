@@ -647,15 +647,14 @@ def test_ingestion_rejected_record_cannot_reference_asset(session: Session) -> N
     intent.status = "processing"
     intent.processing_started_at = now
     session.flush()
-    session.add(
-        JobAttempt(
-            id=new_id(),
-            job_id=job.id,
-            attempt=1,
-            status="leased",
-            lease_token=lease_token,
-        )
+    attempt = JobAttempt(
+        id=new_id(),
+        job_id=job.id,
+        attempt=1,
+        status="leased",
+        lease_token=lease_token,
     )
+    session.add(attempt)
     session.commit()
 
     final_at = datetime.now(UTC)
@@ -667,6 +666,9 @@ def test_ingestion_rejected_record_cannot_reference_asset(session: Session) -> N
     job.result_code = "invalid_image"
     intent.status = "rejected"
     intent.finalized_at = final_at
+    attempt.status = "rejected"
+    attempt.result_code = "invalid_image"
+    attempt.finished_at = final_at
     session.flush()
     session.add(
         AssetIngestionRecord(
