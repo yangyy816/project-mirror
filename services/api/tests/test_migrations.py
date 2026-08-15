@@ -64,6 +64,20 @@ def test_upload_control_migration_does_not_update_immutable_consent_rows() -> No
     assert "UPDATE consent_records" not in migration
 
 
+def test_safe_image_ingestion_migration_is_forward_only_from_upload_control() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "0004_safe_image_ingestion.py"
+    ).read_text(encoding="utf-8")
+    assert 'down_revision: str | None = "0003_upload_control"' in migration
+    for table_name in ("asset_ingestion_records", "jobs", "job_attempts", "upload_intents"):
+        assert table_name in migration
+    assert "mirror_validate_asset_ingestion_record" in migration
+    assert "trg_asset_ingestion_records_immutable" in migration
+
+
 def test_upgrade_downgrade_reupgrade_and_schema_consistency(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -99,7 +113,7 @@ def test_upgrade_downgrade_reupgrade_and_schema_consistency(
             ),
             {"id": "migration-consent", "user_id": "migration-user", "scope": "{}"},
         )
-    command.upgrade(config, "head")
+    command.upgrade(config, "0003_upload_control")
     with engine.connect() as connection:
         migrated = connection.execute(
             text(
@@ -108,8 +122,9 @@ def test_upgrade_downgrade_reupgrade_and_schema_consistency(
             )
         ).one()
     assert migrated == ("legacy-phase0", "legacy-consent", "0" * 64, "legacy-phase0")
-    engine.dispose()
-    command.downgrade(config, "0002_identity_auth")
-    command.upgrade(config, "head")
+    command.upgrade(config, "0004_safe_image_ingestion")
+    command.downgrade(config, "0003_upload_control")
+    command.upgrade(config, "0004_safe_image_ingestion")
     command.check(config)
+    engine.dispose()
     get_settings.cache_clear()

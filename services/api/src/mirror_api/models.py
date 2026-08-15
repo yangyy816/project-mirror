@@ -247,6 +247,11 @@ class UploadIntent(IdMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(32), default="awaiting_upload", nullable=False)
     grant_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    quarantine_retention_deadline: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (
@@ -256,6 +261,7 @@ class UploadIntent(IdMixin, TimestampMixin, Base):
             name="fk_upload_intents_consent_owner",
             ondelete="RESTRICT",
         ),
+        UniqueConstraint("id", "owner_user_id", name="unique_upload_intent_owner"),
         Index("ix_upload_intents_owner_status", "owner_user_id", "status"),
         CheckConstraint(
             "declared_byte_size > 0 AND declared_byte_size <= 20971520",
@@ -275,12 +281,34 @@ class UploadIntent(IdMixin, TimestampMixin, Base):
             name="valid_upload_intent_status",
         ),
         CheckConstraint(
-            "(status = 'uploaded_unverified' AND uploaded_at IS NOT NULL "
+            "(status = 'awaiting_upload' AND uploaded_at IS NULL "
+            "AND processing_started_at IS NULL AND finalized_at IS NULL "
             "AND cancelled_at IS NULL AND expired_at IS NULL) OR "
-            "(status = 'cancelled' AND cancelled_at IS NOT NULL) OR "
-            "(status = 'expired' AND expired_at IS NOT NULL) OR "
-            "status IN ('awaiting_upload','processing','promoted','rejected')",
+            "(status = 'uploaded_unverified' AND uploaded_at IS NOT NULL "
+            "AND processing_started_at IS NULL AND finalized_at IS NULL "
+            "AND cancelled_at IS NULL AND expired_at IS NULL) OR "
+            "(status = 'processing' AND uploaded_at IS NOT NULL "
+            "AND processing_started_at IS NOT NULL AND finalized_at IS NULL "
+            "AND cancelled_at IS NULL AND expired_at IS NULL) OR "
+            "(status IN ('promoted','rejected') AND uploaded_at IS NOT NULL "
+            "AND processing_started_at IS NOT NULL AND finalized_at IS NOT NULL "
+            "AND finalized_at >= processing_started_at AND cancelled_at IS NULL "
+            "AND expired_at IS NULL) OR "
+            "(status = 'cancelled' AND cancelled_at IS NOT NULL "
+            "AND processing_started_at IS NULL AND finalized_at IS NULL AND expired_at IS NULL) OR "
+            "(status = 'expired' AND expired_at IS NOT NULL "
+            "AND processing_started_at IS NULL AND finalized_at IS NULL AND cancelled_at IS NULL)",
             name="valid_upload_intent_timestamps",
+        ),
+        CheckConstraint(
+            "quarantine_retention_deadline IS NULL OR "
+            "(uploaded_at IS NOT NULL AND quarantine_retention_deadline > uploaded_at "
+            "AND quarantine_retention_deadline <= uploaded_at + INTERVAL '24 hours')",
+            name="valid_quarantine_retention_deadline",
+        ),
+        CheckConstraint(
+            "uploaded_at IS NULL OR quarantine_retention_deadline IS NOT NULL",
+            name="uploaded_requires_quarantine_retention",
         ),
         CheckConstraint(
             "grant_expires_at > created_at",
@@ -328,6 +356,7 @@ class Asset(IdMixin, TimestampMixin, Base):
     is_ai_modified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (
+        UniqueConstraint("id", "owner_user_id", name="unique_asset_owner"),
         CheckConstraint(
             "asset_role IN ('original','derived','synthetic')", name="valid_asset_role"
         ),
@@ -982,6 +1011,60 @@ class Job(IdMixin, TimestampMixin, Base):
     idempotency_key_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     request_id: Mapped[str] = mapped_column(String(128), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    owner_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    ingestion_upload_intent_id: Mapped[str | None] = mapped_column(String(32), unique=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    lease_token: Mapped[str | None] = mapped_column(String(64))
+    lease_acquired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result_asset_id: Mapped[str | None] = mapped_column(String(32))
+    result_code: Mapped[str | None] = mapped_column(String(64))
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["ingestion_upload_intent_id", "owner_user_id"],
+            ["upload_intents.id", "upload_intents.owner_user_id"],
+            name="fk_jobs_ingestion_intent_owner",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["result_asset_id", "owner_user_id"],
+            ["assets.id", "assets.owner_user_id"],
+            name="fk_jobs_result_asset_owner",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("id", "owner_user_id", name="unique_job_owner"),
+        CheckConstraint("attempt_count >= 0", name="nonnegative_job_attempt_count"),
+        CheckConstraint(
+            "ingestion_upload_intent_id IS NULL OR job_type = 'asset_ingestion'",
+            name="ingestion_job_type",
+        ),
+        CheckConstraint(
+            "job_type <> 'asset_ingestion' OR "
+            "(owner_user_id IS NOT NULL AND ingestion_upload_intent_id IS NOT NULL)",
+            name="ingestion_job_owner_intent",
+        ),
+        CheckConstraint(
+            "job_type <> 'asset_ingestion' OR ((status = 'pending' "
+            "AND lease_token IS NULL AND lease_acquired_at IS NULL "
+            "AND lease_expires_at IS NULL AND finalized_at IS NULL "
+            "AND result_asset_id IS NULL AND result_code IS NULL) OR "
+            "(status = 'leased' AND attempt_count > 0 AND lease_token IS NOT NULL "
+            "AND lease_acquired_at IS NOT NULL AND lease_expires_at > lease_acquired_at "
+            "AND finalized_at IS NULL AND result_asset_id IS NULL AND result_code IS NULL) OR "
+            "(status = 'promoted' AND attempt_count > 0 AND lease_token IS NULL "
+            "AND lease_acquired_at IS NULL AND lease_expires_at IS NULL "
+            "AND finalized_at IS NOT NULL AND result_asset_id IS NOT NULL "
+            "AND result_code IS NOT NULL) OR "
+            "(status = 'rejected' AND attempt_count > 0 AND lease_token IS NULL "
+            "AND lease_acquired_at IS NULL AND lease_expires_at IS NULL "
+            "AND finalized_at IS NOT NULL AND result_asset_id IS NULL "
+            "AND result_code IS NOT NULL))",
+            name="valid_ingestion_job_lifecycle",
+        ),
+    )
 
 
 class JobAttempt(IdMixin, Base):
@@ -990,6 +1073,8 @@ class JobAttempt(IdMixin, Base):
     job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
     attempt: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False)
+    lease_token: Mapped[str | None] = mapped_column(String(64))
+    result_code: Mapped[str | None] = mapped_column(String(64))
     error_code: Mapped[str | None] = mapped_column(String(64))
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
@@ -998,6 +1083,52 @@ class JobAttempt(IdMixin, Base):
     __table_args__ = (
         UniqueConstraint("job_id", "attempt"),
         CheckConstraint("attempt > 0", name="positive_attempt"),
+    )
+
+
+class AssetIngestionRecord(IdMixin, Base):
+    __tablename__ = "asset_ingestion_records"
+
+    owner_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    upload_intent_id: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    job_id: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    outcome: Mapped[str] = mapped_column(String(24), nullable=False)
+    result_asset_id: Mapped[str | None] = mapped_column(String(32), unique=True)
+    result_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    sanitizer_version: Mapped[str | None] = mapped_column(String(64))
+    finalized_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["upload_intent_id", "owner_user_id"],
+            ["upload_intents.id", "upload_intents.owner_user_id"],
+            name="fk_ingestion_records_intent_owner",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["job_id", "owner_user_id"],
+            ["jobs.id", "jobs.owner_user_id"],
+            name="fk_ingestion_records_job_owner",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["result_asset_id", "owner_user_id"],
+            ["assets.id", "assets.owner_user_id"],
+            name="fk_ingestion_records_asset_owner",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("outcome IN ('promoted','rejected')", name="valid_ingestion_outcome"),
+        CheckConstraint(
+            "(outcome = 'promoted' AND result_asset_id IS NOT NULL "
+            "AND sanitizer_version IS NOT NULL) OR "
+            "(outcome = 'rejected' AND result_asset_id IS NULL "
+            "AND sanitizer_version IS NULL)",
+            name="valid_ingestion_result_shape",
+        ),
+        CheckConstraint("result_code ~ '^[a-z][a-z0-9_]{2,63}$'", name="valid_ingestion_code"),
     )
 
 
@@ -1160,6 +1291,7 @@ for immutable_model in (
     AestheticProfileVersion,
     ConsentRecord,
     UploadIntentEvent,
+    AssetIngestionRecord,
     InviteRedemption,
     AgeAssuranceRecord,
     PolicyAcceptanceRecord,

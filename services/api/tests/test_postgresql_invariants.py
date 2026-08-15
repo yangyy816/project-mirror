@@ -14,6 +14,7 @@ from mirror_api.models import (
     AestheticProfile,
     AestheticProfileVersion,
     Asset,
+    AssetIngestionRecord,
     BaselineFaceModel,
     ConsentRecord,
     CreditAccount,
@@ -22,6 +23,8 @@ from mirror_api.models import (
     EditingSession,
     IdentityConstraintVersion,
     ImageVersion,
+    Job,
+    JobAttempt,
     QuestionBankVersion,
     QuestionnaireRun,
     SelfState,
@@ -460,6 +463,249 @@ def test_upload_intent_object_key_is_unique_under_concurrency(session: Session) 
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         outcomes = sorted(executor.map(lambda _: insert_intent(), range(2)))
+    engine.dispose()
+    assert outcomes == ["created", "duplicate"]
+
+
+def create_uploaded_ingestion_fixture(
+    session: Session, phone_seed: str = "j"
+) -> tuple[User, UploadIntent]:
+    now = datetime.now(UTC)
+    user = User(id=new_id(), phone_hash=phone_seed * 64, status="active")
+    consent = ConsentRecord(
+        id=new_id(),
+        user_id=user.id,
+        consent_type="facial_data_processing",
+        purpose="personal_aesthetic_baseline",
+        purpose_version="purpose-v1",
+        scope={"operations": ["private_upload", "security_validation"]},
+        policy_code="facial-data-policy",
+        policy_version="privacy-v1",
+        policy_digest="a" * 64,
+        action="grant",
+        granted_at=now,
+        source="integration_fixture",
+        request_id="ingestion-consent-fixture",
+    )
+    intent = UploadIntent(
+        id=new_id(),
+        owner_user_id=user.id,
+        consent_record_id=consent.id,
+        object_key=f"quarantine/v1/{new_id()}",
+        declared_mime_type="image/png",
+        declared_byte_size=128,
+        declared_sha256="b" * 64,
+        status="uploaded_unverified",
+        grant_expires_at=now + timedelta(minutes=5),
+        uploaded_at=now,
+        quarantine_retention_deadline=now + timedelta(hours=1),
+    )
+    session.add(user)
+    session.commit()
+    session.add(consent)
+    session.commit()
+    session.add(intent)
+    session.commit()
+    return user, intent
+
+
+def make_ingestion_job(user_id: str, intent_id: str, suffix: str) -> Job:
+    return Job(
+        id=new_id(),
+        job_type="asset_ingestion",
+        status="pending",
+        idempotency_key_hash=suffix * 64,
+        request_id=f"ingestion-job-{suffix}",
+        payload={"schema_version": "ingestion-job-v1"},
+        owner_user_id=user_id,
+        ingestion_upload_intent_id=intent_id,
+    )
+
+
+def test_ingestion_final_evidence_is_owner_bound_append_only_and_promoted_shape_is_strict(
+    session: Session,
+) -> None:
+    user, intent = create_uploaded_ingestion_fixture(session)
+    job = make_ingestion_job(user.id, intent.id, "c")
+    session.add(job)
+    session.commit()
+
+    started_at = datetime.now(UTC)
+    lease_token = new_id()
+    job.status = "leased"
+    job.attempt_count = 1
+    job.lease_token = lease_token
+    job.lease_acquired_at = started_at
+    job.lease_expires_at = started_at + timedelta(minutes=5)
+    intent.status = "processing"
+    intent.processing_started_at = started_at
+    session.flush()
+    attempt = JobAttempt(
+        id=new_id(),
+        job_id=job.id,
+        attempt=1,
+        status="leased",
+        lease_token=lease_token,
+    )
+    session.add(attempt)
+    session.commit()
+
+    original = make_asset(user.id, "original", "ingestion-original")
+    original.synthetic = False
+    finished_at = datetime.now(UTC)
+    session.add(original)
+    session.flush()
+    job.status = "promoted"
+    job.lease_token = None
+    job.lease_acquired_at = None
+    job.lease_expires_at = None
+    job.finalized_at = finished_at
+    job.result_asset_id = original.id
+    job.result_code = "ingestion_promoted"
+    intent.status = "promoted"
+    intent.finalized_at = finished_at
+    session.flush()
+    session.add(
+        AssetIngestionRecord(
+            id=new_id(),
+            owner_user_id=user.id,
+            upload_intent_id=intent.id,
+            job_id=job.id,
+            outcome="promoted",
+            result_asset_id=original.id,
+            result_code="ingestion_promoted",
+            sanitizer_version="image-sanitizer-v1",
+            finalized_at=finished_at,
+        )
+    )
+    attempt.status = "promoted"
+    attempt.result_code = "ingestion_promoted"
+    attempt.finished_at = finished_at
+    session.commit()
+
+    with pytest.raises(DBAPIError, match="immutable record"):
+        session.execute(
+            text(
+                "UPDATE asset_ingestion_records SET result_code='overwritten' "
+                "WHERE job_id=:job_id"
+            ),
+            {"job_id": job.id},
+        )
+    session.rollback()
+
+    other = User(id=new_id(), phone_hash="d" * 64, status="active")
+    other_asset = make_asset(other.id, "original", "other-original")
+    other_asset.synthetic = False
+    session.add(other)
+    session.commit()
+    session.add(other_asset)
+    session.commit()
+    with pytest.raises(DBAPIError):
+        session.execute(
+            text(
+                "INSERT INTO asset_ingestion_records "
+                "(id, owner_user_id, upload_intent_id, job_id, outcome, result_asset_id, "
+                "result_code, sanitizer_version, finalized_at) "
+                "VALUES (:id, :owner, :intent, :job, 'promoted', :asset, "
+                "'ingestion_promoted', 'image-sanitizer-v1', now())"
+            ),
+            {
+                "id": new_id(),
+                "owner": user.id,
+                "intent": intent.id,
+                "job": job.id,
+                "asset": other_asset.id,
+            },
+        )
+
+
+def test_ingestion_rejected_record_cannot_reference_asset(session: Session) -> None:
+    user, intent = create_uploaded_ingestion_fixture(session, "e")
+    job = make_ingestion_job(user.id, intent.id, "f")
+    session.add(job)
+    session.commit()
+    now = datetime.now(UTC)
+    job.status = "leased"
+    job.attempt_count = 1
+    lease_token = new_id()
+    job.lease_token = lease_token
+    job.lease_acquired_at = now
+    job.lease_expires_at = now + timedelta(minutes=5)
+    intent.status = "processing"
+    intent.processing_started_at = now
+    session.flush()
+    session.add(
+        JobAttempt(
+            id=new_id(),
+            job_id=job.id,
+            attempt=1,
+            status="leased",
+            lease_token=lease_token,
+        )
+    )
+    session.commit()
+
+    final_at = datetime.now(UTC)
+    job.status = "rejected"
+    job.lease_token = None
+    job.lease_acquired_at = None
+    job.lease_expires_at = None
+    job.finalized_at = final_at
+    job.result_code = "invalid_image"
+    intent.status = "rejected"
+    intent.finalized_at = final_at
+    session.flush()
+    session.add(
+        AssetIngestionRecord(
+            id=new_id(),
+            owner_user_id=user.id,
+            upload_intent_id=intent.id,
+            job_id=job.id,
+            outcome="rejected",
+            result_code="invalid_image",
+            finalized_at=final_at,
+        )
+    )
+    session.commit()
+
+    with pytest.raises(DBAPIError):
+        session.execute(
+            text(
+                "INSERT INTO asset_ingestion_records "
+                "(id, owner_user_id, upload_intent_id, job_id, outcome, result_asset_id, "
+                "result_code, sanitizer_version, finalized_at) "
+                "VALUES (:id, :owner, :intent, :job, 'rejected', :asset, "
+                "'invalid_image', NULL, now())"
+            ),
+            {
+                "id": new_id(),
+                "owner": user.id,
+                "intent": intent.id,
+                "job": job.id,
+                "asset": new_id(),
+            },
+        )
+
+
+def test_ingestion_job_is_unique_per_intent_under_concurrency(session: Session) -> None:
+    database_url = os.environ["TEST_DATABASE_URL"]
+    user, intent = create_uploaded_ingestion_fixture(session, "g")
+    barrier = Barrier(2)
+    engine = create_engine(database_url)
+
+    def insert_job(suffix: str) -> str:
+        with Session(engine) as concurrent_session:
+            concurrent_session.add(make_ingestion_job(user.id, intent.id, suffix))
+            barrier.wait(timeout=5)
+            try:
+                concurrent_session.commit()
+            except IntegrityError:
+                concurrent_session.rollback()
+                return "duplicate"
+            return "created"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = sorted(executor.map(insert_job, ("h", "i")))
     engine.dispose()
     assert outcomes == ["created", "duplicate"]
 
