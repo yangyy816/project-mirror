@@ -144,6 +144,14 @@ class UploadIntentCreationResponse(StrictContractModel):
     upload: PrivateUploadGrantResponse | None
 
 
+class IngestionJobResponse(StrictContractModel):
+    job_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    status: Literal["pending", "leased", "promoted", "rejected", "cancelled"]
+    result_code: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{2,63}$")
+    asset_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
+    finalized_at: datetime | None = None
+
+
 class SelfStateContract(StrictContractModel):
     id: str
     version: int = Field(gt=0)

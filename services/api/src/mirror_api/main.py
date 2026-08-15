@@ -18,10 +18,12 @@ from mirror_api.errors import (
     unexpected_error_handler,
     validation_error_handler,
 )
+from mirror_api.ingestion_dependencies import create_ingestion_infrastructure
 from mirror_api.middleware import LocalUploadAccessLogRedactionMiddleware, RequestIDMiddleware
 from mirror_api.routers import (
     auth_router,
     health_router,
+    ingestion_router,
     local_upload_router,
     stubs_router,
     upload_control_router,
@@ -39,6 +41,12 @@ def create_app() -> FastAPI:
         settings,
         auth_infrastructure,
         object_storage_provider,
+    )
+    ingestion_infrastructure = create_ingestion_infrastructure(
+        settings=settings,
+        sessions=auth_infrastructure.sessions,
+        storage=object_storage_provider,
+        requirement=upload_control_infrastructure.requirement,
     )
 
     @asynccontextmanager
@@ -59,6 +67,7 @@ def create_app() -> FastAPI:
     app.state.auth_infrastructure = auth_infrastructure
     app.state.object_storage_provider = object_storage_provider
     app.state.upload_control_infrastructure = upload_control_infrastructure
+    app.state.ingestion_infrastructure = ingestion_infrastructure
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -84,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(upload_control_router)
+    app.include_router(ingestion_router)
     app.include_router(local_upload_router)
     app.include_router(stubs_router)
 

@@ -13,6 +13,7 @@ from mirror_api.upload_control import ConsentRequirement, ConsentService, Upload
 
 @dataclass(frozen=True)
 class UploadControlInfrastructure:
+    requirement: ConsentRequirement
     consent_service: ConsentService
     upload_intent_service: UploadIntentService
 
@@ -33,6 +34,7 @@ def create_upload_control_infrastructure(
         operations=configured.operations,
     )
     return UploadControlInfrastructure(
+        requirement=requirement,
         consent_service=ConsentService(
             session_factory=auth.sessions,
             requirement=requirement,
