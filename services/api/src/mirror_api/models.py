@@ -200,24 +200,112 @@ class ConsentRecord(IdMixin, Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     consent_type: Mapped[str] = mapped_column(String(48), nullable=False)
     purpose: Mapped[str] = mapped_column(String(128), nullable=False)
+    purpose_version: Mapped[str] = mapped_column(String(48), nullable=False)
     scope: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    policy_code: Mapped[str] = mapped_column(String(64), nullable=False)
     policy_version: Mapped[str] = mapped_column(String(48), nullable=False)
+    policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     action: Mapped[str] = mapped_column(String(16), nullable=False)
     supersedes_id: Mapped[str | None] = mapped_column(
         ForeignKey("consent_records.id", ondelete="RESTRICT")
     )
     granted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     source: Mapped[str] = mapped_column(String(48), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
     __table_args__ = (
+        UniqueConstraint("id", "user_id", name="unique_consent_owner"),
+        UniqueConstraint("supersedes_id", name="unique_consent_supersession"),
         CheckConstraint(
             "(action = 'grant' AND granted_at IS NOT NULL AND withdrawn_at IS NULL) OR "
             "(action = 'withdraw' AND granted_at IS NULL AND withdrawn_at IS NOT NULL "
             "AND supersedes_id IS NOT NULL)",
             name="valid_consent_event",
+        ),
+        CheckConstraint(
+            "expires_at IS NULL OR (action = 'grant' AND expires_at >= granted_at)",
+            name="valid_consent_expiry",
+        ),
+    )
+
+
+class UploadIntent(IdMixin, TimestampMixin, Base):
+    __tablename__ = "upload_intents"
+
+    owner_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    consent_record_id: Mapped[str] = mapped_column(String(32), index=True)
+    object_key: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    declared_mime_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    declared_byte_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    declared_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="awaiting_upload", nullable=False)
+    grant_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["consent_record_id", "owner_user_id"],
+            ["consent_records.id", "consent_records.user_id"],
+            name="fk_upload_intents_consent_owner",
+            ondelete="RESTRICT",
+        ),
+        Index("ix_upload_intents_owner_status", "owner_user_id", "status"),
+        CheckConstraint(
+            "declared_byte_size > 0 AND declared_byte_size <= 20971520",
+            name="valid_declared_byte_size",
+        ),
+        CheckConstraint(
+            "declared_sha256 ~ '^[0-9a-f]{64}$'",
+            name="valid_declared_sha256",
+        ),
+        CheckConstraint(
+            "declared_mime_type IN ('image/jpeg','image/png','image/webp')",
+            name="valid_declared_image_mime",
+        ),
+        CheckConstraint(
+            "status IN ('awaiting_upload','uploaded_unverified','processing',"
+            "'promoted','rejected','cancelled','expired')",
+            name="valid_upload_intent_status",
+        ),
+        CheckConstraint(
+            "(status = 'uploaded_unverified' AND uploaded_at IS NOT NULL "
+            "AND cancelled_at IS NULL AND expired_at IS NULL) OR "
+            "(status = 'cancelled' AND cancelled_at IS NOT NULL) OR "
+            "(status = 'expired' AND expired_at IS NOT NULL) OR "
+            "status IN ('awaiting_upload','processing','promoted','rejected')",
+            name="valid_upload_intent_timestamps",
+        ),
+        CheckConstraint(
+            "grant_expires_at > created_at",
+            name="valid_upload_grant_expiry",
+        ),
+    )
+
+
+class UploadIntentEvent(IdMixin, Base):
+    __tablename__ = "upload_intent_events"
+
+    upload_intent_id: Mapped[str] = mapped_column(
+        ForeignKey("upload_intents.id", ondelete="CASCADE"), index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(48), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ('created','grant_issued','upload_completed','cancelled',"
+            "'expired','processing_started','promoted','rejected')",
+            name="valid_upload_intent_event_type",
         ),
     )
 
@@ -1071,6 +1159,7 @@ for immutable_model in (
     SelfTransferValidationResponse,
     AestheticProfileVersion,
     ConsentRecord,
+    UploadIntentEvent,
     InviteRedemption,
     AgeAssuranceRecord,
     PolicyAcceptanceRecord,

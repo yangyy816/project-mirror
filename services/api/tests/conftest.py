@@ -23,6 +23,7 @@ def postgresql_schema() -> None:
     config.set_main_option("script_location", str(root / "services" / "api" / "migrations"))
     previous = os.environ.get("DATABASE_URL")
     os.environ["DATABASE_URL"] = database_url
+    get_settings.cache_clear()
     try:
         command.upgrade(config, "head")
     finally:
@@ -30,6 +31,7 @@ def postgresql_schema() -> None:
             os.environ.pop("DATABASE_URL", None)
         else:
             os.environ["DATABASE_URL"] = previous
+        get_settings.cache_clear()
 
 
 @pytest.fixture

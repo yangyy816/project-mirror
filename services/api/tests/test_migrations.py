@@ -6,6 +6,9 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from sqlalchemy import create_engine, text
+
+from mirror_api.config import get_settings
 
 pytestmark = pytest.mark.integration
 
@@ -54,6 +57,13 @@ def test_identity_auth_migration_uses_metadata_index_names() -> None:
         assert migration.count(f'"{index_name}"') == 2
 
 
+def test_upload_control_migration_does_not_update_immutable_consent_rows() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1] / "migrations" / "versions" / "0003_upload_control.py"
+    ).read_text(encoding="utf-8")
+    assert "UPDATE consent_records" not in migration
+
+
 def test_upgrade_downgrade_reupgrade_and_schema_consistency(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -65,9 +75,41 @@ def test_upgrade_downgrade_reupgrade_and_schema_consistency(
     config = Config(root / "services" / "api" / "alembic.ini")
     config.set_main_option("script_location", str(root / "services" / "api" / "migrations"))
     monkeypatch.setenv("DATABASE_URL", database_url)
+    get_settings.cache_clear()
 
     command.downgrade(config, "base")
+    command.upgrade(config, "0002_identity_auth")
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users "
+                "(id, phone_hash, status, created_at, updated_at) "
+                "VALUES (:id, :phone_hash, 'pending', now(), now())"
+            ),
+            {"id": "migration-user", "phone_hash": "f" * 64},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO consent_records "
+                "(id, user_id, consent_type, purpose, scope, policy_version, action, "
+                "granted_at, source, created_at) "
+                "VALUES (:id, :user_id, 'facial_data_processing', 'legacy-purpose', "
+                "CAST(:scope AS json), 'legacy-policy', 'grant', now(), 'migration-test', now())"
+            ),
+            {"id": "migration-consent", "user_id": "migration-user", "scope": "{}"},
+        )
     command.upgrade(config, "head")
-    command.downgrade(config, "base")
+    with engine.connect() as connection:
+        migrated = connection.execute(
+            text(
+                "SELECT purpose_version, policy_code, policy_digest, request_id "
+                "FROM consent_records WHERE id = 'migration-consent'"
+            )
+        ).one()
+    assert migrated == ("legacy-phase0", "legacy-consent", "0" * 64, "legacy-phase0")
+    engine.dispose()
+    command.downgrade(config, "0002_identity_auth")
     command.upgrade(config, "head")
     command.check(config)
+    get_settings.cache_clear()

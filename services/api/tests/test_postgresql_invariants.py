@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
+from threading import Barrier
 
 import pytest
 from sqlalchemy import create_engine, func, select, text
@@ -24,6 +26,8 @@ from mirror_api.models import (
     QuestionnaireRun,
     SelfState,
     StyleProfileVersion,
+    UploadIntent,
+    UploadIntentEvent,
     User,
     new_id,
 )
@@ -155,11 +159,15 @@ def test_consent_history_is_append_only_and_supports_withdrawal(session: Session
         user_id=user.id,
         consent_type="facial_data_processing",
         purpose="create_private_aesthetic_profile",
+        purpose_version="purpose-v1",
         scope={"operations": ["landmark_detection"]},
+        policy_code="facial-data-policy",
         policy_version="privacy-v1",
+        policy_digest="a" * 64,
         action="grant",
         granted_at=datetime.now(UTC),
         source="web_beta",
+        request_id="consent-grant-fixture",
     )
     session.add(user)
     session.commit()
@@ -177,16 +185,283 @@ def test_consent_history_is_append_only_and_supports_withdrawal(session: Session
         user_id=user.id,
         consent_type=grant.consent_type,
         purpose=grant.purpose,
+        purpose_version=grant.purpose_version,
         scope=grant.scope,
+        policy_code=grant.policy_code,
         policy_version=grant.policy_version,
+        policy_digest=grant.policy_digest,
         action="withdraw",
         supersedes_id=grant.id,
         withdrawn_at=datetime.now(UTC),
         source="web_beta",
+        request_id="consent-withdraw-fixture",
     )
     session.add(withdrawal)
     session.commit()
     assert session.scalar(select(func.count()).select_from(ConsentRecord)) == 2
+
+    duplicate_withdrawal = ConsentRecord(
+        id=new_id(),
+        user_id=user.id,
+        consent_type=grant.consent_type,
+        purpose=grant.purpose,
+        purpose_version=grant.purpose_version,
+        scope=grant.scope,
+        policy_code=grant.policy_code,
+        policy_version=grant.policy_version,
+        policy_digest=grant.policy_digest,
+        action="withdraw",
+        supersedes_id=grant.id,
+        withdrawn_at=datetime.now(UTC),
+        source="web_beta",
+        request_id="duplicate-withdrawal-fixture",
+    )
+    session.add(duplicate_withdrawal)
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_consent_withdrawal_must_match_the_referenced_grant(session: Session) -> None:
+    now = datetime.now(UTC)
+    owner = User(id=new_id(), phone_hash="1" * 64)
+    other = User(id=new_id(), phone_hash="2" * 64)
+    grant = ConsentRecord(
+        id=new_id(),
+        user_id=owner.id,
+        consent_type="facial_data_processing",
+        purpose="personal_aesthetic_baseline",
+        purpose_version="purpose-v1",
+        scope={"operations": ["private_upload"]},
+        policy_code="facial-data-policy",
+        policy_version="privacy-v1",
+        policy_digest="a" * 64,
+        action="grant",
+        granted_at=now,
+        source="integration_fixture",
+        request_id="matching-grant-fixture",
+    )
+    session.add_all((owner, other))
+    session.commit()
+    session.add(grant)
+    session.commit()
+
+    mismatched = ConsentRecord(
+        id=new_id(),
+        user_id=other.id,
+        consent_type=grant.consent_type,
+        purpose=grant.purpose,
+        purpose_version=grant.purpose_version,
+        scope=grant.scope,
+        policy_code=grant.policy_code,
+        policy_version=grant.policy_version,
+        policy_digest=grant.policy_digest,
+        action="withdraw",
+        supersedes_id=grant.id,
+        withdrawn_at=now,
+        source="integration_fixture",
+        request_id="mismatched-withdrawal-fixture",
+    )
+    session.add(mismatched)
+    with pytest.raises(DBAPIError, match="exactly supersede"):
+        session.commit()
+
+
+def test_upload_intent_is_quarantine_control_and_events_are_append_only(
+    session: Session,
+) -> None:
+    now = datetime.now(UTC)
+    user = User(id=new_id(), phone_hash="9" * 64, status="active")
+    consent = ConsentRecord(
+        id=new_id(),
+        user_id=user.id,
+        consent_type="facial_data_processing",
+        purpose="personal_aesthetic_baseline",
+        purpose_version="purpose-v1",
+        scope={"operations": ["private_upload", "security_validation"]},
+        policy_code="facial-data-policy",
+        policy_version="privacy-v1",
+        policy_digest="b" * 64,
+        action="grant",
+        granted_at=now,
+        source="integration_fixture",
+        request_id="upload-consent-fixture",
+    )
+    intent = UploadIntent(
+        id=new_id(),
+        owner_user_id=user.id,
+        consent_record_id=consent.id,
+        object_key=f"quarantine/v1/{new_id()}",
+        declared_mime_type="image/png",
+        declared_byte_size=128,
+        declared_sha256="c" * 64,
+        status="awaiting_upload",
+        grant_expires_at=now + timedelta(minutes=5),
+    )
+    event = UploadIntentEvent(
+        id=new_id(),
+        upload_intent_id=intent.id,
+        event_type="created",
+        request_id="upload-intent-fixture",
+        metadata_json={"schema_version": "upload-intent-v1"},
+    )
+    session.add(user)
+    session.commit()
+    session.add(consent)
+    session.commit()
+    session.add(intent)
+    session.commit()
+    session.add(event)
+    session.commit()
+
+    assert session.scalar(select(func.count()).select_from(Asset)) == 0
+    with pytest.raises(DBAPIError, match="immutable record"):
+        session.execute(
+            text("UPDATE upload_intent_events SET event_type='cancelled' WHERE id=:id"),
+            {"id": event.id},
+        )
+
+
+@pytest.mark.parametrize(
+    ("declared_byte_size", "declared_sha256"),
+    ((0, "d" * 64), (20 * 1024 * 1024 + 1, "d" * 64), (128, "not-a-sha256")),
+)
+def test_upload_intent_declared_metadata_is_bounded(
+    session: Session,
+    declared_byte_size: int,
+    declared_sha256: str,
+) -> None:
+    now = datetime.now(UTC)
+    user = User(id=new_id(), phone_hash="3" * 64, status="active")
+    consent = ConsentRecord(
+        id=new_id(),
+        user_id=user.id,
+        consent_type="facial_data_processing",
+        purpose="personal_aesthetic_baseline",
+        purpose_version="purpose-v1",
+        scope={"operations": ["private_upload"]},
+        policy_code="facial-data-policy",
+        policy_version="privacy-v1",
+        policy_digest="e" * 64,
+        action="grant",
+        granted_at=now,
+        source="integration_fixture",
+        request_id="metadata-consent-fixture",
+    )
+    session.add(user)
+    session.commit()
+    session.add(consent)
+    session.commit()
+    session.add(
+        UploadIntent(
+            id=new_id(),
+            owner_user_id=user.id,
+            consent_record_id=consent.id,
+            object_key=f"quarantine/v1/{new_id()}",
+            declared_mime_type="image/png",
+            declared_byte_size=declared_byte_size,
+            declared_sha256=declared_sha256,
+            status="awaiting_upload",
+            grant_expires_at=now + timedelta(minutes=5),
+        )
+    )
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_upload_intent_owner_must_own_the_bound_consent(session: Session) -> None:
+    now = datetime.now(UTC)
+    consent_owner = User(id=new_id(), phone_hash="4" * 64, status="active")
+    other = User(id=new_id(), phone_hash="5" * 64, status="active")
+    consent = ConsentRecord(
+        id=new_id(),
+        user_id=consent_owner.id,
+        consent_type="facial_data_processing",
+        purpose="personal_aesthetic_baseline",
+        purpose_version="purpose-v1",
+        scope={"operations": ["private_upload"]},
+        policy_code="facial-data-policy",
+        policy_version="privacy-v1",
+        policy_digest="f" * 64,
+        action="grant",
+        granted_at=now,
+        source="integration_fixture",
+        request_id="owner-consent-fixture",
+    )
+    session.add_all((consent_owner, other))
+    session.commit()
+    session.add(consent)
+    session.commit()
+    session.add(
+        UploadIntent(
+            id=new_id(),
+            owner_user_id=other.id,
+            consent_record_id=consent.id,
+            object_key=f"quarantine/v1/{new_id()}",
+            declared_mime_type="image/png",
+            declared_byte_size=128,
+            declared_sha256="6" * 64,
+            status="awaiting_upload",
+            grant_expires_at=now + timedelta(minutes=5),
+        )
+    )
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_upload_intent_object_key_is_unique_under_concurrency(session: Session) -> None:
+    database_url = os.environ["TEST_DATABASE_URL"]
+    now = datetime.now(UTC)
+    user = User(id=new_id(), phone_hash="7" * 64, status="active")
+    consent = ConsentRecord(
+        id=new_id(),
+        user_id=user.id,
+        consent_type="facial_data_processing",
+        purpose="personal_aesthetic_baseline",
+        purpose_version="purpose-v1",
+        scope={"operations": ["private_upload"]},
+        policy_code="facial-data-policy",
+        policy_version="privacy-v1",
+        policy_digest="8" * 64,
+        action="grant",
+        granted_at=now,
+        source="integration_fixture",
+        request_id="concurrent-key-consent-fixture",
+    )
+    session.add(user)
+    session.commit()
+    session.add(consent)
+    session.commit()
+    object_key = f"quarantine/v1/{new_id()}"
+    barrier = Barrier(2)
+    engine = create_engine(database_url)
+
+    def insert_intent() -> str:
+        with Session(engine) as concurrent_session:
+            concurrent_session.add(
+                UploadIntent(
+                    id=new_id(),
+                    owner_user_id=user.id,
+                    consent_record_id=consent.id,
+                    object_key=object_key,
+                    declared_mime_type="image/png",
+                    declared_byte_size=128,
+                    declared_sha256="9" * 64,
+                    status="awaiting_upload",
+                    grant_expires_at=now + timedelta(minutes=5),
+                )
+            )
+            barrier.wait(timeout=5)
+            try:
+                concurrent_session.commit()
+            except IntegrityError:
+                concurrent_session.rollback()
+                return "duplicate"
+            return "created"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = sorted(executor.map(lambda _: insert_intent(), range(2)))
+    engine.dispose()
+    assert outcomes == ["created", "duplicate"]
 
 
 def test_credit_ledger_is_append_only_and_balance_is_aggregated(session: Session) -> None:
