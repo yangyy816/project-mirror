@@ -26,4 +26,4 @@
 
 Terra 不得自行安装重大依赖、下载权重、接受条款、采用 hosted service 或重构架构。候选从 `RESEARCH_ONLY` 到 `CANDIDATE` 再到 `APPROVED` 的每次跃迁都需要 Principal；Vision、Canvas、Agent、生成模型、分割模型、模型 runtime、支付和认证框架等高影响项还需 ADR。
 
-本政策不改变当前 P1-M1：不新增依赖、模型资产或 Gate。
+本政策不改变当前 P1-M2：不新增依赖、模型资产或 Gate，不提前实现 P6 能力。

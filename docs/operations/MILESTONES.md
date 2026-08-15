@@ -15,11 +15,11 @@ P1-M1 的逐项证据与 deferred production Gates 见 `P1_M1_ACCEPTANCE.md`。
 
 ## Future rolling-wave positioning
 
-- P6 — Hybrid Non-Destructive Editor & Agent Runtime 保持 `PROVISIONAL`，其一级能力轨道为 Deterministic Editor、Geometry Editor、Generative Editor、Identity-Preserving Makeup Transfer 与 Agent Tool Layer。
-- Identity-Preserving Makeup Transfer 是 P6 的高优先级研究轨道，并可向前影响 P5 Reference Profile refinement、向后为 P7 PreferenceEvent 提供用户确认/纠正证据。
+- P6 — Hybrid Non-Destructive Editor & Agent Runtime 保持 `PROVISIONAL`，其一级能力子系统为 Deterministic Editor、Geometry Editor、Generative Editor、Identity-Preserving Makeup Transfer 与 Agent Tool Layer。
+- Identity-Preserving Makeup Transfer 是 P6 的高优先级研究轨道和一级能力边界，不得降格为 Generative Editor 内的单个 `makeup_transfer()` 工具。它可向前影响 P5 Reference Profile refinement，并向后为 P7 PreferenceEvent 提供用户确认/纠正证据。
 - 该轨道的目标链为：Reference Makeup Understanding → MakeupStyleRepresentation → StyleProfile personalization → Structured MakeupPlan → Region-level execution → Identity/geometry verification → User correction → PreferenceEvent。
 - P6 成为当前 Phase 前不得冻结最终 schema、选择生产引擎或创建 bounded Terra tasks；届时由 Principal 确定 `P6-Mx` 编号，并以 `GO | NO-GO | FURTHER_RESEARCH` 结束研究 Gate。
-- 此定位不改变 P1-M1 DAG、任务依赖或 Gate：`CURRENT_MILESTONE_IMPACT: NONE`。
+- 此定位不改变当前 P1-M2 DAG、任务依赖或 Gate：`CURRENT_MILESTONE_IMPACT: NONE`。
 
 ## Phase 0 Milestones
 

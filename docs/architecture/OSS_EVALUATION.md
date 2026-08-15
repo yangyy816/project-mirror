@@ -29,4 +29,4 @@ Project Mirror 的复用原则是：复用成熟的通用基础设施，保留�
 
 ## Current execution boundary
 
-当前 P1-M1 不引入上述候选、不安装推测性依赖、不下载权重、不调用外部服务。Terra 发现新候选时只能提交 `THIRD_PARTY_CANDIDATE_FOUND` 报告，包含名称、用途、upstream、Phase、许可证证据、模型/数据依赖、收益、替换成本和风险，由 Principal 决定是否建立未来评估任务。
+当前 P1-M2 不引入上述未经批准的候选、不下载权重、不调用外部模型服务，也不预实现 P6 妆容迁移子系统。Terra 发现新候选时只能提交 `THIRD_PARTY_CANDIDATE_FOUND` 报告，包含名称、用途、upstream、Phase、许可证证据、模型/数据依赖、收益、替换成本和风险，由 Principal 决定是否建立未来评估任务。

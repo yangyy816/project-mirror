@@ -23,6 +23,8 @@
 - Terra Agent 只能实现或把 Principal 已明确批准的架构编码为 ADR，不得自行创建新架构决策。遇到新决策时必须停止在决策边界并上报 Principal。
 - 计划外实现缺陷使用最小 Repair Task，编号为 `P<phase>-M<milestone>-R<nn>`；不得用新增 `T09/T10` 代替。架构变化必须走 change control，不能包装成 Repair Task。
 - Terra 的 PASS 只是证据。只有 Principal 审查实际 diff、验证输出、安全影响和集成结果后才能给出 `TASK_ACCEPTED`，并且只有 Principal 能决定 Milestone Gate。
+- 模型路由使用 Sol High 做规划/架构/最终审查，Terra High 做需要仓库推理、多文件协调或集成的 bounded engineering，`pm_fast_worker` / GPT-5.3-Codex-Spark 只做小、精确、原子、可逆且验证明确的 micro task；不确定时选 Terra。
+- Spark 任务必须明示 `OBJECTIVE / ALLOWED AREA / EXPECTED CHANGE / FORBIDDEN / VALIDATION`，不得自主决定架构、安全/隐私、认证、数据库/迁移、敏感人脸领域或产品 invariant；发现边界扩大时立即 `ESCALATION_REQUIRED`。Spark 未执行指定验证时只能报 `IMPLEMENTED_NOT_VERIFIED`。完整规则见 `docs/operations/MODEL_ROUTING_POLICY.md`。
 
 ## A. 不可违反的产品 Invariants
 

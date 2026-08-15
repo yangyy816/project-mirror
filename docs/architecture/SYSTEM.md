@@ -79,6 +79,6 @@ flowchart TB
   C --> E["P7 PreferenceEvent"]
 ```
 
-Identity-Preserving Makeup Transfer 是 P6 的一级高优先级研究轨道，不是 `Generative Editor` 内一个不透明的一键函数。它必须把参考人物身份与妆容表示分离，并在 `SelfState`、`StyleProfile`、`DesiredDeltaProfile`、`IdentityConstraints`、显式锁和当前指令共同约束下生成可解释、区域化的 `MakeupPlan`。
+Identity-Preserving Makeup Transfer 是 P6 的一级高优先级研究轨道和能力子系统，不是 `Generative Editor` 内一个不透明的一键函数或单一 `makeup_transfer()` 工具。它必须把参考人物身份与妆容表示分离，并在 `SelfState`、`StyleProfile`、`DesiredDeltaProfile`、`IdentityConstraints`、显式锁和当前指令共同约束下生成可解释、区域化的 `MakeupPlan`。其领域边界至少覆盖参考妆容理解、供应商中立的 `MakeupStyleRepresentation`、个性化计划、区域执行、验证与用户纠正。
 
 妆容操作与几何操作必须分域。除非 `EditPlan` 明确包含几何修改，妆容执行不得改变脸宽、下颌、眼距、眼睛大小、鼻或嘴部几何；可通过妆容实现的感知变化也不得静默改写 `DesiredDeltaProfile`。结果必须先通过身份、非目标几何、区域、纹理和伪影验证，再进入版本图。最终用户纠正可形成 `PreferenceEvent`，模型自产结果本身不能形成长期证据。

@@ -35,12 +35,13 @@
 - 未共享、未执行的 `0001_phase0_foundation` 已在首次权威 PostgreSQL 验收前按 v0.2 一次性重生成；从下一次 migration 起只允许前向追加。
 - Phase 0 OpenAPI 暴露 inactive domain schemas 供生成契约使用，但没有新增成功型业务 endpoint；未实施业务仍为 501/401。
 - Project Mirror 使用项目级 `.codex` 定义专属 subagents：规划与最终审查使用 Sol High，边界明确的执行/测试/安全角色使用 Terra High；未指定 subagent 默认 Terra High，不覆盖主交互模型、不固定并发数、不修改全局 Codex 配置。
+- 新增第三层 `pm_fast_worker`，精确使用 `gpt-5.3-codex-spark` + `medium`，仅路由通过 Small/Precise/Atomic/Reversible/Known-validation 全部条件的 micro task；Spark 不是默认模型，不得决定架构、安全/数据库语义或 Project Mirror 敏感领域 invariant，不确定时回退 Terra。
 - 执行状态统一为 `PROVISIONAL → COMMITTED → EXECUTION_READY → EXECUTING → PASS → FROZEN`；Phase 0 与 P1-M1 已 FROZEN，Phase 1 COMMITTED，P1-M2 已完成 rolling-wave refinement 并进入 EXECUTING。
 - Terra 只能实现 Principal 已批准的架构；新架构决策必须停止并上报。计划外实现缺陷使用 `P1-M1-Rxx` 最小 Repair Task，架构变化不得包装成 Repair Task。
 - OSS 复用原则为“复用通用基础设施，保留个性化智能”：重大第三方组件必须分别审查代码、模型/权重、数据与传递依赖许可证，并通过 Principal change control；Terra 只能报告候选，不得自行安装、下载权重或接受条款。
-- Identity-Preserving Makeup Transfer 已提升为 P6 Hybrid Editor 的一级高优先级研究轨道，与 Deterministic、Geometry、Generative Editor 和 Agent Tool Layer 并列；其未来链路为 Reference Makeup Understanding → MakeupStyleRepresentation → StyleProfile personalization → Structured MakeupPlan → region execution → identity/geometry verification → user correction → PreferenceEvent。
+- Identity-Preserving Makeup Transfer 已提升为 P6 Hybrid Editor 的一级高优先级研究轨道和能力子系统，与 Deterministic、Geometry、Generative Editor 和 Agent Tool Layer 并列，不得降格为单一 `makeup_transfer()` 工具；其未来链路为 Reference Makeup Understanding → MakeupStyleRepresentation → StyleProfile personalization → Structured MakeupPlan → region execution → identity/geometry verification → user correction → PreferenceEvent。
 - Stable-Makeup 是高优先级研究参考，生产采用需完整依赖许可证审查；FLUX-Makeup 具有高算法/评估价值，但其被报告的受限 foundation-model 依赖在权威复核和商业清除前使直接生产路径保持 `PRODUCTION_BLOCKED`。
-- 当前 P1-M1 不因 OSS/Makeup 研究增补发生变化：不新增依赖、模型资产或未来 bounded tasks；P6 到达 rolling-wave planning 时再确定独立研究 Milestone 与 GO/NO-GO/FURTHER_RESEARCH Gate。
+- 当前 P1-M2 不因 OSS/Makeup 研究增补发生变化：不新增依赖、模型资产或未来 bounded tasks；P6 到达 rolling-wave planning 时再确定独立研究 Milestone 与 GO/NO-GO/FURTHER_RESEARCH Gate。
 
 ## 长期产品与数据边界
 
@@ -129,3 +130,5 @@
 - 2026-08-15：P1-M1 T08 candidate `99c4fcc7e1fea5e240da09b45e532b9d9c793088` 经 Principal 验收。R16 修复 SMS 成功后 finalize 失败使幂等 claim 永久停留 `in_progress`；真实 PostgreSQL 回归和完整 Compose API suite `98 passed`、零 skip。迁移 `0001→0002→0001→0002`、Ruff、strict mypy、`pnpm check`、契约漂移、Python/Node 漏洞审计和精确 index Gitleaks 均通过。远端 run `31886292870` 的三个 jobs 与三项 artifacts 全部成功；P1-M1 Gate 为 PASS，等待 closure CI 后 FROZEN。
 - 2026-08-15：P1-M1 acceptance closure `1276a7466b7f4e9b0cd9fddaefcd13d5af3a05b0` 的远端 run `31886590832` 三个 jobs 全绿，并生成 `project-audit-evidence`、`project-docker-evidence` 与 `gitleaks-results.sarif`；Principal 将 P1-M1 状态前向更新为 FROZEN，下一步仅对 P1-M2 做 rolling-wave refinement。
 - 2026-08-15：P1-M2 rolling-wave refinement 通过 ADR-017 与执行协议冻结浏览器会话、内存 access token、HttpOnly refresh + CSRF、single-flight refresh、外部年龄 popup bridge、精确政策 manifest、受限页面和 E2E Gate；P1-M2 进入 EXECUTING，未改变冻结的 M1 API。
+- 2026-08-15：前向修订 P6 定位：Identity-Preserving Makeup Transfer 是一级能力子系统而非单工具，与 SelfState、StyleProfile、DesiredDeltaProfile、IdentityConstraints 和 PreferenceEvent 形成端到端链路；当前 P1-M2 无任务、依赖或 Gate 变化。
+- 2026-08-15：接受精细模型路由政策；在保留 Sol High / Terra High 架构和 Terra 默认的前提下新增 `pm_fast_worker` Spark micro-task tier。官方文档与动态模型目录确认精确标识及 `low/medium/high/xhigh`；Codex CLI `0.148.0-alpha.9` 已以 strict-config、read-only、`medium` 完成直接 Spark 和按名 `pm_fast_worker` 委派 smoke。WindowsApps 原始可执行文件受 ACL 保护，验证使用 app-managed `.codex/.sandbox-bin/codex.exe`；ephemeral 会话无法建立子线程，普通 read-only 委派已通过。
