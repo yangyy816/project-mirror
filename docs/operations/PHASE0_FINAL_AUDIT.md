@@ -34,12 +34,23 @@ Web 镜像最小补齐被 trace 遗漏的 ESM helper 后，完整 Compose 五服
 
 约束名统一后 migration downgrade/upgrade/downgrade/re-upgrade 与 `alembic check` 实际通过。首次 PostgreSQL invariant suite 暴露测试夹具将仅以原始 FK 关联、没有 ORM relationship 的父子对象同批 flush，插入顺序未被 ORM 保证，PostgreSQL 正确返回 FK violation，分类为 `CODE_DEFECT`（test fixture）；修复只将夹具按父到子分阶段提交，不弱化任何数据库约束。生产 API 镜像不包含仓库级契约文件，因此完整 Linux 测试使用只读挂载当前工作树的测试容器执行，不把测试资产加入运行镜像。
 
-## 权威 CI 路径与剩余条件
+## 权威 CI 路径与远端收口
 
-`.github/workflows/ci.yml` 使用 PostgreSQL 17.6 与 Redis 8.2.1，执行 migration upgrade/downgrade/re-upgrade/check、直接 SQL invariant tests、Linux Celery round trip、Python/TypeScript gates、contract drift、dependency/license/SBOM、Docker/Compose smoke 与 Gitleaks。当前仓库没有 remote，`gh` 不可用，初始工作树尚未提交，因此 GitHub Actions 不能实际触发；配置存在不等于远端 CI PASS。
+`.github/workflows/ci.yml` 使用 PostgreSQL 17.6 与 Redis 8.2.1，执行 migration upgrade/downgrade/re-upgrade/check、直接 SQL invariant tests、Linux Celery round trip、Python/TypeScript gates、contract drift、dependency/license/SBOM、Docker/Compose smoke 与 Gitleaks。私有远端为 `yangyy816/project-mirror`，分支为 `main`；所有结论均来自实际 push 触发的 GitHub Actions，而不是静态配置推断。
 
 首次远端 baseline run `31871452535`（commit `39b14c68a05438b302f0f5b9471d8a0a1bef06e0`）中，`quality-and-integration` 与 `secret-scan` PASS；`docker-validation` 的镜像构建与 Compose 启动 PASS，但第一条 API curl 返回 `Recv failure: Connection reset by peer`。根因为 API、Worker、Web 缺少 Compose healthcheck，`up --wait` 只能等待容器进入 running，不能证明服务已接受请求，分类为 `CI_CONFIGURATION_DEFECT`。修复必须加入真实服务健康检查并让 Web 依赖 API healthy，再执行本地 Compose 与完整远端 CI。
 
+修复提交 `796ab552fb3a92af5eddac5ef23086a4037323e7` 为 API、Worker、Web 增加真实 healthcheck，并令 Web 等待 API `service_healthy`。本地五服务 `up --wait` 后首次 API live/ready 与 Web 请求均返回 200；精确提交内容的 Gitleaks v8.28.0 扫描无发现。
+
+该修复提交触发 run [`31871724239`](https://github.com/yangyy816/project-mirror/actions/runs/31871724239)，于 2026-08-15 完整通过：
+
+- `quality-and-integration`（job `94981306215`）：Python quality/tests、PostgreSQL migration lifecycle、database invariants、Linux Celery、TypeScript checks/build、contract drift、dependency/license audit 与 SBOM 全部 PASS。
+- `secret-scan`（job `94981306125`）：Gitleaks PASS。
+- `docker-validation`（job `94981306139`）：Docker build、Compose start/wait、行为 smoke 与 cleanup 全部 PASS。
+- Artifacts：`phase-0-audit-evidence`（ID `9243633315`）、`phase-0-docker-evidence`（ID `9243625550`）、`gitleaks-results.sarif`（ID `9243603254`）均由该 run 产出。
+
+部分 GitHub Actions 输出 Node 20 弃用 annotation，但 workflow runner 已强制 Node 24，三个 job 结论均为 success；该提示记录为非阻断的上游 Action 维护事项。
+
 ## 结论
 
-`PHASE 0: CONDITIONAL`。本地 Docker/Linux/PostgreSQL/Redis/Celery/Gitleaks 权威执行已通过；唯一剩余未验证 Gate 是完整 GitHub Actions run。需要人工完成 GitHub 认证、配置 remote 并建立初始提交后，在同一 Phase 0 验收任务中触发并审查 workflow；在此之前不得冻结为 PASS。
+`PHASE 0: PASS`。本地权威 Gate 与修复提交的完整远端 GitHub Actions 均已通过；本审计提交和 `phase0-baseline` 标签仍须分别通过其 push-triggered workflow，完成后冻结 Phase 0，不进入 Phase 1。

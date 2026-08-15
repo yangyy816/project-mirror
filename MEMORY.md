@@ -72,9 +72,10 @@
 - 供应链：Python 与 Node 漏洞审计在升级 pip 26.1.2、pytest 9.0.3、Vitest 3.2.6、PostCSS 8.5.23、Turbo 2.9.14 后均为 no known vulnerabilities；许可证摘要与 Python CycloneDX SBOM 可生成。
 - Docker Compose 全镜像 build、五服务 health、API/Web smoke、PostgreSQL migration lifecycle/schema consistency、8 个数据库 invariant、Linux Celery+Redis round trip 均有实际 PASS 证据。
 - Gitleaks v8.28.0 Docker 扫描 Git 可提交文件快照 PASS；`.venv` 与 `.next` 是被 Git 忽略的依赖/构建产物，不属于提交扫描范围。
-- `.github/workflows/ci.yml` 已覆盖真实 PostgreSQL/Redis、migration lifecycle、Linux Celery、Gitleaks、供应链与 Docker Compose Gates；仓库没有 remote、`gh` 不可用且初始工作树未提交，完整 GitHub Actions 仍未执行，因此 Phase 0 保持 `CONDITIONAL`。
+- `.github/workflows/ci.yml` 已覆盖真实 PostgreSQL/Redis、migration lifecycle、Linux Celery、Gitleaks、供应链与 Docker Compose Gates；修复提交 `796ab552fb3a92af5eddac5ef23086a4037323e7` 的远端 run `31871724239` 三个 jobs 全部通过，Phase 0 Gate 更新为 `PASS`。
 - GitHub 私有远端为 `yangyy816/project-mirror`，默认分支 `main`；初始 baseline commit 为 `39b14c68a05438b302f0f5b9471d8a0a1bef06e0`，首次远端 run `31871452535` 的 quality/Gitleaks PASS，Docker behavior 因 Compose 缺少应用 healthcheck 发生启动竞态而 FAIL。
-- Compose 已为 API、Worker、Web 增加真实 healthcheck，Web 等待 API healthy；本地 `up --wait` 后首次 live/ready/Web 请求均为 200。该 `CI_CONFIGURATION_DEFECT` 必须以新提交的完整远端 CI 通过后才算关闭。
+- Compose 已为 API、Worker、Web 增加真实 healthcheck，Web 等待 API healthy；本地 `up --wait` 后首次 live/ready/Web 请求均为 200。该 `CI_CONFIGURATION_DEFECT` 已由修复提交的完整远端 run `31871724239` 关闭。
+- Run `31871724239` 的 `quality-and-integration`、`secret-scan`、`docker-validation` 均 PASS，并产出 `phase-0-audit-evidence`、`phase-0-docker-evidence` 与 `gitleaks-results.sarif`；Node 20 弃用 annotation 非阻断，runner 已强制 Node 24。
 
 ## 阶段顺序
 
@@ -110,3 +111,4 @@
 - 2026-08-15：完成 v0.2 schema、纯数值 domain/evaluation tests、初始 migration 重生成、inactive OpenAPI contracts、Linux CI、Docker/Compose、供应链锁定与 Windows Web/API smoke；本地可验证项通过，PostgreSQL/Redis/Celery/Docker/Gitleaks 保持待权威执行。
 - 2026-08-15：Docker/Linux 权威验收修复 Web standalone 缺失 ESM helper、migration downgrade 遗漏 trigger function、超长 PostgreSQL constraint 名与无序父子测试夹具；最终 Compose build/start、50 个 Linux tests、migration lifecycle、PostgreSQL invariants、Celery+Redis 与本地 Gitleaks PASS。仅完整 GitHub Actions 因缺 remote/认证仍待执行。
 - 2026-08-15：创建并推送 Phase 0 baseline `39b14c68a05438b302f0f5b9471d8a0a1bef06e0`；远端 run `31871452535` 暴露 Compose `up --wait` 未等待应用 ready，增加 API/Worker/Web healthcheck 并完成本地五服务复验，等待修复提交的远端 CI。
+- 2026-08-15：推送 Compose healthcheck 修复 `796ab552fb3a92af5eddac5ef23086a4037323e7`；远端 run `31871724239` 的三个 jobs 与全部 mandatory steps 通过，生成三项审计 artifacts，Phase 0 Gate 更新为 `PASS`。

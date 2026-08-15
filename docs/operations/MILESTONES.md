@@ -15,6 +15,6 @@
 | P0.9 Contracts     | OpenAPI → generated TS client                   | generation + drift check     | Local PASS：in-process drift check + API equality test          |
 | P0.10 Security     | config/storage/upload/auth/log tests            | security suite               | Local tests PASS；Gitleaks Docker source snapshot PASS          |
 | P0.11 Tests        | unit + PostgreSQL integration                   | local + CI                   | Docker Linux full Python suite PASS：50 tests                   |
-| P0.12 Supply Chain | lock/audit/secret/license/SBOM                  | CI jobs                      | Local audit/license/SBOM/Gitleaks PASS；remote CI 未执行        |
+| P0.12 Supply Chain | lock/audit/secret/license/SBOM                  | CI jobs                      | Remote PASS：run 31871724239；audit、SBOM、Gitleaks artifacts   |
 | P0.13 Local DX     | Windows Web/API instructions                    | clean-start smoke            | Local PASS：Web/API independently started；README corrected     |
-| P0.14 Final Audit  | 只审计、修 defect、同步证据                     | full matrix                  | CONDITIONAL：本地权威 Gate PASS；仅等待完整 GitHub Actions run  |
+| P0.14 Final Audit  | 只审计、修 defect、同步证据                     | full matrix                  | PASS：fix SHA 796ab55；run 31871724239 三个 jobs 全绿           |
