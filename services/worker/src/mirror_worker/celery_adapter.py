@@ -5,16 +5,26 @@ import secrets
 from typing import Any
 
 from celery import Celery
+from mirror_api.account_deletion.service import RetryableAccountDeletionFailure
 from mirror_api.asset_deletion.service import RetryableAssetDeletionFailure
 from mirror_api.asset_deletion.task_contract import AssetDeletionTaskMessage
 from mirror_api.config import get_settings
+from mirror_api.data_export.service import RetryableDataExportFailure
+from mirror_api.data_rights.task_contract import (
+    AccountDeletionTaskMessage,
+    DataExportTaskMessage,
+)
 from mirror_api.ingestion.task_contract import IngestionTaskMessage
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
 from mirror_worker.ingestion import RetryableWorkerFailure
 from mirror_worker.runtime import (
+    run_account_deletion_message,
     run_asset_deletion_message,
     run_cleanup_sweep,
+    run_data_export_cleanup,
+    run_data_export_message,
+    run_data_rights_reconciliation,
     run_ingestion_message,
     run_reconciliation,
 )
@@ -36,6 +46,10 @@ celery_app.conf.update(
         "mirror.asset_ingestion.cleanup": {"queue": "mirror.maintenance"},
         "mirror.asset_ingestion.reconcile": {"queue": "mirror.maintenance"},
         "mirror.asset_deletion.process": {"queue": "mirror.maintenance"},
+        "mirror.data_export.process": {"queue": "mirror.maintenance"},
+        "mirror.data_export.cleanup": {"queue": "mirror.maintenance"},
+        "mirror.account_deletion.process": {"queue": "mirror.maintenance"},
+        "mirror.data_rights.reconcile": {"queue": "mirror.maintenance"},
     },
 )
 
@@ -137,6 +151,72 @@ def process_asset_deletion(message: dict[str, Any]) -> dict[str, str]:
         raise RetryableAssetDeletionFailure("asset deletion execution failed transiently") from exc
 
 
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.data_export.process",
+    autoretry_for=(RetryableDataExportFailure,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=300,
+    time_limit=360,
+    **INGESTION_RETRY_POLICY,
+)
+def process_data_export(message: dict[str, Any]) -> dict[str, str]:
+    try:
+        return asyncio.run(run_data_export_message(message))
+    except RetryableDataExportFailure:
+        raise
+    except Exception as exc:
+        raise RetryableDataExportFailure("data export execution failed transiently") from exc
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.account_deletion.process",
+    autoretry_for=(RetryableAccountDeletionFailure,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=300,
+    time_limit=360,
+    **INGESTION_RETRY_POLICY,
+)
+def process_account_deletion(message: dict[str, Any]) -> dict[str, str]:
+    try:
+        return asyncio.run(run_account_deletion_message(message))
+    except RetryableAccountDeletionFailure:
+        raise
+    except Exception as exc:
+        raise RetryableAccountDeletionFailure(
+            "account deletion execution failed transiently"
+        ) from exc
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.data_export.cleanup",
+    autoretry_for=(RetryableDataExportFailure,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    **INGESTION_RETRY_POLICY,
+)
+def cleanup_data_exports(*, limit: int = 100) -> list[str]:
+    return list(asyncio.run(run_data_export_cleanup(limit=limit)))
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.data_rights.reconcile",
+    autoretry_for=(RetryableDataExportFailure, RetryableAccountDeletionFailure),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    **INGESTION_RETRY_POLICY,
+)
+def reconcile_data_rights(*, request_id: str, limit: int = 100) -> list[str]:
+    return list(
+        asyncio.run(
+            run_data_rights_reconciliation(
+                dispatcher=CeleryTaskDispatcher(), request_id=request_id, limit=limit
+            )
+        )
+    )
+
+
 class CeleryTaskDispatcher:
     def dispatch(self, envelope: TaskEnvelope) -> str:
         envelope.validate()
@@ -160,6 +240,26 @@ class CeleryTaskDispatcher:
     def dispatch_asset_deletion(self, message: AssetDeletionTaskMessage) -> str:
         message.validate()
         process_asset_deletion.apply_async(
+            args=[message.to_message()],
+            task_id=secrets.token_hex(16),
+            headers={"request_id": message.request_id, "job_id": message.job_id},
+            queue="mirror.maintenance",
+        )
+        return message.job_id
+
+    def dispatch_data_export(self, message: DataExportTaskMessage) -> str:
+        message.validate()
+        process_data_export.apply_async(
+            args=[message.to_message()],
+            task_id=secrets.token_hex(16),
+            headers={"request_id": message.request_id, "job_id": message.job_id},
+            queue="mirror.maintenance",
+        )
+        return message.job_id
+
+    def dispatch_account_deletion(self, message: AccountDeletionTaskMessage) -> str:
+        message.validate()
+        process_account_deletion.apply_async(
             args=[message.to_message()],
             task_id=secrets.token_hex(16),
             headers={"request_id": message.request_id, "job_id": message.job_id},

@@ -3,7 +3,11 @@ from __future__ import annotations
 from collections.abc import AsyncIterable, AsyncIterator
 from typing import Literal, NoReturn
 
-from mirror_api.providers.base import DeleteResult, SanitizedObjectMetadata
+from mirror_api.providers.base import (
+    DataExportObjectMetadata,
+    DeleteResult,
+    SanitizedObjectMetadata,
+)
 
 
 def _not_verified(capability: str) -> NoReturn:
@@ -79,9 +83,38 @@ class TencentCosProvider:
         del object_key
         _not_verified("COS")
 
+    async def stream_sanitized_object(self, *, object_key: str) -> AsyncIterator[bytes]:
+        del object_key
+        _not_verified("COS")
+        yield b""  # pragma: no cover
+
     async def delete_sanitized_object(self, *, object_key: str) -> DeleteResult:
         del object_key
         _not_verified("COS")
+
+    async def create_data_export_if_absent(
+        self,
+        *,
+        object_key: str,
+        content_length: int,
+        checksum_sha256: str,
+        body: AsyncIterable[bytes],
+    ) -> NoReturn:
+        del object_key, content_length, checksum_sha256, body
+        _not_verified("COS private data export")
+
+    async def inspect_data_export(self, *, object_key: str) -> DataExportObjectMetadata | None:
+        del object_key
+        _not_verified("COS private data export")
+
+    async def stream_data_export(self, *, object_key: str) -> AsyncIterator[bytes]:
+        del object_key
+        _not_verified("COS private data export")
+        yield b""  # pragma: no cover
+
+    async def delete_data_export(self, *, object_key: str) -> DeleteResult:
+        del object_key
+        _not_verified("COS private data export")
 
 
 class TencentVisionCandidateProvider:

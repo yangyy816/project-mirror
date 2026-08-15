@@ -107,6 +107,7 @@ class Settings(BaseSettings):
         le=2 * 1024 * 1024 * 1024,
     )
     upload_quarantine_retention_seconds: int = Field(default=3_600, ge=1, le=86_400)
+    data_export_retention_seconds: int = Field(default=3_600, ge=300, le=86_400)
 
     sms_provider: Literal["mock", "tencent"] = "mock"
     storage_provider: Literal["local", "tencent_cos"] = "local"

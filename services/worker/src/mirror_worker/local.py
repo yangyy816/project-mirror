@@ -4,10 +4,19 @@ import asyncio
 
 from mirror_api.asset_deletion.task_contract import AssetDeletionTaskMessage
 from mirror_api.config import Settings, get_settings
+from mirror_api.data_rights.task_contract import (
+    AccountDeletionTaskMessage,
+    DataExportTaskMessage,
+)
 from mirror_api.ingestion.task_contract import IngestionTaskMessage
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
-from mirror_worker.runtime import run_asset_deletion_message, run_ingestion_message
+from mirror_worker.runtime import (
+    run_account_deletion_message,
+    run_asset_deletion_message,
+    run_data_export_message,
+    run_ingestion_message,
+)
 
 
 class LocalTaskRunner:
@@ -31,4 +40,14 @@ class LocalTaskRunner:
     def dispatch_asset_deletion(self, message: AssetDeletionTaskMessage) -> str:
         message.validate()
         asyncio.run(run_asset_deletion_message(message.to_message(), settings=self.settings))
+        return message.job_id
+
+    def dispatch_data_export(self, message: DataExportTaskMessage) -> str:
+        message.validate()
+        asyncio.run(run_data_export_message(message.to_message(), settings=self.settings))
+        return message.job_id
+
+    def dispatch_account_deletion(self, message: AccountDeletionTaskMessage) -> str:
+        message.validate()
+        asyncio.run(run_account_deletion_message(message.to_message(), settings=self.settings))
         return message.job_id

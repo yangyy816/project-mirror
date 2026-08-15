@@ -3,9 +3,17 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from mirror_api.account_deletion.service import AccountDeletionService
 from mirror_api.asset_deletion.service import AssetDeletionService
 from mirror_api.asset_deletion.task_contract import AssetDeletionTaskMessage
 from mirror_api.config import Settings, get_settings
+from mirror_api.data_export.service import DataExportService
+from mirror_api.data_rights.coordinator import DataRightsCoordinator
+from mirror_api.data_rights.task_contract import (
+    AccountDeletionTaskMessage,
+    DataExportTaskMessage,
+    DataRightsDispatcher,
+)
 from mirror_api.ingestion.service import IngestionService
 from mirror_api.ingestion.task_contract import IngestionDispatcher, IngestionTaskMessage
 from mirror_api.storage_dependencies import create_object_storage_provider
@@ -14,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async
 
 from mirror_worker.asset_deletion import AssetDeletionTaskExecutor
 from mirror_worker.cleanup import SqlAlchemyIngestionCleanup
+from mirror_worker.data_rights import AccountDeletionTaskExecutor, DataExportTaskExecutor
 from mirror_worker.ingestion import (
     IngestionMaintenance,
     IngestionReconciler,
@@ -27,6 +36,8 @@ class IngestionRuntime:
     application: IngestionService
     cleanup: SqlAlchemyIngestionCleanup
     asset_deletion: AssetDeletionService
+    data_export: DataExportService
+    account_deletion: AccountDeletionService
 
 
 def _requirement(settings: Settings) -> ConsentRequirement:
@@ -52,6 +63,19 @@ def create_ingestion_runtime(settings: Settings) -> IngestionRuntime:
         hmac_keyring=dict(settings.auth_hmac_keyring),
         hmac_active_kid=settings.auth_hmac_active_kid,
     )
+    data_export = DataExportService(
+        session_factory=sessions,
+        storage=storage,
+        hmac_keyring=dict(settings.auth_hmac_keyring),
+        hmac_active_kid=settings.auth_hmac_active_kid,
+        retention_seconds=settings.data_export_retention_seconds,
+    )
+    account_deletion = AccountDeletionService(
+        session_factory=sessions,
+        storage=storage,
+        hmac_keyring=dict(settings.auth_hmac_keyring),
+        hmac_active_kid=settings.auth_hmac_active_kid,
+    )
     return IngestionRuntime(
         engine=engine,
         application=IngestionService(
@@ -63,6 +87,8 @@ def create_ingestion_runtime(settings: Settings) -> IngestionRuntime:
         ),
         cleanup=SqlAlchemyIngestionCleanup(session_factory=sessions, storage=storage),
         asset_deletion=deletion,
+        data_export=data_export,
+        account_deletion=account_deletion,
     )
 
 
@@ -115,5 +141,60 @@ async def run_asset_deletion_message(
             AssetDeletionTaskMessage.from_message(message)
         )
         return asdict(result)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_data_export_message(
+    message: dict[str, Any], *, settings: Settings | None = None
+) -> dict[str, str]:
+    runtime = create_ingestion_runtime(settings or get_settings())
+    try:
+        result = await DataExportTaskExecutor(runtime.data_export).execute(
+            DataExportTaskMessage.from_message(message)
+        )
+        return asdict(result)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_account_deletion_message(
+    message: dict[str, Any], *, settings: Settings | None = None
+) -> dict[str, str]:
+    runtime = create_ingestion_runtime(settings or get_settings())
+    try:
+        result = await AccountDeletionTaskExecutor(runtime.account_deletion).execute(
+            AccountDeletionTaskMessage.from_message(message)
+        )
+        return asdict(result)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_data_export_cleanup(
+    *, limit: int = 100, settings: Settings | None = None
+) -> tuple[str, ...]:
+    runtime = create_ingestion_runtime(settings or get_settings())
+    try:
+        return await runtime.data_export.cleanup_expired(limit=limit)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_data_rights_reconciliation(
+    *,
+    dispatcher: DataRightsDispatcher,
+    request_id: str,
+    limit: int = 100,
+    settings: Settings | None = None,
+) -> tuple[str, ...]:
+    runtime = create_ingestion_runtime(settings or get_settings())
+    try:
+        coordinator = DataRightsCoordinator(
+            exports=runtime.data_export,
+            account_deletions=runtime.account_deletion,
+            dispatcher=dispatcher,
+        )
+        return await coordinator.reconcile(request_id=request_id, limit=limit)
     finally:
         await runtime.engine.dispose()

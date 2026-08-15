@@ -14,6 +14,7 @@ from types import MappingProxyType
 from typing import Literal
 
 from mirror_api.providers.base import (
+    DataExportObjectMetadata,
     DeleteResult,
     PrivateDownloadGrant,
     PrivateUploadGrant,
@@ -25,11 +26,13 @@ from mirror_api.security import ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, validate_s
 
 QUARANTINE_KEY = re.compile(r"^quarantine/v1/[0-9a-f]{64}$")
 SANITIZED_KEY = re.compile(r"^sanitized/v1/[0-9a-f]{32}$")
+DATA_EXPORT_KEY = re.compile(r"^exports/v1/[0-9a-f]{32}$")
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 UPLOAD_AUTHORIZATION_HEADER = "X-Mirror-Upload-Authorization"
 DOWNLOAD_AUTHORIZATION_HEADER = "X-Mirror-Download-Authorization"
 UPLOAD_CHECKSUM_HEADER = "X-Content-SHA256"
 STORAGE_CHUNK_BYTES = 64 * 1024
+MAX_DATA_EXPORT_BYTES = 512 * 1024 * 1024
 
 
 def sanitized_object_key_for_job(job_id: str) -> str:
@@ -68,7 +71,7 @@ class _PendingDownloadGrant:
 @dataclass(frozen=True)
 class LocalDownloadRedemption:
     request_reference: str
-    content_type: Literal["image/jpeg"]
+    content_type: Literal["image/jpeg", "application/zip"]
     content_length: int
     sha256: str
     body: AsyncIterator[bytes]
@@ -105,7 +108,7 @@ class LocalObjectStorageProvider:
     async def create_private_download_grant(
         self, *, object_key: str, request_reference: str
     ) -> PrivateDownloadGrant:
-        target = self._resolve_sanitized_path(object_key)
+        target = self._resolve_downloadable_path(object_key)
         if not await asyncio.to_thread(target.is_file):
             raise LocalStorageOperationError("sanitized_not_found")
         grant_id = secrets.token_urlsafe(18)
@@ -144,15 +147,21 @@ class LocalObjectStorageProvider:
                 state.consumed = True
                 raise LocalStorageOperationError("invalid_download_authorization")
             state.consumed = True
-        metadata = await self.inspect_sanitized_object(object_key=state.object_key)
+        metadata: SanitizedObjectMetadata | DataExportObjectMetadata | None
+        if SANITIZED_KEY.fullmatch(state.object_key):
+            metadata = await self.inspect_sanitized_object(object_key=state.object_key)
+            body = self.stream_sanitized_object(object_key=state.object_key)
+        else:
+            metadata = await self.inspect_data_export(object_key=state.object_key)
+            body = self.stream_data_export(object_key=state.object_key)
         if metadata is None:
-            raise LocalStorageOperationError("sanitized_not_found")
+            raise LocalStorageOperationError("private_object_not_found")
         return LocalDownloadRedemption(
             request_reference=state.request_reference,
-            content_type="image/jpeg",
+            content_type=metadata.content_type,
             content_length=metadata.byte_size,
             sha256=metadata.sha256,
-            body=self.stream_sanitized_object(object_key=state.object_key),
+            body=body,
         )
 
     async def stream_sanitized_object(self, *, object_key: str) -> AsyncIterator[bytes]:
@@ -373,6 +382,94 @@ class LocalObjectStorageProvider:
         await asyncio.to_thread(target.unlink, missing_ok=True)
         return "deleted" if existed else "not_found"
 
+    async def create_data_export_if_absent(
+        self,
+        *,
+        object_key: str,
+        content_length: int,
+        checksum_sha256: str,
+        body: AsyncIterable[bytes],
+    ) -> DataExportObjectMetadata:
+        self._validate_data_export_declaration(
+            object_key=object_key,
+            content_length=content_length,
+            checksum_sha256=checksum_sha256,
+        )
+        target = self._resolve_export_path(object_key)
+        temporary = self._resolve_temporary_path("data-export")
+        await asyncio.to_thread(self._create_empty_file, temporary)
+        digest = hashlib.sha256()
+        received = 0
+        published = False
+        try:
+            async for chunk in body:
+                if not isinstance(chunk, bytes):
+                    raise LocalStorageOperationError("invalid_data_export_body")
+                received += len(chunk)
+                if received > content_length or received > MAX_DATA_EXPORT_BYTES:
+                    raise LocalStorageOperationError("data_export_body_too_large")
+                digest.update(chunk)
+                if chunk:
+                    await asyncio.to_thread(self._append_chunk, temporary, chunk)
+            if received != content_length:
+                raise LocalStorageOperationError("data_export_body_length_mismatch")
+            if not hmac.compare_digest(digest.hexdigest(), checksum_sha256):
+                raise LocalStorageOperationError("data_export_checksum_mismatch")
+            try:
+                await asyncio.to_thread(self._publish_without_overwrite, temporary, target)
+                published = True
+            except LocalStorageOperationError as exc:
+                if exc.reason != "object_already_exists":
+                    raise
+                existing = await self.inspect_data_export(object_key=object_key)
+                if existing is None or not (
+                    existing.byte_size == content_length
+                    and hmac.compare_digest(existing.sha256, checksum_sha256)
+                ):
+                    raise SanitizedObjectConflictError() from exc
+                return existing
+            return DataExportObjectMetadata(
+                byte_size=content_length,
+                content_type="application/zip",
+                sha256=checksum_sha256,
+            )
+        finally:
+            if not published:
+                await asyncio.to_thread(temporary.unlink, missing_ok=True)
+
+    async def inspect_data_export(self, *, object_key: str) -> DataExportObjectMetadata | None:
+        target = self._resolve_export_path(object_key)
+        if not await asyncio.to_thread(target.is_file):
+            return None
+        byte_size, checksum = await asyncio.to_thread(self._file_size_and_sha256, target)
+        if byte_size <= 0 or byte_size > MAX_DATA_EXPORT_BYTES:
+            raise LocalStorageOperationError("invalid_data_export_object")
+        return DataExportObjectMetadata(
+            byte_size=byte_size,
+            content_type="application/zip",
+            sha256=checksum,
+        )
+
+    async def stream_data_export(self, *, object_key: str) -> AsyncIterator[bytes]:
+        target = self._resolve_export_path(object_key)
+        if not await asyncio.to_thread(target.is_file):
+            raise LocalStorageOperationError("data_export_not_found")
+        handle = await asyncio.to_thread(target.open, "rb")
+        try:
+            while True:
+                chunk = await asyncio.to_thread(handle.read, STORAGE_CHUNK_BYTES)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            await asyncio.to_thread(handle.close)
+
+    async def delete_data_export(self, *, object_key: str) -> DeleteResult:
+        target = self._resolve_export_path(object_key)
+        existed = await asyncio.to_thread(target.is_file)
+        await asyncio.to_thread(target.unlink, missing_ok=True)
+        return "deleted" if existed else "not_found"
+
     async def _consume_grant(self, *, grant_id: str, authorization: str) -> _PendingGrant:
         async with self._lock:
             state = self._grants.get(grant_id)
@@ -423,6 +520,15 @@ class LocalObjectStorageProvider:
         if not SHA256_HEX.fullmatch(checksum_sha256):
             raise ValueError("sanitized checksum must be lowercase SHA-256")
 
+    def _validate_data_export_declaration(
+        self, *, object_key: str, content_length: int, checksum_sha256: str
+    ) -> None:
+        self._validate_data_export_key(object_key)
+        if content_length <= 0 or content_length > MAX_DATA_EXPORT_BYTES:
+            raise ValueError("data export content length is outside the allowed boundary")
+        if not SHA256_HEX.fullmatch(checksum_sha256):
+            raise ValueError("data export checksum must be lowercase SHA-256")
+
     @staticmethod
     def _validate_quarantine_key(object_key: str) -> None:
         validate_storage_key(object_key)
@@ -434,6 +540,12 @@ class LocalObjectStorageProvider:
         validate_storage_key(object_key)
         if not SANITIZED_KEY.fullmatch(object_key):
             raise ValueError("object key must use the opaque sanitized syntax")
+
+    @staticmethod
+    def _validate_data_export_key(object_key: str) -> None:
+        validate_storage_key(object_key)
+        if not DATA_EXPORT_KEY.fullmatch(object_key):
+            raise ValueError("object key must use the opaque data export syntax")
 
     def _resolve_object_path(self, object_key: str) -> Path:
         self._validate_quarantine_key(object_key)
@@ -456,6 +568,24 @@ class LocalObjectStorageProvider:
         if not resolved.is_relative_to(self._root):
             raise ValueError("object path escapes the local sanitized root")
         return resolved
+
+    def _resolve_export_path(self, object_key: str) -> Path:
+        self._validate_data_export_key(object_key)
+        candidate = self._root.joinpath(*object_key.split("/"))
+        self._reject_symlink_components(candidate.parent)
+        if candidate.is_symlink():
+            raise ValueError("symlinks are forbidden in local export storage")
+        resolved = candidate.resolve(strict=False)
+        if not resolved.is_relative_to(self._root):
+            raise ValueError("object path escapes the local export root")
+        return resolved
+
+    def _resolve_downloadable_path(self, object_key: str) -> Path:
+        if SANITIZED_KEY.fullmatch(object_key):
+            return self._resolve_sanitized_path(object_key)
+        if DATA_EXPORT_KEY.fullmatch(object_key):
+            return self._resolve_export_path(object_key)
+        raise ValueError("private download key is outside the allowed namespaces")
 
     def _resolve_temporary_path(self, grant_id: str) -> Path:
         temporary_root = self._root / ".tmp"

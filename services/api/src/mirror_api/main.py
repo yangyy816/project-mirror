@@ -13,6 +13,7 @@ from mirror_api.asset_access_dependencies import create_asset_access_infrastruct
 from mirror_api.asset_deletion_dependencies import create_asset_deletion_infrastructure
 from mirror_api.auth_dependencies import create_auth_infrastructure
 from mirror_api.config import get_settings
+from mirror_api.data_rights_dependencies import create_data_rights_infrastructure
 from mirror_api.errors import (
     APIError,
     api_error_handler,
@@ -59,6 +60,11 @@ def create_app() -> FastAPI:
         sessions=auth_infrastructure.sessions,
         storage=object_storage_provider,
     )
+    data_rights_infrastructure = create_data_rights_infrastructure(
+        settings=settings,
+        sessions=auth_infrastructure.sessions,
+        storage=object_storage_provider,
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -81,6 +87,7 @@ def create_app() -> FastAPI:
     app.state.ingestion_infrastructure = ingestion_infrastructure
     app.state.asset_access_infrastructure = asset_access_infrastructure
     app.state.asset_deletion_infrastructure = asset_deletion_infrastructure
+    app.state.data_rights_infrastructure = data_rights_infrastructure
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

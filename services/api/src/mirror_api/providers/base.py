@@ -47,6 +47,15 @@ class SanitizedObjectMetadata:
     sha256: str
 
 
+@dataclass(frozen=True)
+class DataExportObjectMetadata:
+    """Server-derived facts about a private deterministic export archive."""
+
+    byte_size: int
+    content_type: Literal["application/zip"]
+    sha256: str
+
+
 DeleteResult = Literal["deleted", "not_found"]
 
 
@@ -151,7 +160,24 @@ class ObjectStorageProvider(Protocol):
         self, *, object_key: str
     ) -> SanitizedObjectMetadata | None: ...
 
+    def stream_sanitized_object(self, *, object_key: str) -> AsyncIterator[bytes]: ...
+
     async def delete_sanitized_object(self, *, object_key: str) -> DeleteResult: ...
+
+    async def create_data_export_if_absent(
+        self,
+        *,
+        object_key: str,
+        content_length: int,
+        checksum_sha256: str,
+        body: AsyncIterable[bytes],
+    ) -> DataExportObjectMetadata: ...
+
+    async def inspect_data_export(self, *, object_key: str) -> DataExportObjectMetadata | None: ...
+
+    def stream_data_export(self, *, object_key: str) -> AsyncIterator[bytes]: ...
+
+    async def delete_data_export(self, *, object_key: str) -> DeleteResult: ...
 
 
 class VisionProvider(Protocol):
