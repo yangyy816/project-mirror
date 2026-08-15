@@ -69,9 +69,7 @@ class TencentCosProvider:
         del object_key, content_type, content_length, checksum_sha256, body
         _not_verified("COS")
 
-    async def inspect_sanitized_object(
-        self, *, object_key: str
-    ) -> SanitizedObjectMetadata | None:
+    async def inspect_sanitized_object(self, *, object_key: str) -> SanitizedObjectMetadata | None:
         del object_key
         _not_verified("COS")
 

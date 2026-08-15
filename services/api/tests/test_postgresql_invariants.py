@@ -611,8 +611,7 @@ def test_ingestion_final_evidence_is_owner_bound_append_only_and_promoted_shape_
     with pytest.raises(DBAPIError, match="immutable record"):
         session.execute(
             text(
-                "UPDATE asset_ingestion_records SET result_code='overwritten' "
-                "WHERE job_id=:job_id"
+                "UPDATE asset_ingestion_records SET result_code='overwritten' WHERE job_id=:job_id"
             ),
             {"job_id": job.id},
         )

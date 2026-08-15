@@ -312,13 +312,16 @@ async def test_local_storage_reads_quarantine_and_manages_sanitized_objects(tmp_
         body=_body(sanitized, split_at=3),
     )
     assert created.sha256 == sanitized_checksum
-    assert await provider.create_sanitized_object_if_absent(
-        object_key=sanitized_key,
-        content_type="image/jpeg",
-        content_length=len(sanitized),
-        checksum_sha256=sanitized_checksum,
-        body=_body(sanitized),
-    ) == created
+    assert (
+        await provider.create_sanitized_object_if_absent(
+            object_key=sanitized_key,
+            content_type="image/jpeg",
+            content_length=len(sanitized),
+            checksum_sha256=sanitized_checksum,
+            body=_body(sanitized),
+        )
+        == created
+    )
     conflicting = b"different-synthetic-canonical-jpeg"
     with pytest.raises(SanitizedObjectConflictError) as conflict:
         await provider.create_sanitized_object_if_absent(

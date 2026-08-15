@@ -265,9 +265,7 @@ class LocalObjectStorageProvider:
             if not published:
                 await asyncio.to_thread(temporary.unlink, missing_ok=True)
 
-    async def inspect_sanitized_object(
-        self, *, object_key: str
-    ) -> SanitizedObjectMetadata | None:
+    async def inspect_sanitized_object(self, *, object_key: str) -> SanitizedObjectMetadata | None:
         target = self._resolve_sanitized_path(object_key)
         if not await asyncio.to_thread(target.is_file):
             return None

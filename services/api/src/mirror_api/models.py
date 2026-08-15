@@ -249,9 +249,7 @@ class UploadIntent(IdMixin, TimestampMixin, Base):
     uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    quarantine_retention_deadline: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True)
-    )
+    quarantine_retention_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (

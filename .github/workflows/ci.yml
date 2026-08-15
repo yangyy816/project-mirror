@@ -82,7 +82,9 @@ jobs:
           python -m alembic -c services/api/alembic.ini check
       - name: Start Linux Celery worker
         run: |
-          celery -A mirror_worker.app:celery_app worker --loglevel=INFO --pool=solo > celery.log 2>&1 &
+          celery -A mirror_worker.app:celery_app worker --loglevel=INFO --pool=solo \
+            --queues=mirror.default,mirror.ingestion,mirror.maintenance \
+            --prefetch-multiplier=1 > celery.log 2>&1 &
           echo $! > celery.pid
       - name: Python tests
         run: python -m pytest services/api/tests services/worker/tests
@@ -147,6 +149,8 @@ jobs:
           curl --fail --show-error --silent http://127.0.0.1:3000/
           docker compose -f compose.yaml exec -T worker \
             celery -A mirror_worker.app:celery_app inspect ping --timeout=10
+          docker compose -f compose.yaml exec -T -e RUN_CELERY_INTEGRATION=true worker \
+            python -m pytest tests -q
           docker compose -f compose.yaml exec -T api alembic check
       - name: Capture container evidence
         if: always()

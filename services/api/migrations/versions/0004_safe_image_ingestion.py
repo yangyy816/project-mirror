@@ -309,15 +309,23 @@ def _install_ingestion_triggers() -> None:
 
 
 def _remove_ingestion_triggers() -> None:
-    op.execute("DROP TRIGGER IF EXISTS trg_job_attempts_validate_ingestion_consistency ON job_attempts")
+    op.execute(
+        "DROP TRIGGER IF EXISTS trg_job_attempts_validate_ingestion_consistency ON job_attempts"
+    )
     op.execute("DROP TRIGGER IF EXISTS trg_jobs_validate_ingestion_attempt_consistency ON jobs")
     op.execute("DROP TRIGGER IF EXISTS trg_assets_protect_promoted_ingestion ON assets")
     op.execute("DROP TRIGGER IF EXISTS trg_jobs_protect_cancelled_ingestion ON jobs")
     op.execute("DROP TRIGGER IF EXISTS trg_job_attempts_protect_ingestion ON job_attempts")
-    op.execute("DROP TRIGGER IF EXISTS trg_upload_intents_validate_ingestion_final ON upload_intents")
+    op.execute(
+        "DROP TRIGGER IF EXISTS trg_upload_intents_validate_ingestion_final ON upload_intents"
+    )
     op.execute("DROP TRIGGER IF EXISTS trg_jobs_validate_ingestion_final ON jobs")
-    op.execute("DROP TRIGGER IF EXISTS trg_asset_ingestion_records_immutable ON asset_ingestion_records")
-    op.execute("DROP TRIGGER IF EXISTS trg_asset_ingestion_records_validate ON asset_ingestion_records")
+    op.execute(
+        "DROP TRIGGER IF EXISTS trg_asset_ingestion_records_immutable ON asset_ingestion_records"
+    )
+    op.execute(
+        "DROP TRIGGER IF EXISTS trg_asset_ingestion_records_validate ON asset_ingestion_records"
+    )
     op.execute("DROP FUNCTION IF EXISTS mirror_protect_ingestion_job_attempt()")
     op.execute("DROP FUNCTION IF EXISTS mirror_protect_promoted_ingestion_asset()")
     op.execute("DROP FUNCTION IF EXISTS mirror_protect_cancelled_ingestion_job()")
@@ -332,7 +340,9 @@ def upgrade() -> None:
         "upload_intents",
         sa.Column("processing_started_at", sa.DateTime(timezone=True), nullable=True),
     )
-    op.add_column("upload_intents", sa.Column("finalized_at", sa.DateTime(timezone=True), nullable=True))
+    op.add_column(
+        "upload_intents", sa.Column("finalized_at", sa.DateTime(timezone=True), nullable=True)
+    )
     op.add_column(
         "upload_intents",
         sa.Column("quarantine_retention_deadline", sa.DateTime(timezone=True), nullable=True),
@@ -379,11 +389,15 @@ def upgrade() -> None:
         "upload_intents",
         "uploaded_at IS NULL OR quarantine_retention_deadline IS NOT NULL",
     )
-    op.create_unique_constraint("unique_upload_intent_owner", "upload_intents", ["id", "owner_user_id"])
+    op.create_unique_constraint(
+        "unique_upload_intent_owner", "upload_intents", ["id", "owner_user_id"]
+    )
     op.create_unique_constraint("unique_asset_owner", "assets", ["id", "owner_user_id"])
 
     op.add_column("jobs", sa.Column("owner_user_id", sa.String(length=32), nullable=True))
-    op.add_column("jobs", sa.Column("ingestion_upload_intent_id", sa.String(length=32), nullable=True))
+    op.add_column(
+        "jobs", sa.Column("ingestion_upload_intent_id", sa.String(length=32), nullable=True)
+    )
     op.add_column(
         "jobs",
         sa.Column("attempt_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
@@ -401,7 +415,12 @@ def upgrade() -> None:
         op.f("uq_jobs_ingestion_upload_intent_id"), "jobs", ["ingestion_upload_intent_id"]
     )
     op.create_foreign_key(
-        "fk_jobs_owner_user_id_users", "jobs", "users", ["owner_user_id"], ["id"], ondelete="CASCADE"
+        "fk_jobs_owner_user_id_users",
+        "jobs",
+        "users",
+        ["owner_user_id"],
+        ["id"],
+        ondelete="CASCADE",
     )
     op.create_foreign_key(
         "fk_jobs_ingestion_intent_owner",
@@ -487,7 +506,10 @@ def upgrade() -> None:
             name=op.f("ck_asset_ingestion_records_valid_ingestion_code"),
         ),
         sa.ForeignKeyConstraint(
-            ["owner_user_id"], ["users.id"], name=op.f("fk_asset_ingestion_records_owner_user_id_users"), ondelete="CASCADE"
+            ["owner_user_id"],
+            ["users.id"],
+            name=op.f("fk_asset_ingestion_records_owner_user_id_users"),
+            ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
             ["upload_intent_id", "owner_user_id"],
@@ -508,19 +530,27 @@ def upgrade() -> None:
             ondelete="RESTRICT",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_asset_ingestion_records")),
-        sa.UniqueConstraint("upload_intent_id", name=op.f("uq_asset_ingestion_records_upload_intent_id")),
+        sa.UniqueConstraint(
+            "upload_intent_id", name=op.f("uq_asset_ingestion_records_upload_intent_id")
+        ),
         sa.UniqueConstraint("job_id", name=op.f("uq_asset_ingestion_records_job_id")),
-        sa.UniqueConstraint("result_asset_id", name=op.f("uq_asset_ingestion_records_result_asset_id")),
+        sa.UniqueConstraint(
+            "result_asset_id", name=op.f("uq_asset_ingestion_records_result_asset_id")
+        ),
     )
     op.create_index(
-        op.f("ix_asset_ingestion_records_owner_user_id"), "asset_ingestion_records", ["owner_user_id"]
+        op.f("ix_asset_ingestion_records_owner_user_id"),
+        "asset_ingestion_records",
+        ["owner_user_id"],
     )
     _install_ingestion_triggers()
 
 
 def downgrade() -> None:
     _remove_ingestion_triggers()
-    op.drop_index(op.f("ix_asset_ingestion_records_owner_user_id"), table_name="asset_ingestion_records")
+    op.drop_index(
+        op.f("ix_asset_ingestion_records_owner_user_id"), table_name="asset_ingestion_records"
+    )
     op.drop_table("asset_ingestion_records")
     op.drop_column("job_attempts", "result_code")
     op.drop_column("job_attempts", "lease_token")

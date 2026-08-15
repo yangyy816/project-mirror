@@ -364,13 +364,17 @@ class UploadIntentService:
         now: Callable[[], datetime] | None = None,
         object_key_factory: Callable[[], str] | None = None,
     ) -> None:
-        if min(
-            rate_limit,
-            rate_window_seconds,
-            max_active_intents,
-            max_pending_bytes,
-            quarantine_retention_seconds,
-        ) < 1 or quarantine_retention_seconds > 24 * 60 * 60:
+        if (
+            min(
+                rate_limit,
+                rate_window_seconds,
+                max_active_intents,
+                max_pending_bytes,
+                quarantine_retention_seconds,
+            )
+            < 1
+            or quarantine_retention_seconds > 24 * 60 * 60
+        ):
             raise ValueError("upload admission limits must be positive")
         self._sessions = session_factory
         self._storage = storage
