@@ -13,6 +13,7 @@ AuthProvider = Literal["mock", "disabled", "verified_external"]
 ProviderVerificationStatus = Literal["unverified", "verified"]
 GateStatus = Literal["required", "approved"]
 RateLimiterBackend = Literal["fake", "redis"]
+ConsentOperation = Literal["private_upload", "security_validation"]
 
 DEFAULT_AUTH_JWT_KEYRING = {"dev-v1": "development-only-not-for-production"}
 DEFAULT_AUTH_HMAC_KEYRING = {"dev-v1": "development-only-hmac-not-for-production"}
@@ -24,6 +25,30 @@ class RequiredPolicySetting(BaseModel):
     document_code: str = Field(min_length=1, max_length=64)
     document_version: str = Field(min_length=1, max_length=64)
     document_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class PurposeConsentSetting(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    consent_type: Literal["facial_data_processing"] = "facial_data_processing"
+    purpose_code: str = Field(default="personal_aesthetic_baseline", min_length=1, max_length=128)
+    purpose_version: str = Field(default="purpose-v1", min_length=1, max_length=48)
+    policy_code: str = Field(default="facial-data-policy", min_length=1, max_length=64)
+    policy_version: str = Field(default="privacy-v1", min_length=1, max_length=48)
+    policy_digest: str = Field(default="0" * 64, pattern=r"^[0-9a-f]{64}$")
+    operations: tuple[ConsentOperation, ...] = (
+        "private_upload",
+        "security_validation",
+    )
+
+    @field_validator("operations")
+    @classmethod
+    def validate_operations(
+        cls, value: tuple[ConsentOperation, ...]
+    ) -> tuple[ConsentOperation, ...]:
+        if not value or len(value) != len(set(value)):
+            raise ValueError("purpose consent operations must be non-empty and unique")
+        return value
 
 
 class Settings(BaseSettings):
@@ -70,6 +95,7 @@ class Settings(BaseSettings):
     auth_rate_limit_ip_limit: int = Field(default=20, ge=1, le=1_000)
     auth_rate_limit_device_limit: int = Field(default=10, ge=1, le=1_000)
     auth_required_policies: list[RequiredPolicySetting] = Field(default_factory=list)
+    facial_data_purpose: PurposeConsentSetting = Field(default_factory=PurposeConsentSetting)
 
     sms_provider: Literal["mock", "tencent"] = "mock"
     storage_provider: Literal["local", "tencent_cos"] = "local"
@@ -181,6 +207,8 @@ class Settings(BaseSettings):
             failures.append("Phase 0 gates cannot be marked approved")
         if self._is_weak_secret(self.auth_token_secret):
             failures.append("secure non-default auth token secret required")
+        if self.facial_data_purpose.policy_digest == "0" * 64:
+            failures.append("configured purpose consent policy digest required")
         if self.auth_jwt_active_kid not in self.auth_jwt_keyring:
             failures.append("active JWT key id must exist in JWT keyring")
         if self.auth_hmac_active_kid not in self.auth_hmac_keyring:

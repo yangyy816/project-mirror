@@ -42,7 +42,7 @@ def session() -> Session:
         pytest.skip("NOT VERIFIED LOCALLY: TEST_DATABASE_URL PostgreSQL is unavailable")
     engine = create_engine(database_url)
     with engine.begin() as connection:
-        connection.execute(text("TRUNCATE TABLE users CASCADE"))
+        connection.execute(text("TRUNCATE TABLE question_bank_versions, users CASCADE"))
     with Session(engine) as db_session:
         yield db_session
     engine.dispose()

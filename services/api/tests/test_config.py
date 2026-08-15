@@ -26,6 +26,7 @@ def production_settings(**overrides: object) -> dict[str, object]:
                 "document_digest": "d" * 64,
             }
         ],
+        "facial_data_purpose": {"policy_digest": "f" * 64},
         "sms_provider": "tencent",
         "storage_provider": "tencent_cos",
         "task_runner": "celery",
@@ -67,6 +68,17 @@ def test_local_upload_ingress_is_restricted_to_loopback(url: str) -> None:
         Settings(local_upload_base_url=url)
 
 
+@pytest.mark.parametrize("operations", ([], ["private_upload", "private_upload"]))
+def test_purpose_consent_operations_are_non_empty_and_unique(operations: list[str]) -> None:
+    with pytest.raises(ValidationError, match="non-empty and unique"):
+        Settings(
+            facial_data_purpose={
+                "operations": operations,
+                "policy_digest": "a" * 64,
+            }
+        )
+
+
 @pytest.mark.parametrize(
     ("override", "message"),
     [
@@ -76,6 +88,10 @@ def test_local_upload_ingress_is_restricted_to_loopback(url: str) -> None:
         ({"task_runner": "local"}, "Celery task runner required"),
         ({"vision_provider": "mock"}, "production AI providers must remain disabled"),
         ({"auth_token_secret": "change-me"}, "secure non-default auth token secret"),
+        (
+            {"facial_data_purpose": {"policy_digest": "0" * 64}},
+            "configured purpose consent policy digest required",
+        ),
         ({"cors_origins": ["http://localhost:3000"]}, "CORS origin forbidden"),
         ({"auth_callback_url": "http://localhost/callback"}, "production callback required"),
         ({"sensitive_processing_enabled": True}, "forbids production sensitive processing"),
