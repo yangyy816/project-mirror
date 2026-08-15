@@ -42,6 +42,7 @@ services:
       AGENT_PROVIDER: mock
       OBJECT_STORAGE_PRIVATE: "true"
       SENSITIVE_PROCESSING_ENABLED: "false"
+      LOCAL_STORAGE_ROOT: /var/lib/mirror-private
     command:
       - sh
       - -c
@@ -63,6 +64,8 @@ services:
       start_period: 10s
     ports:
       - "8000:8000"
+    volumes:
+      - mirror-private:/var/lib/mirror-private
 
   worker:
     build:
@@ -74,6 +77,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    command:
+      - celery
+      - -A
+      - mirror_worker.app:celery_app
+      - worker
+      - --loglevel=INFO
+      - --queues=mirror.default,mirror.ingestion,mirror.maintenance
+      - --concurrency=2
+      - --prefetch-multiplier=1
+    volumes:
+      - mirror-private:/var/lib/mirror-private
     healthcheck:
       test:
         - CMD
@@ -116,3 +130,4 @@ services:
 volumes:
   mirror-postgres:
   mirror-redis:
+  mirror-private:

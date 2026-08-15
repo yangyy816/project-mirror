@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import asyncio
+
 from mirror_api.config import Settings, get_settings
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
+from mirror_worker.ingestion import IngestionTaskMessage
+from mirror_worker.runtime import run_ingestion_message
 
 
 class LocalTaskRunner:
@@ -17,3 +21,8 @@ class LocalTaskRunner:
     def dispatch(self, envelope: TaskEnvelope) -> str:
         self.service.execute(envelope)
         return envelope.job_id
+
+    def dispatch_ingestion(self, message: IngestionTaskMessage) -> str:
+        message.validate()
+        asyncio.run(run_ingestion_message(message.to_message(), settings=self.settings))
+        return message.job_id
