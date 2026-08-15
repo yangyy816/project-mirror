@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 1 — Application Foundation（COMMITTED）
-- 当前 Milestone：P1-M2 — Web Authentication and Onboarding（EXECUTING）
+- 当前 Milestone：P1-M2 — Web Authentication and Onboarding（PASS，等待 closure CI 后 FROZEN）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -43,6 +43,7 @@
 - Stable-Makeup 是高优先级研究参考，生产采用需完整依赖许可证审查；FLUX-Makeup 具有高算法/评估价值，但其被报告的受限 foundation-model 依赖在权威复核和商业清除前使直接生产路径保持 `PRODUCTION_BLOCKED`。
 - 当前 P1-M2 不因 OSS/Makeup 研究增补发生变化：不新增依赖、模型资产或未来 bounded tasks；P6 到达 rolling-wave planning 时再确定独立研究 Milestone 与 GO/NO-GO/FURTHER_RESEARCH Gate。
 - P1-M2-T06 经 Principal change control 允许 `@playwright/test@1.62.1` 作为 pinned test-only dev dependency；npm 元数据与包内 LICENSE 均为 Apache-2.0，Node 要求 `>=20`，不得进入生产 runtime 或调用真实 Provider。完整记录见 `docs/security/PLAYWRIGHT_ADOPTION.md`。
+- P7 的前向方向已升级为 `Visual Memory OS & Persistent Preference Learning`，状态保持 PROVISIONAL。用户确认的 Visual/Behavioral/Explicit Truth 是权威证据；AestheticProfile、图、向量/视觉索引、Memory Card 与 semantic/temporal/procedural views 均为可重建 materialized state。未保存的 AI 输出无长期权威，当前指令优先，删除必须传播到全部派生表示；不新增当前依赖、模型资产、schema、ADR 或 P7 tasks。完整方向见 `docs/architecture/VISUAL_MEMORY_OS.md`。
 
 ## 长期产品与数据边界
 
@@ -136,3 +137,5 @@
 - 2026-08-15：接受精细模型路由政策；在保留 Sol High / Terra High 架构和 Terra 默认的前提下新增 `pm_fast_worker` Spark micro-task tier。官方文档与动态模型目录确认精确标识及 `low/medium/high/xhigh`；Codex CLI `0.148.0-alpha.9` 已以 strict-config、read-only、`medium` 完成直接 Spark 和按名 `pm_fast_worker` 委派 smoke。WindowsApps 原始可执行文件受 ACL 保护，验证使用 app-managed `.codex/.sandbox-bin/codex.exe`；ephemeral 会话无法建立子线程，普通 read-only 委派已通过。
 - 2026-08-15：P1-M2 T03–T05 经 Principal 本地接受：可访问手机号/邀请码/OTP 流、严格外部年龄 popup、精确政策逐项接受、内存会话 Provider、`/join`、无受保护内容闪现的 `/account`、刷新恢复与可确认 logout 已实现。R01 修复测试类型边界；R02 阻止退出网络失败伪装成功；真实 Web unit suite 当前 52 PASS，production build 通过。
 - 2026-08-15：P1-M2 T06 本地候选 Gate 建立 Playwright + deterministic Fake API/age provider；真实 Microsoft Edge + Next standalone 的 3 个端到端场景通过。R03 将 bootstrap 缺少 CSRF 安全降级为 anonymous 并要求重认证；R04 分离 Vitest 与 Playwright 收集边界。完整 `pnpm check`、Docker build/五服务 health、容器 PostgreSQL/Redis 97 PASS、Worker/Celery 5 PASS、隔离数据库 migration lifecycle、OpenAPI 零漂移和 Python/Node 漏洞审计均通过；等待 candidate SHA 的远端 CI。
+- 2026-08-15：P1-M2 远端候选经 R05/R06 收口。R05 以 `vitest.config.ts` 关闭 Linux Bash glob 展开导致的测试命令故障；R06 补齐 Linux Next standalone 缺失的 `@swc/helpers/esm` 并处理 Windows junction realpath。最终 candidate `f4dd6f0a58635e0d8505a5fa0ce0c2ed366982aa` 的 run `31892402898` 三个 jobs 全绿，Chromium 安装与 Browser integration 实际执行，三项 artifacts 可下载且 Gitleaks SARIF 零结果；P1-M2 Gate 为 PASS，等待 acceptance closure CI 后 FROZEN。
+- 2026-08-15：接受 P7 Visual Memory OS 方向补充；新增 MEM-01–MEM-12、AcceptedVisualEpisode、分层/时序/程序记忆、Admission/Write/Memory Gate、Active Visual Exemplars、Context Compiler、删除重编译与 MirrorMemoryBench 研究边界。P6 只承担 final-save provenance 前向兼容，不提前实现 P7。

@@ -7,11 +7,13 @@
 | Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`   |
 | Phase 1 | COMMITTED | Application Foundation；仅 P1-M1 已通过 Gate，Phase 1 尚未 PASS  |
 | P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿 |
-| P1-M2   | EXECUTING | ADR-017 + `P1_M2_EXECUTION_PROTOCOL.md`；禁止进入 P1-M3 实现     |
+| P1-M2   | PASS      | candidate `f4dd6f0`；run `31892402898` 全绿；等待 closure CI     |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
 P1-M1 的逐项证据与 deferred production Gates 见 `P1_M1_ACCEPTANCE.md`。
+
+P1-M2 的浏览器、Linux CI、repairs 与 deferred production Gates 见 `P1_M2_ACCEPTANCE.md`。
 
 ## Future rolling-wave positioning
 
@@ -19,6 +21,9 @@ P1-M1 的逐项证据与 deferred production Gates 见 `P1_M1_ACCEPTANCE.md`。
 - Identity-Preserving Makeup Transfer 是 P6 的高优先级研究轨道和一级能力边界，不得降格为 Generative Editor 内的单个 `makeup_transfer()` 工具。它可向前影响 P5 Reference Profile refinement，并向后为 P7 PreferenceEvent 提供用户确认/纠正证据。
 - 该轨道的目标链为：Reference Makeup Understanding → MakeupStyleRepresentation → StyleProfile personalization → Structured MakeupPlan → Region-level execution → Identity/geometry verification → User correction → PreferenceEvent。
 - P6 成为当前 Phase 前不得冻结最终 schema、选择生产引擎或创建 bounded Terra tasks；届时由 Principal 确定 `P6-Mx` 编号，并以 `GO | NO-GO | FURTHER_RESEARCH` 结束研究 Gate。
+- P7 的前向名称升级为 `Visual Memory OS & Persistent Preference Learning`，状态保持 `PROVISIONAL`。其权威层是用户确认的视觉、行为和明确证据；AestheticProfile、图、索引、Memory Card 与 semantic/temporal/procedural views 均为可重建派生状态。
+- P7 未来高层 deliverables 包括 AcceptedVisualEpisode、EditTrajectory evidence、Admission/Write/Memory Gate、hierarchical memory、Active Visual Exemplars、temporal/procedural memory、Memory Consolidation、Context Compiler、删除/重编译和 MirrorMemoryBench；这些不得直接转换为当前 Milestones 或 bounded tasks。
+- P6 必须保留 Final Save 到 source/result asset、ImageVersion、EditPlan、operations/manual corrections、Profile、context、Agent/provider version 与明确指令的 provenance，供 P7 使用；P7 不得重新发明 P6 的编辑证据语义。
 - 此定位不改变当前 P1-M2 DAG、任务依赖或 Gate：`CURRENT_MILESTONE_IMPACT: NONE`。
 
 ## Phase 0 Milestones

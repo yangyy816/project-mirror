@@ -4,7 +4,7 @@
 
 - Milestone: `P1-M2 — Web Authentication and Onboarding`
 - Entry baseline: frozen P1-M1 SHA `9a496df87535b6abc7d78716740eb335fc42ad2c`
-- State: `EXECUTING`
+- State: `PASS`；等待 acceptance-closure CI 后才 `FROZEN`
 - Objective: 使用生成客户端交付邀请登录、OTP、外部年龄凭证、精确政策接受、刷新恢复、退出和 active account shell。
 - Non-goals: 不修改 P1-M1 领域/API 语义，不实现上传、facial processing、真实 Provider、支付、analytics 或公开注册。
 

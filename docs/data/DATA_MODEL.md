@@ -15,6 +15,8 @@
 - 权益账务：Plan、Subscription、Entitlement、CreditAccount、CreditLedger、PaymentEvent。
 - 治理：AuditLog。
 
+P7 未来将研究 `AcceptedVisualEpisode`、Visual Memory Bundle、Memory Card、temporal/procedural views 与 retrieval indexes。它们当前不是 Phase 1 schema：不得提前建表或冻结字段。权威关系必须保持“用户确认的 durable evidence → 可重建派生视图/Profile”，图片二进制仍只进入私有对象存储，关系数据只引用 opaque asset ID。方向见 `docs/architecture/VISUAL_MEMORY_OS.md`。
+
 ## 强不变量
 
 - ProfileVersion 和 CreditLedger 只可追加，不可更新或删除。
@@ -29,6 +31,7 @@
 - PaymentEvent 以 provider + provider_event_id 去重，浏览器成功页不是支付依据。
 - InviteRedemption、AgeAssuranceRecord 和 PolicyAcceptanceRecord 是 append-only 审计事实；邀请码只在 OTP 成功消费、新用户创建与兑换的同一事务中增加使用量。`User.age_confirmed_at` 如存在只是投影，不是年龄证据权威来源。
 - PhoneVerificationChallenge、UserSession、IdempotencyRecord 和 session family 只保存用途隔离的 HMAC 或不可枚举引用，绝不保存手机号、OTP、邀请码、refresh token 或年龄凭证原文。refresh token 重用会撤销其 family；pending 用户在有效年龄与政策记录齐备前不能成为 active。
+- 未来 P7 中，未保存/确认的 AI 输出不得成为持久审美证据；AestheticProfile 与所有视觉/语义/时序/程序索引必须能由仍获授权的 evidence 重建，源证据删除必须使所有依赖派生表示删除或失效。
 
 ## 版本策略
 

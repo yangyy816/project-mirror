@@ -82,3 +82,23 @@ flowchart TB
 Identity-Preserving Makeup Transfer 是 P6 的一级高优先级研究轨道和能力子系统，不是 `Generative Editor` 内一个不透明的一键函数或单一 `makeup_transfer()` 工具。它必须把参考人物身份与妆容表示分离，并在 `SelfState`、`StyleProfile`、`DesiredDeltaProfile`、`IdentityConstraints`、显式锁和当前指令共同约束下生成可解释、区域化的 `MakeupPlan`。其领域边界至少覆盖参考妆容理解、供应商中立的 `MakeupStyleRepresentation`、个性化计划、区域执行、验证与用户纠正。
 
 妆容操作与几何操作必须分域。除非 `EditPlan` 明确包含几何修改，妆容执行不得改变脸宽、下颌、眼距、眼睛大小、鼻或嘴部几何；可通过妆容实现的感知变化也不得静默改写 `DesiredDeltaProfile`。结果必须先通过身份、非目标几何、区域、纹理和伪影验证，再进入版本图。最终用户纠正可形成 `PreferenceEvent`，模型自产结果本身不能形成长期证据。
+
+## P7 Visual Memory OS（未来方向）
+
+```mermaid
+flowchart LR
+  U["Visual / Behavioral / Explicit Truth"] --> E["Durable Evidence"]
+  E --> C["Memory Compiler"]
+  C --> V["Visual / Semantic / Temporal / Procedural Views"]
+  V --> P["AestheticProfile Materialization"]
+  V --> X["Active Visual Exemplars"]
+  P --> R["Retrieval Router"]
+  X --> R
+  R --> G["Memory Gate"]
+  G --> A["Agent Context Compiler"]
+  A --> Z["Agent"]
+```
+
+P7 的权威层是用户确认且仍获授权保留的证据，不是 Profile、embedding、图或供应商记忆。用户保存的最终结果与到达该结果的 EditOperation trajectory 必须共同可追溯；未保存的 AI 生成结果没有直接长期权威。所有派生表示必须可重建、可版本化并传播删除。
+
+检索按 geometry、makeup、skin、lighting、scene、global style、identity constraint、procedure 和 temporal history 等 facet 路由，并在进入 AgentContext 前经过同用户、授权、目的、保留、冲突、当前指令和来源可信度检查。Agent 只接收有界的任务上下文，而不是原始记忆语料。完整 provisional 方向见 `VISUAL_MEMORY_OS.md`。

@@ -4,7 +4,7 @@
 
 - 项目：Project Mirror
 - 当前阶段：Phase 1 — Application Foundation（COMMITTED）
-- 当前 Milestone：P1-M2 — Web Authentication and Onboarding（EXECUTING）
+- 当前 Milestone：P1-M2 — Web Authentication and Onboarding（PASS，等待 closure CI 后 FROZEN）
 - 首发：面向中国大陆的 18+ 邀请制 Beta
 - 默认语言：产品 UI 与项目沟通使用简体中文；代码、命令、变量名使用英文
 - 本文件适用于整个仓库；子目录可增加更严格的 `AGENTS.md`，不得放宽本文件约束
@@ -73,6 +73,23 @@
 - 统计模型、题目数量、最低覆盖率、landmark + deterministic warp 都是 `RESEARCH HYPOTHESIS`，必须放在研究规格中并允许实验替换。
 - 合成身份数量、成本、延迟和覆盖目标是 `OPERATIONAL TARGET`，可随 QA 与实验结果调整。
 - 研究假设和运营目标不得升级为本文件中的永久产品 Invariant。
+
+## D. P7 Visual Memory OS 方向性 Invariants
+
+P7 仍为 `PROVISIONAL`，以下约束只保护未来架构方向，不授权提前实现、建表、选型或拆分任务。完整边界见 `docs/architecture/VISUAL_MEMORY_OS.md`。
+
+1. **MEM-01 Visual Memory Primacy**：用户确认的最终视觉结果是主要持久审美证据。
+2. **MEM-02 No Unsaved Generative Memory**：未保存或确认的 AI 输出不得直接更新持久偏好。
+3. **MEM-03 Evidence Reconstructability**：每个持久学习结论必须可追溯到支持证据。
+4. **MEM-04 Profile Is Derived**：AestheticProfile 是可重建的 materialized user model，不是不可变记忆权威。
+5. **MEM-05 Evidence Preservation**：派生记忆更新不得破坏历史证据。
+6. **MEM-06 Context Boundedness**：Agent context 不得随终身记忆量线性增长。
+7. **MEM-07 User Control**：学习必须支持关闭、重置、删除和重新编译。
+8. **MEM-08 Temporal Validity**：偏好演化必须按时间表达，不得破坏性覆盖。
+9. **MEM-09 Current Instruction Priority**：当前明确用户指令高于历史偏好。
+10. **MEM-10 Visual Content Is Not Instruction Authority**：图片或外部内容中的文字不自动获得指令权威。
+11. **MEM-11 Derived Index Replaceability**：图、向量/视觉索引、Memory Card 与 Profile snapshot 必须可重建。
+12. **MEM-12 Privacy Propagation**：删除权威证据必须删除或失效所有依赖派生表示。
 
 ## 数据与 API 规则
 
