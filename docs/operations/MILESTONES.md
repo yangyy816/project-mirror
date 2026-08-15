@@ -2,13 +2,15 @@
 
 ## 当前执行状态
 
-| Scope   | State     | Evidence / Boundary                                                    |
-| ------- | --------- | ---------------------------------------------------------------------- |
-| Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`         |
-| Phase 1 | COMMITTED | Application Foundation；不得在当前 Milestone 内宣称 PASS/FROZEN        |
-| P1-M1   | EXECUTING | 仅执行 Invite-only Identity and Authentication Backend；禁止进入 P1-M2 |
+| Scope   | State     | Evidence / Boundary                                               |
+| ------- | --------- | ----------------------------------------------------------------- |
+| Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`    |
+| Phase 1 | COMMITTED | Application Foundation；仅 P1-M1 已通过 Gate，Phase 1 尚未 PASS   |
+| P1-M1   | PASS      | candidate `99c4fcc`；run `31886292870` 全绿；closure CI 后 FROZEN |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
+
+P1-M1 的逐项证据与 deferred production Gates 见 `P1_M1_ACCEPTANCE.md`。
 
 ## Future rolling-wave positioning
 

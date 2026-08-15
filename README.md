@@ -1,6 +1,6 @@
 # Project Mirror
 
-Project Mirror 是一个由长期个人审美记忆驱动的 AI Photo Editing Agent。当前仓库处于 **Phase 0 + 可运行工程骨架**：只提供生产级边界、契约、数据模型和确定性 Fake，不处理真实人脸、不接真实支付，也不开放注册。
+Project Mirror 是一个由长期个人审美记忆驱动的 AI Photo Editing Agent。Phase 0 工程基线已冻结，当前处于 **Phase 1 — Application Foundation**：P1-M1 邀请制身份认证后端已通过候选 Gate，仍不处理真实人脸、不接真实支付，也不开放生产注册。
 
 ## 当前可运行内容
 

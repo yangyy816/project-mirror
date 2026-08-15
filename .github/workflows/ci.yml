@@ -1,4 +1,4 @@
-name: phase-0-gates
+name: project-gates
 
 on:
   push:
@@ -104,7 +104,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: phase-0-audit-evidence
+          name: project-audit-evidence
           path: |
             celery.log
             python-licenses.json
@@ -125,9 +125,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate Compose model
         run: docker compose -f compose.yaml config --quiet
-      - name: Build Phase 0 images
+      - name: Build Project images
         run: docker compose -f compose.yaml build
-      - name: Start Phase 0 topology
+      - name: Start Project topology
         run: docker compose -f compose.yaml up -d --wait
       - name: Validate container behavior
         run: |
@@ -145,8 +145,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: phase-0-docker-evidence
+          name: project-docker-evidence
           path: docker-compose.log
-      - name: Stop Phase 0 topology
+      - name: Stop Project topology
         if: always()
         run: docker compose -f compose.yaml down --volumes --remove-orphans
