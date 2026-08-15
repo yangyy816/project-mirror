@@ -141,3 +141,8 @@ async def test_unverified_tencent_candidates_fail_closed_without_network(
             content_length=10,
             checksum_sha256="c" * 64,
         )
+
+    with pytest.raises(NotImplementedError, match="not verified"):
+        await TencentCosProvider().create_private_download_grant(
+            object_key=f"sanitized/v1/{'d' * 32}", request_reference="asset-reference"
+        )

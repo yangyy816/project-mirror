@@ -11,9 +11,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import MappingProxyType
+from typing import Literal
 
 from mirror_api.providers.base import (
     DeleteResult,
+    PrivateDownloadGrant,
     PrivateUploadGrant,
     QuarantineObjectMetadata,
     SanitizedObjectConflictError,
@@ -25,6 +27,7 @@ QUARANTINE_KEY = re.compile(r"^quarantine/v1/[0-9a-f]{64}$")
 SANITIZED_KEY = re.compile(r"^sanitized/v1/[0-9a-f]{32}$")
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 UPLOAD_AUTHORIZATION_HEADER = "X-Mirror-Upload-Authorization"
+DOWNLOAD_AUTHORIZATION_HEADER = "X-Mirror-Download-Authorization"
 UPLOAD_CHECKSUM_HEADER = "X-Content-SHA256"
 STORAGE_CHUNK_BYTES = 64 * 1024
 
@@ -38,7 +41,7 @@ def sanitized_object_key_for_job(job_id: str) -> str:
 
 class LocalStorageOperationError(Exception):
     def __init__(self, reason: str) -> None:
-        super().__init__("local private upload was rejected")
+        super().__init__("local private storage operation was rejected")
         self.reason = reason
 
 
@@ -53,8 +56,26 @@ class _PendingGrant:
     consumed: bool = False
 
 
+@dataclass
+class _PendingDownloadGrant:
+    object_key: str
+    request_reference: str
+    proof_digest: bytes
+    expires_at: datetime
+    consumed: bool = False
+
+
+@dataclass(frozen=True)
+class LocalDownloadRedemption:
+    request_reference: str
+    content_type: Literal["image/jpeg"]
+    content_length: int
+    sha256: str
+    body: AsyncIterator[bytes]
+
+
 class LocalObjectStorageProvider:
-    """Non-production, write-only quarantine storage for synthetic fixtures."""
+    """Non-production private object storage for synthetic/non-face fixtures."""
 
     def __init__(
         self,
@@ -77,8 +98,76 @@ class LocalObjectStorageProvider:
         self._clock = clock or (lambda: datetime.now(UTC))
         self._proof_key = proof_key or secrets.token_bytes(32)
         self._grants: dict[str, _PendingGrant] = {}
+        self._download_grants: dict[str, _PendingDownloadGrant] = {}
         self._metadata: dict[str, QuarantineObjectMetadata] = {}
         self._lock = asyncio.Lock()
+
+    async def create_private_download_grant(
+        self, *, object_key: str, request_reference: str
+    ) -> PrivateDownloadGrant:
+        target = self._resolve_sanitized_path(object_key)
+        if not await asyncio.to_thread(target.is_file):
+            raise LocalStorageOperationError("sanitized_not_found")
+        grant_id = secrets.token_urlsafe(18)
+        proof = secrets.token_urlsafe(32)
+        expires_at = self._clock() + timedelta(seconds=self._ttl_seconds)
+        state = _PendingDownloadGrant(
+            object_key=object_key,
+            request_reference=request_reference,
+            proof_digest=self._proof_digest(grant_id, proof),
+            expires_at=expires_at,
+        )
+        async with self._lock:
+            self._download_grants[grant_id] = state
+        return PrivateDownloadGrant(
+            method="GET",
+            url=f"{self._base_url}/_local/private-download/{grant_id}",
+            required_headers=MappingProxyType({DOWNLOAD_AUTHORIZATION_HEADER: proof}),
+            expires_at=expires_at,
+        )
+
+    async def redeem_private_download_grant(
+        self, *, grant_id: str, authorization: str
+    ) -> LocalDownloadRedemption:
+        async with self._lock:
+            state = self._download_grants.get(grant_id)
+            if state is None:
+                raise LocalStorageOperationError("unknown_download_grant")
+            if state.consumed:
+                raise LocalStorageOperationError("download_grant_replayed")
+            if self._clock() >= state.expires_at:
+                state.consumed = True
+                raise LocalStorageOperationError("download_grant_expired")
+            if not hmac.compare_digest(
+                self._proof_digest(grant_id, authorization), state.proof_digest
+            ):
+                state.consumed = True
+                raise LocalStorageOperationError("invalid_download_authorization")
+            state.consumed = True
+        metadata = await self.inspect_sanitized_object(object_key=state.object_key)
+        if metadata is None:
+            raise LocalStorageOperationError("sanitized_not_found")
+        return LocalDownloadRedemption(
+            request_reference=state.request_reference,
+            content_type="image/jpeg",
+            content_length=metadata.byte_size,
+            sha256=metadata.sha256,
+            body=self.stream_sanitized_object(object_key=state.object_key),
+        )
+
+    async def stream_sanitized_object(self, *, object_key: str) -> AsyncIterator[bytes]:
+        target = self._resolve_sanitized_path(object_key)
+        if not await asyncio.to_thread(target.is_file):
+            raise LocalStorageOperationError("sanitized_not_found")
+        handle = await asyncio.to_thread(target.open, "rb")
+        try:
+            while True:
+                chunk = await asyncio.to_thread(handle.read, STORAGE_CHUNK_BYTES)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            await asyncio.to_thread(handle.close)
 
     async def create_private_upload_grant(
         self,

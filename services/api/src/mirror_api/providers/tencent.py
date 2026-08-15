@@ -33,6 +33,12 @@ class TencentAgeAssuranceCandidateProvider:
 
 
 class TencentCosProvider:
+    async def create_private_download_grant(
+        self, *, object_key: str, request_reference: str
+    ) -> NoReturn:
+        del object_key, request_reference
+        _not_verified("COS private download")
+
     async def create_private_upload_grant(
         self,
         *,

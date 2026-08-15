@@ -22,6 +22,14 @@ class PrivateUploadGrant:
 
 
 @dataclass(frozen=True)
+class PrivateDownloadGrant:
+    method: Literal["GET"]
+    url: str
+    required_headers: Mapping[str, str]
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
 class QuarantineObjectMetadata:
     byte_size: int
     content_type: str
@@ -108,6 +116,10 @@ class AgeAssuranceProvider(Protocol):
 
 
 class ObjectStorageProvider(Protocol):
+    async def create_private_download_grant(
+        self, *, object_key: str, request_reference: str
+    ) -> PrivateDownloadGrant: ...
+
     async def create_private_upload_grant(
         self,
         *,

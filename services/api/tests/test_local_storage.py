@@ -14,7 +14,9 @@ from mirror_api.errors import APIError, api_error_handler
 from mirror_api.middleware import LocalUploadAccessLogRedactionMiddleware, RequestIDMiddleware
 from mirror_api.providers import SanitizedObjectConflictError
 from mirror_api.providers.local import (
+    DOWNLOAD_AUTHORIZATION_HEADER,
     LocalObjectStorageProvider,
+    LocalStorageOperationError,
     sanitized_object_key_for_job,
 )
 from mirror_api.routers.local_upload import router as local_upload_router
@@ -47,12 +49,13 @@ def _test_app(provider: LocalObjectStorageProvider) -> FastAPI:
 
 
 @pytest.mark.asyncio
-async def test_local_upload_handle_is_redacted_before_access_logging() -> None:
+@pytest.mark.parametrize("operation", ("private-upload", "private-download"))
+async def test_local_grant_handle_is_redacted_before_access_logging(operation: str) -> None:
     grant_handle = "grant-handle-sentinel"
     scope = {
         "type": "http",
-        "path": f"/_local/private-upload/{grant_handle}",
-        "raw_path": f"/_local/private-upload/{grant_handle}".encode(),
+        "path": f"/_local/{operation}/{grant_handle}",
+        "raw_path": f"/_local/{operation}/{grant_handle}".encode(),
         "query_string": b"secret=query",
         "headers": [],
     }
@@ -63,7 +66,7 @@ async def test_local_upload_handle_is_redacted_before_access_logging() -> None:
 
     middleware = LocalUploadAccessLogRedactionMiddleware(app=FastAPI())
     await middleware.dispatch(request, call_next)
-    assert request.scope["path"] == "/_local/private-upload/[redacted]"
+    assert request.scope["path"] == f"/_local/{operation}/[redacted]"
     assert request.scope["query_string"] == b""
     assert grant_handle not in str(request.scope)
 
@@ -338,6 +341,55 @@ async def test_local_storage_reads_quarantine_and_manages_sanitized_objects(tmp_
     assert sha256(conflicting).hexdigest() not in str(conflict.value)
     assert await provider.delete_sanitized_object(object_key=sanitized_key) == "deleted"
     assert await provider.delete_sanitized_object(object_key=sanitized_key) == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_local_private_download_is_exact_key_one_time_and_short_lived(tmp_path: Path) -> None:
+    now = datetime(2026, 8, 16, tzinfo=UTC)
+    current = [now]
+    provider = LocalObjectStorageProvider(
+        root=tmp_path,
+        ttl_seconds=60,
+        clock=lambda: current[0],
+        proof_key=b"test-only-download-proof-key" * 2,
+    )
+    payload = b"synthetic-non-face-canonical-jpeg"
+    key = sanitized_object_key_for_job("c" * 32)
+    await provider.create_sanitized_object_if_absent(
+        object_key=key,
+        content_type="image/jpeg",
+        content_length=len(payload),
+        checksum_sha256=sha256(payload).hexdigest(),
+        body=_body(payload),
+    )
+    grant = await provider.create_private_download_grant(
+        object_key=key, request_reference="asset-reference"
+    )
+    assert grant.method == "GET"
+    assert key not in grant.url
+    proof = grant.required_headers[DOWNLOAD_AUTHORIZATION_HEADER]
+    redemption = await provider.redeem_private_download_grant(
+        grant_id=urlsplit(grant.url).path.rsplit("/", 1)[-1],
+        authorization=proof,
+    )
+    assert redemption.request_reference == "asset-reference"
+    assert b"".join([chunk async for chunk in redemption.body]) == payload
+    with pytest.raises(LocalStorageOperationError, match="local private storage operation"):
+        await provider.redeem_private_download_grant(
+            grant_id=urlsplit(grant.url).path.rsplit("/", 1)[-1],
+            authorization=proof,
+        )
+
+    expired = await provider.create_private_download_grant(
+        object_key=key, request_reference="expired-reference"
+    )
+    current[0] = now + timedelta(seconds=60)
+    with pytest.raises(LocalStorageOperationError) as error:
+        await provider.redeem_private_download_grant(
+            grant_id=urlsplit(expired.url).path.rsplit("/", 1)[-1],
+            authorization=expired.required_headers[DOWNLOAD_AUTHORIZATION_HEADER],
+        )
+    assert error.value.reason == "download_grant_expired"
 
 
 @pytest.mark.asyncio

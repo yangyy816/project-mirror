@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request, Response
+from starlette.responses import StreamingResponse
 
+from mirror_api.asset_access.service import AssetAccessDenied, AssetAccessService
+from mirror_api.asset_access_dependencies import get_asset_access_service
 from mirror_api.errors import APIError
 from mirror_api.providers.local import (
+    DOWNLOAD_AUTHORIZATION_HEADER,
     UPLOAD_AUTHORIZATION_HEADER,
     UPLOAD_CHECKSUM_HEADER,
     LocalObjectStorageProvider,
@@ -12,6 +16,37 @@ from mirror_api.providers.local import (
 from mirror_api.storage_dependencies import get_local_object_storage_provider
 
 router = APIRouter(include_in_schema=False)
+
+
+@router.get("/_local/private-download/{grant_id}")
+async def receive_local_private_download(
+    grant_id: str,
+    request: Request,
+    service: AssetAccessService = Depends(get_asset_access_service),
+) -> StreamingResponse:
+    try:
+        redemption = await service.redeem_local_download(
+            grant_id=grant_id,
+            authorization=request.headers.get(DOWNLOAD_AUTHORIZATION_HEADER, ""),
+            request_id=request.state.request_id,
+        )
+    except AssetAccessDenied as exc:
+        raise APIError(
+            status_code=404,
+            code="download_grant_not_found",
+            message="下载凭证不存在。",
+        ) from exc
+    except LocalStorageOperationError as exc:
+        raise _public_download_error(exc.reason) from exc
+    return StreamingResponse(
+        redemption.body,
+        media_type=redemption.content_type,
+        headers={
+            "Content-Length": str(redemption.content_length),
+            "Cache-Control": "private, no-store",
+            "Content-Disposition": 'attachment; filename="mirror-asset.jpg"',
+        },
+    )
 
 
 @router.put("/_local/private-upload/{grant_id}", status_code=204)
@@ -63,3 +98,11 @@ def _public_upload_error(reason: str) -> APIError:
     return APIError(
         status_code=400, code="upload_integrity_mismatch", message="上传内容与声明不一致。"
     )
+
+
+def _public_download_error(reason: str) -> APIError:
+    if reason == "download_grant_expired":
+        return APIError(status_code=410, code="download_grant_expired", message="下载凭证已过期。")
+    if reason == "download_grant_replayed":
+        return APIError(status_code=409, code="download_grant_consumed", message="下载凭证已使用。")
+    return APIError(status_code=404, code="download_grant_not_found", message="下载凭证不存在。")
