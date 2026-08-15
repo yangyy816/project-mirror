@@ -1,0 +1,14 @@
+title = "Project Mirror Gitleaks exceptions"
+
+[extend]
+useDefault = true
+
+# P1-M4-R08: exact historical test-only false positive. The source was replaced in
+# 0d8c9e4; all three predicates must match so no current or unrelated finding is ignored.
+[[allowlists]]
+description = "Historical synthetic idempotency fixture in 192610b"
+condition = "AND"
+commits = ["192610b5f8289d288aa2787561aeb09a861f9a8a"]
+paths = ['''^services/api/tests/test_ingestion_dispatch\.py$''']
+regexTarget = "match"
+regexes = ['''idempotency_key="coordinator-key-2"''']
