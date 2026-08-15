@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { BrowserAuthProvider } from "../lib/auth";
+import { getWebAuthConfig } from "../lib/web-auth-config";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,9 +14,14 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
+  const authConfig = getWebAuthConfig();
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>
+        <BrowserAuthProvider config={authConfig}>
+          {children}
+        </BrowserAuthProvider>
+      </body>
     </html>
   );
 }

@@ -9,3 +9,4 @@ export { BrowserAuthError } from "./errors";
 export { IdempotencyKeyPool, createIdempotencyKey } from "./idempotency";
 export { BrowserAuthSession } from "./session";
 export type { BrowserSessionSnapshot, BrowserSessionStatus } from "./session";
+export { BrowserAuthProvider, useBrowserAuth } from "./runtime";

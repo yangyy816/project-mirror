@@ -168,9 +168,12 @@ export class BrowserAuthSession {
   async logout(): Promise<void> {
     try {
       await this.withAuthorizedRequest((token) => this.api.logout(token));
-    } finally {
-      this.clearToAnonymous();
+    } catch (error) {
+      const sanitized = this.sanitize(error);
+      this.update({ status: "error", user: null, error: sanitized });
+      throw sanitized;
     }
+    this.clearToAnonymous();
   }
 
   private async refreshAccessToken(): Promise<void> {

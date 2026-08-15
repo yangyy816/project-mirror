@@ -1,4 +1,5 @@
 import { Badge, Button } from "@mirror/ui";
+import Link from "next/link";
 
 import { getApiStatus } from "@/lib/api";
 
@@ -32,7 +33,12 @@ export default async function HomePage() {
             正在建立一套可解释、可回滚、由你亲自选择驱动的个人审美档案。当前仅开放中国大陆邀请制私测。
           </p>
           <div className="mt-9 flex flex-wrap gap-3">
-            <Button disabled>凭邀请码加入</Button>
+            <Link
+              href="/join"
+              className="rounded-full bg-plum px-5 py-3 text-sm font-semibold text-white transition hover:bg-plum/90"
+            >
+              凭邀请码加入
+            </Link>
             <Button variant="secondary" disabled>
               查看隐私说明
             </Button>
@@ -40,7 +46,7 @@ export default async function HomePage() {
         </div>
 
         <aside className="rounded-[2rem] border border-black/10 bg-white/70 p-7 shadow-[0_24px_80px_rgba(109,63,85,0.13)] backdrop-blur">
-          <h2 className="text-xl font-semibold">Phase 0 工程状态</h2>
+          <h2 className="text-xl font-semibold">Application Foundation 状态</h2>
           <dl className="mt-6 grid gap-4 text-sm">
             <StatusRow label="Web 应用" value="运行中" />
             <StatusRow
