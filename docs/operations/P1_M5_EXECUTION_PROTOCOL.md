@@ -96,3 +96,19 @@ Exit:
 - Asset/account deletion stops new work immediately and produces truthful, retryable physical-deletion evidence.
 - Export archives are owner-isolated, short-lived, auditable and free of excluded secrets/internal data.
 - OpenAPI/generated TypeScript and Web behavior are synchronized; complete remote CI is green on one SHA.
+
+## Active change control and repair tasks
+
+### CC-P1-M5-01 — Pre-existing upload grant expiry barrier
+
+- Status: `ACCEPTED`
+- Reason: an upload grant issued before account freeze can remain usable at the storage boundary even though API completion and new work are already denied. Recording quarantine deletion before that grant expires could permit a late object publication after purported completion.
+- Decision: account deletion freezes the user and tombstones eligible database work immediately, but it may not record final quarantine-object deletion evidence or complete until every pre-existing upload grant has expired. The Worker then performs a post-expiry idempotent delete and records the authoritative result. This does not extend grant TTL, permit new work or weaken immediate access denial.
+
+### P1-M5-R02 — Quarantine deletion evidence target
+
+- Status: `EXECUTION_READY`
+- Defect: `0005`/`0006` can prove physical deletion only for Asset and data-export objects, while ADR-020 requires account deletion to remove owned raw quarantine objects with truthful completion evidence.
+- Allowed repair: add forward-only `0007_account_quarantine_evidence` with an owner-bound `target_upload_intent_id`, a `quarantine` object kind allowed only under account-deletion authority, one evidence row per authority and target, and PostgreSQL negative invariants for cross-owner or invalid-authority use.
+- Forbidden: modifying `0001`–`0006`, changing account-deletion authority, adding new public APIs, retaining raw bytes, or treating a pre-expiry delete as final evidence.
+- Validation: `0007 → 0006 → 0007`, Alembic drift, real PostgreSQL append-only/owner/authority tests, late-upload safety test, Ruff and strict mypy.

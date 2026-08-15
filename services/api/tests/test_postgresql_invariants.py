@@ -1215,6 +1215,114 @@ def test_account_deletion_requires_immediate_freeze_and_owner_bound_job(
         session.commit()
 
 
+def test_account_quarantine_evidence_is_terminal_owner_bound_and_append_only(
+    session: Session,
+) -> None:
+    now = datetime.now(UTC)
+    user = User(id=new_id(), phone_hash="q" * 64, status="active")
+    outsider = User(id=new_id(), phone_hash="z" * 64, status="active")
+    account_job = make_rights_job(user.id, "account_deletion", "r")
+    session.add_all([user, outsider])
+    session.commit()
+    session.add(account_job)
+    session.commit()
+    user.status = "deletion_requested"
+    account_request = AccountDeletionRequest(
+        id=new_id(),
+        owner_user_id=user.id,
+        job_id=account_job.id,
+        idempotency_key_hash="s" * 64,
+        status="requested",
+    )
+    session.add(account_request)
+    session.commit()
+
+    def add_intent(owner: User, seed: str, status: str) -> UploadIntent:
+        consent = ConsentRecord(
+            id=new_id(),
+            user_id=owner.id,
+            consent_type="facial_data_processing",
+            purpose="personal_aesthetic_baseline",
+            purpose_version="purpose-v1",
+            scope={"operations": ["private_upload"]},
+            policy_code="facial-data-policy",
+            policy_version="privacy-v1",
+            policy_digest=seed * 64,
+            action="grant",
+            granted_at=now,
+            source="integration_fixture",
+            request_id=f"quarantine-consent-{seed}",
+        )
+        session.add(consent)
+        session.commit()
+        intent = UploadIntent(
+            id=new_id(),
+            owner_user_id=owner.id,
+            consent_record_id=consent.id,
+            object_key=f"quarantine/v1/{new_id()}",
+            declared_mime_type="image/png",
+            declared_byte_size=128,
+            declared_sha256=seed * 64,
+            status=status,
+            grant_expires_at=now + timedelta(minutes=5),
+            cancelled_at=now if status == "cancelled" else None,
+        )
+        session.add(intent)
+        session.commit()
+        return intent
+
+    owned = add_intent(user, "a", "cancelled")
+    evidence = ObjectDeletionEvidence(
+        id=new_id(),
+        owner_user_id=user.id,
+        account_deletion_request_id=account_request.id,
+        target_upload_intent_id=owned.id,
+        object_kind="quarantine",
+        outcome="deleted",
+        result_code="deleted",
+    )
+    session.add(evidence)
+    session.commit()
+
+    outsider_intent = add_intent(outsider, "b", "cancelled")
+    session.add(
+        ObjectDeletionEvidence(
+            id=new_id(),
+            owner_user_id=user.id,
+            account_deletion_request_id=account_request.id,
+            target_upload_intent_id=outsider_intent.id,
+            object_kind="quarantine",
+            outcome="not_found",
+            result_code="already_absent",
+        )
+    )
+    with pytest.raises(DBAPIError, match="owner must match authority and target"):
+        session.commit()
+    session.rollback()
+
+    active = add_intent(user, "c", "awaiting_upload")
+    session.add(
+        ObjectDeletionEvidence(
+            id=new_id(),
+            owner_user_id=user.id,
+            account_deletion_request_id=account_request.id,
+            target_upload_intent_id=active.id,
+            object_kind="quarantine",
+            outcome="deleted",
+            result_code="deleted",
+        )
+    )
+    with pytest.raises(DBAPIError, match="requires terminal upload intent"):
+        session.commit()
+    session.rollback()
+
+    evidence = session.get(ObjectDeletionEvidence, evidence.id)
+    assert evidence is not None
+    with pytest.raises(DBAPIError, match="immutable record"):
+        session.delete(evidence)
+        session.commit()
+
+
 def test_export_shape_and_access_audit_are_enforced(session: Session) -> None:
     user = User(id=new_id(), phone_hash="r" * 64, status="active")
     job = make_rights_job(user.id, "data_export", "s")

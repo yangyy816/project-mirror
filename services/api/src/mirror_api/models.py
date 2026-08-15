@@ -601,6 +601,14 @@ class ObjectDeletionEvidence(IdMixin, Base):
     target_data_export_request_id: Mapped[str | None] = mapped_column(
         ForeignKey("data_export_requests.id", ondelete="RESTRICT"), index=True
     )
+    target_upload_intent_id: Mapped[str | None] = mapped_column(
+        ForeignKey(
+            "upload_intents.id",
+            name="fk_object_deletion_evidence_target_upload_intent",
+            ondelete="RESTRICT",
+        ),
+        index=True,
+    )
     object_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     outcome: Mapped[str] = mapped_column(String(24), nullable=False)
     result_code: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -615,9 +623,13 @@ class ObjectDeletionEvidence(IdMixin, Base):
         ),
         CheckConstraint(
             "(object_kind = 'asset' AND target_asset_id IS NOT NULL "
-            "AND target_data_export_request_id IS NULL) OR "
+            "AND target_data_export_request_id IS NULL AND target_upload_intent_id IS NULL) OR "
             "(object_kind = 'data_export' AND target_asset_id IS NULL "
-            "AND target_data_export_request_id IS NOT NULL)",
+            "AND target_data_export_request_id IS NOT NULL "
+            "AND target_upload_intent_id IS NULL) OR "
+            "(object_kind = 'quarantine' AND target_asset_id IS NULL "
+            "AND target_data_export_request_id IS NULL "
+            "AND target_upload_intent_id IS NOT NULL)",
             name="one_object_deletion_target",
         ),
         UniqueConstraint(
@@ -640,7 +652,15 @@ class ObjectDeletionEvidence(IdMixin, Base):
             "target_data_export_request_id",
             name="unique_account_export_deletion_evidence",
         ),
-        CheckConstraint("object_kind IN ('asset','data_export')", name="valid_deleted_object_kind"),
+        UniqueConstraint(
+            "account_deletion_request_id",
+            "target_upload_intent_id",
+            name="unique_account_quarantine_deletion_evidence",
+        ),
+        CheckConstraint(
+            "object_kind IN ('asset','data_export','quarantine')",
+            name="valid_deleted_object_kind",
+        ),
         CheckConstraint("outcome IN ('deleted','not_found')", name="valid_object_deletion_outcome"),
     )
 
