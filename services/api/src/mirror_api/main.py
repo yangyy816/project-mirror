@@ -18,14 +18,16 @@ from mirror_api.errors import (
     unexpected_error_handler,
     validation_error_handler,
 )
-from mirror_api.middleware import RequestIDMiddleware
-from mirror_api.routers import auth_router, health_router, stubs_router
+from mirror_api.middleware import LocalUploadAccessLogRedactionMiddleware, RequestIDMiddleware
+from mirror_api.routers import auth_router, health_router, local_upload_router, stubs_router
 from mirror_api.schemas import add_foundation_contract_schemas
+from mirror_api.storage_dependencies import create_object_storage_provider
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     auth_infrastructure = create_auth_infrastructure(settings)
+    object_storage_provider = create_object_storage_provider(settings)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -43,6 +45,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.state.auth_infrastructure = auth_infrastructure
+    app.state.object_storage_provider = object_storage_provider
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -58,12 +61,14 @@ def create_app() -> FastAPI:
         ],
     )
     app.add_middleware(RequestIDMiddleware)
+    app.add_middleware(LocalUploadAccessLogRedactionMiddleware)
     app.add_exception_handler(APIError, api_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, validation_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(StarletteHTTPException, http_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, unexpected_error_handler)
     app.include_router(health_router)
     app.include_router(auth_router)
+    app.include_router(local_upload_router)
     app.include_router(stubs_router)
 
     def custom_openapi() -> dict[str, object]:

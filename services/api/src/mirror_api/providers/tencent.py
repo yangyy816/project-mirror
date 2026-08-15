@@ -30,7 +30,22 @@ class TencentAgeAssuranceCandidateProvider:
 
 
 class TencentCosProvider:
-    async def create_private_upload_url(self, *, object_key: str) -> NoReturn:
+    async def create_private_upload_grant(
+        self,
+        *,
+        object_key: str,
+        content_type: str,
+        content_length: int,
+        checksum_sha256: str,
+    ) -> NoReturn:
+        del object_key, content_type, content_length, checksum_sha256
+        _not_verified("COS")
+
+    async def inspect_quarantine_object(self, *, object_key: str) -> NoReturn:
+        del object_key
+        _not_verified("COS")
+
+    async def delete_quarantine_object(self, *, object_key: str) -> NoReturn:
         del object_key
         _not_verified("COS")
 

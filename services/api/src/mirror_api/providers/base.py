@@ -1,14 +1,29 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
 
 
 @dataclass(frozen=True)
-class SignedObjectURL:
+class PrivateUploadGrant:
+    method: Literal["PUT"]
     url: str
-    expires_in_seconds: int
+    required_headers: Mapping[str, str]
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
+class QuarantineObjectMetadata:
+    byte_size: int
+    content_type: str
+    sha256: str
+    etag: str
+    uploaded_at: datetime
+
+
+DeleteResult = Literal["deleted", "not_found"]
 
 
 @dataclass(frozen=True)
@@ -77,7 +92,20 @@ class AgeAssuranceProvider(Protocol):
 
 
 class ObjectStorageProvider(Protocol):
-    async def create_private_upload_url(self, *, object_key: str) -> SignedObjectURL: ...
+    async def create_private_upload_grant(
+        self,
+        *,
+        object_key: str,
+        content_type: str,
+        content_length: int,
+        checksum_sha256: str,
+    ) -> PrivateUploadGrant: ...
+
+    async def inspect_quarantine_object(
+        self, *, object_key: str
+    ) -> QuarantineObjectMetadata | None: ...
+
+    async def delete_quarantine_object(self, *, object_key: str) -> DeleteResult: ...
 
 
 class VisionProvider(Protocol):

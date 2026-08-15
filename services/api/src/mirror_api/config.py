@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     sms_provider: Literal["mock", "tencent"] = "mock"
     storage_provider: Literal["local", "tencent_cos"] = "local"
     local_storage_root: Path = Path(".local-storage")
+    local_upload_base_url: str = "http://127.0.0.1:8000"
     object_storage_private: bool = True
     signed_url_ttl_seconds: int = Field(default=300, ge=60, le=900)
 
@@ -110,6 +111,26 @@ class Settings(BaseSettings):
             raise ValueError("Redis URL must use redis:// or rediss://")
         if not self.object_storage_private:
             raise ValueError("Project Mirror forbids public object storage")
+        if self.storage_provider == "local":
+            local_upload = urlparse(self.local_upload_base_url)
+            if (
+                local_upload.scheme != "http"
+                or local_upload.hostname
+                not in {
+                    "127.0.0.1",
+                    "localhost",
+                }
+                or any(
+                    (
+                        local_upload.username,
+                        local_upload.password,
+                        local_upload.query,
+                        local_upload.fragment,
+                        local_upload.path not in {"", "/"},
+                    )
+                )
+            ):
+                raise ValueError("local upload ingress must use a loopback HTTP origin")
 
         if self.app_env in {"test", "ci"}:
             if any(

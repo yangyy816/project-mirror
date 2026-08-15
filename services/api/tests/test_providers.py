@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import socket
+from hashlib import sha256
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -9,23 +11,28 @@ from mirror_api.providers.base import (
     AgeAssuranceProvider,
     AgeAssuranceResult,
     AgeAssuranceStatus,
+    ObjectStorageProvider,
     SmsProvider,
 )
+from mirror_api.providers.local import LocalObjectStorageProvider
 from mirror_api.providers.mock import (
-    LocalObjectStorageProvider,
     MockAgeAssuranceProvider,
     MockAgentProvider,
     MockImageGenerationProvider,
     MockSmsProvider,
     MockVisionProvider,
 )
-from mirror_api.providers.tencent import TencentAgeAssuranceCandidateProvider, TencentSmsProvider
+from mirror_api.providers.tencent import (
+    TencentAgeAssuranceCandidateProvider,
+    TencentCosProvider,
+    TencentSmsProvider,
+)
 
 
 @pytest.mark.asyncio
-async def test_provider_fakes_are_deterministic_and_private() -> None:
+async def test_provider_fakes_are_deterministic_and_private(tmp_path: Path) -> None:
     sms: SmsProvider = MockSmsProvider()
-    storage = LocalObjectStorageProvider()
+    storage: ObjectStorageProvider = LocalObjectStorageProvider(root=tmp_path)
     vision = MockVisionProvider()
     image = MockImageGenerationProvider()
     agent = MockAgentProvider()
@@ -41,9 +48,17 @@ async def test_provider_fakes_are_deterministic_and_private() -> None:
             request_reference="request-1",
         )
     )
-    signed = await storage.create_private_upload_url(object_key="users/demo/assets/abc")
-    assert "users/demo" not in signed.url
-    assert signed.expires_in_seconds == 300
+    fixture = b"synthetic-non-face-provider-fixture"
+    checksum = sha256(fixture).hexdigest()
+    signed = await storage.create_private_upload_grant(
+        object_key=f"quarantine/v1/{'a' * 64}",
+        content_type="image/png",
+        content_length=len(fixture),
+        checksum_sha256=checksum,
+    )
+    assert "quarantine" not in signed.url
+    assert signed.method == "PUT"
+    assert signed.required_headers["X-Content-SHA256"] == checksum
     assert (await vision.inspect_synthetic_fixture(fixture_id="fixture-1")).face_count == 1
     assert (await image.generate_synthetic_fixture(prompt_version="v1")).asset_reference.startswith(
         "fixture://"
@@ -117,4 +132,12 @@ async def test_unverified_tencent_candidates_fail_closed_without_network(
     with pytest.raises(NotImplementedError, match="not verified"):
         await TencentAgeAssuranceCandidateProvider().verify_credential(
             credential="test-credential", request_reference="request-1"
+        )
+
+    with pytest.raises(NotImplementedError, match="not verified"):
+        await TencentCosProvider().create_private_upload_grant(
+            object_key=f"quarantine/v1/{'b' * 64}",
+            content_type="image/png",
+            content_length=10,
+            checksum_sha256="c" * 64,
         )

@@ -54,6 +54,20 @@ def test_public_object_storage_is_always_rejected() -> None:
 
 
 @pytest.mark.parametrize(
+    "url",
+    (
+        "https://uploads.example",
+        "http://localhost:8000/path",
+        "http://user:password@localhost:8000",
+        "http://localhost:8000?token=value",
+    ),
+)
+def test_local_upload_ingress_is_restricted_to_loopback(url: str) -> None:
+    with pytest.raises(ValidationError, match="loopback HTTP origin"):
+        Settings(local_upload_base_url=url)
+
+
+@pytest.mark.parametrize(
     ("override", "message"),
     [
         ({"debug": True}, "debug must be false"),

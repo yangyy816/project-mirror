@@ -8,6 +8,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{8,128}$")
+LOCAL_UPLOAD_PATH = re.compile(r"^/_local/private-upload/[^/]+$")
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
@@ -17,4 +18,17 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         request.state.request_id = request_id
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
+        return response
+
+
+class LocalUploadAccessLogRedactionMiddleware(BaseHTTPMiddleware):
+    """Remove the local grant handle from the ASGI scope before access logging."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        response = await call_next(request)
+        if LOCAL_UPLOAD_PATH.fullmatch(request.scope["path"]):
+            redacted = "/_local/private-upload/[redacted]"
+            request.scope["path"] = redacted
+            request.scope["raw_path"] = redacted.encode("ascii")
+            request.scope["query_string"] = b""
         return response
