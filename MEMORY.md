@@ -5,7 +5,8 @@
 - 项目名：Project Mirror（内部名，正式品牌待定）
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
-- 当前阶段：Phase 0 + 可运行工程骨架
+- 当前阶段：Phase 1 — Application Foundation（COMMITTED）
+- 当前 Milestone：P1-M1 — Invite-only Identity and Authentication Backend（EXECUTING）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -34,6 +35,8 @@
 - 未共享、未执行的 `0001_phase0_foundation` 已在首次权威 PostgreSQL 验收前按 v0.2 一次性重生成；从下一次 migration 起只允许前向追加。
 - Phase 0 OpenAPI 暴露 inactive domain schemas 供生成契约使用，但没有新增成功型业务 endpoint；未实施业务仍为 501/401。
 - Project Mirror 使用项目级 `.codex` 定义专属 subagents：规划与最终审查使用 Sol High，边界明确的执行/测试/安全角色使用 Terra High；未指定 subagent 默认 Terra High，不覆盖主交互模型、不固定并发数、不修改全局 Codex 配置。
+- 执行状态统一为 `PROVISIONAL → COMMITTED → EXECUTION_READY → EXECUTING → PASS → FROZEN`；Phase 0 已 FROZEN，Phase 1 COMMITTED，P1-M1 已获授权进入 EXECUTING。
+- Terra 只能实现 Principal 已批准的架构；新架构决策必须停止并上报。计划外实现缺陷使用 `P1-M1-Rxx` 最小 Repair Task，架构变化不得包装成 Repair Task。
 
 ## 长期产品与数据边界
 
@@ -115,3 +118,4 @@
 - 2026-08-15：推送 Compose healthcheck 修复 `796ab552fb3a92af5eddac5ef23086a4037323e7`；远端 run `31871724239` 的三个 jobs 与全部 mandatory steps 通过，生成三项审计 artifacts，Phase 0 Gate 更新为 `PASS`。
 - 2026-08-15：审计提交 `f9398304b1a313540d80db701806d845f046bbb8` 的 run `31872379668` 与 annotated tag `phase0-baseline` 的 run `31872550234` 均三 jobs 全绿；tag 指向该审计提交，Phase 0 已冻结。
 - 2026-08-15：为后续开发新增 8 个项目级 Codex 角色与 Terra High 默认 subagent；Codex CLI 0.148.0-alpha.9 严格解析和三角色只读 smoke 通过，未进入 Phase 1。
+- 2026-08-15：P1-M1 获正式执行授权；不重跑 Master Planning，只追加统一状态机、Terra 架构权限边界和 `P1-M1-Rxx` Repair Task 协议，并明确不得进入 P1-M2。

@@ -10,6 +10,8 @@
 - 恶意上传：扩展/MIME/magic bytes、大小/像素、解码重编码、EXIF 清理、病毒/畸形检测和频率限制。
 - 路径穿越与 SSRF：存储 key 严格语法；Provider 不接受用户给出的任意 URL。
 - 验证码滥用：手机号哈希索引、频率/设备/IP 限制、短有效期、尝试次数、一次消费、日志脱敏。
+- 账户枚举、邀请码滥用与会话劫持：新用户仅在有效邀请码验证后可取得 challenge，挑战阶段不消费邀请码；响应不得暴露账户或邀请码存在性。access token 短时有效，Web refresh token 仅在 HttpOnly/Secure/SameSite=Lax Cookie 中传输，刷新与 Cookie 会话撤销执行 CSRF/Origin 校验；refresh token 重用撤销整个 session family。
+- 年龄凭证过度收集或供应商泄露：只通过 `AgeAssuranceProvider` 获取最小 18+ 结论与版本化不可逆引用，不保存证件、姓名、生日、精确年龄、凭证或原始响应。真实 Provider、法律审查、数据驻留和删除条款未验证前 production 注册必须关闭。
 - Prompt 注入：图片/文本均视为不可信数据；Agent 只能调用白名单 Tool，参数由 schema 和领域服务校验。
 - 重放与重复扣费：Idempotency-Key、唯一约束、不可变 Ledger、Webhook 签名与事件去重。
 - 供应商泄露：数据最小化、用途隔离、禁止公共训练条款、区域/跨境审核、可替换 Adapter。

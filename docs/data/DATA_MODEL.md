@@ -2,7 +2,7 @@
 
 ## 领域分组
 
-- 身份与授权：User、InviteCode、PhoneVerificationChallenge、UserSession、Consent。
+- 身份与授权：User、InviteCode、InviteRedemption、PhoneVerificationChallenge、UserSession、AgeAssuranceRecord、PolicyAcceptanceRecord、Consent。
 - 资产与审计：Asset、AssetVariant、AssetAccessAudit。
 - 题库资产：QuestionBankVersion、SyntheticIdentity、QuestionAsset。
 - 个人审美：AestheticProfile、AestheticProfileVersion、ReferenceSet、PreferenceEvent。
@@ -27,6 +27,8 @@
 - Synthetic evidence 是 provisional；有效 self-transfer 冲突证据优先。任何人口先验都不得成为 target geometry。
 - Credit 通过 Ledger 求和得到，用户表和账户表不保存可直接覆盖的余额。
 - PaymentEvent 以 provider + provider_event_id 去重，浏览器成功页不是支付依据。
+- InviteRedemption、AgeAssuranceRecord 和 PolicyAcceptanceRecord 是 append-only 审计事实；邀请码只在 OTP 成功消费、新用户创建与兑换的同一事务中增加使用量。`User.age_confirmed_at` 如存在只是投影，不是年龄证据权威来源。
+- PhoneVerificationChallenge、UserSession、IdempotencyRecord 和 session family 只保存用途隔离的 HMAC 或不可枚举引用，绝不保存手机号、OTP、邀请码、refresh token 或年龄凭证原文。refresh token 重用会撤销其 family；pending 用户在有效年龄与政策记录齐备前不能成为 active。
 
 ## 版本策略
 

@@ -1,4 +1,16 @@
-# Phase 0 Milestones
+# Project Mirror Milestones
+
+## 当前执行状态
+
+| Scope   | State     | Evidence / Boundary                                                    |
+| ------- | --------- | ---------------------------------------------------------------------- |
+| Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`         |
+| Phase 1 | COMMITTED | Application Foundation；不得在当前 Milestone 内宣称 PASS/FROZEN        |
+| P1-M1   | EXECUTING | 仅执行 Invite-only Identity and Authentication Backend；禁止进入 P1-M2 |
+
+状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
+
+## Phase 0 Milestones
 
 每个 Milestone 的 Evidence 由 P0.14 审计更新；Known Limitations 不得伪装为通过。
 

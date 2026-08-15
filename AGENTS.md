@@ -3,7 +3,8 @@
 ## 项目身份
 
 - 项目：Project Mirror
-- 当前阶段：Phase 0 + 可运行工程骨架
+- 当前阶段：Phase 1 — Application Foundation（COMMITTED）
+- 当前 Milestone：P1-M1 — Invite-only Identity and Authentication Backend（EXECUTING）
 - 首发：面向中国大陆的 18+ 邀请制 Beta
 - 默认语言：产品 UI 与项目沟通使用简体中文；代码、命令、变量名使用英文
 - 本文件适用于整个仓库；子目录可增加更严格的 `AGENTS.md`，不得放宽本文件约束
@@ -15,6 +16,13 @@
 3. 重要架构决策先更新文档或 ADR，再修改实践。
 4. 完成后运行与风险相称的测试、类型检查、构建和安全检查。
 5. 将新确认的架构决策、踩坑、用户纠正和外部资源位置写入 `MEMORY.md`；凭据只记位置，不记值。
+
+## 执行治理
+
+- 状态统一使用 `PROVISIONAL → COMMITTED → EXECUTION_READY → EXECUTING → PASS → FROZEN`。Phase 0 是 `FROZEN`；未完成工作不得称为 `FROZEN`。
+- Terra Agent 只能实现或把 Principal 已明确批准的架构编码为 ADR，不得自行创建新架构决策。遇到新决策时必须停止在决策边界并上报 Principal。
+- 计划外实现缺陷使用最小 Repair Task，编号为 `P<phase>-M<milestone>-R<nn>`；不得用新增 `T09/T10` 代替。架构变化必须走 change control，不能包装成 Repair Task。
+- Terra 的 PASS 只是证据。只有 Principal 审查实际 diff、验证输出、安全影响和集成结果后才能给出 `TASK_ACCEPTED`，并且只有 Principal 能决定 Milestone Gate。
 
 ## A. 不可违反的产品 Invariants
 
