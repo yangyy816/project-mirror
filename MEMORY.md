@@ -33,6 +33,7 @@
 - v0.2 持久化已落为独立版本实体：BaselineFaceModel/Measurement、SelfState/MorphologyDescriptor、DesiredDeltaDimension、Style、IdentityConstraint、QuestionTemplate/Instance/Route 与 SelfTransfer evidence；运行态 Run 可更新状态，历史 evidence 由 PostgreSQL trigger 防覆盖。
 - 未共享、未执行的 `0001_phase0_foundation` 已在首次权威 PostgreSQL 验收前按 v0.2 一次性重生成；从下一次 migration 起只允许前向追加。
 - Phase 0 OpenAPI 暴露 inactive domain schemas 供生成契约使用，但没有新增成功型业务 endpoint；未实施业务仍为 501/401。
+- Project Mirror 使用项目级 `.codex` 定义专属 subagents：规划与最终审查使用 Sol High，边界明确的执行/测试/安全角色使用 Terra High；未指定 subagent 默认 Terra High，不覆盖主交互模型、不固定并发数、不修改全局 Codex 配置。
 
 ## 长期产品与数据边界
 
@@ -112,3 +113,5 @@
 - 2026-08-15：Docker/Linux 权威验收修复 Web standalone 缺失 ESM helper、migration downgrade 遗漏 trigger function、超长 PostgreSQL constraint 名与无序父子测试夹具；最终 Compose build/start、50 个 Linux tests、migration lifecycle、PostgreSQL invariants、Celery+Redis 与本地 Gitleaks PASS。仅完整 GitHub Actions 因缺 remote/认证仍待执行。
 - 2026-08-15：创建并推送 Phase 0 baseline `39b14c68a05438b302f0f5b9471d8a0a1bef06e0`；远端 run `31871452535` 暴露 Compose `up --wait` 未等待应用 ready，增加 API/Worker/Web healthcheck 并完成本地五服务复验，等待修复提交的远端 CI。
 - 2026-08-15：推送 Compose healthcheck 修复 `796ab552fb3a92af5eddac5ef23086a4037323e7`；远端 run `31871724239` 的三个 jobs 与全部 mandatory steps 通过，生成三项审计 artifacts，Phase 0 Gate 更新为 `PASS`。
+- 2026-08-15：审计提交 `f9398304b1a313540d80db701806d845f046bbb8` 的 run `31872379668` 与 annotated tag `phase0-baseline` 的 run `31872550234` 均三 jobs 全绿；tag 指向该审计提交，Phase 0 已冻结。
+- 2026-08-15：为后续开发新增 8 个项目级 Codex 角色与 Terra High 默认 subagent；Codex CLI 0.148.0-alpha.9 严格解析和三角色只读 smoke 通过，未进入 Phase 1。
