@@ -1,0 +1,42 @@
+# dependencies
+node_modules/
+.pnpm-store/
+.turbo/
+
+# builds
+.next/
+dist/
+coverage/
+htmlcov/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+*.egg-info/
+
+# environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# local data
+.local-storage/
+work/
+*.db
+*.sqlite
+*.sqlite3
+
+# editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# generated temporary contract
+openapi.current.json

@@ -1,0 +1,80 @@
+# Project Mirror 工程规则
+
+## 项目身份
+
+- 项目：Project Mirror
+- 当前阶段：Phase 0 + 可运行工程骨架
+- 首发：面向中国大陆的 18+ 邀请制 Beta
+- 默认语言：产品 UI 与项目沟通使用简体中文；代码、命令、变量名使用英文
+- 本文件适用于整个仓库；子目录可增加更严格的 `AGENTS.md`，不得放宽本文件约束
+
+## 每次工作的强制顺序
+
+1. 在修改任何文件前完整读取仓库根目录的 `AGENTS.md` 与 `MEMORY.md`。
+2. 先检查工作树和相关实现，保留用户已有改动。
+3. 重要架构决策先更新文档或 ADR，再修改实践。
+4. 完成后运行与风险相称的测试、类型检查、构建和安全检查。
+5. 将新确认的架构决策、踩坑、用户纠正和外部资源位置写入 `MEMORY.md`；凭据只记位置，不记值。
+
+## A. 不可违反的产品 Invariants
+
+1. **Identity First**：默认优先保持用户可识别身份特征，除非用户明确提高修改强度。
+2. **No Beauty Score**：禁止颜值打分、排名、百分位或统一审美标准，只比较用户当前特征与其自主表达的偏好。
+3. **No Sensitive Inference**：不得从照片推断种族、民族、宗教、性取向、健康或政治属性。
+4. **Synthetic Question Bank**：生产问卷人物必须是可追溯的成年合成人物，禁止抓取真人、明星或社交平台照片作为核心题库。
+5. **Explainable Profile**：Aesthetic Profile 必须同时保存结构化偏好、置信度、证据和参考图，不能只有 embedding。
+6. **Versioned Profile**：Profile 只能追加新版本，不得覆盖历史版本；用户应能关闭学习并回滚。
+7. **User-Signal Learning Only**：只有接受、保存、拒绝、滑杆回调或明确反馈等用户行为能强化长期偏好；模型自产结果不是学习证据。
+8. **Immutable Original**：原图永不修改；编辑必须通过 Operation Graph、ImageVersion 和 Render 形成非破坏式版本。
+9. **Provider Adapters**：业务代码不得直接依赖具体 AI、短信、存储或支付 SDK，所有外部能力必须经过领域 Adapter。
+10. **Production Fails Closed**：生产配置必须拒绝 Mock、Local、不安全 Secret、开发 CORS、Debug、公开存储和未通过 Gate 的处理能力。
+11. **Sensitive Data Gate**：Facial Data 统一按高度敏感数据保护，但技术处理操作不得未经法律判断一概称为“人脸识别”；生产启用必须通过 `LEGAL_REVIEW_REQUIRED` Gate。
+12. **Self-conditioned Desired Self**：编辑只优化“以用户当前 SelfState 为锚点的理想自我”，绝不以全局理想脸、人口平均脸或隐藏审美模板定义目标。
+13. **Identity Reference Frame**：用户自己的当前身份与 SelfState 始终是几何参考坐标；相同 DesiredDelta 作用于不同用户时不得收敛到相同绝对几何。
+14. **Evidence Precedence**：合成问卷证据是 provisional；有效且冲突的 self-transfer 证据必须优先，明确指令、手动纠正和显式锁又优先于推断证据。
+15. **Population Prior Restriction**：人口先验只能用于不确定性、测量、安全边界和调度，永远不得生成用户期望几何；证据不足时应减小 delta 并提高不确定性。
+16. **No Sensitive-trait Routing**：问卷路由只能依赖连续 SelfState 几何、可靠性、覆盖和不确定性，不得使用种族、民族、国籍或其他敏感特征分类。
+17. **Anti-homogenization**：Target、EditPlan、Reference Set、Profile 学习和路由都必须防止跨用户向单一“标准脸”坍缩。
+
+## 隐私与安全
+
+- 人脸照片、landmark、几何测量和参考图统一视为高度敏感个人数据。
+- 私测仅限明确确认 18+、持有效邀请码并完成版本化授权的用户。
+- 对象存储必须私有；访问只能通过授权请求和短时签名 URL。
+- 上传必须执行扩展名白名单、MIME 与 magic bytes 校验、大小和像素限制、解码重编码、EXIF 清理及畸形图片拒绝。
+- 默认不使用用户图片训练公共模型；跨境处理、公开注册和真实收费必须通过独立合规验收后才能开启。
+- 日志不得记录手机号明文、验证码、访问令牌、签名 URL、图片内容或供应商密钥。
+- 所有创建型接口必须支持幂等；账务使用不可变 Ledger，禁止直接修改余额。
+- 不得提交 `.env`、凭据、真实用户数据或真实人脸测试素材。
+
+## B. 架构决策的执行规则
+
+- 技术栈、数据库、Worker、云、账务和契约来源等决策必须记录为 `docs/adr/` 下的 Accepted ADR，并包含 Context、Decision、Alternatives、Consequences、Status。
+- 实现必须服从 Accepted ADR；如需改变，先新增 superseding ADR，不直接改写历史理由。
+- PostgreSQL-specific invariant 与 migration 只能由真实 PostgreSQL 验证；SQLite、内存数据库和 Mock DB 不能作为通过证据。
+- Worker 的 Domain/Application 逻辑不得依赖 Celery；Celery 只是 Linux 生产 Task Adapter，Windows 使用 `LocalTaskRunner` 或开发专用 solo 方式。
+- FastAPI/Pydantic → OpenAPI → generated TypeScript client 是单向契约链，禁止长期双写接口类型。
+
+## C. Research Hypotheses 与 Operational Targets
+
+- 统计模型、题目数量、最低覆盖率、landmark + deterministic warp 都是 `RESEARCH HYPOTHESIS`，必须放在研究规格中并允许实验替换。
+- 合成身份数量、成本、延迟和覆盖目标是 `OPERATIONAL TARGET`，可随 QA 与实验结果调整。
+- 研究假设和运营目标不得升级为本文件中的永久产品 Invariant。
+
+## 数据与 API 规则
+
+- 公共 API 使用 `/api/v1`；未实现功能明确返回 `501`，不得伪造成功。
+- 错误格式固定为 `code`、`message`、`request_id`、`details`。
+- 创建型请求接收 `Idempotency-Key`；异步任务返回不可猜测的 `job_id`。
+- 数据库结构变更只能通过 Alembic migration；migration 必须在真实 PostgreSQL 上验证升级、回滚、重升级与 schema consistency。
+- Aesthetic Profile、题库运行、Consent、Prompt 与 Provider 调用都必须锁定版本并可追溯。
+- 原图资产、派生资产和编辑操作必须使用不同实体与不可变关联。
+
+## 代码质量与完成标准
+
+- TypeScript 开启 strict；Python 使用完整类型标注与严格 Pydantic schema。
+- 核心领域逻辑不得放在路由、UI 组件或供应商 Adapter 中。
+- 测试不得调用真实短信、云存储、AI 或支付服务；使用确定性 Fake/Mock。
+- 提交前至少通过：格式检查、lint、类型检查、单元测试、契约漂移检查、构建和迁移检查。
+- 安全或数据约束未完成时使用显式未实现状态，不得用临时旁路降低约束。
+- 完成回复必须结论先行，并用一句话回显本次新增到 `MEMORY.md` 的内容。

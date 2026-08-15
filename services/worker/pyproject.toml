@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mirror-worker"
+version = "0.1.0"
+description = "Project Mirror asynchronous worker"
+requires-python = ">=3.13"
+dependencies = ["celery[redis]>=5.5,<6", "pydantic-settings>=2.10,<3"]
+
+[project.optional-dependencies]
+dev = ["mypy>=1.17,<2", "pytest>=9.0.3,<10", "ruff>=0.12,<1"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mirror_worker"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers -p no:cacheprovider"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "RUF"]
+ignore = ["B008", "RUF001", "S101"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["celery.*", "mirror_api.*"]
+ignore_missing_imports = true

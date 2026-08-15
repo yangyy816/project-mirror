@@ -1,0 +1,152 @@
+name: phase-0-gates
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-and-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_DB: mirror_test
+          POSTGRES_USER: mirror
+          POSTGRES_PASSWORD: mirror_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mirror -d mirror_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:8.2.1-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      APP_ENV: ci
+      DATABASE_URL: postgresql+psycopg://mirror:mirror_ci_only@127.0.0.1:5432/mirror_test
+      TEST_DATABASE_URL: postgresql+psycopg://mirror:mirror_ci_only@127.0.0.1:5432/mirror_test
+      REDIS_URL: redis://127.0.0.1:6379/0
+      TEST_REDIS_URL: redis://127.0.0.1:6379/0
+      RUN_CELERY_INTEGRATION: "true"
+      TASK_RUNNER: celery
+      SMS_PROVIDER: mock
+      STORAGE_PROVIDER: local
+      VISION_PROVIDER: mock
+      IMAGE_GENERATION_PROVIDER: mock
+      AGENT_PROVIDER: mock
+      OBJECT_STORAGE_PRIVATE: "true"
+      SENSITIVE_PROCESSING_ENABLED: "false"
+      CI: "true"
+      PYTHONPATH: services/api/src:services/worker/src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.13.1
+          cache: pip
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: pnpm
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.lock -r requirements-supply-chain.txt
+          pnpm install --frozen-lockfile
+      - name: Python quality
+        run: |
+          python -m ruff format --check services
+          python -m ruff check services
+          python -m mypy services/api/src services/worker/src
+      - name: PostgreSQL migration lifecycle
+        run: |
+          python -m alembic -c services/api/alembic.ini downgrade base
+          python -m alembic -c services/api/alembic.ini upgrade head
+          python -m alembic -c services/api/alembic.ini downgrade base
+          python -m alembic -c services/api/alembic.ini upgrade head
+          python -m alembic -c services/api/alembic.ini check
+      - name: Start Linux Celery worker
+        run: |
+          celery -A mirror_worker.app:celery_app worker --loglevel=INFO --pool=solo > celery.log 2>&1 &
+          echo $! > celery.pid
+      - name: Python tests
+        run: python -m pytest services/api/tests services/worker/tests
+      - name: TypeScript quality and build
+        run: pnpm check
+      - name: Contract regeneration drift
+        run: |
+          python -m mirror_api.scripts.export_openapi
+          pnpm contracts:generate
+          git diff --exit-code -- packages/contracts/openapi.json packages/contracts/src/schema.ts
+      - name: Dependency and license audits
+        run: |
+          pip-audit --local
+          pnpm audit --audit-level high
+          pip-licenses --format=json --output-file=python-licenses.json
+          pnpm licenses list --json > node-licenses.json
+      - name: Generate SBOM
+        run: cyclonedx-py environment --output-format JSON --output-file python-sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase-0-audit-evidence
+          path: |
+            celery.log
+            python-licenses.json
+            node-licenses.json
+            python-sbom.cdx.json
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+
+  docker-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose model
+        run: docker compose -f compose.yaml config --quiet
+      - name: Build Phase 0 images
+        run: docker compose -f compose.yaml build
+      - name: Start Phase 0 topology
+        run: docker compose -f compose.yaml up -d --wait
+      - name: Validate container behavior
+        run: |
+          curl --fail --show-error --silent http://127.0.0.1:8000/health/live
+          curl --fail --show-error --silent http://127.0.0.1:8000/health/ready
+          curl --fail --show-error --silent http://127.0.0.1:3000/
+          docker compose -f compose.yaml exec -T worker \
+            celery -A mirror_worker.app:celery_app inspect ping --timeout=10
+          docker compose -f compose.yaml exec -T api alembic check
+      - name: Capture container evidence
+        if: always()
+        run: |
+          docker compose -f compose.yaml ps --all
+          docker compose -f compose.yaml logs --no-color > docker-compose.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase-0-docker-evidence
+          path: docker-compose.log
+      - name: Stop Phase 0 topology
+        if: always()
+        run: docker compose -f compose.yaml down --volumes --remove-orphans

@@ -1,0 +1,2 @@
+-e services/api[dev]
+-e services/worker[dev]

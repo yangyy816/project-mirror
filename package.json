@@ -1,0 +1,26 @@
+{
+  "name": "project-mirror",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "format:check": "prettier --check AGENTS.md MEMORY.md README.md CONTRIBUTING.md SECURITY.md package.json pnpm-workspace.yaml turbo.json compose.yaml apps packages scripts docs .github",
+    "format:write": "prettier --write AGENTS.md MEMORY.md README.md CONTRIBUTING.md SECURITY.md package.json pnpm-workspace.yaml turbo.json compose.yaml apps packages scripts docs .github",
+    "contracts:generate": "pnpm --filter @mirror/contracts generate",
+    "contracts:check": "pnpm --filter @mirror/contracts check",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm contracts:check && pnpm build"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2",
+    "turbo": "2.9.14",
+    "typescript-eslint": "8.67.0"
+  }
+}

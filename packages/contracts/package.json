@@ -1,0 +1,25 @@
+{
+  "name": "@mirror/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "scripts": {
+    "generate": "openapi-typescript openapi.json -o src/schema.ts",
+    "build": "tsc --noEmit",
+    "lint": "eslint src --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import ../../scripts/vite-windows-sandbox.mjs node_modules/vitest/vitest.mjs run --pool=threads --maxWorkers=1",
+    "check": "node scripts/check-generated.mjs"
+  },
+  "devDependencies": {
+    "eslint": "9.34.0",
+    "openapi-typescript": "7.9.1",
+    "typescript": "5.9.2",
+    "vitest": "3.2.6"
+  }
+}

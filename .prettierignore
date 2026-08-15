@@ -1,0 +1,9 @@
+node_modules
+.next
+.turbo
+dist
+coverage
+pnpm-lock.yaml
+packages/contracts/openapi.json
+packages/contracts/src/schema.ts
+pytest-cache-files-*/

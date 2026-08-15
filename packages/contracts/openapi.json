@@ -1,0 +1,1078 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Project Mirror API",
+    "summary": "Privacy-first foundation for a personal aesthetic photo editing agent.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health/live": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Live",
+        "operationId": "live_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Ready",
+        "operationId": "ready_health_ready_get",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Settings"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Settings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Version",
+        "operationId": "version_version_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sms-challenges": {
+      "post": {
+        "tags": [
+          "phase-boundaries"
+        ],
+        "summary": "Create Sms Challenge",
+        "operationId": "create_sms_challenge_api_v1_auth_sms_challenges_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceholderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assets": {
+      "post": {
+        "tags": [
+          "phase-boundaries"
+        ],
+        "summary": "Create Asset",
+        "operationId": "create_asset_api_v1_assets_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceholderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/questionnaires/runs": {
+      "post": {
+        "tags": [
+          "phase-boundaries"
+        ],
+        "summary": "Create Questionnaire Run",
+        "operationId": "create_questionnaire_run_api_v1_questionnaires_runs_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceholderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profiles": {
+      "post": {
+        "tags": [
+          "phase-boundaries"
+        ],
+        "summary": "Create Profile",
+        "operationId": "create_profile_api_v1_profiles_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceholderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/editing-sessions": {
+      "post": {
+        "tags": [
+          "phase-boundaries"
+        ],
+        "summary": "Create Editing Session",
+        "operationId": "create_editing_session_api_v1_editing_sessions_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceholderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/billing/checkout": {
+      "post": {
+        "tags": [
+          "phase-boundaries"
+        ],
+        "summary": "Create Checkout",
+        "operationId": "create_checkout_api_v1_billing_checkout_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceholderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorEnvelope": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "request_id"
+        ],
+        "title": "ErrorEnvelope"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "live",
+              "ready",
+              "limited"
+            ],
+            "title": "Status"
+          },
+          "service": {
+            "type": "string",
+            "title": "Service",
+            "default": "mirror-api"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "dependencies": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "available",
+                "unavailable",
+                "not_checked"
+              ]
+            },
+            "type": "object",
+            "title": "Dependencies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "dependencies"
+        ],
+        "title": "HealthResponse"
+      },
+      "PlaceholderRequest": {
+        "properties": {
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent"
+          }
+        },
+        "type": "object",
+        "title": "PlaceholderRequest"
+      },
+      "Settings": {
+        "properties": {
+          "app_env": {
+            "type": "string",
+            "enum": [
+              "development",
+              "test",
+              "ci",
+              "production"
+            ],
+            "title": "App Env",
+            "default": "development"
+          },
+          "app_version": {
+            "type": "string",
+            "title": "App Version",
+            "default": "0.1.0"
+          },
+          "log_level": {
+            "type": "string",
+            "title": "Log Level",
+            "default": "INFO"
+          },
+          "debug": {
+            "type": "boolean",
+            "title": "Debug",
+            "default": false
+          },
+          "database_url": {
+            "type": "string",
+            "title": "Database Url",
+            "default": "postgresql+psycopg://mirror:mirror_dev_only@127.0.0.1:5432/mirror"
+          },
+          "redis_url": {
+            "type": "string",
+            "title": "Redis Url",
+            "default": "redis://127.0.0.1:6379/0"
+          },
+          "cors_origins": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cors Origins"
+          },
+          "auth_token_secret": {
+            "type": "string",
+            "title": "Auth Token Secret",
+            "default": "development-only-not-for-production"
+          },
+          "auth_callback_url": {
+            "type": "string",
+            "title": "Auth Callback Url",
+            "default": "http://127.0.0.1:3000/auth/callback"
+          },
+          "sms_provider": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "tencent"
+            ],
+            "title": "Sms Provider",
+            "default": "mock"
+          },
+          "storage_provider": {
+            "type": "string",
+            "enum": [
+              "local",
+              "tencent_cos"
+            ],
+            "title": "Storage Provider",
+            "default": "local"
+          },
+          "local_storage_root": {
+            "type": "string",
+            "format": "path",
+            "title": "Local Storage Root",
+            "default": ".local-storage"
+          },
+          "object_storage_private": {
+            "type": "boolean",
+            "title": "Object Storage Private",
+            "default": true
+          },
+          "signed_url_ttl_seconds": {
+            "type": "integer",
+            "maximum": 900.0,
+            "minimum": 60.0,
+            "title": "Signed Url Ttl Seconds",
+            "default": 300
+          },
+          "vision_provider": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "disabled",
+              "verified_external",
+              "tencent_candidate"
+            ],
+            "title": "Vision Provider",
+            "default": "mock"
+          },
+          "image_generation_provider": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "disabled",
+              "verified_external",
+              "tencent_candidate"
+            ],
+            "title": "Image Generation Provider",
+            "default": "mock"
+          },
+          "agent_provider": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "disabled",
+              "verified_external",
+              "tencent_candidate"
+            ],
+            "title": "Agent Provider",
+            "default": "mock"
+          },
+          "task_runner": {
+            "type": "string",
+            "enum": [
+              "local",
+              "celery"
+            ],
+            "title": "Task Runner",
+            "default": "local"
+          },
+          "sensitive_processing_enabled": {
+            "type": "boolean",
+            "title": "Sensitive Processing Enabled",
+            "default": false
+          },
+          "legal_review_status": {
+            "type": "string",
+            "enum": [
+              "required",
+              "approved"
+            ],
+            "title": "Legal Review Status",
+            "default": "required"
+          },
+          "provider_benchmark_status": {
+            "type": "string",
+            "enum": [
+              "required",
+              "approved"
+            ],
+            "title": "Provider Benchmark Status",
+            "default": "required"
+          },
+          "tencent_secret_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tencent Secret Id"
+          },
+          "tencent_secret_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tencent Secret Key"
+          },
+          "tencent_region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tencent Region"
+          },
+          "tencent_cos_bucket": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tencent Cos Bucket"
+          },
+          "tencent_sms_app_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tencent Sms App Id"
+          },
+          "tencent_sms_sign_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tencent Sms Sign Name"
+          }
+        },
+        "type": "object",
+        "title": "Settings"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VersionResponse": {
+        "properties": {
+          "service": {
+            "type": "string",
+            "title": "Service",
+            "default": "mirror-api"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "api_version": {
+            "type": "string",
+            "title": "Api Version",
+            "default": "v1"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "VersionResponse"
+      },
+      "SelfStateContract": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "version": {
+            "exclusiveMinimum": 0,
+            "title": "Version",
+            "type": "integer"
+          },
+          "baseline_face_model_id": {
+            "title": "Baseline Face Model Id",
+            "type": "string"
+          },
+          "state_schema_version": {
+            "title": "State Schema Version",
+            "type": "string"
+          },
+          "reliable_dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reliable Dimensions",
+            "type": "array"
+          },
+          "unreliable_dimensions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unreliable Dimensions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "baseline_face_model_id",
+          "state_schema_version",
+          "reliable_dimensions",
+          "unreliable_dimensions"
+        ],
+        "title": "SelfStateContract",
+        "type": "object"
+      },
+      "DesiredDeltaDimensionContract": {
+        "additionalProperties": false,
+        "properties": {
+          "dimension_key": {
+            "title": "Dimension Key",
+            "type": "string"
+          },
+          "direction": {
+            "enum": [
+              -1,
+              0,
+              1
+            ],
+            "title": "Direction",
+            "type": "integer"
+          },
+          "magnitude": {
+            "minimum": 0,
+            "title": "Magnitude",
+            "type": "number"
+          },
+          "preference_confidence": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Preference Confidence",
+            "type": "number"
+          },
+          "generalization_confidence": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Generalization Confidence",
+            "type": "number"
+          },
+          "transfer_confidence": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Transfer Confidence",
+            "type": "number"
+          },
+          "user_lock": {
+            "enum": [
+              "none",
+              "preserve"
+            ],
+            "title": "User Lock",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dimension_key",
+          "direction",
+          "magnitude",
+          "preference_confidence",
+          "generalization_confidence",
+          "transfer_confidence",
+          "user_lock"
+        ],
+        "title": "DesiredDeltaDimensionContract",
+        "type": "object"
+      },
+      "DesiredDeltaProfileContract": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "version": {
+            "exclusiveMinimum": 0,
+            "title": "Version",
+            "type": "integer"
+          },
+          "self_state_version_id": {
+            "title": "Self State Version Id",
+            "type": "string"
+          },
+          "inference_algorithm_version": {
+            "title": "Inference Algorithm Version",
+            "type": "string"
+          },
+          "evidence_fusion_version": {
+            "title": "Evidence Fusion Version",
+            "type": "string"
+          },
+          "dimensions": {
+            "items": {
+              "$ref": "#/components/schemas/DesiredDeltaDimensionContract"
+            },
+            "title": "Dimensions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "self_state_version_id",
+          "inference_algorithm_version",
+          "evidence_fusion_version",
+          "dimensions"
+        ],
+        "title": "DesiredDeltaProfileContract",
+        "type": "object"
+      },
+      "QuestionnaireRunContextContract": {
+        "additionalProperties": false,
+        "properties": {
+          "baseline_face_model_id": {
+            "title": "Baseline Face Model Id",
+            "type": "string"
+          },
+          "self_state_version_id": {
+            "title": "Self State Version Id",
+            "type": "string"
+          },
+          "question_bank_version": {
+            "title": "Question Bank Version",
+            "type": "string"
+          },
+          "routing_algorithm_version": {
+            "title": "Routing Algorithm Version",
+            "type": "string"
+          },
+          "route_seed": {
+            "title": "Route Seed",
+            "type": "string"
+          },
+          "measurement_normalization_version": {
+            "title": "Measurement Normalization Version",
+            "type": "string"
+          },
+          "morphology_descriptor_version": {
+            "title": "Morphology Descriptor Version",
+            "type": "string"
+          },
+          "neighborhood_metric_version": {
+            "title": "Neighborhood Metric Version",
+            "type": "string"
+          },
+          "stimulus_generator_version": {
+            "title": "Stimulus Generator Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "baseline_face_model_id",
+          "self_state_version_id",
+          "question_bank_version",
+          "routing_algorithm_version",
+          "route_seed",
+          "measurement_normalization_version",
+          "morphology_descriptor_version",
+          "neighborhood_metric_version",
+          "stimulus_generator_version"
+        ],
+        "title": "QuestionnaireRunContextContract",
+        "type": "object"
+      }
+    }
+  }
+}

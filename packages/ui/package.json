@@ -1,0 +1,23 @@
+{
+  "name": "@mirror/ui",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "eslint src --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import ../../scripts/vite-windows-sandbox.mjs node_modules/vitest/vitest.mjs run --pool=threads --maxWorkers=1 --passWithNoTests"
+  },
+  "peerDependencies": {
+    "react": ">=19"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.12",
+    "eslint": "9.34.0",
+    "typescript": "5.9.2",
+    "vitest": "3.2.6"
+  }
+}
