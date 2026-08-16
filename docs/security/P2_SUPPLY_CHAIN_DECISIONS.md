@@ -15,6 +15,27 @@ This record freezes the P2-M1 dependency, model and data boundary. It records re
 
 MediaPipe upstream version labels are not collapsed: the v0.10.35 release is the plan's candidate snapshot, while the 2026-08-16 `releases/latest` response is tag v1.0.0 and its notes mention internal version 0.10.36. A later PoC must lock the exact source tag, package/runtime and Face Landmarker artifact independently.
 
+## P2-M3-T06 MediaPipe evidence update
+
+On 2026-08-17 the Principal independently read and visually verified all pages of the official
+BlazeFace Short Range, Face Mesh V2 and Blendshape V2 model cards. Each card explicitly licenses its
+model under Apache-2.0. The cards provide only high-level training/evaluation descriptions: consented
+mobile-AR images, real-world smartphone images, or controlled multi-view lab subjects and GHUM-derived
+samples. They do not provide a complete per-dataset rights, territory, deletion or redistribution
+chain.
+
+The public Face Landmarker object has immutable GCS generation `1683136941468629`, size `3758596`,
+MD5 `b0e7274907a1644404fef66b28dd6d85` and CRC32C `2FSEdQ==`. Upstream does not publish SHA-256.
+No wheel or `.task` bundle was downloaded or installed because explicit artifact-download authority
+is still absent. Consequently package contents, bundle SHA-256, native/transitive SBOM and notices,
+Python 3.13 compatibility, zero-network behavior and Windows/Linux repeatability remain unverified.
+
+`P2_M3_T06_DECISION: POC_BLOCKED`
+
+`MEDIAPIPE_INSTALLED: NO`
+
+`MODEL_ARTIFACTS_ADDED: NONE`
+
 ## Frozen implementation boundary
 
 - P2-M1 adds no MediaPipe, OpenCV, imagededup, PyMC, ASAP, React-Konva, OpenAI Agents SDK, makeup-transfer, memory-graph or 3D-face dependency.

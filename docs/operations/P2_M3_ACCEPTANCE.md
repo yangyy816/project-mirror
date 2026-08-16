@@ -154,6 +154,29 @@ and must reconcile all eight private checksums before use.
   test directories were removed.
 - T05 and R03 do not approve a Vision candidate, provide V02 calibration or satisfy T06–T08. M3
   remains `EXECUTING` and M4 entry remains closed.
+- Candidate `5a726fc6348ab253b98e945348cfeac4b835a832` completed same-SHA run `31968433284`.
+  `quality-and-integration`, `secret-scan` and `docker-validation` all passed. Phase 1, P2-M1,
+  P2-M2, Docker, project-audit and zero-result Gitleaks artifacts were present. Principal accepts
+  T05 and R03; this is not the final T07 M3 evidence Gate.
+
+## T06 Vision candidate supply-chain Gate
+
+- Exact MediaPipe source candidate remains `v0.10.35` at commit
+  `f8ef212d5c962c0e853db7e59d217056b187084b`; Windows and Linux wheel SHA-256 values are recorded,
+  but wheel contents and the native/transitive dependency chain have not been acquired or audited.
+- The Principal read and rendered all pages of the official BlazeFace Short Range, Face Mesh V2 and
+  Blendshape V2 model cards. Each model card explicitly states Apache-2.0. Their training/evaluation
+  data descriptions are high level and do not close per-dataset rights, territory, deletion or
+  redistribution evidence.
+- GCS metadata fixes the Face Landmarker bundle at generation `1683136941468629`, size `3758596`,
+  MD5 `b0e7274907a1644404fef66b28dd6d85` and CRC32C `2FSEdQ==`; upstream publishes no SHA-256.
+- No wheel, package or `.task` artifact was downloaded, installed or executed. Explicit artifact
+  acquisition authority is required before checksum, package notice/SBOM, Python 3.13, zero-network,
+  platform and eight-asset calibration evidence can be produced.
+- T06 therefore returns the protocol-defined evidence-backed blocker without weakening the Gate.
+  T07/T08 and M4 entry remain closed.
+
+`P2_M3_T06_STATUS: BLOCKED`
 
 ## Deferred production boundary
 
