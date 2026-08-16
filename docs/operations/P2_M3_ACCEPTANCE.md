@@ -109,6 +109,20 @@ and must reconcile all eight private checksums before use.
 - T04 does not approve a real Vision candidate, perform adult/likeness/license review on V01 assets,
   register an identity or satisfy T06/T07. Those gates remain pending.
 
+## P2-M3-R02 frozen M2 boundary regression repair
+
+- The failed `quality-and-integration` job in run `31966322329` was caused by the frozen M2
+  regression test recursively scanning every later `synthetic_dataset` module. The new M3
+  normalization and QA modules therefore supplied `SyntheticQARun` to an M2-only forbidden-symbol
+  assertion even though no M2 implementation crossed into M3.
+- `P2-M3-R02` keeps the existing broad zero-network and redacted-logging scan intact, but fixes the
+  M2 phase-boundary scan to the concrete M2 generation, prompt, raw-storage and Worker module set.
+  A regression assertion proves that present M3 normalization/QA modules are non-empty and disjoint
+  from that frozen M2 source set.
+- The four focused M2 security-boundary tests pass locally; Ruff format/lint and `git diff --check`
+  also pass. The wider evidence tests require Linux CI because the known Windows pytest temporary
+  directory ACL fault recurred; same-SHA Actions evidence remains required before accepting R02.
+
 ## Deferred production boundary
 
 `PRODUCTION-BLOCKER-IMAGEGEN-PROVIDER` remains `OPEN`. M3 synthetic research does not approve a

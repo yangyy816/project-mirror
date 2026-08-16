@@ -18,6 +18,19 @@ M2_REPOSITORY_SOURCE_PATHS = (
     ROOT / "services/worker/src/mirror_worker/celery_adapter.py",
 )
 M2_SOURCE_PATHS = tuple(path for path in M2_REPOSITORY_SOURCE_PATHS if path.is_file())
+M2_PHASE_BOUNDARY_SOURCE_PATHS = (
+    ROOT / "services/api/src/mirror_api/synthetic_dataset/codex_native_source.py",
+    ROOT / "services/api/src/mirror_api/synthetic_dataset/generation_repository.py",
+    ROOT / "services/api/src/mirror_api/synthetic_dataset/generation_service.py",
+    ROOT / "services/api/src/mirror_api/synthetic_dataset/generation_types.py",
+    ROOT / "services/api/src/mirror_api/synthetic_dataset/prompt_material.py",
+    ROOT / "services/api/src/mirror_api/synthetic_dataset/raw_storage.py",
+    ROOT / "services/worker/src/mirror_worker/synthetic_generation.py",
+)
+M3_SOURCE_PATHS = tuple(
+    sorted((ROOT / "services/api/src/mirror_api/synthetic_dataset").glob("normalization*.py"))
+    + sorted((ROOT / "services/api/src/mirror_api/synthetic_dataset").glob("qa*.py"))
+)
 FORBIDDEN_NETWORK_IMPORTS = frozenset(
     {"aiohttp", "boto3", "httpx", "requests", "tencentcloud", "urllib", "urllib3"}
 )
@@ -101,6 +114,7 @@ def test_generation_task_message_is_exactly_reference_only() -> None:
 
 
 def test_m2_pipeline_has_no_network_sdk_url_or_sensitive_logging_path() -> None:
+    assert all(path.is_file() for path in M2_SOURCE_PATHS)
     assert any("synthetic_dataset" in path.parts for path in M2_SOURCE_PATHS)
     for source_path in M2_SOURCE_PATHS:
         source = source_path.read_text(encoding="utf-8")
@@ -128,11 +142,16 @@ def test_m2_pipeline_has_no_network_sdk_url_or_sensitive_logging_path() -> None:
 
 
 def test_m2_does_not_cross_into_m3_or_public_api_scope() -> None:
+    assert M3_SOURCE_PATHS
+    assert all(path.is_file() for path in M2_PHASE_BOUNDARY_SOURCE_PATHS)
+    assert set(M2_PHASE_BOUNDARY_SOURCE_PATHS).isdisjoint(M3_SOURCE_PATHS)
     committed = json.loads((ROOT / "packages/contracts/openapi.json").read_text(encoding="utf-8"))
     assert committed == app.openapi()
     assert not any("synthetic" in path.lower() for path in committed["paths"])
 
-    m2_source = "\n".join(path.read_text(encoding="utf-8") for path in M2_SOURCE_PATHS)
+    m2_source = "\n".join(
+        path.read_text(encoding="utf-8") for path in M2_PHASE_BOUNDARY_SOURCE_PATHS
+    )
     for forbidden_symbol in (
         "BaselineFaceModel",
         "QuestionBankManifest",
