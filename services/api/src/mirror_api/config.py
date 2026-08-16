@@ -133,6 +133,7 @@ class Settings(BaseSettings):
     image_generation_provider: Literal[
         "mock", "disabled", "verified_external", "tencent_candidate"
     ] = "mock"
+    synthetic_storage_provider: Literal["mock", "disabled", "tencent_candidate"] = "mock"
     agent_provider: Literal["mock", "disabled", "verified_external", "tencent_candidate"] = "mock"
     task_runner: Literal["local", "celery"] = "local"
 
@@ -197,6 +198,7 @@ class Settings(BaseSettings):
                     self.sms_provider,
                     self.vision_provider,
                     self.image_generation_provider,
+                    self.synthetic_storage_provider,
                     self.agent_provider,
                     self.age_assurance_provider,
                 )
@@ -231,6 +233,8 @@ class Settings(BaseSettings):
             )
         ):
             failures.append("Phase 0 production AI providers must remain disabled")
+        if self.synthetic_storage_provider != "disabled":
+            failures.append("P2 production synthetic storage provider must remain disabled")
         if self.sensitive_processing_enabled:
             failures.append("Phase 0 forbids production sensitive processing")
         if not self.registration_enabled and (

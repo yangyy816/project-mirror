@@ -91,6 +91,16 @@ def test_upgrade_downgrade_reupgrade_and_schema_consistency(
     monkeypatch.setenv("DATABASE_URL", database_url)
     get_settings.cache_clear()
 
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "TRUNCATE TABLE synthetic_generation_policies, synthetic_prompt_templates, "
+                "synthetic_qa_policies, geometry_ontology_versions, synthetic_identities, assets, "
+                "question_bank_versions, users CASCADE"
+            )
+        )
+    engine.dispose()
     command.downgrade(config, "base")
     command.upgrade(config, "0002_identity_auth")
     engine = create_engine(database_url)
@@ -123,8 +133,9 @@ def test_upgrade_downgrade_reupgrade_and_schema_consistency(
         ).one()
     assert migrated == ("legacy-phase0", "legacy-consent", "0" * 64, "legacy-phase0")
     command.upgrade(config, "0007_account_quarantine_evidence")
-    command.downgrade(config, "0006_deletion_evidence_targets")
-    command.upgrade(config, "0007_account_quarantine_evidence")
+    command.upgrade(config, "0008_synth_dataset_foundation")
+    command.downgrade(config, "0007_account_quarantine_evidence")
+    command.upgrade(config, "0008_synth_dataset_foundation")
     command.check(config)
     engine.dispose()
     get_settings.cache_clear()

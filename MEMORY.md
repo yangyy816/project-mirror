@@ -5,8 +5,8 @@
 - 项目名：Project Mirror（内部名，正式品牌待定）
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
-- 当前阶段：Phase 1 — Application Foundation（FROZEN）
-- 当前 Milestone：P1-M6 — Application Foundation Integration Gate（FROZEN）
+- 当前阶段：Phase 2 — Synthetic Dataset Engine（COMMITTED）
+- 当前 Milestone：P2-M1 — Domain, Provenance, Governance and Research Baseline（EXECUTING）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -121,6 +121,8 @@
 
 ## 工作记录
 
+- 2026-08-16：Phase 2 rolling-wave plan 及 consolidated planning amendment 已接受；Phase 2 Milestones 为 COMMITTED，P2-M1 为 EXECUTING。T01 只编码 Principal 已批准决定；Principal 通过 `P2-M1-PR1`，并以 `P2-M1-R01` 修正四个 `0008` 实体精确名称、GenerationItem/Variant 生命周期和 unresolved isolation hard-gate 文档保真缺陷，现已解锁 T02–T05。M1 authority content/version/digest 自创建起 immutable，approval state 只允许 terminal `DRAFT → APPROVED`，修订必须新建版本。migration 文件保持 `0008_synthetic_dataset_foundation.py`，revision ID 使用 32 字符以内的 `0008_synth_dataset_foundation`，不修改历史 migration 或 Alembic 版本表。P2 仅建设 synthetic-only、可追溯的成年合成人物数据集引擎；`SyntheticIdentity` 为 bank-independent authority，raw Provider output、normalized Asset、variant 与 released manifest entry 分层且不可互相覆盖。P2-MVR-v1 的 4 dimensions / 3 regions / N=24 只是技术可行性研究下限，须按证据在 24→48→96 cohort 升级，不能当作科学充分性或产品 invariant。Pillow 12.3.0 批准扩展至后续 P2 normalization；MediaPipe/OpenCV/imagededup 分别保持 LICENSE_REVIEW_REQUIRED/POC_REQUIRED/REJECT。MediaPipe 的 `v0.10.35` 是指定 candidate snapshot；上游 latest 的 `v1.0.0` notes 报告内部 `0.10.36`，后续 PoC 必须分别审查 source tag、runtime 与 artifact/terms。
+
 - 2026-08-15：依据已确认方案建立项目基线；模板目录不存在，因此创建项目专用 `AGENTS.md` 与 `MEMORY.md`。
 - 2026-08-15：接受 Phase 0 补充规格；移除 SQLite 权威验收，拆分 LocalTaskRunner/Celery，增加分环境 fail-closed、Consent history、AI provenance、PIPIA、供应链与架构漂移要求。
 - 2026-08-15：采用 Master Specification Revision v0.2；引入 SelfState、BaselineFaceModel、DesiredDeltaProfile、SelfState-conditioned routing、self-transfer evidence precedence 与 anti-homogenization。初始 migration 尚未共享/执行，因此允许在首次权威 PostgreSQL 验收前随 schema 一次性重生成。
@@ -178,3 +180,7 @@
 - 2026-08-16：P1-M6 candidate `ed24b3d856e22bc1d0779a9eace254200041fb81` 经 Principal Gate PASS。远端 run `31924258547` 的 `quality-and-integration`、`secret-scan`、`docker-validation` 全绿，新增 Phase 1 vertical/recovery 与 machine-readable evidence steps 实际执行；四项 artifacts 可读且未过期，其中 `phase1-ci-evidence`（`9257370449`）精确绑定 candidate SHA、`0007_account_quarantine_evidence`、OpenAPI LF-byte SHA-256 和一项零 failure/error/skip 垂直测试，Gitleaks SARIF 为零结果。P1-M6 当前为 PASS，等待 acceptance closure CI 后才能与 Phase 1 一起 FROZEN；不得进入 P2。
 - 2026-08-16：P1-M6 acceptance closure `cc926ceb49c7978cb7b57df778ec2f1c7f4cc878` 的远端 run `31924651458` 三个 jobs 全绿；四项 artifacts 可读且未过期，其中 `phase1-ci-evidence`（`9257491150`）精确绑定 closure SHA、`0007_account_quarantine_evidence`、OpenAPI LF-byte SHA-256 `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841` 和一项零 failure/error/skip 垂直测试，Gitleaks SARIF（`9257448027`）为零结果。Principal 将 P1-M6 与 Phase 1 前向更新为 FROZEN；不得进入 P2。
 - 2026-08-16：Phase 1 freeze-state run `31925010676` 的 secret-scan 与 Docker 全绿，但 Web onboarding 可访问性测试在 Linux CI 中于 React `useEffect` 聚焦完成前立即断言 focus，形成一次非确定性失败。`P1-M6-R01` 仅将断言改为 Testing Library bounded `waitFor` 等待既有 focus postcondition，不改生产代码、超时、可访问性语义或 Gate；修复提交必须重新通过完整远端 CI。
+- 2026-08-16：P2-M1-T04 将合成 generation、Vision 与 internal synthetic storage 收敛为第一方 typed ports：请求和 payload 只接受 bounded synthetic bytes 与 opaque first-party references，结果固定携带 safety/cost/provenance facts，未知 retention、URL、user asset 与非 synthetic subject 均 fail closed。Mock 固定 bytes/metadata/cost/safety 且零网络；Tencent synthetic candidates fail closed；`internal-synthetic/v1` 与 user quarantine/sanitized/export 命名空间隔离；production 额外拒绝 mock synthetic storage provider。
+- 2026-08-16：P2-M1-R03 补齐 generation contract fidelity：请求明确 output media type/width/height/max bytes、有限 scalar parameter tuple、optional bounded seed 与 pricing-snapshot budget；结果记录 provider-actual seed/parameters、model-version provenance 与 BIT_EXACT/SEED_REPLAYABLE/PROVENANCE_ONLY。Mock 仅声明真实支持的 1x1 grayscale non-human PNG、无 seed/parameter 支持与 BIT_EXACT，避免 MIME 或成人安全 metadata 误述。
+- 2026-08-16：P2-M1-T06 经 Principal 本地验收。新增 checksum-bound 的 `mirror.p2-m1.fixture-manifest/v1`，只接纳带来源、许可、分类与 SHA-256 的 JSON 数值非人类 fixture；独立安全测试覆盖 `0008` schema guards、authority/domain digest、typed Provider zero-network、production fail-closed、OpenAPI 不变，以及依赖、模型、真人图片、URL、Prompt、secret、SDK import 和敏感日志路径负向扫描。Principal 重跑 74 项组合测试、140-file Ruff、89-source strict mypy、契约和格式检查全绿；Docker 隔离 PostgreSQL 证据为 97 PASS / 0 skip，临时库在零连接确认后删除。未新增依赖、模型、真人素材或外部调用。
+- 2026-08-16：P2-M1-T07 本地 Gate PASS，远端 same-SHA Gate 待 Principal commit/push。CI 保留 Phase 1 evidence 并新增 `mirror.p2-m1.ci-evidence/v1`：只包含完整候选 SHA、唯一 migration head `0008_synth_dataset_foundation`、OpenAPI SHA-256、M1 JUnit 零 failure/error/skip 汇总和五类 synthetic/security boundary aggregate，不上传原始 JUnit、路径、Prompt、对象 key、图片、Provider payload、环境值或 DB rows。R04 仅为 Worker production Settings 测试夹具显式补 `synthetic_storage_provider=disabled`，避免 CI 的 mock 环境覆盖使测试在到达既有 LocalTaskRunner 生产拒绝断言前失败；不改生产 fail-closed。最终本地证据为 Ruff 142 files、strict mypy 90 sources、API 275、Worker 19、P2 evidence 87、隔离 PostgreSQL fresh→0007→0008→0007→0008 与 drift、完整 pnpm/Docker/供应链及 Gitleaks 8.28.0 candidate snapshot + 63 commits 全绿；两座隔离测试库在零连接核验后删除。

@@ -32,6 +32,7 @@ def production_settings(**overrides: object) -> dict[str, object]:
         "task_runner": "celery",
         "vision_provider": "disabled",
         "image_generation_provider": "disabled",
+        "synthetic_storage_provider": "disabled",
         "agent_provider": "disabled",
         "tencent_secret_id": "from-secret-manager",
         "tencent_secret_key": "from-secret-manager",
@@ -100,6 +101,10 @@ def test_purpose_consent_operations_are_non_empty_and_unique(operations: list[st
         ({"storage_provider": "local"}, "private Tencent COS required"),
         ({"task_runner": "local"}, "Celery task runner required"),
         ({"vision_provider": "mock"}, "production AI providers must remain disabled"),
+        (
+            {"synthetic_storage_provider": "mock"},
+            "production synthetic storage provider must remain disabled",
+        ),
         ({"auth_token_secret": "change-me"}, "secure non-default auth token secret"),
         (
             {"facial_data_purpose": {"policy_digest": "0" * 64}},

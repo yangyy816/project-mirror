@@ -1,0 +1,12 @@
+{
+  "schema_version": "mirror.p2-m1.fixture-manifest/v1",
+  "entries": [
+    {
+      "path": "p2_m1_numeric_fixture.json",
+      "classification": "non_human_numeric",
+      "source": "first_party_deterministic",
+      "license": "project_mirror_test_fixture",
+      "sha256": "84368bae284b8722b0089103ed1078993249920e3db69918aba67ed9810c9c8c"
+    }
+  ]
+}

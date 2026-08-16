@@ -70,6 +70,7 @@ def test_local_runner_is_development_only(monkeypatch: pytest.MonkeyPatch) -> No
                 task_runner="celery",
                 vision_provider="disabled",
                 image_generation_provider="disabled",
+                synthetic_storage_provider="disabled",
                 agent_provider="disabled",
                 auth_token_secret="x" * 64,
                 auth_jwt_keyring={"test-jwt-v1": "j" * 64},

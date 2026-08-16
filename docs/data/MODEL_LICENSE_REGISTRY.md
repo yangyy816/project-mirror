@@ -6,15 +6,18 @@
 
 本轮仅登记用户提供的研究线索与治理默认值，没有下载代码、模型、权重或数据，也没有完成权威 upstream 许可证核验。
 
-| Candidate                             | Code license                 | Model / weight license                    | Training / evaluation data           | Research status                    | Production status                       | Required next evidence                                                                         |
-| ------------------------------------- | ---------------------------- | ----------------------------------------- | ------------------------------------ | ---------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| MediaPipe Face Landmarker             | UNKNOWN                      | UNKNOWN                                   | UNKNOWN                              | CANDIDATE                          | REQUIRES_LEGAL_REVIEW                   | 在 P3 从权威来源核验全部 artifact、平台发行与商业条款                                          |
-| 3DDFA_V2                              | UNKNOWN                      | UNKNOWN                                   | UNKNOWN                              | APPROVED FOR RESEARCH REVIEW       | PRODUCTION_BLOCKED                      | 仓库、权重、训练数据与传递模型逐项核验                                                         |
-| InsightFace pretrained ecosystem      | 与权重分离，未核验           | RESTRICTIONS / REVIEW REQUIRED            | UNKNOWN                              | 条款允许时仅隔离研究               | PRODUCTION_BLOCKED                      | 不得从顶层代码许可推导模型/数据商业权利                                                        |
-| CelebAMask-HQ-dependent face parsing  | 各实现不同                   | UNKNOWN                                   | RESTRICTED / UNVERIFIED              | 条款允许时仅架构研究               | PRODUCTION_BLOCKED                      | 为每个 parsing stack 追溯预训练权重和训练数据；优先商业许可或第一方合成替代                    |
-| Stable-Makeup family                  | UNKNOWN                      | UNKNOWN                                   | UNKNOWN                              | HIGH; APPROVED FOR RESEARCH REVIEW | REQUIRES FULL DEPENDENCY LICENSE REVIEW | repository → foundation model → weights → data → runtime → auxiliary parsing/landmark 全链复核 |
-| FLUX-Makeup family                    | 顶层代码许可不足以定论       | 报告依赖 `FLUX.1-Kontext-dev`，待权威复核 | UNKNOWN                              | HIGH; APPROVED FOR RESEARCH REVIEW | PRODUCTION_BLOCKED                      | 核验当前 foundation-model 商业限制和完整依赖链；不得仅凭仓库许可采用                           |
-| Future image-generation/edit Provider | N/A or provider SDK-specific | Provider/model terms UNKNOWN              | Provider training/data terms UNKNOWN | CANDIDATE                          | PRODUCTION_BLOCKED                      | 地域、保留、公共训练、删除、分包商、输出权利、成本和质量 benchmark                             |
+| Candidate                               | Code license                                          | Model / weight license                    | Training / evaluation data           | Research status                    | Production status                       | Required next evidence                                                                         |
+| --------------------------------------- | ----------------------------------------------------- | ----------------------------------------- | ------------------------------------ | ---------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| MediaPipe source code                   | Apache-2.0 upstream claim，待 exact tag notice review | N/A                                       | N/A                                  | LICENSE_REVIEW_REQUIRED            | PRODUCTION_BLOCKED                      | 锁定 source tag，核验 LICENSE/NOTICE、传递依赖与发行义务                                       |
+| MediaPipe package/runtime               | UNKNOWN until exact package selected                  | N/A                                       | N/A                                  | LICENSE_REVIEW_REQUIRED            | PRODUCTION_BLOCKED                      | 锁定 Python/runtime distribution，核验 bundled native deps、wheel、SBOM 与平台条款             |
+| MediaPipe Face Landmarker artifact      | N/A                                                   | UNKNOWN                                   | UNKNOWN                              | LICENSE_REVIEW_REQUIRED            | PRODUCTION_BLOCKED                      | 单独核验 artifact identifier、source、checksum、许可、训练/评估数据与商业用途                  |
+| MediaPipe model/data distribution terms | N/A                                                   | UNKNOWN                                   | UNKNOWN                              | LICENSE_REVIEW_REQUIRED            | PRODUCTION_BLOCKED                      | 核验下载、再分发、留存、地域、遥测、数据来源和 usage terms；代码许可不得替代此结论             |
+| 3DDFA_V2                                | UNKNOWN                                               | UNKNOWN                                   | UNKNOWN                              | APPROVED FOR RESEARCH REVIEW       | PRODUCTION_BLOCKED                      | 仓库、权重、训练数据与传递模型逐项核验                                                         |
+| InsightFace pretrained ecosystem        | 与权重分离，未核验                                    | RESTRICTIONS / REVIEW REQUIRED            | UNKNOWN                              | 条款允许时仅隔离研究               | PRODUCTION_BLOCKED                      | 不得从顶层代码许可推导模型/数据商业权利                                                        |
+| CelebAMask-HQ-dependent face parsing    | 各实现不同                                            | UNKNOWN                                   | RESTRICTED / UNVERIFIED              | 条款允许时仅架构研究               | PRODUCTION_BLOCKED                      | 为每个 parsing stack 追溯预训练权重和训练数据；优先商业许可或第一方合成替代                    |
+| Stable-Makeup family                    | UNKNOWN                                               | UNKNOWN                                   | UNKNOWN                              | HIGH; APPROVED FOR RESEARCH REVIEW | REQUIRES FULL DEPENDENCY LICENSE REVIEW | repository → foundation model → weights → data → runtime → auxiliary parsing/landmark 全链复核 |
+| FLUX-Makeup family                      | 顶层代码许可不足以定论                                | 报告依赖 `FLUX.1-Kontext-dev`，待权威复核 | UNKNOWN                              | HIGH; APPROVED FOR RESEARCH REVIEW | PRODUCTION_BLOCKED                      | 核验当前 foundation-model 商业限制和完整依赖链；不得仅凭仓库许可采用                           |
+| Future image-generation/edit Provider   | N/A or provider SDK-specific                          | Provider/model terms UNKNOWN              | Provider training/data terms UNKNOWN | CANDIDATE                          | PRODUCTION_BLOCKED                      | 地域、保留、公共训练、删除、分包商、输出权利、成本和质量 benchmark                             |
 
 ## Makeup-transfer dependency chain
 
@@ -25,5 +28,9 @@ Stable-Makeup 是高优先级研究参考，但生产采用需要完整依赖许
 ## Artifact inventory
 
 `MODEL_ARTIFACTS_ADDED: NONE`
+
+P2-M1 不得安装 MediaPipe、OpenCV 或 imagededup，也不得添加 `.pt`、`.pth`、`.onnx`、`.ckpt`、`.safetensors`、`.tflite`、`.task`、模型 archive 或 cache。发现基线已有 artifact 时只报告并核验 provenance，不得自动删除。
+
+P2-M1 的组件级 upstream 与依赖证据见 `docs/security/P2_SUPPLY_CHAIN_DECISIONS.md`；本表仍是模型、权重和数据批准状态的权威。
 
 后续新增条目必须包含 artifact identifier、version、checksum、source、storage location、purpose、approval、security review、license evidence、dataset provenance 和 reproduction notes。

@@ -45,6 +45,7 @@ jobs:
       STORAGE_PROVIDER: local
       VISION_PROVIDER: mock
       IMAGE_GENERATION_PROVIDER: mock
+      SYNTHETIC_STORAGE_PROVIDER: mock
       AGENT_PROVIDER: mock
       OBJECT_STORAGE_PRIVATE: "true"
       SENSITIVE_PROCESSING_ENABLED: "false"
@@ -92,6 +93,16 @@ jobs:
         run: >-
           python -m pytest services/worker/tests/test_phase1_vertical.py
           --junitxml=phase1-integration-results.xml
+      - name: P2-M1 deterministic and boundary evidence tests
+        run: >-
+          python -m pytest
+          services/api/tests/test_p2_m1_security_boundaries.py
+          services/api/tests/test_synthetic_dataset_domain.py
+          services/api/tests/test_synthetic_dataset_foundation_invariants.py
+          services/api/tests/test_providers.py
+          services/api/tests/test_config.py
+          services/api/tests/test_p2_m1_ci_evidence.py
+          --junitxml=p2-m1-results.xml
       - name: TypeScript quality and build
         run: pnpm check
       - name: Install Playwright Chromium
@@ -124,6 +135,20 @@ jobs:
         with:
           name: phase1-ci-evidence
           path: phase1-ci-evidence.json
+      - name: Generate P2-M1 CI evidence
+        run: |
+          python -m alembic -c services/api/alembic.ini heads > p2-m1-migration-head.txt
+          python -m mirror_api.scripts.p2_m1_ci_evidence \
+            --commit-sha "$GITHUB_SHA" \
+            --migration-head-file p2-m1-migration-head.txt \
+            --expected-migration-head 0008_synth_dataset_foundation \
+            --openapi packages/contracts/openapi.json \
+            --test-results p2-m1-results.xml \
+            --output p2-m1-ci-evidence.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p2-m1-ci-evidence
+          path: p2-m1-ci-evidence.json
       - name: Dependency and license audits
         run: |
           pip-audit --local

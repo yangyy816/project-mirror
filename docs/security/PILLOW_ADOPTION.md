@@ -61,3 +61,9 @@ The Windows wheel exposes compiled `.pyd` modules and the Linux wheel exposes co
 ## Principal decision
 
 `THIRD_PARTY_APPROVED`: Pillow 12.3.0 may be added as a pinned P1-M4 runtime dependency under the controls above. This approval does not authorize other image libraries, real user images, AI/face analysis or general-purpose image conversion.
+
+## Phase 2 scope addendum
+
+`APPROVE_FOR_P2` — 2026-08-16
+
+The already pinned and reviewed Pillow 12.3.0 runtime may later be reused for P2 synthetic normalization without a version change. This expands purpose only; it does not authorize P2-M1 image processing or any new dependency. Future P2 normalization must explicitly enforce bounded decode, pixel/decompression-bomb defenses, orientation and colorspace normalization, format allowlisting, explicit ICC/EXIF/XMP/IPTC/comment sanitation, canonical re-encoding, a second decode and checksum verification. Re-saving alone is not evidence that all metadata was removed.

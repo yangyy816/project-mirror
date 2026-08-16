@@ -352,11 +352,18 @@ class Asset(IdMixin, TimestampMixin, Base):
     synthetic: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_ai_generated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_ai_modified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    internal_purpose: Mapped[str | None] = mapped_column(String(64))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (
         UniqueConstraint("id", "owner_user_id", name="unique_asset_owner"),
         CheckConstraint(
             "asset_role IN ('original','derived','synthetic')", name="valid_asset_role"
+        ),
+        CheckConstraint(
+            "(asset_role = 'synthetic' AND owner_user_id IS NULL "
+            "AND internal_purpose = 'synthetic_dataset' AND synthetic) OR "
+            "(asset_role IN ('original','derived') AND internal_purpose IS NULL)",
+            name="valid_asset_internal_purpose_shape",
         ),
         CheckConstraint("byte_size > 0", name="positive_byte_size"),
         CheckConstraint("width > 0 AND height > 0", name="positive_dimensions"),
@@ -767,10 +774,137 @@ class QuestionBankVersion(IdMixin, Base):
     )
 
 
+class SyntheticGenerationPolicy(IdMixin, TimestampMixin, Base):
+    __tablename__ = "synthetic_generation_policies"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(128), default="mirror.synthetic-dataset/SyntheticGenerationPolicy/v1", nullable=False
+    )
+    version: Mapped[str] = mapped_column(String(48), unique=True, nullable=False)
+    content: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    content_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    approval_status: Mapped[str] = mapped_column(String(24), default="DRAFT", nullable=False)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        CheckConstraint(
+            "approval_status IN ('DRAFT','APPROVED')",
+            name="approval_status",
+        ),
+        CheckConstraint(
+            "(approval_status = 'DRAFT' AND approved_at IS NULL) OR "
+            "(approval_status = 'APPROVED' AND approved_at IS NOT NULL)",
+            name="approval_shape",
+        ),
+        CheckConstraint(
+            "version ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-v[1-9][0-9]*$'",
+            name="canonical_version",
+        ),
+        CheckConstraint("content_digest ~ '^[0-9a-f]{64}$'", name="canonical_digest"),
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/SyntheticGenerationPolicy/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("json_typeof(content) = 'object'", name="content_object"),
+    )
+
+
+class SyntheticPromptTemplate(IdMixin, TimestampMixin, Base):
+    __tablename__ = "synthetic_prompt_templates"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(128), default="mirror.synthetic-dataset/SyntheticPromptTemplate/v1", nullable=False
+    )
+    version: Mapped[str] = mapped_column(String(48), unique=True, nullable=False)
+    content: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    content_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    approval_status: Mapped[str] = mapped_column(String(24), default="DRAFT", nullable=False)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        CheckConstraint("approval_status IN ('DRAFT','APPROVED')", name="approval_status"),
+        CheckConstraint(
+            "(approval_status = 'DRAFT' AND approved_at IS NULL) OR "
+            "(approval_status = 'APPROVED' AND approved_at IS NOT NULL)",
+            name="approval_shape",
+        ),
+        CheckConstraint(
+            "version ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-v[1-9][0-9]*$'",
+            name="canonical_version",
+        ),
+        CheckConstraint("content_digest ~ '^[0-9a-f]{64}$'", name="canonical_digest"),
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/SyntheticPromptTemplate/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("json_typeof(content) = 'object'", name="content_object"),
+    )
+
+
+class SyntheticQAPolicy(IdMixin, TimestampMixin, Base):
+    __tablename__ = "synthetic_qa_policies"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(128), default="mirror.synthetic-dataset/SyntheticQAPolicy/v1", nullable=False
+    )
+    version: Mapped[str] = mapped_column(String(48), unique=True, nullable=False)
+    content: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    content_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    approval_status: Mapped[str] = mapped_column(String(24), default="DRAFT", nullable=False)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        CheckConstraint("approval_status IN ('DRAFT','APPROVED')", name="approval_status"),
+        CheckConstraint(
+            "(approval_status = 'DRAFT' AND approved_at IS NULL) OR "
+            "(approval_status = 'APPROVED' AND approved_at IS NOT NULL)",
+            name="approval_shape",
+        ),
+        CheckConstraint(
+            "version ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-v[1-9][0-9]*$'",
+            name="canonical_version",
+        ),
+        CheckConstraint("content_digest ~ '^[0-9a-f]{64}$'", name="canonical_digest"),
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/SyntheticQAPolicy/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("json_typeof(content) = 'object'", name="content_object"),
+    )
+
+
+class GeometryOntologyVersion(IdMixin, TimestampMixin, Base):
+    __tablename__ = "geometry_ontology_versions"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(128), default="mirror.synthetic-dataset/GeometryOntologyVersion/v1", nullable=False
+    )
+    version: Mapped[str] = mapped_column(String(48), unique=True, nullable=False)
+    content: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    content_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    approval_status: Mapped[str] = mapped_column(String(24), default="DRAFT", nullable=False)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        CheckConstraint("approval_status IN ('DRAFT','APPROVED')", name="approval_status"),
+        CheckConstraint(
+            "(approval_status = 'DRAFT' AND approved_at IS NULL) OR "
+            "(approval_status = 'APPROVED' AND approved_at IS NOT NULL)",
+            name="approval_shape",
+        ),
+        CheckConstraint(
+            "version ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-v[1-9][0-9]*$'",
+            name="canonical_version",
+        ),
+        CheckConstraint("content_digest ~ '^[0-9a-f]{64}$'", name="canonical_digest"),
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/GeometryOntologyVersion/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("json_typeof(content) = 'object'", name="content_object"),
+    )
+
+
 class SyntheticIdentity(IdMixin, Base):
     __tablename__ = "synthetic_identities"
 
-    bank_version_id: Mapped[str] = mapped_column(
+    bank_version_id: Mapped[str | None] = mapped_column(
         ForeignKey("question_bank_versions.id", ondelete="RESTRICT"), index=True
     )
     generator_provider: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -1594,11 +1728,64 @@ for versioned_state_model in (BaselineFaceModel, SelfState):
 
 
 @event.listens_for(Asset, "before_update")
-def _protect_original_blob(mapper: object, connection: object, target: Asset) -> None:
+def _protect_internal_blob(mapper: object, connection: object, target: Asset) -> None:
     del mapper, connection
     state = inspect(target)
-    immutable_fields = ("storage_key", "sha256", "byte_size", "width", "height", "mime_type")
-    if target.asset_role == "original" and any(
-        state.attrs[field].history.has_changes() for field in immutable_fields
+    old_role_values = state.attrs["asset_role"].history.deleted
+    old_role = old_role_values[0] if old_role_values else target.asset_role
+    if old_role != target.asset_role and "synthetic" in (old_role, target.asset_role):
+        raise ValueError("synthetic asset role is immutable")
+    immutable_fields: tuple[str, ...] = (
+        "storage_key",
+        "sha256",
+        "byte_size",
+        "width",
+        "height",
+        "mime_type",
+        "is_ai_generated",
+        "is_ai_modified",
+    )
+    if old_role == "synthetic" or target.asset_role == "synthetic":
+        immutable_fields += ("owner_user_id", "internal_purpose", "synthetic", "asset_role")
+    if target.asset_role in ("original", "synthetic") or old_role == "synthetic":
+        if any(state.attrs[field].history.has_changes() for field in immutable_fields):
+            raise ValueError(f"{old_role} asset blob metadata is immutable")
+
+
+def _validate_synthetic_authority_insert(mapper: object, connection: object, target: Any) -> None:
+    del mapper, connection
+    if target.approval_status not in (None, "DRAFT") or target.approved_at is not None:
+        raise ValueError("synthetic authority records must be inserted as DRAFT")
+
+
+def _protect_synthetic_authority_record(mapper: object, connection: object, target: Any) -> None:
+    del mapper, connection
+    state = inspect(target)
+    assert state is not None
+    if any(
+        state.attrs[field].history.has_changes()
+        for field in ("schema_version", "version", "content", "content_digest")
     ):
-        raise ValueError("original asset blob metadata is immutable")
+        raise ValueError("synthetic authority content is immutable")
+    old_status = state.attrs["approval_status"].history.deleted
+    if old_status and old_status[0] == "APPROVED":
+        raise ValueError("synthetic authority approval is immutable once approved")
+    new_status = state.attrs["approval_status"].history.added
+    if (
+        not old_status
+        or not new_status
+        or new_status[0] != "APPROVED"
+        or target.approved_at is None
+    ):
+        raise ValueError("synthetic authority approval must transition to approved")
+
+
+for synthetic_authority_model in (
+    SyntheticGenerationPolicy,
+    SyntheticPromptTemplate,
+    SyntheticQAPolicy,
+    GeometryOntologyVersion,
+):
+    event.listen(synthetic_authority_model, "before_insert", _validate_synthetic_authority_insert)
+    event.listen(synthetic_authority_model, "before_update", _protect_synthetic_authority_record)
+    event.listen(synthetic_authority_model, "before_delete", _reject_immutable_change)

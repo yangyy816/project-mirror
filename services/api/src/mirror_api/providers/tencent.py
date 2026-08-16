@@ -7,6 +7,9 @@ from mirror_api.providers.base import (
     DataExportObjectMetadata,
     DeleteResult,
     SanitizedObjectMetadata,
+    SyntheticGenerationRequest,
+    SyntheticStorageWriteRequest,
+    SyntheticVisionRequest,
 )
 
 
@@ -117,15 +120,23 @@ class TencentCosProvider:
         _not_verified("COS private data export")
 
 
+class TencentSyntheticObjectStorageCandidateProvider:
+    async def store_generated_image_if_absent(
+        self, *, request: SyntheticStorageWriteRequest
+    ) -> NoReturn:
+        del request
+        _not_verified("synthetic object storage")
+
+
 class TencentVisionCandidateProvider:
-    async def inspect_synthetic_fixture(self, *, fixture_id: str) -> NoReturn:
-        del fixture_id
+    async def inspect_synthetic(self, *, request: SyntheticVisionRequest) -> NoReturn:
+        del request
         _not_verified("vision")
 
 
 class TencentImageCandidateProvider:
-    async def generate_synthetic_fixture(self, *, prompt_version: str) -> NoReturn:
-        del prompt_version
+    async def generate_synthetic(self, *, request: SyntheticGenerationRequest) -> NoReturn:
+        del request
         _not_verified("image generation/editing")
 
 
