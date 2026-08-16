@@ -191,6 +191,7 @@ def test_0008_static_schema_contract_is_forward_only_and_contains_database_guard
         {"image_generation_provider": "mock"},
         {"vision_provider": "mock"},
         {"synthetic_storage_provider": "mock"},
+        {"synthetic_storage_provider": "local"},
         {"sensitive_processing_enabled": True},
     ],
 )

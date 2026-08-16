@@ -6,6 +6,7 @@ import os
 import pytest
 from mirror_api.config import Settings
 from mirror_api.ingestion.task_contract import IngestionTaskMessage
+from mirror_api.synthetic_dataset.task_contract import SyntheticGenerationTaskMessage
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
 from mirror_worker.celery_adapter import (
@@ -15,7 +16,9 @@ from mirror_worker.celery_adapter import (
     cleanup_asset_ingestion,
     foundation_probe,
     process_asset_ingestion,
+    process_synthetic_generation,
     reconcile_asset_ingestion,
+    reconcile_synthetic_generation,
 )
 from mirror_worker.local import LocalTaskRunner
 
@@ -61,6 +64,26 @@ def test_local_runner_is_development_only(monkeypatch: pytest.MonkeyPatch) -> No
     ingestion_message = IngestionTaskMessage(job_id="c" * 32, request_id="local-ingestion-request")
     assert runner.dispatch_ingestion(ingestion_message) == ingestion_message.job_id
     assert captured == [ingestion_message.to_message()]
+
+    synthetic_captured: list[dict[str, str]] = []
+
+    async def fake_synthetic_runner(
+        message: dict[str, str], *, settings: Settings
+    ) -> dict[str, str]:
+        assert settings.app_env == "test"
+        synthetic_captured.append(message)
+        return {"item_id": message["item_id"], "status": "no_op"}
+
+    monkeypatch.setattr(
+        "mirror_worker.local.run_synthetic_generation_message", fake_synthetic_runner
+    )
+    synthetic_message = SyntheticGenerationTaskMessage(
+        item_id="d" * 32,
+        job_id="e" * 32,
+        request_id="local-synthetic-request",
+    )
+    assert runner.dispatch_synthetic_generation(synthetic_message) == synthetic_message.job_id
+    assert synthetic_captured == [synthetic_message.to_message()]
     with pytest.raises(RuntimeError, match="DEVELOPMENT ONLY"):
         LocalTaskRunner(
             Settings(
@@ -99,6 +122,11 @@ def test_celery_registration_and_retry_policy() -> None:
         "mirror.asset_ingestion.cleanup",
         "mirror.asset_ingestion.reconcile",
     } <= set(celery_app.tasks)
+    assert {
+        "mirror.synthetic_generation.process",
+        "mirror.synthetic_generation.reconcile",
+        "mirror.synthetic_generation.cleanup",
+    } <= set(celery_app.tasks)
     assert INGESTION_RETRY_POLICY == {
         "max_retries": 3,
         "retry_backoff": True,
@@ -108,6 +136,7 @@ def test_celery_registration_and_retry_policy() -> None:
     routes = celery_app.conf.task_routes
     assert routes["mirror.asset_ingestion.process"]["queue"] == "mirror.ingestion"
     assert routes["mirror.asset_ingestion.cleanup"]["queue"] == "mirror.maintenance"
+    assert routes["mirror.synthetic_generation.process"]["queue"] == "mirror.synthetic"
     assert celery_app.conf.worker_prefetch_multiplier == 1
 
 
@@ -134,5 +163,8 @@ def test_linux_ingestion_celery_redis_round_trip() -> None:
 
 def test_ingestion_tasks_use_late_ack_and_worker_lost_recovery() -> None:
     for task in (process_asset_ingestion, cleanup_asset_ingestion, reconcile_asset_ingestion):
+        assert task.acks_late is True
+        assert task.reject_on_worker_lost is True
+    for task in (process_synthetic_generation, reconcile_synthetic_generation):
         assert task.acks_late is True
         assert task.reject_on_worker_lost is True

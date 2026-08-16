@@ -5,7 +5,10 @@ import re
 from collections.abc import AsyncIterable, AsyncIterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
+
+if TYPE_CHECKING:
+    from mirror_api.synthetic_dataset.prompt_material import EphemeralPrompt
 
 SYNTHETIC_IMAGE_MEDIA_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
 MAX_SYNTHETIC_GENERATED_IMAGE_BYTES = 20 * 1024 * 1024
@@ -584,7 +587,7 @@ class VisionProvider(Protocol):
 
 class ImageGenerationProvider(Protocol):
     async def generate_synthetic(
-        self, *, request: SyntheticGenerationRequest
+        self, *, request: SyntheticGenerationRequest, prompt: EphemeralPrompt
     ) -> SyntheticGenerationResult: ...
 
 

@@ -11,6 +11,7 @@ from mirror_api.providers.base import (
     SyntheticStorageWriteRequest,
     SyntheticVisionRequest,
 )
+from mirror_api.synthetic_dataset.prompt_material import EphemeralPrompt
 
 
 def _not_verified(capability: str) -> NoReturn:
@@ -148,8 +149,10 @@ class TencentVisionCandidateProvider:
 
 
 class TencentImageCandidateProvider:
-    async def generate_synthetic(self, *, request: SyntheticGenerationRequest) -> NoReturn:
-        del request
+    async def generate_synthetic(
+        self, *, request: SyntheticGenerationRequest, prompt: EphemeralPrompt
+    ) -> NoReturn:
+        del request, prompt
         _not_verified("image generation/editing")
 
 

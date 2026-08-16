@@ -15,6 +15,8 @@ from mirror_api.models import (
     GenerationBatch,
     GenerationItem,
     Job,
+    JobAttempt,
+    ProviderCostEvent,
     SyntheticGenerationPolicy,
     SyntheticPromptTemplate,
     new_id,
@@ -35,6 +37,7 @@ from mirror_api.synthetic_dataset.generation_types import (
     GenerationOperationRejected,
     ProviderCostInput,
 )
+from mirror_api.synthetic_dataset.prompt_material import EphemeralPrompt
 
 pytestmark = pytest.mark.integration
 
@@ -317,6 +320,64 @@ async def test_cancel_stops_new_work_and_finalizes_after_leased_attempt_quiesces
 
 
 @pytest.mark.asyncio
+async def test_exact_task_reservation_recovers_expired_lease_and_cancel_quiesces() -> None:
+    async with _database() as sessions:
+        policy_id, prompt_id = await _authorities(sessions)
+        service = _service(sessions)
+        created = await service.create_batch(
+            _command(
+                policy_id,
+                prompt_id,
+                key="f",
+                item_count=1,
+                concurrency_ceiling=1,
+                requested_seeds=(None,),
+            )
+        )
+        await service.queue_batch(created.batch.batch_id)
+        item = created.items[0]
+        first, duplicate = await gather(
+            service.reserve_item(item_id=item.item_id, job_id=item.job_id),
+            service.reserve_item(item_id=item.item_id, job_id=item.job_id),
+        )
+        reservation = first or duplicate
+        assert reservation is not None
+        assert (first is None) != (duplicate is None)
+
+        recovered = await _service(sessions, now=NOW + timedelta(seconds=301)).reserve_item(
+            item_id=item.item_id, job_id=item.job_id
+        )
+        assert recovered is not None
+        assert recovered.attempt_number == 2
+        context = await _service(sessions, now=NOW + timedelta(seconds=301)).execution_context(
+            recovered
+        )
+        assert context.request.generation_policy_reference == f"generation-policy-{policy_id}"
+        assert context.request.prompt_template_reference == f"prompt-template-{prompt_id}"
+        async with sessions() as session:
+            expired = await session.get(JobAttempt, reservation.attempt_id)
+            assert expired is not None
+            assert expired.status == "retryable_failure"
+            assert expired.error_code == "lease_expired"
+
+        await _service(sessions, now=NOW + timedelta(seconds=302)).request_cancel(
+            created.batch.batch_id
+        )
+        assert (
+            await _service(sessions, now=NOW + timedelta(seconds=603)).reserve_item(
+                item_id=item.item_id, job_id=item.job_id
+            )
+            is None
+        )
+        async with sessions() as session:
+            batch = await session.get(GenerationBatch, created.batch.batch_id)
+            final_item = await session.get(GenerationItem, item.item_id)
+            assert batch is not None and batch.status == "CANCELLED"
+            assert final_item is not None and final_item.status == "GENERATION_FAILED"
+            assert final_item.result_code == "batch_cancelled"
+
+
+@pytest.mark.asyncio
 async def test_raw_stored_completion_is_atomic_idempotent_and_finalizes_batch() -> None:
     async with _database() as sessions:
         policy_id, prompt_id = await _authorities(sessions)
@@ -353,13 +414,27 @@ async def test_raw_stored_completion_is_atomic_idempotent_and_finalizes_batch() 
                 pricing_snapshot_reference="pricing-fixture-v1",
             ),
         )
-        result = await MockImageGenerationProvider().generate_synthetic(request=generation_request)
+        result = await MockImageGenerationProvider().generate_synthetic(
+            request=generation_request,
+            prompt=EphemeralPrompt("clearly adult synthetic non-human fixture"),
+        )
         storage = MockSyntheticObjectStorageProvider()
         stored = await storage.store_generated_image_if_absent(
             request=SyntheticStorageWriteRequest(
                 storage_reference=f"raw-{reservation.item_id}",
                 payload=result.payload,
                 provenance=result.provenance,
+            )
+        )
+        assert await service.post_cost(
+            ProviderCostInput(
+                item_id=reservation.item_id,
+                job_attempt_id=reservation.attempt_id,
+                event_kind=result.cost.status,
+                currency=result.cost.currency,
+                amount_micros=result.cost.amount_micros,
+                pricing_snapshot_reference="pricing-fixture-v1",
+                occurred_at=NOW,
             )
         )
         assert await service.record_raw_stored(
@@ -382,3 +457,6 @@ async def test_raw_stored_completion_is_atomic_idempotent_and_finalizes_batch() 
             item = await session.get(GenerationItem, reservation.item_id)
             assert batch is not None and batch.status == "COMPLETED"
             assert item is not None and item.status == "RAW_STORED"
+            assert (
+                await session.scalar(select(text("count(*)")).select_from(ProviderCostEvent))
+            ) == 1

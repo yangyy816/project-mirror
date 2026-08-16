@@ -5,6 +5,7 @@ import secrets
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from typing import Literal, cast
 
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -19,15 +20,23 @@ from mirror_api.models import (
     SyntheticSourceObject,
     new_id,
 )
-from mirror_api.providers.base import SyntheticGenerationResult, SyntheticStoredImage
+from mirror_api.providers.base import (
+    GenerationBudgetContext,
+    SyntheticGenerationRequest,
+    SyntheticGenerationResult,
+    SyntheticOutputSpecification,
+    SyntheticStoredImage,
+)
 from mirror_api.synthetic_dataset.generation_repository import GenerationRepository
 from mirror_api.synthetic_dataset.generation_types import (
     GenerationBatchCreate,
     GenerationBatchResult,
     GenerationBatchView,
+    GenerationExecutionContext,
     GenerationItemReservation,
     GenerationItemView,
     GenerationOperationRejected,
+    GenerationTaskReference,
     ProviderCostInput,
     validate_result_code,
 )
@@ -218,6 +227,175 @@ class GenerationBatchService:
                 remaining_budget_micros=remaining_budget,
             )
 
+    async def reserve_item(self, *, item_id: str, job_id: str) -> GenerationItemReservation | None:
+        now = self._now()
+        async with _transaction(self._sessions) as session:
+            repo = GenerationRepository(session)
+            observed_item = await repo.item(item_id)
+            if observed_item is None or observed_item.job_id != job_id:
+                raise GenerationOperationRejected("generation_task_mismatch")
+            batch = await repo.locked_batch(observed_item.batch_id)
+            item = await repo.locked_item(item_id)
+            if batch is None or item is None or item.batch_id != batch.id or item.job_id != job_id:
+                raise GenerationOperationRejected("generation_task_mismatch")
+            if batch.status not in {"QUEUED", "RUNNING"}:
+                return None
+            job = await repo.locked_job(job_id)
+            if job is None:
+                raise GenerationOperationRejected("generation_job_not_reservable")
+            if job.status == "leased":
+                if job.lease_expires_at is None or job.lease_token is None:
+                    raise GenerationOperationRejected("generation_lease_invalid")
+                if job.lease_expires_at > now:
+                    return None
+                expired_attempt = await repo.locked_attempt_for_lease(
+                    job_id=job.id, lease_token=job.lease_token
+                )
+                if expired_attempt is None or expired_attempt.status != "leased":
+                    raise GenerationOperationRejected("generation_lease_invalid")
+                expired_attempt.status = "retryable_failure"
+                expired_attempt.error_code = "lease_expired"
+                expired_attempt.finished_at = now
+                job.status = "pending"
+                job.lease_token = None
+                job.lease_acquired_at = None
+                job.lease_expires_at = None
+                job.updated_at = now
+            if batch.cancel_requested_at is not None:
+                if job.status == "pending" and item.status == "GENERATING":
+                    await self._finalize_failed(
+                        session, repo, batch, item, job, now, "batch_cancelled"
+                    )
+                return None
+            if job.status != "pending" or item.status not in {"REQUESTED", "GENERATING"}:
+                return None
+            if item.status == "REQUESTED" and (
+                await repo.generating_count(batch.id) >= batch.concurrency_ceiling
+            ):
+                return None
+            remaining_budget = item.reserved_budget_micros - await repo.item_spend(item.id)
+            if remaining_budget <= 0:
+                await self._finalize_failed(
+                    session, repo, batch, item, job, now, "budget_exhausted"
+                )
+                return None
+            if job.attempt_count >= batch.retry_ceiling + 1:
+                await self._finalize_failed(session, repo, batch, item, job, now, "retry_exhausted")
+                return None
+            if batch.status == "QUEUED":
+                batch.status = "RUNNING"
+                batch.started_at = now
+                batch.updated_at = now
+            lease_token = secrets.token_hex(32)
+            lease_expires_at = now + timedelta(seconds=self._lease_seconds)
+            job.status = "leased"
+            job.attempt_count += 1
+            job.lease_token = lease_token
+            job.lease_acquired_at = now
+            job.lease_expires_at = lease_expires_at
+            job.updated_at = now
+            if item.status == "REQUESTED":
+                item.status = "GENERATING"
+                item.started_at = now
+                item.updated_at = now
+            attempt = JobAttempt(
+                id=new_id(),
+                job_id=job.id,
+                attempt=job.attempt_count,
+                status="leased",
+                lease_token=lease_token,
+                started_at=now,
+            )
+            session.add(attempt)
+            await session.flush()
+            return GenerationItemReservation(
+                batch_id=batch.id,
+                item_id=item.id,
+                job_id=job.id,
+                request_id=job.request_id,
+                request_reference=item.request_reference,
+                attempt_id=attempt.id,
+                attempt_number=attempt.attempt,
+                lease_token=lease_token,
+                lease_expires_at=lease_expires_at,
+                remaining_budget_micros=remaining_budget,
+            )
+
+    async def execution_context(
+        self, reservation: GenerationItemReservation
+    ) -> GenerationExecutionContext:
+        async with self._sessions() as session:
+            repo = GenerationRepository(session)
+            observed_item = await repo.item(reservation.item_id)
+            if observed_item is None:
+                raise GenerationOperationRejected("generation_context_unavailable")
+            batch = await repo.locked_batch(observed_item.batch_id)
+            item = await repo.locked_item(reservation.item_id)
+            job = None if item is None else await repo.locked_job(item.job_id)
+            attempt = await repo.locked_attempt(reservation.attempt_id)
+            now = self._now()
+            if (
+                batch is None
+                or item is None
+                or job is None
+                or item.batch_id != batch.id
+                or item.job_id != reservation.job_id
+                or job.id != reservation.job_id
+                or job.status != "leased"
+                or job.lease_token != reservation.lease_token
+                or job.lease_expires_at is None
+                or job.lease_expires_at <= now
+                or attempt is None
+                or attempt.job_id != job.id
+                or attempt.status != "leased"
+                or attempt.lease_token != reservation.lease_token
+                or batch.cancel_requested_at is not None
+            ):
+                raise GenerationOperationRejected("generation_context_unavailable")
+            remaining_budget = item.reserved_budget_micros - await repo.item_spend(item.id)
+            return GenerationExecutionContext(
+                reservation=reservation,
+                request=SyntheticGenerationRequest(
+                    request_reference=item.request_reference,
+                    generation_policy_reference=(f"generation-policy-{batch.generation_policy_id}"),
+                    prompt_template_reference=(f"prompt-template-{batch.prompt_template_id}"),
+                    output_specification=SyntheticOutputSpecification(
+                        media_type=cast(
+                            Literal["image/jpeg", "image/png", "image/webp"],
+                            batch.output_media_type,
+                        ),
+                        width=batch.output_width,
+                        height=batch.output_height,
+                        max_byte_size=batch.output_max_bytes,
+                    ),
+                    generation_parameters=(),
+                    seed=item.requested_seed,
+                    budget=GenerationBudgetContext(
+                        currency=cast(Literal["CNY", "USD"], batch.currency),
+                        max_amount_micros=remaining_budget,
+                        pricing_snapshot_reference=batch.pricing_snapshot_reference,
+                    ),
+                ),
+            )
+
+    async def reconciliation_candidates(
+        self, *, limit: int = 100
+    ) -> tuple[GenerationTaskReference, ...]:
+        if not 1 <= limit <= 1_000:
+            raise ValueError("generation reconciliation limit is outside the boundary")
+        async with self._sessions() as session:
+            rows = await GenerationRepository(session).generation_reconciliation_rows(
+                now=self._now(), limit=limit
+            )
+            return tuple(
+                GenerationTaskReference(
+                    item_id=item.id,
+                    job_id=job.id,
+                    request_id=job.request_id,
+                )
+                for item, job in rows
+            )
+
     async def record_attempt_failure(
         self,
         *,
@@ -399,43 +577,54 @@ class GenerationBatchService:
                     or result.cost.currency != batch.currency
                 ):
                     raise GenerationOperationRejected("generation_result_mismatch")
-                session.add_all(
-                    (
-                        SyntheticSourceObject(
-                            id=new_id(),
-                            generation_item_id=item.id,
-                            job_attempt_id=attempt.id,
-                            storage_reference=stored.storage_reference,
-                            sha256=stored.sha256,
-                            media_type=stored.media_type,
-                            byte_size=stored.byte_size,
-                            width=batch.output_width,
-                            height=batch.output_height,
-                            retention_expires_at=retention_expires_at,
-                            created_at=now,
-                        ),
-                        SyntheticGenerationEvidence(
-                            id=new_id(),
-                            generation_item_id=item.id,
-                            job_attempt_id=attempt.id,
-                            provider_reference=result.provenance.provider_reference,
-                            model_reference=result.provenance.model_reference,
-                            model_version_reference=result.provenance.model_version_reference,
-                            provider_run_reference=result.provider_run_reference,
-                            safety_policy_reference=result.safety.policy_reference,
-                            safety_outcome=result.safety.outcome,
-                            safety_reason_code=result.safety.reason_code,
-                            retention_status=result.provenance.retention_status,
-                            output_rights=result.provenance.output_rights,
-                            provider_actual_seed=result.provider_actual_seed,
-                            provider_actual_parameters={
-                                parameter.parameter_key: parameter.value
-                                for parameter in result.provider_actual_parameters
-                            },
-                            reproducibility_level=result.reproducibility_level,
-                            generated_at=now,
-                            created_at=now,
-                        ),
+                existing_cost = await repo.cost_for_attempt(attempt.id)
+                if existing_cost is not None and (
+                    existing_cost.generation_item_id != item.id
+                    or existing_cost.event_kind != result.cost.status
+                    or existing_cost.currency != result.cost.currency
+                    or existing_cost.amount_micros != result.cost.amount_micros
+                    or existing_cost.pricing_snapshot_reference != batch.pricing_snapshot_reference
+                ):
+                    raise GenerationOperationRejected("provider_cost_conflict")
+                records: list[object] = [
+                    SyntheticSourceObject(
+                        id=new_id(),
+                        generation_item_id=item.id,
+                        job_attempt_id=attempt.id,
+                        storage_reference=stored.storage_reference,
+                        sha256=stored.sha256,
+                        media_type=stored.media_type,
+                        byte_size=stored.byte_size,
+                        width=batch.output_width,
+                        height=batch.output_height,
+                        retention_expires_at=retention_expires_at,
+                        created_at=now,
+                    ),
+                    SyntheticGenerationEvidence(
+                        id=new_id(),
+                        generation_item_id=item.id,
+                        job_attempt_id=attempt.id,
+                        provider_reference=result.provenance.provider_reference,
+                        model_reference=result.provenance.model_reference,
+                        model_version_reference=result.provenance.model_version_reference,
+                        provider_run_reference=result.provider_run_reference,
+                        safety_policy_reference=result.safety.policy_reference,
+                        safety_outcome=result.safety.outcome,
+                        safety_reason_code=result.safety.reason_code,
+                        retention_status=result.provenance.retention_status,
+                        output_rights=result.provenance.output_rights,
+                        provider_actual_seed=result.provider_actual_seed,
+                        provider_actual_parameters={
+                            parameter.parameter_key: parameter.value
+                            for parameter in result.provider_actual_parameters
+                        },
+                        reproducibility_level=result.reproducibility_level,
+                        generated_at=now,
+                        created_at=now,
+                    ),
+                ]
+                if existing_cost is None:
+                    records.append(
                         ProviderCostEvent(
                             id=new_id(),
                             generation_item_id=item.id,
@@ -446,9 +635,9 @@ class GenerationBatchService:
                             pricing_snapshot_reference=batch.pricing_snapshot_reference,
                             occurred_at=now,
                             created_at=now,
-                        ),
+                        )
                     )
-                )
+                session.add_all(records)
                 await session.flush()
                 attempt.status = "raw_stored"
                 attempt.result_code = "raw_stored"
@@ -508,7 +697,10 @@ class GenerationBatchService:
             template = await repo.prompt_template(batch.prompt_template_id)
             if template is None:
                 raise GenerationOperationRejected("prompt_authority_unavailable")
-            return EphemeralPrompt.from_template_content(template.content)
+            try:
+                return EphemeralPrompt.from_template_content(template.content)
+            except (TypeError, ValueError):
+                raise GenerationOperationRejected("prompt_authority_unavailable") from None
 
     @staticmethod
     def _job_key(batch_id: str, ordinal: int) -> str:
@@ -617,12 +809,12 @@ class GenerationBatchService:
         failed_count = sum(item.status == "GENERATION_FAILED" for item in items)
         if raw_count == batch.item_count:
             batch.status = "COMPLETED"
-        elif failed_count == batch.item_count:
-            batch.status = "FAILED"
         elif raw_count > 0:
             batch.status = "PARTIAL"
         elif batch.cancel_requested_at is not None:
             batch.status = "CANCELLED"
+        elif failed_count == batch.item_count:
+            batch.status = "FAILED"
         else:
             raise GenerationOperationRejected("generation_batch_outcome_inconsistent")
         batch.finalized_at = now

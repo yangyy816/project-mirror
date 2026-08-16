@@ -28,6 +28,7 @@ from mirror_api.providers.base import (
     SyntheticVisionRequest,
     SyntheticVisionResult,
 )
+from mirror_api.synthetic_dataset.prompt_material import EphemeralPrompt
 
 # A 1x1 grayscale PNG. It is a valid, clearly non-human test pattern.
 MOCK_SYNTHETIC_NON_HUMAN_PNG_BYTES: Final[bytes] = (
@@ -141,8 +142,9 @@ class MockVisionProvider:
 
 class MockImageGenerationProvider:
     async def generate_synthetic(
-        self, *, request: SyntheticGenerationRequest
+        self, *, request: SyntheticGenerationRequest, prompt: EphemeralPrompt
     ) -> SyntheticGenerationResult:
+        prompt.reveal_for_provider_adapter()
         output = request.output_specification
         if (
             output.media_type != MOCK_SYNTHETIC_OUTPUT_SPECIFICATION.media_type

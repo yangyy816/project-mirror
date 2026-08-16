@@ -15,6 +15,7 @@ from mirror_api.data_rights.task_contract import (
     DataExportTaskMessage,
 )
 from mirror_api.ingestion.task_contract import IngestionTaskMessage
+from mirror_api.synthetic_dataset.task_contract import SyntheticGenerationTaskMessage
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
 from mirror_worker.ingestion import RetryableWorkerFailure
@@ -27,6 +28,9 @@ from mirror_worker.runtime import (
     run_data_rights_reconciliation,
     run_ingestion_message,
     run_reconciliation,
+    run_synthetic_generation_message,
+    run_synthetic_generation_reconciliation,
+    run_synthetic_raw_cleanup,
 )
 
 settings = get_settings()
@@ -50,6 +54,9 @@ celery_app.conf.update(
         "mirror.data_export.cleanup": {"queue": "mirror.maintenance"},
         "mirror.account_deletion.process": {"queue": "mirror.maintenance"},
         "mirror.data_rights.reconcile": {"queue": "mirror.maintenance"},
+        "mirror.synthetic_generation.process": {"queue": "mirror.synthetic"},
+        "mirror.synthetic_generation.reconcile": {"queue": "mirror.maintenance"},
+        "mirror.synthetic_generation.cleanup": {"queue": "mirror.maintenance"},
     },
 )
 
@@ -217,6 +224,50 @@ def reconcile_data_rights(*, request_id: str, limit: int = 100) -> list[str]:
     )
 
 
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.synthetic_generation.process",
+    autoretry_for=(RetryableWorkerFailure,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=300,
+    time_limit=360,
+    **INGESTION_RETRY_POLICY,
+)
+def process_synthetic_generation(message: dict[str, Any]) -> dict[str, str]:
+    try:
+        return asyncio.run(run_synthetic_generation_message(message))
+    except RetryableWorkerFailure:
+        raise
+    except Exception as exc:
+        raise RetryableWorkerFailure("synthetic generation execution failed transiently") from exc
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.synthetic_generation.reconcile",
+    autoretry_for=(RetryableWorkerFailure,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    **INGESTION_RETRY_POLICY,
+)
+def reconcile_synthetic_generation(*, limit: int = 100) -> list[str]:
+    return list(
+        asyncio.run(
+            run_synthetic_generation_reconciliation(dispatcher=CeleryTaskDispatcher(), limit=limit)
+        )
+    )
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.synthetic_generation.cleanup",
+    autoretry_for=(RetryableWorkerFailure,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    **INGESTION_RETRY_POLICY,
+)
+def cleanup_synthetic_generation(*, limit: int = 100) -> list[str]:
+    return list(asyncio.run(run_synthetic_raw_cleanup(limit=limit)))
+
+
 class CeleryTaskDispatcher:
     def dispatch(self, envelope: TaskEnvelope) -> str:
         envelope.validate()
@@ -264,5 +315,15 @@ class CeleryTaskDispatcher:
             task_id=secrets.token_hex(16),
             headers={"request_id": message.request_id, "job_id": message.job_id},
             queue="mirror.maintenance",
+        )
+        return message.job_id
+
+    def dispatch_synthetic_generation(self, message: SyntheticGenerationTaskMessage) -> str:
+        message.validate()
+        process_synthetic_generation.apply_async(
+            args=[message.to_message()],
+            task_id=secrets.token_hex(16),
+            headers={"request_id": message.request_id, "job_id": message.job_id},
+            queue="mirror.synthetic",
         )
         return message.job_id

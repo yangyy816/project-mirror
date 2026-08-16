@@ -133,7 +133,7 @@ class Settings(BaseSettings):
     image_generation_provider: Literal[
         "mock", "disabled", "verified_external", "tencent_candidate"
     ] = "mock"
-    synthetic_storage_provider: Literal["mock", "disabled", "tencent_candidate"] = "mock"
+    synthetic_storage_provider: Literal["mock", "local", "disabled", "tencent_candidate"] = "mock"
     agent_provider: Literal["mock", "disabled", "verified_external", "tencent_candidate"] = "mock"
     task_runner: Literal["local", "celery"] = "local"
 
@@ -198,12 +198,13 @@ class Settings(BaseSettings):
                     self.sms_provider,
                     self.vision_provider,
                     self.image_generation_provider,
-                    self.synthetic_storage_provider,
                     self.agent_provider,
                     self.age_assurance_provider,
                 )
             ):
                 raise ValueError("test and ci require deterministic mock providers")
+            if self.synthetic_storage_provider not in {"mock", "local"}:
+                raise ValueError("test and ci require deterministic synthetic storage")
             if self.storage_provider != "local":
                 raise ValueError("test and ci forbid real object storage writes")
 

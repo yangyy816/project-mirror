@@ -41,6 +41,7 @@ from mirror_api.providers.tencent import (
     TencentVisionCandidateProvider,
 )
 from mirror_api.storage_keys import internal_synthetic_generated_object_key
+from mirror_api.synthetic_dataset.prompt_material import EphemeralPrompt
 
 
 def _generation_request(
@@ -69,6 +70,10 @@ def _generation_request(
     )
 
 
+def _prompt() -> EphemeralPrompt:
+    return EphemeralPrompt("clearly adult synthetic non-human fixture")
+
+
 @pytest.mark.asyncio
 async def test_provider_fakes_are_deterministic_and_private(
     monkeypatch: pytest.MonkeyPatch,
@@ -95,8 +100,8 @@ async def test_provider_fakes_are_deterministic_and_private(
         )
     )
     generation_request = _generation_request(request_reference="generation-request-001")
-    generated = await image.generate_synthetic(request=generation_request)
-    generated_again = await image.generate_synthetic(request=generation_request)
+    generated = await image.generate_synthetic(request=generation_request, prompt=_prompt())
+    generated_again = await image.generate_synthetic(request=generation_request, prompt=_prompt())
     assert generated == generated_again
     assert generated.payload.content == MOCK_SYNTHETIC_NON_HUMAN_PNG_BYTES
     assert generated.payload.byte_size == len(generated.payload.content)
@@ -119,7 +124,8 @@ async def test_provider_fakes_are_deterministic_and_private(
                     GenerationParameter(parameter_key="guidance-scale", value=7.5),
                 ),
                 seed=42,
-            )
+            ),
+            prompt=_prompt(),
         )
 
     vision_request = SyntheticVisionRequest(
@@ -341,7 +347,9 @@ async def test_unverified_tencent_candidates_fail_closed_without_network(
 
     generation_request = _generation_request(request_reference="generation-request-003")
     with pytest.raises(NotImplementedError, match="not verified"):
-        await TencentImageCandidateProvider().generate_synthetic(request=generation_request)
+        await TencentImageCandidateProvider().generate_synthetic(
+            request=generation_request, prompt=_prompt()
+        )
 
     vision_request = SyntheticVisionRequest(
         request_reference="vision-request-003",
@@ -358,7 +366,7 @@ async def test_unverified_tencent_candidates_fail_closed_without_network(
                 payload=vision_request.image,
                 provenance=(
                     await MockImageGenerationProvider().generate_synthetic(
-                        request=generation_request
+                        request=generation_request, prompt=_prompt()
                     )
                 ).provenance,
             )

@@ -105,6 +105,10 @@ def test_purpose_consent_operations_are_non_empty_and_unique(operations: list[st
             {"synthetic_storage_provider": "mock"},
             "production synthetic storage provider must remain disabled",
         ),
+        (
+            {"synthetic_storage_provider": "local"},
+            "production synthetic storage provider must remain disabled",
+        ),
         ({"auth_token_secret": "change-me"}, "secure non-default auth token secret"),
         (
             {"facial_data_purpose": {"policy_digest": "0" * 64}},
@@ -149,6 +153,12 @@ def test_ci_requires_deterministic_providers_and_celery() -> None:
         Settings(app_env="test", age_assurance_provider="disabled")
     with pytest.raises(ValidationError, match="deterministic mock"):
         Settings(app_env="ci", task_runner="celery", age_assurance_provider="disabled")
+    assert (
+        Settings(
+            app_env="ci", task_runner="celery", synthetic_storage_provider="local"
+        ).synthetic_storage_provider
+        == "local"
+    )
 
 
 @pytest.mark.parametrize(

@@ -122,6 +122,16 @@ class GenerationRepository:
             ),
         )
 
+    async def locked_attempt_for_lease(self, *, job_id: str, lease_token: str) -> JobAttempt | None:
+        return cast(
+            JobAttempt | None,
+            await self.session.scalar(
+                select(JobAttempt)
+                .where(JobAttempt.job_id == job_id, JobAttempt.lease_token == lease_token)
+                .with_for_update()
+            ),
+        )
+
     async def generating_count(self, batch_id: str) -> int:
         value = await self.session.scalar(
             select(func.count())
@@ -298,3 +308,25 @@ class GenerationRepository:
                 )
             ),
         )
+
+    async def generation_reconciliation_rows(
+        self, *, now: datetime, limit: int
+    ) -> tuple[tuple[GenerationItem, Job], ...]:
+        rows = (
+            await self.session.execute(
+                select(GenerationItem, Job)
+                .join(Job, Job.id == GenerationItem.job_id)
+                .join(GenerationBatch, GenerationBatch.id == GenerationItem.batch_id)
+                .where(
+                    GenerationBatch.status.in_(("QUEUED", "RUNNING")),
+                    GenerationItem.status.in_(("REQUESTED", "GENERATING")),
+                    (
+                        (GenerationBatch.cancel_requested_at.is_(None) & (Job.status == "pending"))
+                        | ((Job.status == "leased") & (Job.lease_expires_at <= now))
+                    ),
+                )
+                .order_by(GenerationBatch.created_at, GenerationItem.ordinal)
+                .limit(limit)
+            )
+        ).all()
+        return tuple((row[0], row[1]) for row in rows)

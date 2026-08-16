@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-from mirror_api.providers.base import SYNTHETIC_IMAGE_MEDIA_TYPES
+from mirror_api.providers.base import SYNTHETIC_IMAGE_MEDIA_TYPES, SyntheticGenerationRequest
 
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
@@ -143,6 +143,19 @@ class GenerationItemReservation:
     lease_token: str
     lease_expires_at: datetime
     remaining_budget_micros: int
+
+
+@dataclass(frozen=True)
+class GenerationTaskReference:
+    item_id: str
+    job_id: str
+    request_id: str
+
+
+@dataclass(frozen=True)
+class GenerationExecutionContext:
+    reservation: GenerationItemReservation
+    request: SyntheticGenerationRequest
 
 
 @dataclass(frozen=True)

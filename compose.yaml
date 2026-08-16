@@ -39,6 +39,7 @@ services:
       STORAGE_PROVIDER: local
       VISION_PROVIDER: mock
       IMAGE_GENERATION_PROVIDER: mock
+      SYNTHETIC_STORAGE_PROVIDER: local
       AGENT_PROVIDER: mock
       OBJECT_STORAGE_PRIVATE: "true"
       SENSITIVE_PROCESSING_ENABLED: "false"
@@ -83,7 +84,7 @@ services:
       - mirror_worker.app:celery_app
       - worker
       - --loglevel=INFO
-      - --queues=mirror.default,mirror.ingestion,mirror.maintenance
+      - --queues=mirror.default,mirror.ingestion,mirror.synthetic,mirror.maintenance
       - --concurrency=2
       - --prefetch-multiplier=1
     volumes:

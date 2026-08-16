@@ -16,7 +16,7 @@
 | Database        | `0008→0009→0008→0009`, drift and invariants           | T02 PASS            |
 | Batch/item      | monotonic lifecycle, idempotency and concurrency      | T02/T03 PASS        |
 | Budget/cost     | row-lock admission, ceilings and append-only facts    | T02/T03 PASS        |
-| Worker          | reference-only, at-least-once, retry/cancel/reconcile | PENDING             |
+| Worker          | reference-only, at-least-once, retry/cancel/reconcile | T05 PASS            |
 | Raw storage     | private namespace, conflict, orphan/TTL cleanup       | T04 PASS            |
 | Provenance      | actual Provider facts and immutable evidence          | T02 FOUNDATION PASS |
 | Prompt/security | ephemeral redacted material, zero log/task leakage    | T03 PASS            |
@@ -92,3 +92,28 @@ asset in M2.
   call, public API or migration was added.
 
 `P2_M2_T04: TASK_ACCEPTED`
+
+## T05 accepted evidence
+
+- `SyntheticGenerationTaskMessage` contains only item, Job, request and schema references. The
+  Celery-independent executor resolves the exact PostgreSQL lease, materializes Prompt only at the
+  Provider call boundary, persists actual cost before raw completion, and makes duplicate delivery
+  a safe no-op.
+- LocalTaskRunner and Celery both implement the same first-party dispatcher port. Celery uses late
+  acknowledgement, worker-lost recovery, bounded retry and the dedicated `mirror.synthetic` queue;
+  reconciliation redispatches only pending or expired exact references.
+- CI/development Celery uses the explicit local private synthetic adapter on the shared private
+  volume, not a task-local in-memory store. Production still requires generation and synthetic
+  storage to be disabled. Candidate Tencent adapters remain fail closed and no live network path,
+  dependency, model or public API was added.
+- `P2-M2-R03` fixes terminal aggregation so a cancelled single-item batch cannot be mislabeled
+  `FAILED` after its expired lease quiesces. `P2-M2-R04` maps database IDs to canonical first-party
+  policy/template references and turns invalid Prompt authority into a redacted domain rejection.
+- Principal validation passed Ruff and strict mypy across API/Worker source, deterministic failure
+  tests for Provider/storage/database paths, and 22 Linux tests with zero skip across real
+  PostgreSQL, Redis/Celery, exact reservation concurrency, stale-lease recovery, cancellation,
+  cost preservation, immutable raw storage, duplicate delivery and cross-process blob reopening.
+  The isolated worker and database were removed after zero active connections; all five Compose
+  services were then updated to the candidate image/configuration and returned healthy.
+
+`P2_M2_T05: TASK_ACCEPTED`

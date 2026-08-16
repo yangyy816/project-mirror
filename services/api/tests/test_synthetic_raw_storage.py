@@ -43,6 +43,7 @@ from mirror_api.synthetic_dataset.generation_types import (
     GenerationBatchCreate,
     GenerationOperationRejected,
 )
+from mirror_api.synthetic_dataset.prompt_material import EphemeralPrompt
 from mirror_api.synthetic_dataset.raw_storage import SyntheticRawStorageService
 
 pytestmark = pytest.mark.integration
@@ -276,7 +277,8 @@ async def test_retention_and_failed_attempt_orphan_reconciliation(tmp_path: Path
         reservation = await generation.reserve_next_item(created.batch.batch_id)
         assert reservation is not None
         provider_result = await MockImageGenerationProvider().generate_synthetic(
-            request=_generation_request(reservation.request_reference)
+            request=_generation_request(reservation.request_reference),
+            prompt=EphemeralPrompt("clearly adult synthetic non-human fixture"),
         )
         reference = synthetic_raw_storage_reference(reservation.item_id, reservation.attempt_id)
         stored = await storage.store_generated_image_if_absent(
@@ -332,7 +334,8 @@ async def test_retention_and_failed_attempt_orphan_reconciliation(tmp_path: Path
         failed_reservation = await generation.reserve_next_item(failed.batch.batch_id)
         assert failed_reservation is not None
         failed_result = await MockImageGenerationProvider().generate_synthetic(
-            request=_generation_request(failed_reservation.request_reference)
+            request=_generation_request(failed_reservation.request_reference),
+            prompt=EphemeralPrompt("clearly adult synthetic non-human fixture"),
         )
         failed_reference = synthetic_raw_storage_reference(
             failed_reservation.item_id, failed_reservation.attempt_id
@@ -384,7 +387,8 @@ async def test_retention_and_failed_attempt_orphan_reconciliation(tmp_path: Path
         crash_reservation = await generation.reserve_next_item(crash.batch.batch_id)
         assert crash_reservation is not None
         crash_result = await MockImageGenerationProvider().generate_synthetic(
-            request=_generation_request(crash_reservation.request_reference)
+            request=_generation_request(crash_reservation.request_reference),
+            prompt=EphemeralPrompt("clearly adult synthetic non-human fixture"),
         )
         crash_reference = synthetic_raw_storage_reference(
             crash_reservation.item_id, crash_reservation.attempt_id
