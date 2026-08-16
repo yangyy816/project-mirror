@@ -5,12 +5,12 @@
 | Scope   | State     | Evidence / Boundary                                              |
 | ------- | --------- | ---------------------------------------------------------------- |
 | Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`   |
-| Phase 1 | COMMITTED | Application Foundation；P1-M1/M2/M3/M4 frozen；下一步 refine M5  |
+| Phase 1 | COMMITTED | Application Foundation；P1-M1/M2/M3/M4 frozen；P1-M5 Gate PASS   |
 | P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿 |
 | P1-M2   | FROZEN    | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿 |
 | P1-M3   | FROZEN    | closure `05c9f00`；run `31897780247` 三 jobs 与 artifacts 全绿   |
 | P1-M4   | FROZEN    | closure `fd910f2`；run `31903994976` 三 jobs 与 artifacts 全绿   |
-| P1-M5   | EXECUTING | ADR-020 + `P1_M5_EXECUTION_PROTOCOL.md`；仅合成非人脸 fixture    |
+| P1-M5   | PASS      | candidate `6d46b4b`；run `31921199397` 三 jobs 与 artifacts 全绿 |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
@@ -27,6 +27,8 @@ P1-M4 的安全解码、canonical re-encode、Job/recovery、晋升和 M5 边界
 P1-M4 的本地/远端 Gate、repairs 与 deferred production Gates 见 `P1_M4_ACCEPTANCE.md`。
 
 P1-M5 的私有 Asset 访问、异步删除、数据导出、账户删除传播和 P1-M6 边界见 `ADR-020-user-data-rights-and-asset-lifecycle.md` 与 `P1_M5_EXECUTION_PROTOCOL.md`。
+
+P1-M5 的本地/远端 Gate、repairs 与 deferred production Gates 见 `P1_M5_ACCEPTANCE.md`；当前等待 acceptance closure CI，尚未标记 `FROZEN`，不得进入 P1-M6。
 
 ## Future rolling-wave positioning
 
