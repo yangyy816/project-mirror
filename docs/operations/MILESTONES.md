@@ -2,20 +2,20 @@
 
 ## 当前执行状态
 
-| Scope   | State           | Evidence / Boundary                                              |
-| ------- | --------------- | ---------------------------------------------------------------- |
-| Phase 0 | FROZEN          | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`   |
-| Phase 1 | FROZEN          | P1-M1–M6 全部冻结；P1-M6 closure run `31924651458` 全绿          |
-| P1-M1   | FROZEN          | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿 |
-| P1-M2   | FROZEN          | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿 |
-| P1-M3   | FROZEN          | closure `05c9f00`；run `31897780247` 三 jobs 与 artifacts 全绿   |
-| P1-M4   | FROZEN          | closure `fd910f2`；run `31903994976` 三 jobs 与 artifacts 全绿   |
-| P1-M5   | FROZEN          | closure `ccbd136`；run `31921591091` 三 jobs 与 artifacts 全绿   |
-| P1-M6   | FROZEN          | closure `cc926ce`；run `31924651458` 三 jobs 与 artifacts 全绿   |
-| Phase 2 | COMMITTED       | Synthetic Dataset Engine；P2-M1–M2 已冻结，P2-M3 已完成滚动细化  |
-| P2-M1   | FROZEN          | closure `27cede8`；run `31932349425` 三 jobs 与 artifacts 全绿   |
-| P2-M2   | FROZEN          | closure `e211adb`；run `31958454155` 三 jobs 与 artifacts 全绿   |
-| P2-M3   | EXECUTION_READY | Synthetic normalization/base QA；ADR-027 与 bounded tasks 已冻结 |
+| Scope   | State     | Evidence / Boundary                                              |
+| ------- | --------- | ---------------------------------------------------------------- |
+| Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`   |
+| Phase 1 | FROZEN    | P1-M1–M6 全部冻结；P1-M6 closure run `31924651458` 全绿          |
+| P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿 |
+| P1-M2   | FROZEN    | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿 |
+| P1-M3   | FROZEN    | closure `05c9f00`；run `31897780247` 三 jobs 与 artifacts 全绿   |
+| P1-M4   | FROZEN    | closure `fd910f2`；run `31903994976` 三 jobs 与 artifacts 全绿   |
+| P1-M5   | FROZEN    | closure `ccbd136`；run `31921591091` 三 jobs 与 artifacts 全绿   |
+| P1-M6   | FROZEN    | closure `cc926ce`；run `31924651458` 三 jobs 与 artifacts 全绿   |
+| Phase 2 | COMMITTED | Synthetic Dataset Engine；P2-M1–M2 已冻结，P2-M3 已完成滚动细化  |
+| P2-M1   | FROZEN    | closure `27cede8`；run `31932349425` 三 jobs 与 artifacts 全绿   |
+| P2-M2   | FROZEN    | closure `e211adb`；run `31958454155` 三 jobs 与 artifacts 全绿   |
+| P2-M3   | EXECUTING | planning run `31959813830` 全绿；T02 schema authority 本地通过   |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
@@ -41,17 +41,17 @@ P1-M6 只执行 Phase 1 集成、安全、恢复、可观测性、CI 证据与�
 
 Phase 2 仅处理可追溯的成年合成人物刺激资产；真实用户数据、真人图片、SelfState、问卷运行、DesiredDelta、编辑、支付和部署均不在范围。P2-M1 的已冻结规划修订、T01 权限、Principal checkpoint、研究 Gate 与停止条件见 `P2_PLANNING_AMENDMENT.md`；当前 active milestone 的权威见 `P2_M3_EXECUTION_PROTOCOL.md`。
 
-| Milestone | State           | Boundary                                                                         |
-| --------- | --------------- | -------------------------------------------------------------------------------- |
-| P2-M1     | FROZEN          | closure `27cede8`；run `31932349425` 三 jobs 与 exact-SHA artifacts 全绿         |
-| P2-M2     | FROZEN          | closure `e211adb`；run `31958454155` 三 jobs 与 exact-SHA artifacts 全绿         |
-| P2-M3     | EXECUTION_READY | Synthetic normalization/base identity QA；ADR-027 与 T01–T08 已冻结              |
-| P2-M4     | COMMITTED       | Deterministic geometry variant research/engine；须待 M3 Gate 后 refinement       |
-| P2-M5     | COMMITTED       | Variable isolation, duplicate and diversity QA；须待 M3/M4 Gate 后 refinement    |
-| P2-M6     | COMMITTED       | QuestionBank draft, immutable release and revocation；须待 M5 Gate 后 refinement |
-| P2-M7     | COMMITTED       | Internal operations, cost and observability；须待 M2 contracts 后 refinement     |
-| P2-M8     | COMMITTED       | Golden dataset and integrated evaluation；须待 M5–M7 Gate 后 refinement          |
-| P2-M9     | COMMITTED       | Final audit and freeze；须待 M1–M8 Gate 后 refinement                            |
+| Milestone | State     | Boundary                                                                         |
+| --------- | --------- | -------------------------------------------------------------------------------- |
+| P2-M1     | FROZEN    | closure `27cede8`；run `31932349425` 三 jobs 与 exact-SHA artifacts 全绿         |
+| P2-M2     | FROZEN    | closure `e211adb`；run `31958454155` 三 jobs 与 exact-SHA artifacts 全绿         |
+| P2-M3     | EXECUTING | planning run `31959813830` 全绿；T02 schema authority 本地通过                   |
+| P2-M4     | COMMITTED | Deterministic geometry variant research/engine；须待 M3 Gate 后 refinement       |
+| P2-M5     | COMMITTED | Variable isolation, duplicate and diversity QA；须待 M3/M4 Gate 后 refinement    |
+| P2-M6     | COMMITTED | QuestionBank draft, immutable release and revocation；须待 M5 Gate 后 refinement |
+| P2-M7     | COMMITTED | Internal operations, cost and observability；须待 M2 contracts 后 refinement     |
+| P2-M8     | COMMITTED | Golden dataset and integrated evaluation；须待 M5–M7 Gate 后 refinement          |
+| P2-M9     | COMMITTED | Final audit and freeze；须待 M1–M8 Gate 后 refinement                            |
 
 P2 的可执行状态不解除 P3 真实 facial-data 的 Legal/Consent/PIPIA/Security/Provider Gates。P2 research threshold、identity count、模型选择和 live Provider benchmark 继续是可替换的研究或运营决策，不是本仓库 invariant。
 

@@ -234,17 +234,19 @@ def test_synthetic_authority_content_is_unique_immutable_and_approval_is_termina
 def test_synthetic_identity_is_bank_independent_and_synthetic_asset_shape_is_immutable(
     session: Session,
 ) -> None:
-    identity = SyntheticIdentity(
+    legacy_identity = SyntheticIdentity(
         id=new_id(),
+        authority_kind="LEGACY_SKELETON",
         generator_provider="deterministic_fixture",
         generator_model="fixture-v1",
         prompt_version="fixture-prompt-v1",
         provenance={"source": "synthetic"},
         adult_synthetic_attested=True,
     )
-    session.add(identity)
-    session.commit()
-    assert identity.bank_version_id is None
+    session.add(legacy_identity)
+    with pytest.raises(ValueError, match="new synthetic identities require canonical QA authority"):
+        session.commit()
+    session.rollback()
 
     bank = QuestionBankVersion(id=new_id(), version="fixture-bank-v1", qa_version="fixture-qa-v1")
     session.add(bank)
@@ -262,19 +264,6 @@ def test_synthetic_identity_is_bank_independent_and_synthetic_asset_shape_is_imm
     session.add(orm_identity)
     with pytest.raises(ValueError, match="synthetic identities must be bank-independent"):
         session.commit()
-    session.rollback()
-
-    identity.bank_version_id = bank.id
-    with pytest.raises(ValueError, match="synthetic identities must be bank-independent"):
-        session.commit()
-    session.rollback()
-
-    with pytest.raises(IntegrityError):
-        session.execute(
-            update(SyntheticIdentity)
-            .where(SyntheticIdentity.id == identity.id)
-            .values(bank_version_id=bank.id)
-        )
     session.rollback()
 
     owner = User(id=new_id(), phone_hash="f" * 64)

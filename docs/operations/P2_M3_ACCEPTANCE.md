@@ -3,7 +3,7 @@
 ## Status
 
 - Milestone: `P2-M3 — Synthetic Normalization and Base Identity QA`
-- State: `EXECUTION_READY`
+- State: `EXECUTING`
 - Frozen entry: `0b579ebdb1c2a63936225bc59a4b0ca780544df2`
 - Planned migration: `0010_synthetic_asset_qa`
 - Public API change: none
@@ -12,23 +12,23 @@
 
 ## Mandatory evidence matrix
 
-| Gate                      | Required evidence                                                          | Status  |
-| ------------------------- | -------------------------------------------------------------------------- | ------- |
-| M2 authority preservation | no GenerationItem/raw/generation evidence rewrite                          | PENDING |
-| Migration                 | fresh and `0009→0010→0009→0010`, drift zero                                | PENDING |
-| Normalization             | bounded decode, sanitation, canonical encode, second decode, checksum      | PENDING |
-| Namespace                 | normalized private namespace separate from raw/user assets                 | PENDING |
-| Immutability              | Asset/record/measurement/review/identity lineage cannot mutate/delete      | PENDING |
-| QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | PENDING |
-| Adult policy              | explicit human review; ambiguous/minor-looking reject; no age estimation   | PENDING |
-| Vision                    | approved exact package/model/data/license + controlled benchmark           | PENDING |
-| Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | PENDING |
-| Synthetic-only            | no User relation, real-person fixture, scraping or sensitive classifier    | PENDING |
-| Recovery                  | duplicate delivery, lease expiry, blob-before-commit and cleanup race      | PENDING |
-| Contracts                 | OpenAPI/generated TypeScript unchanged                                     | PENDING |
-| Supply chain              | Pillow unchanged; every new package/model separately approved              | PENDING |
-| Full Gate                 | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA Actions            | PENDING |
-| Final review              | independent security and final reviewer acceptance                         | PENDING |
+| Gate                      | Required evidence                                                          | Status   |
+| ------------------------- | -------------------------------------------------------------------------- | -------- |
+| M2 authority preservation | no GenerationItem/raw/generation evidence rewrite                          | T02 PASS |
+| Migration                 | fresh and `0009→0010→0009→0010`, drift zero                                | T02 PASS |
+| Normalization             | bounded decode, sanitation, canonical encode, second decode, checksum      | PENDING  |
+| Namespace                 | normalized private namespace separate from raw/user assets                 | PENDING  |
+| Immutability              | Asset/record/measurement/review/identity lineage cannot mutate/delete      | T02 PASS |
+| QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | PENDING  |
+| Adult policy              | explicit human review; ambiguous/minor-looking reject; no age estimation   | PENDING  |
+| Vision                    | approved exact package/model/data/license + controlled benchmark           | PENDING  |
+| Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | T02 PASS |
+| Synthetic-only            | no User relation, real-person fixture, scraping or sensitive classifier    | T02 PASS |
+| Recovery                  | duplicate delivery, lease expiry, blob-before-commit and cleanup race      | PENDING  |
+| Contracts                 | OpenAPI/generated TypeScript unchanged                                     | T02 PASS |
+| Supply chain              | Pillow unchanged; every new package/model separately approved              | T02 PASS |
+| Full Gate                 | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA Actions            | PENDING  |
+| Final review              | independent security and final reviewer acceptance                         | PENDING  |
 
 ## Bounded native validation
 
@@ -60,6 +60,6 @@ release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts rem
 
 `P2_M3_REMOTE_CI: PENDING`
 
-`P2_M3_STATE: EXECUTION_READY`
+`P2_M3_STATE: EXECUTING`
 
 `P2_M4_ENTRY: CLOSED`

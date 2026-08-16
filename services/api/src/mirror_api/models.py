@@ -1209,21 +1209,282 @@ class SyntheticSourceObjectDeletionEvidence(IdMixin, Base):
     )
 
 
+class SyntheticAssetRecord(IdMixin, TimestampMixin, Base):
+    __tablename__ = "synthetic_asset_records"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(96), default="mirror.synthetic-dataset/SyntheticAssetRecord/v1", nullable=False
+    )
+    source_object_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_source_objects.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    normalized_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), unique=True
+    )
+    normalizer_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    normalizer_config_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="NORMALIZATION_PENDING", nullable=False)
+    result_code: Mapped[str | None] = mapped_column(String(64))
+    normalization_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    normalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    qa_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    qa_finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    identity_registered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/SyntheticAssetRecord/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint(
+            "normalizer_version ~ '^[a-z][a-z0-9._-]{2,63}$'",
+            name="normalizer_version",
+        ),
+        CheckConstraint(
+            "normalizer_config_digest ~ '^[0-9a-f]{64}$'",
+            name="normalizer_config_digest",
+        ),
+        CheckConstraint(
+            "status IN ('NORMALIZATION_PENDING','NORMALIZING','NORMALIZED',"
+            "'NORMALIZATION_FAILED','QA_PENDING','QA_RUNNING','QA_PASSED','REJECTED',"
+            "'QA_FAILED','IDENTITY_REGISTERED')",
+            name="status",
+        ),
+        CheckConstraint(
+            "result_code IS NULL OR result_code ~ '^[a-z][a-z0-9_]{2,63}$'",
+            name="result_code",
+        ),
+        CheckConstraint(
+            "(status IN ('NORMALIZATION_PENDING','NORMALIZING','NORMALIZATION_FAILED') "
+            "AND normalized_asset_id IS NULL) OR "
+            "(status IN ('NORMALIZED','QA_PENDING','QA_RUNNING','QA_PASSED','REJECTED',"
+            "'QA_FAILED','IDENTITY_REGISTERED') AND normalized_asset_id IS NOT NULL)",
+            name="normalized_asset_shape",
+        ),
+        CheckConstraint(
+            "(status = 'NORMALIZATION_PENDING' AND normalization_started_at IS NULL "
+            "AND normalized_at IS NULL AND qa_started_at IS NULL AND qa_finalized_at IS NULL "
+            "AND identity_registered_at IS NULL AND result_code IS NULL) OR "
+            "(status = 'NORMALIZING' AND normalization_started_at IS NOT NULL "
+            "AND normalized_at IS NULL AND qa_started_at IS NULL AND qa_finalized_at IS NULL "
+            "AND identity_registered_at IS NULL AND result_code IS NULL) OR "
+            "(status = 'NORMALIZATION_FAILED' AND normalization_started_at IS NOT NULL "
+            "AND normalized_at IS NULL AND qa_started_at IS NULL AND qa_finalized_at IS NULL "
+            "AND identity_registered_at IS NULL AND result_code IS NOT NULL) OR "
+            "(status IN ('NORMALIZED','QA_PENDING') AND normalization_started_at IS NOT NULL "
+            "AND normalized_at IS NOT NULL AND qa_started_at IS NULL AND qa_finalized_at IS NULL "
+            "AND identity_registered_at IS NULL AND result_code IS NULL) OR "
+            "(status = 'QA_RUNNING' AND normalization_started_at IS NOT NULL "
+            "AND normalized_at IS NOT NULL AND qa_started_at IS NOT NULL "
+            "AND qa_finalized_at IS NULL AND identity_registered_at IS NULL "
+            "AND result_code IS NULL) OR "
+            "(status = 'QA_PASSED' AND normalization_started_at IS NOT NULL "
+            "AND normalized_at IS NOT NULL AND qa_started_at IS NOT NULL "
+            "AND qa_finalized_at IS NOT NULL AND identity_registered_at IS NULL "
+            "AND result_code IS NULL) OR "
+            "(status IN ('REJECTED','QA_FAILED') AND normalization_started_at IS NOT NULL "
+            "AND normalized_at IS NOT NULL AND qa_started_at IS NOT NULL "
+            "AND qa_finalized_at IS NOT NULL AND identity_registered_at IS NULL "
+            "AND result_code IS NOT NULL) OR "
+            "(status = 'IDENTITY_REGISTERED' AND normalization_started_at IS NOT NULL "
+            "AND normalized_at IS NOT NULL AND qa_started_at IS NOT NULL "
+            "AND qa_finalized_at IS NOT NULL AND identity_registered_at IS NOT NULL "
+            "AND result_code IS NULL)",
+            name="status_shape",
+        ),
+        CheckConstraint(
+            "(normalization_started_at IS NULL OR normalization_started_at >= created_at) AND "
+            "(normalized_at IS NULL OR normalized_at >= normalization_started_at) AND "
+            "(qa_started_at IS NULL OR qa_started_at >= normalized_at) AND "
+            "(qa_finalized_at IS NULL OR qa_finalized_at >= qa_started_at) AND "
+            "(identity_registered_at IS NULL OR identity_registered_at >= qa_finalized_at)",
+            name="timestamp_order",
+        ),
+    )
+
+
+class SyntheticQARun(IdMixin, TimestampMixin, Base):
+    __tablename__ = "synthetic_qa_runs"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(96), default="mirror.synthetic-dataset/SyntheticQARun/v1", nullable=False
+    )
+    synthetic_asset_record_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_asset_records.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    normalized_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    qa_policy_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_qa_policies.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    vision_provider_reference: Mapped[str | None] = mapped_column(String(128))
+    vision_algorithm_reference: Mapped[str | None] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(16), default="PENDING", nullable=False)
+    result_code: Mapped[str | None] = mapped_column(String(64))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        UniqueConstraint(
+            "normalized_asset_id",
+            "qa_policy_id",
+            name="uq_synthetic_qa_runs_unique_asset_policy",
+        ),
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/SyntheticQARun/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint(
+            "status IN ('PENDING','RUNNING','PASSED','REJECTED','FAILED')", name="status"
+        ),
+        CheckConstraint(
+            "result_code IS NULL OR result_code ~ '^[a-z][a-z0-9_]{2,63}$'",
+            name="result_code",
+        ),
+        CheckConstraint(
+            "(status IN ('PENDING','RUNNING','PASSED') AND result_code IS NULL) OR "
+            "(status IN ('REJECTED','FAILED') AND result_code IS NOT NULL)",
+            name="result_shape",
+        ),
+        CheckConstraint(
+            "(status = 'PENDING' AND started_at IS NULL AND finalized_at IS NULL) OR "
+            "(status = 'RUNNING' AND started_at IS NOT NULL AND finalized_at IS NULL) OR "
+            "(status IN ('PASSED','REJECTED','FAILED') AND started_at IS NOT NULL "
+            "AND finalized_at IS NOT NULL)",
+            name="timestamp_shape",
+        ),
+        CheckConstraint(
+            "finalized_at IS NULL OR finalized_at >= started_at", name="timestamp_order"
+        ),
+    )
+
+
+class SyntheticQAMeasurement(IdMixin, Base):
+    __tablename__ = "synthetic_qa_measurements"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(112), default="mirror.synthetic-dataset/SyntheticQAMeasurement/v1", nullable=False
+    )
+    qa_run_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_qa_runs.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    measurement_kind: Mapped[str] = mapped_column(String(48), nullable=False)
+    measurement_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    payload_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    algorithm_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(8, 7))
+    hard_gate: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    threshold_outcome: Mapped[str] = mapped_column(String(24), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        UniqueConstraint(
+            "qa_run_id",
+            "measurement_code",
+            name="uq_synthetic_qa_measurements_unique_run_measurement",
+        ),
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/SyntheticQAMeasurement/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("measurement_kind ~ '^[a-z][a-z0-9_]{2,47}$'", name="measurement_kind"),
+        CheckConstraint("measurement_code ~ '^[a-z][a-z0-9_]{2,63}$'", name="measurement_code"),
+        CheckConstraint("json_typeof(payload) = 'object'", name="payload_object"),
+        CheckConstraint("payload_digest ~ '^[0-9a-f]{64}$'", name="payload_digest"),
+        CheckConstraint(
+            "algorithm_reference ~ '^[a-z][a-z0-9._:/-]{2,127}$'",
+            name="algorithm_reference",
+        ),
+        CheckConstraint(
+            "algorithm_version ~ '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$'",
+            name="algorithm_version",
+        ),
+        CheckConstraint(
+            "confidence IS NULL OR (confidence >= 0 AND confidence <= 1)", name="confidence"
+        ),
+        CheckConstraint(
+            "threshold_outcome IN ('PASSED','FAILED','NOT_APPLICABLE')",
+            name="threshold_outcome",
+        ),
+        CheckConstraint("reason_code ~ '^[a-z][a-z0-9_]{2,63}$'", name="reason_code"),
+    )
+
+
+class SyntheticQAReviewDecision(IdMixin, Base):
+    __tablename__ = "synthetic_qa_review_decisions"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(112), default="mirror.synthetic-dataset/SyntheticQAReviewDecision/v1", nullable=False
+    )
+    qa_run_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_qa_runs.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    review_kind: Mapped[str] = mapped_column(String(48), nullable=False)
+    decision: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        UniqueConstraint(
+            "qa_run_id",
+            "review_kind",
+            name="uq_synthetic_qa_review_decisions_unique_run_review_kind",
+        ),
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/SyntheticQAReviewDecision/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("review_kind ~ '^[a-z][a-z0-9_]{2,47}$'", name="review_kind"),
+        CheckConstraint("decision IN ('PASSED','REJECTED')", name="decision"),
+        CheckConstraint("reason_code ~ '^[a-z][a-z0-9_]{2,63}$'", name="reason_code"),
+        CheckConstraint(
+            "actor_reference ~ '^[a-z0-9][a-z0-9._:@/-]{2,127}$'",
+            name="actor_reference",
+        ),
+        CheckConstraint("reviewed_at <= created_at", name="review_timestamp"),
+    )
+
+
 class SyntheticIdentity(IdMixin, Base):
     __tablename__ = "synthetic_identities"
 
     bank_version_id: Mapped[str | None] = mapped_column(
         ForeignKey("question_bank_versions.id", ondelete="RESTRICT"), index=True
     )
-    generator_provider: Mapped[str] = mapped_column(String(64), nullable=False)
-    generator_model: Mapped[str] = mapped_column(String(128), nullable=False)
-    prompt_version: Mapped[str] = mapped_column(String(48), nullable=False)
-    provenance: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    authority_kind: Mapped[str] = mapped_column(String(24), default="CANONICAL_QA", nullable=False)
+    canonical_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), unique=True
+    )
+    accepted_qa_run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("synthetic_qa_runs.id", ondelete="RESTRICT"), unique=True
+    )
+    generator_provider: Mapped[str | None] = mapped_column(String(64))
+    generator_model: Mapped[str | None] = mapped_column(String(128))
+    prompt_version: Mapped[str | None] = mapped_column(String(48))
+    provenance: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     adult_synthetic_attested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
-    __table_args__ = (CheckConstraint("bank_version_id IS NULL", name="bank_independent"),)
+    __table_args__ = (
+        CheckConstraint("bank_version_id IS NULL", name="bank_independent"),
+        CheckConstraint(
+            "authority_kind IN ('LEGACY_SKELETON','CANONICAL_QA')", name="authority_kind"
+        ),
+        CheckConstraint(
+            "(authority_kind = 'LEGACY_SKELETON' AND canonical_asset_id IS NULL "
+            "AND accepted_qa_run_id IS NULL) OR "
+            "(authority_kind = 'CANONICAL_QA' AND canonical_asset_id IS NOT NULL "
+            "AND accepted_qa_run_id IS NOT NULL)",
+            name="canonical_authority_shape",
+        ),
+    )
 
 
 class QuestionAsset(IdMixin, Base):
@@ -2024,6 +2285,8 @@ for immutable_model in (
     SyntheticGenerationEvidence,
     ProviderCostEvent,
     SyntheticSourceObjectDeletionEvidence,
+    SyntheticQAMeasurement,
+    SyntheticQAReviewDecision,
 ):
     event.listen(immutable_model, "before_update", _reject_immutable_change)
     event.listen(immutable_model, "before_delete", _reject_immutable_change)
@@ -2062,6 +2325,46 @@ event.listen(GenerationBatch, "before_update", _protect_generation_batch)
 event.listen(GenerationBatch, "before_delete", _reject_immutable_change)
 event.listen(GenerationItem, "before_update", _protect_generation_item)
 event.listen(GenerationItem, "before_delete", _reject_immutable_change)
+
+
+def _protect_synthetic_asset_record(
+    mapper: object, connection: object, target: SyntheticAssetRecord
+) -> None:
+    del mapper, connection
+    state = inspect(target)
+    mutable_fields = {
+        "updated_at",
+        "status",
+        "result_code",
+        "normalized_asset_id",
+        "normalization_started_at",
+        "normalized_at",
+        "qa_started_at",
+        "qa_finalized_at",
+        "identity_registered_at",
+    }
+    if any(
+        attribute.key not in mutable_fields and attribute.history.has_changes()
+        for attribute in state.attrs
+    ):
+        raise ValueError("synthetic asset record lineage is immutable")
+
+
+def _protect_synthetic_qa_run(mapper: object, connection: object, target: SyntheticQARun) -> None:
+    del mapper, connection
+    state = inspect(target)
+    mutable_fields = {"updated_at", "status", "result_code", "started_at", "finalized_at"}
+    if any(
+        attribute.key not in mutable_fields and attribute.history.has_changes()
+        for attribute in state.attrs
+    ):
+        raise ValueError("synthetic QA run authority is immutable")
+
+
+event.listen(SyntheticAssetRecord, "before_update", _protect_synthetic_asset_record)
+event.listen(SyntheticAssetRecord, "before_delete", _reject_immutable_change)
+event.listen(SyntheticQARun, "before_update", _protect_synthetic_qa_run)
+event.listen(SyntheticQARun, "before_delete", _reject_immutable_change)
 
 
 def _protect_versioned_state(
@@ -2153,7 +2456,14 @@ def _validate_synthetic_identity_bank_independence(
     del mapper, connection
     if target.bank_version_id is not None:
         raise ValueError("synthetic identities must be bank-independent")
+    authority_kind = target.authority_kind or "CANONICAL_QA"
+    target.authority_kind = authority_kind
+    if authority_kind != "CANONICAL_QA":
+        raise ValueError("new synthetic identities require canonical QA authority")
+    if target.canonical_asset_id is None or target.accepted_qa_run_id is None:
+        raise ValueError("canonical synthetic identity links are required")
 
 
 event.listen(SyntheticIdentity, "before_insert", _validate_synthetic_identity_bank_independence)
-event.listen(SyntheticIdentity, "before_update", _validate_synthetic_identity_bank_independence)
+event.listen(SyntheticIdentity, "before_update", _reject_immutable_change)
+event.listen(SyntheticIdentity, "before_delete", _reject_immutable_change)

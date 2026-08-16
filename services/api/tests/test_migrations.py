@@ -139,6 +139,38 @@ def test_upgrade_downgrade_reupgrade_and_schema_consistency(
     command.upgrade(config, "0009_generation_batch_pipeline")
     command.downgrade(config, "0008_synth_dataset_foundation")
     command.upgrade(config, "0009_generation_batch_pipeline")
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO synthetic_identities "
+                "(id, bank_version_id, generator_provider, generator_model, prompt_version, "
+                "provenance, adult_synthetic_attested, created_at) "
+                "VALUES ('migration-legacy-identity', NULL, 'deterministic_fixture', "
+                "'fixture-v1', 'fixture-prompt-v1', CAST(:provenance AS json), true, now())"
+            ),
+            {"provenance": '{"source":"synthetic"}'},
+        )
+    command.upgrade(config, "0010_synthetic_asset_qa")
+    with engine.connect() as connection:
+        migrated_identity = connection.execute(
+            text(
+                "SELECT authority_kind, canonical_asset_id, accepted_qa_run_id, "
+                "generator_provider FROM synthetic_identities "
+                "WHERE id = 'migration-legacy-identity'"
+            )
+        ).one()
+    assert migrated_identity == ("LEGACY_SKELETON", None, None, "deterministic_fixture")
+    command.downgrade(config, "0009_generation_batch_pipeline")
+    with engine.connect() as connection:
+        restored_identity = connection.execute(
+            text(
+                "SELECT generator_provider, generator_model, prompt_version "
+                "FROM synthetic_identities WHERE id = 'migration-legacy-identity'"
+            )
+        ).one()
+    assert restored_identity == ("deterministic_fixture", "fixture-v1", "fixture-prompt-v1")
+    command.upgrade(config, "0010_synthetic_asset_qa")
     command.check(config)
     engine.dispose()
     get_settings.cache_clear()
