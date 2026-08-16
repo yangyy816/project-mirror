@@ -46,7 +46,7 @@ jobs:
       VISION_PROVIDER: mock
       IMAGE_GENERATION_PROVIDER: mock
       SYNTHETIC_STORAGE_PROVIDER: local
-      LOCAL_STORAGE_ROOT: ${{ runner.temp }}/mirror-private
+      LOCAL_STORAGE_ROOT: /tmp/mirror-ci-synthetic
       AGENT_PROVIDER: mock
       OBJECT_STORAGE_PRIVATE: "true"
       SENSITIVE_PROCESSING_ENABLED: "false"
