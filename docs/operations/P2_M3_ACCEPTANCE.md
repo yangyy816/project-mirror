@@ -12,23 +12,23 @@
 
 ## Mandatory evidence matrix
 
-| Gate                      | Required evidence                                                          | Status   |
-| ------------------------- | -------------------------------------------------------------------------- | -------- |
-| M2 authority preservation | no GenerationItem/raw/generation evidence rewrite                          | T02 PASS |
-| Migration                 | fresh and `0009→0010→0009→0010`, drift zero                                | T02 PASS |
-| Normalization             | bounded decode, sanitation, canonical encode, second decode, checksum      | PENDING  |
-| Namespace                 | normalized private namespace separate from raw/user assets                 | PENDING  |
-| Immutability              | Asset/record/measurement/review/identity lineage cannot mutate/delete      | T02 PASS |
-| QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | PENDING  |
-| Adult policy              | explicit human review; ambiguous/minor-looking reject; no age estimation   | PENDING  |
-| Vision                    | approved exact package/model/data/license + controlled benchmark           | PENDING  |
-| Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | T02 PASS |
-| Synthetic-only            | no User relation, real-person fixture, scraping or sensitive classifier    | T02 PASS |
-| Recovery                  | duplicate delivery, lease expiry, blob-before-commit and cleanup race      | PENDING  |
-| Contracts                 | OpenAPI/generated TypeScript unchanged                                     | T02 PASS |
-| Supply chain              | Pillow unchanged; every new package/model separately approved              | T02 PASS |
-| Full Gate                 | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA Actions            | PENDING  |
-| Final review              | independent security and final reviewer acceptance                         | PENDING  |
+| Gate                      | Required evidence                                                          | Status      |
+| ------------------------- | -------------------------------------------------------------------------- | ----------- |
+| M2 authority preservation | no GenerationItem/raw/generation evidence rewrite                          | T02 PASS    |
+| Migration                 | fresh and `0009→0010→0009→0010`, drift zero                                | T02 PASS    |
+| Normalization             | bounded decode, sanitation, canonical encode, second decode, checksum      | T03 PASS    |
+| Namespace                 | normalized private namespace separate from raw/user assets                 | T03 PASS    |
+| Immutability              | Asset/record/measurement/review/identity lineage cannot mutate/delete      | T02 PASS    |
+| QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | PENDING     |
+| Adult policy              | explicit human review; ambiguous/minor-looking reject; no age estimation   | PENDING     |
+| Vision                    | approved exact package/model/data/license + controlled benchmark           | PENDING     |
+| Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | T02 PASS    |
+| Synthetic-only            | no User relation, real-person fixture, scraping or sensitive classifier    | T02 PASS    |
+| Recovery                  | duplicate delivery, lease expiry, blob-before-commit and cleanup race      | T03 PARTIAL |
+| Contracts                 | OpenAPI/generated TypeScript unchanged                                     | T02 PASS    |
+| Supply chain              | Pillow unchanged; every new package/model separately approved              | T02 PASS    |
+| Full Gate                 | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA Actions            | PENDING     |
+| Final review              | independent security and final reviewer acceptance                         | PENDING     |
 
 ## Bounded native validation
 
@@ -49,6 +49,32 @@ The M3 validation sequence is:
 
 These eight assets validate the pipeline; they are not final coverage, diversity, transform,
 QuestionBank or questionnaire evidence.
+
+## T03 deterministic normalization evidence
+
+- `SyntheticNormalizationService` preserves M2 raw authority, verifies inspect metadata plus the
+  streamed byte count/checksum, reuses the pinned `image-sanitizer-v1`, and creates an immutable
+  internal synthetic `Asset` only after canonicalization and normalized storage admission.
+- normalized storage uses `internal-synthetic/v1/normalized`; its opaque reference is derived from
+  the immutable record ID and normalizer config digest. Raw, normalized and user namespaces remain
+  disjoint.
+- all database paths use source-object then synthetic-record lock order. A concurrent duplicate is
+  idempotent; a blob stored before database commit is reused; deterministic content/tamper/conflict
+  failures are terminal; a transient store failure leaves `NORMALIZING` recoverable.
+- Linux targeted evidence: 25 sanitizer/raw/normalized/0010/concurrency/recovery tests passed with
+  zero skip. Full API/Worker regression: 366 tests, zero failures, zero errors and three pre-existing
+  Celery round-trip skips because the isolated run did not start an external worker; these skips are
+  not T03 mandatory evidence and remain covered by the later full CI Gate.
+- Windows and Linux produced the same canonical JPEG checksum
+  `f55764d4e734d3d465707df1327826395f3ca3972c40601c1477f3cb8c52a495`, byte size `694`,
+  dimensions `64×64`, and config digest
+  `5ebe5ea3e9b0e5c8ad86b93166e38f11da7bdcd76a7a2801aadd0f30e32f81de`. Input PNG bytes differed
+  by platform compression, while canonical output remained exact.
+- complete Linux Ruff format/lint and strict mypy passed; `pnpm.cmd contracts:check` passed; no
+  dependency, model/weight, public API, OpenAPI/generated TypeScript or real-person fixture changed.
+
+T03 does not execute private V01 source normalization. That bounded evidence remains `P2-M3-V01`
+and must reconcile all eight private checksums before use.
 
 ## Deferred production boundary
 

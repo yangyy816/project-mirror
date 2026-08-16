@@ -38,3 +38,23 @@ def internal_synthetic_raw_object_key(storage_reference: str) -> str:
         raise ValueError("synthetic storage reference must use the opaque syntax")
     digest = hashlib.sha256(storage_reference.encode()).hexdigest()
     return f"{INTERNAL_SYNTHETIC_NAMESPACE}/raw/{digest}"
+
+
+def synthetic_normalized_storage_reference(record_id: str, config_digest: str) -> str:
+    """Derive the stable normalized reference from immutable normalization authority."""
+    if not re.fullmatch(r"[0-9a-f]{32}", record_id):
+        raise ValueError("synthetic asset record must use the opaque identifier syntax")
+    if not re.fullmatch(r"[0-9a-f]{64}", config_digest):
+        raise ValueError("normalizer config digest must use lowercase SHA-256 syntax")
+    digest = hashlib.sha256(
+        f"mirror-synthetic-normalized-v1\n{record_id}\n{config_digest}".encode()
+    ).hexdigest()
+    return f"normalized-{digest[:53]}"
+
+
+def internal_synthetic_normalized_object_key(storage_reference: str) -> str:
+    """Map a normalized opaque reference into the private adapter namespace."""
+    if not re.fullmatch(r"normalized-[0-9a-f]{53}", storage_reference):
+        raise ValueError("normalized storage reference must use the opaque syntax")
+    digest = hashlib.sha256(storage_reference.encode()).hexdigest()
+    return f"{INTERNAL_SYNTHETIC_NAMESPACE}/normalized/{digest}"

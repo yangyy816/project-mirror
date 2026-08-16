@@ -455,6 +455,93 @@ class SyntheticStoredImage:
             raise ValueError("stored image must use the internal synthetic namespace")
 
 
+@dataclass(frozen=True)
+class SyntheticNormalizedImage:
+    """Canonical normalized bytes plus immutable evidence required by the Asset row."""
+
+    content: bytes
+    sha256: str
+    byte_size: int
+    width: int
+    height: int
+    media_type: Literal["image/jpeg"] = "image/jpeg"
+    subject_kind: Literal["synthetic"] = "synthetic"
+
+    def __post_init__(self) -> None:
+        _require_synthetic_subject(self.subject_kind)
+        if self.media_type != "image/jpeg":
+            raise ValueError("normalized image media type must be canonical JPEG")
+        if type(self.content) is not bytes or not self.content:
+            raise ValueError("normalized image content must be non-empty immutable bytes")
+        if (
+            type(self.byte_size) is not int
+            or self.byte_size != len(self.content)
+            or self.byte_size > MAX_SYNTHETIC_GENERATED_IMAGE_BYTES
+        ):
+            raise ValueError("normalized image byte size is outside the allowed boundary")
+        if not re.fullmatch(r"[0-9a-f]{64}", self.sha256):
+            raise ValueError("normalized image checksum must be lowercase SHA-256")
+        if (
+            type(self.width) is not int
+            or type(self.height) is not int
+            or self.width < 1
+            or self.height < 1
+            or self.width > 8192
+            or self.height > 8192
+        ):
+            raise ValueError("normalized image dimensions are outside the allowed boundary")
+        if self.width * self.height > 40_000_000:
+            raise ValueError("normalized image pixel count is outside the allowed boundary")
+
+
+@dataclass(frozen=True)
+class SyntheticNormalizedStorageWriteRequest:
+    storage_reference: str
+    image: SyntheticNormalizedImage
+    normalizer_version: str
+    normalizer_config_digest: str
+
+    def __post_init__(self) -> None:
+        _require_opaque_reference(self.storage_reference, field_name="normalized storage reference")
+        _require_opaque_reference(self.normalizer_version, field_name="normalizer version")
+        if not re.fullmatch(r"[0-9a-f]{64}", self.normalizer_config_digest):
+            raise ValueError("normalizer config digest must be lowercase SHA-256")
+
+
+@dataclass(frozen=True)
+class SyntheticNormalizedStoredImage:
+    storage_reference: str
+    storage_key: str
+    sha256: str
+    byte_size: int
+    width: int
+    height: int
+    media_type: Literal["image/jpeg"]
+    normalizer_version: str
+    normalizer_config_digest: str
+
+    def __post_init__(self) -> None:
+        _require_opaque_reference(self.storage_reference, field_name="normalized storage reference")
+        if self.media_type != "image/jpeg":
+            raise ValueError("normalized stored media type must be canonical JPEG")
+        if not re.fullmatch(r"internal-synthetic/v1/normalized/[0-9a-f]{64}", self.storage_key):
+            raise ValueError("normalized storage key is outside the private namespace")
+        if not re.fullmatch(r"[0-9a-f]{64}", self.sha256):
+            raise ValueError("normalized stored checksum must be lowercase SHA-256")
+        if (
+            type(self.byte_size) is not int
+            or type(self.width) is not int
+            or type(self.height) is not int
+            or self.byte_size < 1
+            or self.width < 1
+            or self.height < 1
+        ):
+            raise ValueError("normalized stored metadata must be positive")
+        _require_opaque_reference(self.normalizer_version, field_name="normalizer version")
+        if not re.fullmatch(r"[0-9a-f]{64}", self.normalizer_config_digest):
+            raise ValueError("normalizer config digest must be lowercase SHA-256")
+
+
 class SyntheticStorageConflictError(Exception):
     """An opaque synthetic reference already contains different immutable bytes."""
 
@@ -647,6 +734,20 @@ class SyntheticObjectStorageProvider(Protocol):
     def stream_generated_image(self, *, storage_reference: str) -> AsyncIterator[bytes]: ...
 
     async def delete_generated_image(self, *, storage_reference: str) -> DeleteResult: ...
+
+
+class SyntheticNormalizedStorageProvider(Protocol):
+    """Private canonical-image namespace, distinct from raw and user assets."""
+
+    async def store_normalized_image_if_absent(
+        self, *, request: SyntheticNormalizedStorageWriteRequest
+    ) -> SyntheticNormalizedStoredImage: ...
+
+    async def inspect_normalized_image(
+        self, *, storage_reference: str
+    ) -> SyntheticNormalizedStoredImage | None: ...
+
+    def stream_normalized_image(self, *, storage_reference: str) -> AsyncIterator[bytes]: ...
 
 
 class VisionProvider(Protocol):
