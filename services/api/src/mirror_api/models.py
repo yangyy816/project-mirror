@@ -901,6 +901,314 @@ class GeometryOntologyVersion(IdMixin, TimestampMixin, Base):
     )
 
 
+class GenerationBatch(IdMixin, TimestampMixin, Base):
+    __tablename__ = "generation_batches"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(96), default="mirror.synthetic-dataset/GenerationBatch/v1", nullable=False
+    )
+    idempotency_key_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    generation_policy_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_generation_policies.id", ondelete="RESTRICT"), index=True
+    )
+    prompt_template_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_prompt_templates.id", ondelete="RESTRICT"), index=True
+    )
+    provider_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    model_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    model_version_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    pricing_snapshot_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    output_media_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    output_width: Mapped[int] = mapped_column(Integer, nullable=False)
+    output_height: Mapped[int] = mapped_column(Integer, nullable=False)
+    output_max_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    hard_budget_micros: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    per_item_ceiling_micros: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    retry_ceiling: Mapped[int] = mapped_column(Integer, nullable=False)
+    concurrency_ceiling: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="DRAFT", nullable=False)
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    queued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/GenerationBatch/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("idempotency_key_hash ~ '^[0-9a-f]{64}$'", name="idempotency_digest"),
+        CheckConstraint(
+            "output_media_type IN ('image/jpeg','image/png','image/webp')",
+            name="output_media_type",
+        ),
+        CheckConstraint(
+            "output_width > 0 AND output_height > 0 AND output_max_bytes > 0",
+            name="positive_output_bounds",
+        ),
+        CheckConstraint("item_count > 0 AND item_count <= 10000", name="item_count"),
+        CheckConstraint("currency IN ('CNY','USD')", name="currency"),
+        CheckConstraint(
+            "hard_budget_micros >= 0 AND per_item_ceiling_micros >= 0 "
+            "AND per_item_ceiling_micros * item_count <= hard_budget_micros",
+            name="budget_shape",
+        ),
+        CheckConstraint("retry_ceiling >= 0 AND retry_ceiling <= 20", name="retry_ceiling"),
+        CheckConstraint(
+            "concurrency_ceiling > 0 AND concurrency_ceiling <= item_count",
+            name="concurrency_ceiling",
+        ),
+        CheckConstraint(
+            "status IN ('DRAFT','QUEUED','RUNNING','COMPLETED','PARTIAL','FAILED','CANCELLED')",
+            name="status",
+        ),
+        CheckConstraint(
+            "(status = 'DRAFT' AND queued_at IS NULL AND started_at IS NULL "
+            "AND finalized_at IS NULL) OR "
+            "(status = 'QUEUED' AND queued_at IS NOT NULL AND started_at IS NULL "
+            "AND finalized_at IS NULL) OR "
+            "(status = 'RUNNING' AND queued_at IS NOT NULL AND started_at IS NOT NULL "
+            "AND finalized_at IS NULL) OR "
+            "(status IN ('COMPLETED','PARTIAL','FAILED','CANCELLED') "
+            "AND queued_at IS NOT NULL AND finalized_at IS NOT NULL)",
+            name="status_timestamps",
+        ),
+        CheckConstraint(
+            "(queued_at IS NULL OR queued_at >= created_at) AND "
+            "(started_at IS NULL OR (queued_at IS NOT NULL AND started_at >= queued_at)) AND "
+            "(finalized_at IS NULL OR finalized_at >= COALESCE(started_at, queued_at)) AND "
+            "(cancel_requested_at IS NULL OR cancel_requested_at >= created_at)",
+            name="timestamp_order",
+        ),
+    )
+
+
+class GenerationItem(IdMixin, TimestampMixin, Base):
+    __tablename__ = "generation_items"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(96), default="mirror.synthetic-dataset/GenerationItem/v1", nullable=False
+    )
+    batch_id: Mapped[str] = mapped_column(
+        ForeignKey("generation_batches.id", ondelete="RESTRICT"), index=True
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    job_id: Mapped[str] = mapped_column(
+        ForeignKey("jobs.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    request_reference: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    requested_seed: Mapped[int | None] = mapped_column(BigInteger)
+    reserved_budget_micros: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="REQUESTED", nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result_code: Mapped[str | None] = mapped_column(String(64))
+    __table_args__ = (
+        UniqueConstraint("batch_id", "ordinal", name="unique_batch_ordinal"),
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/GenerationItem/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("ordinal >= 0", name="ordinal"),
+        CheckConstraint(
+            "requested_seed IS NULL OR requested_seed BETWEEN 0 AND 9223372036854775807",
+            name="requested_seed",
+        ),
+        CheckConstraint("reserved_budget_micros >= 0", name="reserved_budget"),
+        CheckConstraint(
+            "status IN ('REQUESTED','GENERATING','RAW_STORED','GENERATION_FAILED','CANCELLED')",
+            name="status",
+        ),
+        CheckConstraint(
+            "(status = 'REQUESTED' AND started_at IS NULL AND finalized_at IS NULL "
+            "AND result_code IS NULL) OR "
+            "(status = 'GENERATING' AND started_at IS NOT NULL AND finalized_at IS NULL "
+            "AND result_code IS NULL) OR "
+            "(status IN ('RAW_STORED','GENERATION_FAILED','CANCELLED') "
+            "AND finalized_at IS NOT NULL AND result_code IS NOT NULL)",
+            name="status_shape",
+        ),
+        CheckConstraint(
+            "result_code IS NULL OR result_code ~ '^[a-z][a-z0-9_]{2,63}$'",
+            name="result_code",
+        ),
+        CheckConstraint(
+            "(started_at IS NULL OR started_at >= created_at) AND "
+            "(finalized_at IS NULL OR finalized_at >= COALESCE(started_at, created_at))",
+            name="timestamp_order",
+        ),
+    )
+
+
+class SyntheticSourceObject(IdMixin, Base):
+    __tablename__ = "synthetic_source_objects"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(96), default="mirror.synthetic-dataset/SyntheticSourceObject/v1", nullable=False
+    )
+    generation_item_id: Mapped[str] = mapped_column(
+        ForeignKey("generation_items.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    job_attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("job_attempts.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    storage_reference: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    media_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    byte_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    width: Mapped[int] = mapped_column(Integer, nullable=False)
+    height: Mapped[int] = mapped_column(Integer, nullable=False)
+    retention_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/SyntheticSourceObject/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="sha256"),
+        CheckConstraint("media_type IN ('image/jpeg','image/png','image/webp')", name="media_type"),
+        CheckConstraint("byte_size > 0 AND width > 0 AND height > 0", name="positive_metadata"),
+        CheckConstraint(
+            "storage_reference ~ '^[a-z0-9][a-z0-9._:-]{2,127}$'",
+            name="storage_reference",
+        ),
+        CheckConstraint("retention_expires_at > created_at", name="retention"),
+    )
+
+
+class SyntheticGenerationEvidence(IdMixin, Base):
+    __tablename__ = "synthetic_generation_evidence"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(96),
+        default="mirror.synthetic-dataset/SyntheticGenerationEvidence/v1",
+        nullable=False,
+    )
+    generation_item_id: Mapped[str] = mapped_column(
+        ForeignKey("generation_items.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    job_attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("job_attempts.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    provider_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    model_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    model_version_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_run_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    safety_policy_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    safety_outcome: Mapped[str] = mapped_column(String(16), nullable=False)
+    safety_reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    retention_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    output_rights: Mapped[str] = mapped_column(String(40), nullable=False)
+    provider_actual_seed: Mapped[int | None] = mapped_column(BigInteger)
+    provider_actual_parameters: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    reproducibility_level: Mapped[str] = mapped_column(String(24), nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/SyntheticGenerationEvidence/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("safety_outcome IN ('passed','rejected')", name="safety_outcome"),
+        CheckConstraint(
+            "safety_reason_code ~ '^[a-z][a-z0-9_]{2,63}$'",
+            name="safety_reason_code",
+        ),
+        CheckConstraint(
+            "retention_status IN ('not_retained','contractually_bounded')",
+            name="retention_status",
+        ),
+        CheckConstraint(
+            "output_rights IN ('internal_evaluation_only','synthetic_release_permitted')",
+            name="output_rights",
+        ),
+        CheckConstraint(
+            "provider_actual_seed IS NULL OR "
+            "provider_actual_seed BETWEEN 0 AND 9223372036854775807",
+            name="provider_seed",
+        ),
+        CheckConstraint(
+            "json_typeof(provider_actual_parameters) = 'object'", name="parameters_object"
+        ),
+        CheckConstraint(
+            "reproducibility_level IN ('BIT_EXACT','SEED_REPLAYABLE','PROVENANCE_ONLY')",
+            name="reproducibility",
+        ),
+    )
+
+
+class ProviderCostEvent(IdMixin, Base):
+    __tablename__ = "provider_cost_events"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(96), default="mirror.synthetic-dataset/ProviderCostEvent/v1", nullable=False
+    )
+    generation_item_id: Mapped[str] = mapped_column(
+        ForeignKey("generation_items.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    job_attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("job_attempts.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    event_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    amount_micros: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    pricing_snapshot_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        UniqueConstraint("job_attempt_id", name="unique_attempt_cost"),
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/ProviderCostEvent/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("event_kind IN ('estimated','final')", name="event_kind"),
+        CheckConstraint("currency IN ('CNY','USD')", name="currency"),
+        CheckConstraint("amount_micros >= 0", name="amount"),
+    )
+
+
+class SyntheticSourceObjectDeletionEvidence(IdMixin, Base):
+    __tablename__ = "synthetic_source_object_deletion_evidence"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(112),
+        default="mirror.synthetic-dataset/SyntheticSourceObjectDeletionEvidence/v1",
+        nullable=False,
+    )
+    source_object_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_source_objects.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    deletion_result: Mapped[str] = mapped_column(String(16), nullable=False)
+    actor_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    actor_reference: Mapped[str | None] = mapped_column(String(128))
+    deleted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/SyntheticSourceObjectDeletionEvidence/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("reason_code ~ '^[a-z][a-z0-9_]{2,63}$'", name="reason_code"),
+        CheckConstraint("deletion_result IN ('deleted','not_found')", name="deletion_result"),
+        CheckConstraint("actor_kind IN ('system','operator')", name="actor_kind"),
+        CheckConstraint(
+            "(actor_kind = 'system' AND actor_reference IS NULL) OR "
+            "(actor_kind = 'operator' AND actor_reference IS NOT NULL)",
+            name="actor_shape",
+        ),
+    )
+
+
 class SyntheticIdentity(IdMixin, Base):
     __tablename__ = "synthetic_identities"
 
@@ -1473,6 +1781,12 @@ class Job(IdMixin, TimestampMixin, Base):
             "AND result_code IS NOT NULL))",
             name="valid_ingestion_job_lifecycle",
         ),
+        CheckConstraint(
+            "job_type <> 'synthetic_generation' OR "
+            "(owner_user_id IS NULL AND ingestion_upload_intent_id IS NULL "
+            "AND result_asset_id IS NULL AND payload::jsonb = '{}'::jsonb)",
+            name="synthetic_generation_envelope",
+        ),
     )
 
 
@@ -1706,9 +2020,48 @@ for immutable_model in (
     PolicyAcceptanceRecord,
     CreditLedger,
     AIContentProvenance,
+    SyntheticSourceObject,
+    SyntheticGenerationEvidence,
+    ProviderCostEvent,
+    SyntheticSourceObjectDeletionEvidence,
 ):
     event.listen(immutable_model, "before_update", _reject_immutable_change)
     event.listen(immutable_model, "before_delete", _reject_immutable_change)
+
+
+def _protect_generation_batch(mapper: object, connection: object, target: GenerationBatch) -> None:
+    del mapper, connection
+    state = inspect(target)
+    mutable_fields = {
+        "updated_at",
+        "status",
+        "cancel_requested_at",
+        "queued_at",
+        "started_at",
+        "finalized_at",
+    }
+    if any(
+        attribute.key not in mutable_fields and attribute.history.has_changes()
+        for attribute in state.attrs
+    ):
+        raise ValueError("generation batch configuration is immutable")
+
+
+def _protect_generation_item(mapper: object, connection: object, target: GenerationItem) -> None:
+    del mapper, connection
+    state = inspect(target)
+    mutable_fields = {"updated_at", "status", "started_at", "finalized_at", "result_code"}
+    if any(
+        attribute.key not in mutable_fields and attribute.history.has_changes()
+        for attribute in state.attrs
+    ):
+        raise ValueError("generation item authority is immutable")
+
+
+event.listen(GenerationBatch, "before_update", _protect_generation_batch)
+event.listen(GenerationBatch, "before_delete", _reject_immutable_change)
+event.listen(GenerationItem, "before_update", _protect_generation_item)
+event.listen(GenerationItem, "before_delete", _reject_immutable_change)
 
 
 def _protect_versioned_state(
