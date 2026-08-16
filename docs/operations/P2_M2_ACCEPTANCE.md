@@ -143,3 +143,37 @@ asset in M2.
   was added. The controlled real-Provider benchmark remains the explicit T07 external Gate.
 
 `P2_M2_T06: TASK_ACCEPTED`
+
+## T07 external Provider Gate assessment
+
+- The Provider registry still describes Tencent/image-generation implementations as candidates
+  that fail closed. No Adapter is approved for a live call and no real Provider credential is
+  present or required for deterministic M2 implementation.
+- The model/data license registry keeps the future image-generation Provider at `CANDIDATE` and
+  `PRODUCTION_BLOCKED`: exact model terms, training/data terms, region, retention, public training,
+  subprocessors, deletion, output rights, safety and cost evidence remain unknown.
+- A Mock result cannot satisfy this Gate, and calling an unapproved Provider would violate the M2
+  execution contract. T07 therefore records no fabricated benchmark, output or cost fact.
+- T08 may still produce same-SHA deterministic CI and independent review evidence, but M2 can be at
+  most `CONDITIONAL`, cannot become `PASS`/`FROZEN`, and cannot open M3 until this external Gate is
+  completed under separate approval.
+
+`P2_M2_T07: BLOCKED`
+
+`EXTERNAL_VALIDATION_REQUIRED: IMAGE_GENERATION_PROVIDER`
+
+## T08 candidate evidence implementation
+
+- `mirror.p2-m2.ci-evidence/v1` binds a full candidate SHA, unique `0009` migration head, OpenAPI
+  digest, zero-failure/error/skip JUnit summary and seven required M2 deterministic checks. Its
+  external Provider field is deliberately fixed to `external_validation_required` with
+  `production_approved=false`; CI cannot manufacture Provider approval.
+- The Linux CI Celery worker now subscribes to `mirror.synthetic`, matching Compose and allowing
+  the existing full Python gate plus the dedicated M2 round trip to execute instead of timing out.
+- Local isolated Linux validation passed all 37 evidence cases with zero skip and generated a
+  readable allowlisted artifact. Same-SHA GitHub Actions and independent final review remain
+  pending, so this section is not yet a T08 acceptance or Milestone Gate decision.
+
+`P2_M2_T08_LOCAL_EVIDENCE: PASS`
+
+`P2_M2_T08_REMOTE_EVIDENCE: PENDING`

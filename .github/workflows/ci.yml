@@ -84,7 +84,7 @@ jobs:
       - name: Start Linux Celery worker
         run: |
           celery -A mirror_worker.app:celery_app worker --loglevel=INFO --pool=solo \
-            --queues=mirror.default,mirror.ingestion,mirror.maintenance \
+            --queues=mirror.default,mirror.ingestion,mirror.synthetic,mirror.maintenance \
             --prefetch-multiplier=1 > celery.log 2>&1 &
           echo $! > celery.pid
       - name: Python tests
@@ -103,6 +103,16 @@ jobs:
           services/api/tests/test_config.py
           services/api/tests/test_p2_m1_ci_evidence.py
           --junitxml=p2-m1-results.xml
+      - name: P2-M2 deterministic integration and boundary evidence tests
+        run: >-
+          python -m pytest
+          services/api/tests/test_p2_m2_security_boundaries.py
+          services/api/tests/test_generation_batch_foundation_invariants.py
+          services/api/tests/test_generation_batch_service.py
+          services/api/tests/test_synthetic_raw_storage.py
+          services/worker/tests/test_synthetic_generation_worker.py
+          services/api/tests/test_p2_m2_ci_evidence.py
+          --junitxml=p2-m2-results.xml
       - name: TypeScript quality and build
         run: pnpm check
       - name: Install Playwright Chromium
@@ -149,6 +159,20 @@ jobs:
         with:
           name: p2-m1-ci-evidence
           path: p2-m1-ci-evidence.json
+      - name: Generate P2-M2 CI evidence
+        run: |
+          python -m alembic -c services/api/alembic.ini heads > p2-m2-migration-head.txt
+          python -m mirror_api.scripts.p2_m2_ci_evidence \
+            --commit-sha "$GITHUB_SHA" \
+            --migration-head-file p2-m2-migration-head.txt \
+            --expected-migration-head 0009_generation_batch_pipeline \
+            --openapi packages/contracts/openapi.json \
+            --test-results p2-m2-results.xml \
+            --output p2-m2-ci-evidence.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p2-m2-ci-evidence
+          path: p2-m2-ci-evidence.json
       - name: Dependency and license audits
         run: |
           pip-audit --local
