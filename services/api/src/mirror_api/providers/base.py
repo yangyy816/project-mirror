@@ -5,6 +5,7 @@ import re
 from collections.abc import AsyncIterable, AsyncIterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from hashlib import sha256
 from typing import TYPE_CHECKING, Literal, Protocol
 
 if TYPE_CHECKING:
@@ -376,9 +377,36 @@ class FaceObservation:
 
 
 @dataclass(frozen=True)
+class NormalizedSyntheticImagePayload:
+    """Canonical M3 image bytes for Vision; raw/provider/user inputs are unrepresentable."""
+
+    normalized_asset_reference: str
+    content: bytes
+    sha256: str
+    media_type: Literal["image/jpeg"]
+    subject_kind: Literal["synthetic"] = "synthetic"
+
+    def __post_init__(self) -> None:
+        _require_synthetic_subject(self.subject_kind)
+        _require_opaque_reference(
+            self.normalized_asset_reference, field_name="normalized asset reference"
+        )
+        if type(self.content) is not bytes:
+            raise ValueError("normalized synthetic content must be immutable bytes")
+        if not 0 < len(self.content) <= MAX_SYNTHETIC_GENERATED_IMAGE_BYTES:
+            raise ValueError("normalized synthetic content is outside the allowed size boundary")
+        if self.media_type != "image/jpeg":
+            raise ValueError("normalized synthetic content must use canonical JPEG")
+        if re.fullmatch(r"[0-9a-f]{64}", self.sha256) is None:
+            raise ValueError("normalized synthetic checksum must be lowercase SHA-256")
+        if sha256(self.content).hexdigest() != self.sha256:
+            raise ValueError("normalized synthetic checksum does not match content")
+
+
+@dataclass(frozen=True)
 class SyntheticVisionRequest:
     request_reference: str
-    image: GeneratedImagePayload
+    normalized_image: NormalizedSyntheticImagePayload
     vision_policy_reference: str
     subject_kind: Literal["synthetic"] = "synthetic"
 
@@ -388,7 +416,7 @@ class SyntheticVisionRequest:
         _require_opaque_reference(
             self.vision_policy_reference, field_name="vision policy reference"
         )
-        _require_synthetic_subject(self.image.subject_kind)
+        _require_synthetic_subject(self.normalized_image.subject_kind)
 
 
 @dataclass(frozen=True)

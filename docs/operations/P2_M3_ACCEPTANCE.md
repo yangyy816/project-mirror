@@ -19,8 +19,8 @@
 | Normalization             | bounded decode, sanitation, canonical encode, second decode, checksum      | T03 PASS    |
 | Namespace                 | normalized private namespace separate from raw/user assets                 | T03 PASS    |
 | Immutability              | Asset/record/measurement/review/identity lineage cannot mutate/delete      | T02 PASS    |
-| QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | PENDING     |
-| Adult policy              | explicit human review; ambiguous/minor-looking reject; no age estimation   | PENDING     |
+| QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | T04 PASS    |
+| Adult policy              | explicit review contract; ambiguous/minor-looking reject; no age estimate  | T04 PARTIAL |
 | Vision                    | approved exact package/model/data/license + controlled benchmark           | PENDING     |
 | Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | T02 PASS    |
 | Synthetic-only            | no User relation, real-person fixture, scraping or sensitive classifier    | T02 PASS    |
@@ -76,6 +76,39 @@ QuestionBank or questionnaire evidence.
 T03 does not execute private V01 source normalization. That bounded evidence remains `P2-M3-V01`
 and must reconcile all eight private checksums before use.
 
+## T03 same-SHA remote evidence
+
+- Checkpoint `9856c235432fb580836480cfaee56c21e8c58c1b` was pushed to
+  `codex/phase2-m3-normalization-base-qa` and run `31965014695` completed successfully.
+- `quality-and-integration`, `secret-scan` and `docker-validation` all passed on that exact SHA.
+  Python quality/tests, the PostgreSQL migration lifecycle, Redis/Celery integration, TypeScript
+  quality/build, browser integration, contract drift, dependency/license audit and SBOM steps all
+  succeeded.
+- Phase 1, P2-M1 and P2-M2 regression evidence artifacts, Docker evidence, project audit evidence
+  and Gitleaks SARIF were present and exact-SHA bound. This checkpoint proves T03 regression safety;
+  it is not the final `mirror.p2-m3.ci-evidence/v1` required by T07.
+
+## T04 QA contract and R01 evidence
+
+- The Vision port accepts only bounded canonical-JPEG `NormalizedSyntheticImagePayload` with an
+  opaque normalized Asset reference and content-matching SHA-256. Raw generation payloads, User
+  Assets, URLs, object keys, SDK types and network locations are not representable on this path;
+  the Mock remains deterministic and zero-network, while unverified candidates remain fail closed.
+- `SyntheticQAService` persists typed measurements and explicit operator reviews into the existing
+  append-only `0010` authority. Execution `FAILED` remains distinct from content `REJECTED`.
+- `P2-M3-R01` removed caller-supplied finalization requirements. Finalization now loads the exact
+  QARun-bound `APPROVED` QAPolicy, validates its canonical digest and closed
+  `QAPolicyDefinition/v1` grammar, and matches hard-gate classification plus algorithm/version.
+  Missing, unknown, unsupported, malformed, `NOT_APPLICABLE` or mismatched required evidence fails
+  closed; human review cannot erase an automatic hard failure.
+- Principal verification: Ruff format/lint passed; strict mypy passed for 96 sources; 12 focused
+  unit/provider tests passed; contract drift remained zero. A fresh isolated PostgreSQL 17.6 was
+  migrated through `0010`; the migration-backed async service test passed twice consecutively in
+  Linux, proving deterministic replay. The temporary database was removed and the original five
+  Compose services remained healthy.
+- T04 does not approve a real Vision candidate, perform adult/likeness/license review on V01 assets,
+  register an identity or satisfy T06/T07. Those gates remain pending.
+
 ## Deferred production boundary
 
 `PRODUCTION-BLOCKER-IMAGEGEN-PROVIDER` remains `OPEN`. M3 synthetic research does not approve a
@@ -84,7 +117,9 @@ release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts rem
 
 `P2_M3_LOCAL_GATE: PENDING`
 
-`P2_M3_REMOTE_CI: PENDING`
+`P2_M3_T03_REMOTE_CI: PASS`
+
+`P2_M3_REMOTE_CI: PENDING_FINAL_T07`
 
 `P2_M3_STATE: EXECUTING`
 

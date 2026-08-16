@@ -16,6 +16,7 @@ from mirror_api.providers.base import (
     GeneratedImagePayload,
     GenerationBudgetContext,
     GenerationParameter,
+    NormalizedSyntheticImagePayload,
     ProviderProvenanceFact,
     SmsProvider,
     SyntheticGenerationRequest,
@@ -130,7 +131,12 @@ async def test_provider_fakes_are_deterministic_and_private(
 
     vision_request = SyntheticVisionRequest(
         request_reference="vision-request-001",
-        image=generated.payload,
+        normalized_image=NormalizedSyntheticImagePayload(
+            normalized_asset_reference="normalized-asset-001",
+            content=b"canonical-jpeg-fixture",
+            sha256=sha256(b"canonical-jpeg-fixture").hexdigest(),
+            media_type="image/jpeg",
+        ),
         vision_policy_reference="vision-policy-v1",
     )
     observed = await vision.inspect_synthetic(request=vision_request)
@@ -353,7 +359,12 @@ async def test_unverified_tencent_candidates_fail_closed_without_network(
 
     vision_request = SyntheticVisionRequest(
         request_reference="vision-request-003",
-        image=GeneratedImagePayload(content=b"synthetic", media_type="image/jpeg"),
+        normalized_image=NormalizedSyntheticImagePayload(
+            normalized_asset_reference="normalized-asset-003",
+            content=b"synthetic",
+            sha256=sha256(b"synthetic").hexdigest(),
+            media_type="image/jpeg",
+        ),
         vision_policy_reference="vision-policy-v1",
     )
     with pytest.raises(NotImplementedError, match="not verified"):
@@ -363,7 +374,7 @@ async def test_unverified_tencent_candidates_fail_closed_without_network(
         await TencentSyntheticObjectStorageCandidateProvider().store_generated_image_if_absent(
             request=SyntheticStorageWriteRequest(
                 storage_reference="synthetic-storage-003",
-                payload=vision_request.image,
+                payload=GeneratedImagePayload(content=b"synthetic", media_type="image/jpeg"),
                 provenance=(
                     await MockImageGenerationProvider().generate_synthetic(
                         request=generation_request, prompt=_prompt()
