@@ -2,16 +2,16 @@
 
 ## 当前执行状态
 
-| Scope   | State     | Evidence / Boundary                                               |
-| ------- | --------- | ----------------------------------------------------------------- |
-| Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`    |
-| Phase 1 | COMMITTED | Application Foundation；P1-M1/M2/M3/M4/M5 frozen；P1-M6 executing |
-| P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿  |
-| P1-M2   | FROZEN    | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿  |
-| P1-M3   | FROZEN    | closure `05c9f00`；run `31897780247` 三 jobs 与 artifacts 全绿    |
-| P1-M4   | FROZEN    | closure `fd910f2`；run `31903994976` 三 jobs 与 artifacts 全绿    |
-| P1-M5   | FROZEN    | closure `ccbd136`；run `31921591091` 三 jobs 与 artifacts 全绿    |
-| P1-M6   | EXECUTING | Phase 1 integrated lifecycle/recovery/observability/freeze Gate   |
+| Scope   | State     | Evidence / Boundary                                              |
+| ------- | --------- | ---------------------------------------------------------------- |
+| Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`   |
+| Phase 1 | COMMITTED | P1-M1–M5 frozen；P1-M6 candidate PASS，等待 closure CI           |
+| P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿 |
+| P1-M2   | FROZEN    | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿 |
+| P1-M3   | FROZEN    | closure `05c9f00`；run `31897780247` 三 jobs 与 artifacts 全绿   |
+| P1-M4   | FROZEN    | closure `fd910f2`；run `31903994976` 三 jobs 与 artifacts 全绿   |
+| P1-M5   | FROZEN    | closure `ccbd136`；run `31921591091` 三 jobs 与 artifacts 全绿   |
+| P1-M6   | PASS      | candidate `ed24b3d`；run `31924258547` 全绿；等待 closure CI     |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
