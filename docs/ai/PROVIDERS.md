@@ -26,3 +26,8 @@ Provider 名称、模型、Prompt、输入资产引用、状态、成本与验�
 
 生产 runtime image generation 当前为 `NOT_CONFIGURED` / `FAIL_CLOSED`，closure 条件登记于
 `docs/operations/PRODUCTION_BLOCKERS.md`。
+
+P2-M3 的 Vision 边界只消费 normalized synthetic Asset，不消费 Provider raw output、User Asset、URL、
+object key 或 SDK type。deterministic Mock 只用于 CI；MediaPipe 仍为 `LICENSE_REVIEW_REQUIRED`，未选择
+或批准模型 artifact。M3 可先实现 normalization/QA authority，但必须完成至少一个获批 synthetic-only
+Vision candidate 的受控 benchmark 才能 `PASS/FROZEN`。

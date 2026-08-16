@@ -5,7 +5,7 @@
 - 状态：`PROVISIONAL` directional architecture。
 - 新方向：`P7 — Visual Memory OS & Persistent Preference Learning`。
 - 本文不授权 P7 实现、Milestone 分解、Terra task、schema、索引或 Provider 选择。
-- P0/P1 与 P2-M1 保持 `FROZEN`，P2-M2 保持 `EXECUTING`；本文不得改变任何当前
+- P0/P1 与 P2-M1/P2-M2 保持 `FROZEN`，P2-M3 为 `EXECUTION_READY`；本文不得改变任何当前
   active milestone 的 DAG、依赖或 Gate。不得提前安装图数据库、向量数据库、记忆 SaaS 或视觉
   embedding 模型。
 - P7 到达 rolling-wave planning 时必须依据当时的 P5/P6 证据语义、真实规模、隐私要求和 Provider 能力重新规划。

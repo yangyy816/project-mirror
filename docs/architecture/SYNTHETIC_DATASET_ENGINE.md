@@ -2,7 +2,7 @@
 
 ## 状态与边界
 
-Phase 2 是 `COMMITTED`，P2-M1 已 `FROZEN`，P2-M2 是 `EXECUTING`。该阶段仅处理可追溯的成年合成人物资产；真人、用户资料、SelfState、问卷运行、DesiredDelta、编辑、支付、部署和公开 API 都不在范围。P2-M3 及以后仍须 rolling-wave refinement。
+Phase 2 是 `COMMITTED`，P2-M1 与 P2-M2 已 `FROZEN`，P2-M3 是 `EXECUTION_READY`。该阶段仅处理可追溯的成年合成人物资产；真人、用户资料、SelfState、问卷运行、DesiredDelta、编辑、支付、部署和公开 API 都不在范围。P2-M4 及以后仍须 rolling-wave refinement。
 
 ## 权威链
 
@@ -25,9 +25,9 @@ flowchart LR
 
 ## 生命周期和控制面
 
-Generation batches use `DRAFT → QUEUED → RUNNING → COMPLETED | PARTIAL | FAILED | CANCELLED`. M2 generation items use `REQUESTED → GENERATING → RAW_STORED | GENERATION_FAILED | CANCELLED`; M3 later extends `RAW_STORED → NORMALIZATION_PENDING → NORMALIZED → QA_PENDING → QA_PASSED | REJECTED → IDENTITY_REGISTERED`. Provider failure/cancellation never masquerades as QA `REJECTED`. Cancellation retains evidence/cost facts and blocks new work. Future variants use `SPECIFIED → GENERATING → GENERATED → MEASURED → ISOLATION_PASSED | REJECTED`; future QuestionBank releases use `DRAFT → UNDER_REVIEW → RELEASED → REVOKED`.
+Generation batches use `DRAFT → QUEUED → RUNNING → COMPLETED | PARTIAL | FAILED | CANCELLED`. M2 generation items use `REQUESTED → GENERATING → RAW_STORED | GENERATION_FAILED | CANCELLED` and remain immutable after M2. M3 uses a separate `SyntheticAssetRecord`: `NORMALIZATION_PENDING → NORMALIZING → NORMALIZED → QA_PENDING → QA_RUNNING → QA_PASSED | REJECTED → IDENTITY_REGISTERED`, with distinct exhausted-retry execution failures. Provider/normalization failure never masquerades as QA `REJECTED`. Future variants use `SPECIFIED → GENERATING → GENERATED → MEASURED → ISOLATION_PASSED | REJECTED`; future QuestionBank releases use `DRAFT → UNDER_REVIEW → RELEASED → REVOKED`.
 
-The P2 control plane is application service plus a later restricted CLI, not public/internal HTTP. Provider/storage access remains private, typed and adapter-mediated. P2-M2 may create only batch/item/raw-source evidence in the private raw namespace; it does not create normalized Asset, SyntheticIdentity, model artifact or release.
+The P2 control plane is application service plus a later restricted CLI, not public/internal HTTP. Provider/storage access remains private, typed and adapter-mediated. P2-M3 may create only canonical normalized synthetic Assets, versioned base QA evidence and bank-independent SyntheticIdentity registrations. It does not create variants, isolation/diversity evidence, QuestionBank releases, model approval or real-user processing authority. Complete M3 authority is in ADR-027.
 
 ## 研究边界
 

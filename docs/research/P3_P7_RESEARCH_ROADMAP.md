@@ -6,13 +6,14 @@ This document is the forward research-governance map for P3–P7. It is not an e
 protocol and does not authorize implementation, dependency installation, model download,
 real-user facial-data processing, schema work, public API work, or bounded Terra tasks.
 
-| Scope | Current state | Meaning                                                               |
-| ----- | ------------- | --------------------------------------------------------------------- |
-| P0    | `FROZEN`      | Historical foundation remains unchanged.                              |
-| P1    | `FROZEN`      | Production implementation and migrations remain unchanged.            |
-| P2-M1 | `FROZEN`      | Synthetic authority foundation remains frozen.                        |
-| P2-M2 | `EXECUTING`   | Current active milestone; this roadmap cannot change its DAG or Gate. |
-| P3–P7 | `PROVISIONAL` | Directional research only.                                            |
+| Scope | Current state     | Meaning                                                                |
+| ----- | ----------------- | ---------------------------------------------------------------------- |
+| P0    | `FROZEN`          | Historical foundation remains unchanged.                               |
+| P1    | `FROZEN`          | Production implementation and migrations remain unchanged.             |
+| P2-M1 | `FROZEN`          | Synthetic authority foundation remains frozen.                         |
+| P2-M2 | `FROZEN`          | Generation pipeline and offline-source admission remain frozen.        |
+| P2-M3 | `EXECUTION_READY` | Active normalization/base-QA milestone; this roadmap cannot change it. |
+| P3–P7 | `PROVISIONAL`     | Directional research only.                                             |
 
 Research maturity is explicit:
 

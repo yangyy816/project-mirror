@@ -5,7 +5,7 @@
 - 状态：`ACCEPTED DIRECTION / PROVISIONAL EXECUTION`。
 - 适用范围：P2–P7 的候选算法、Provider、Agent runtime、Tool、编辑与视觉记忆架构。
 - 本文只建立 benchmark authority、证据格式和未来 PoC backlog；不授权安装依赖、下载模型、处理真实用户图片或执行 P3–P7。
-- P0/P1 与 P2-M1 保持 `FROZEN`，P2-M2 保持 `EXECUTING`。本文不得改变当前 active
+- P0/P1 与 P2-M1/P2-M2 保持 `FROZEN`，P2-M3 为 `EXECUTION_READY`。本文不得改变当前 active
   milestone 的 schema、typed ports、task DAG、synthetic-only 边界或生产 fail-closed Gate。
 - P3–P7 当前全部为 `DIRECTIONAL`，不是 `RESEARCH_APPROVED` 或 `EXECUTION_READY`。
   完整 maturity 定义和跨 Phase 依赖见 `docs/research/P3_P7_RESEARCH_ROADMAP.md`。
