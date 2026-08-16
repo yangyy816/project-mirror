@@ -79,3 +79,12 @@ failures/errors/skips and all five boundary classes passing. Retained Phase 1 ev
 same SHA; Docker evidence is readable and Gitleaks SARIF contains zero results.
 
 `P2_M1_T08_FINAL_STATUS: PASS`
+
+Acceptance closure `27cede889f0e3cfd875b022b25af3d62165616f1` completed run
+`31932349425` with all three jobs passing. The exact-SHA P2 evidence reports 94 tests with zero
+failures/errors/skips and all five boundary classes passing; retained Phase 1 evidence binds the
+same SHA, Docker and audit artifacts are readable, and Gitleaks SARIF has zero results.
+
+`P2_M1_ACCEPTANCE_CLOSURE: PASS`
+
+`P2_M1_STATE: FROZEN`

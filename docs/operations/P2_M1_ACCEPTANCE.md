@@ -3,7 +3,7 @@
 ## Candidate status
 
 - Milestone: `P2-M1 — Domain, Provenance, Governance and Research Baseline`
-- State: `PASS`；等待 acceptance closure CI 后 `FROZEN`
+- State: `FROZEN`
 - Local validation target: current working tree based on `f2fec9ece18c54f3952cc877ad18d2b70ec54e32`
 - Candidate commit SHA: `a901337ca8e0ef1fc93e64638ef72abb56bc1d28`
 - Same-SHA GitHub Actions evidence: run `31930761620` — all three jobs passed
@@ -157,8 +157,25 @@ upload path; the browser integration itself passed and all mandatory evidence up
 
 `P2_M1_MILESTONE_GATE: PASS`
 
-Acceptance closure must bind the forward status/evidence commit to a new all-green three-job run
-before the Milestone is declared `FROZEN`.
+## Acceptance closure evidence
+
+Acceptance closure commit `27cede889f0e3cfd875b022b25af3d62165616f1` completed run
+`31932349425` with `quality-and-integration`, `secret-scan` and `docker-validation` all passing.
+The downloaded, unexpired artifacts were independently inspected:
+
+- `p2-m1-ci-evidence` `9259697255` binds the exact closure SHA, migration head
+  `0008_synth_dataset_foundation`, unchanged OpenAPI SHA-256
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`, 94 tests with zero
+  failures/errors/skips and five passing boundary classes;
+- `phase1-ci-evidence` `9259697020` binds the same SHA, head and OpenAPI digest with zero
+  failures/errors/skips in retained Phase 1 vertical evidence;
+- `project-docker-evidence` `9259677272` is readable;
+- `project-audit-evidence` `9259700154` contains the license and SBOM evidence;
+- `gitleaks-results.sarif` `9259654997` contains one SARIF run and zero results.
+
+`P2_M1_ACCEPTANCE_CLOSURE: PASS`
+
+`P2_M1_STATE: FROZEN`
 
 `P2_M1_T07_LOCAL_GATE: PASS`
 `P2_M1_T07_STATUS: PASS`

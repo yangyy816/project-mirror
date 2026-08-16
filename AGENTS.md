@@ -4,7 +4,7 @@
 
 - 项目：Project Mirror
 - 当前阶段：Phase 2 — Synthetic Dataset Engine（COMMITTED）
-- 当前 Milestone：P2-M1 — Domain, Provenance, Governance and Research Baseline（PASS；等待 acceptance closure 后 FROZEN）
+- 当前 Milestone：P2-M1 — Domain, Provenance, Governance and Research Baseline（FROZEN）
 - 首发：面向中国大陆的 18+ 邀请制 Beta
 - 默认语言：产品 UI 与项目沟通使用简体中文；代码、命令、变量名使用英文
 - 本文件适用于整个仓库；子目录可增加更严格的 `AGENTS.md`，不得放宽本文件约束

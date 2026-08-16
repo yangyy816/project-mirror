@@ -4,7 +4,7 @@
 
 - Milestone: `P2-M1 — Domain, Provenance, Governance and Research Baseline`
 - Entry baseline: Phase 1 frozen final fix `fb0d6a4b67494d32b865d0eb170f43232c68efb9`
-- State: `PASS`；等待 acceptance closure CI 后 `FROZEN`
+- State: `FROZEN`；acceptance closure `27cede889f0e3cfd875b022b25af3d62165616f1`, run `31932349425`
 - Authority: `ENCODE_APPROVED_DECISIONS_ONLY`
 - Objective: freeze P2 authority, provenance, lifecycle, typed boundaries, QA/supply-chain governance and research protocol before any synthetic generation.
 - Non-goals: generation batch, image normalization, Vision model, geometry transform, QuestionBank release, public API, model download, new dependency, real Provider, real facial data or P3 implementation.

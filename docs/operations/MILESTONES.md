@@ -13,7 +13,7 @@
 | P1-M5   | FROZEN    | closure `ccbd136`；run `31921591091` 三 jobs 与 artifacts 全绿   |
 | P1-M6   | FROZEN    | closure `cc926ce`；run `31924651458` 三 jobs 与 artifacts 全绿   |
 | Phase 2 | COMMITTED | Synthetic Dataset Engine；仅 P2-M1 已细化到可执行粒度            |
-| P2-M1   | PASS      | candidate `9f3ca34`；run `31932052115` 三 jobs 与 artifacts 全绿 |
+| P2-M1   | FROZEN    | closure `27cede8`；run `31932349425` 三 jobs 与 artifacts 全绿   |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
@@ -41,7 +41,7 @@ Phase 2 仅处理可追溯的成年合成人物刺激资产；真实用户数据
 
 | Milestone | State     | Boundary                                                                         |
 | --------- | --------- | -------------------------------------------------------------------------------- |
-| P2-M1     | PASS      | R07/R08/T08 已接受；等待 acceptance closure CI 后 FROZEN                         |
+| P2-M1     | FROZEN    | closure `27cede8`；run `31932349425` 三 jobs 与 exact-SHA artifacts 全绿         |
 | P2-M2     | COMMITTED | Generation batch/provider pipeline；须待 M1 Gate 后 refinement                   |
 | P2-M3     | COMMITTED | Synthetic normalization/base identity QA；须待 M2 Gate 后 refinement             |
 | P2-M4     | COMMITTED | Deterministic geometry variant research/engine；须待 M3 Gate 后 refinement       |
