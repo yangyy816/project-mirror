@@ -8,6 +8,12 @@ Project Mirror 的复用原则是：复用成熟的通用基础设施，保留�
 
 每次评估必须记录组件、权威 upstream、组织、候选版本、用途、目标 Phase、代码/模型/数据许可证、传递依赖、商业与再分发权利、SaaS 影响、隐私、网络/遥测、安全、维护、替换成本、平台支持、benchmark、决定、ADR 和复核日期。
 
+外部研究结论还必须记录 `SOURCE`、`SOURCE_TYPE`、`ACCESSED_AT`、`CLAIM`、
+`CLAIM_STATUS`、`REPRODUCED`、`PROJECT_MIRROR_EVIDENCE`、`LICENSE_EVIDENCE` 和
+`CONFIDENCE`。`CLAIM_STATUS` 只允许 `UPSTREAM_CLAIM`、`INDEPENDENTLY_VERIFIED`、
+`PROJECT_MIRROR_REPRODUCED`、`INFERENCE` 或 `UNVERIFIED`；没有 Project Mirror
+reproduction artifact 的候选不得写成已证明适用。
+
 ## Provisional registry
 
 | Component                                                       | Intended Phase / purpose                  | Current classification          | Required evidence before adoption                                                   |
@@ -24,6 +30,7 @@ Project Mirror 的复用原则是：复用成熟的通用基础设施，保留�
 | PerTouch / RetouchIQ / IEA / InstantRetouch / Agentic Retoucher | P6 retouch baselines                      | RESEARCH_ONLY / REFERENCE       | 逐项核验 upstream、code/model/data；进入 MirrorRetouchBench 前不得安装              |
 | MagicMakeup                                                     | P6 makeup-transfer baseline               | RESEARCH_ONLY / REFERENCE       | 完整代码、foundation model、weights、data、auxiliary stack 许可与 benchmark         |
 | PMMC / MemEye / GBrain                                          | P7 memory research patterns               | RESEARCH_ONLY / REFERENCE       | 只借鉴 compilation/evaluation/retrieval；不得成为 memory authority 或直接依赖       |
+| Graphiti / Mem0                                                 | P7 temporal/hybrid memory patterns        | RESEARCH_ONLY / REFERENCE       | 只登记上游主张；须经 MirrorMemoryBench、删除传播、隐私和依赖 Gate                   |
 | pgvector                                                        | P7 first vector-index candidate           | DEFERRED POC CANDIDATE          | 仅 P7 rolling-wave 比较 PostgreSQL baseline、许可、运维、性能和删除传播             |
 | ASAP                                                            | P4 active pair selection                  | HIGH-VALUE RESEARCH CANDIDATE   | 仅作 acquisition baseline，不得替代 self-conditioned questionnaire domain           |
 | PyMC                                                            | P4/P7 offline Bayesian research           | RESEARCH / MODELING CANDIDATE   | 离线与同步生产可行性、性能及部署分别评估                                            |
@@ -37,6 +44,25 @@ P2-M1 的逐项 upstream、license、dependency、decision 与 review-trigger ev
 
 上述新增 future candidates 只登记研究方向，未完成实时 upstream/许可证核验，不表示可下载、可执行或可商用。其 PoC 必须先建立 `docs/ai/MIRROR_BENCH.md` 要求的输入数据、许可、预算、成功和失败合同。
 
+## Research claim evidence snapshot
+
+本节只分类 2026-08-16 用户提供研究报告中的候选线索，不执行实时网络刷新。报告及其链接属于
+`SOURCE_TYPE: USER_PROVIDED_RESEARCH_REPORT`；除下面明确说明外，
+`REPRODUCED: NO`、`PROJECT_MIRROR_EVIDENCE: NONE`、`CONFIDENCE: PROVISIONAL`。
+
+| Component                     | Source                                                 | Claim                                                                | Claim status                                                                | License evidence / decision                                          |
+| ----------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| MediaPipe Face Landmarker     | Google AI Edge Face Landmarker；accessed 2026-08-16    | 可提供 landmark/pose observation candidate                           | `UPSTREAM_CLAIM`；release metadata 另见下方 independently verified snapshot | artifact/model/data 仍 `LICENSE_REVIEW_REQUIRED`；适用性未复现       |
+| 3DDFA_V2                      | `cleardusk/3DDFA_V2`；accessed 2026-08-16              | 可作为 3D alignment reliability baseline                             | `UPSTREAM_CLAIM`                                                            | code/weight/data 未完成权威复核；`PRODUCTION_BLOCKED`                |
+| OpenAI Agents SDK             | OpenAI Agents SDK docs；accessed 2026-08-16            | 可作为 Agent runtime Adapter candidate                               | `UPSTREAM_CLAIM`                                                            | 未与 first-party orchestration 复现比较；不得成为 domain authority   |
+| Stable-Makeup                 | `Xiaojiu-z/Stable-Makeup`；accessed 2026-08-16         | 可作为 makeup-transfer research baseline                             | `UPSTREAM_CLAIM`                                                            | 完整 foundation/weight/data/runtime chain 未清除                     |
+| MagicMakeup                   | user-reported arXiv reference；accessed 2026-08-16     | 可作为 makeup-transfer research baseline                             | `UPSTREAM_CLAIM`                                                            | exact upstream 与完整 dependency rights 未清除；`PRODUCTION_BLOCKED` |
+| Graphiti                      | `getzep/graphiti`；accessed 2026-08-16                 | temporal/provenance graph pattern may help time-aware retrieval      | `UPSTREAM_CLAIM`                                                            | 只作 pattern reference；须经 MirrorMemoryBench 和供应链 Gate         |
+| Mem0 / GBrain / MemEye / PMMC | report-linked papers/repositories；accessed 2026-08-16 | memory, retrieval, evaluation, or compilation patterns may be useful | `UPSTREAM_CLAIM`                                                            | 不直接采用；须逐项复核并由 Project Mirror benchmark 复现             |
+
+该表不能升级候选 maturity。P3–P7 当前均为 `DIRECTIONAL`；完整 PoC 合同与 Phase 依赖见
+`docs/research/P3_P7_RESEARCH_ROADMAP.md`。
+
 ## P2 upstream verification snapshot
 
 - 2026-08-16 通过 `google-ai-edge/mediapipe` GitHub Releases API 核验：`v0.10.35` 是有效 release，发布于 2026-04-28；它是本次 P2 评估指定的候选快照。
@@ -45,4 +71,9 @@ P2-M1 的逐项 upstream、license、dependency、decision 与 review-trigger ev
 
 ## Current execution boundary
 
-P2-M1 的单独授权仅覆盖 T01 文档治理编码；在 `P2-M1-PR1` Principal Architecture Review PASS 前，不得开始 T02–T05。Pillow 12.3.0 保持既有锁定版本；不引入其余未经批准候选、不下载权重、不调用外部模型服务，也不预实现后续能力。Terra 发现新候选时只能提交 `THIRD_PARTY_CANDIDATE_FOUND` 报告，包含名称、用途、upstream、Phase、许可证证据、模型/数据依赖、收益、替换成本和风险，由 Principal 决定是否建立未来评估任务。
+P0/P1 与 P2-M1 保持 `FROZEN`，P2-M2 保持 `EXECUTING`。当前 active milestone 只能按其已冻结
+protocol 和 Gate 前进；本文不授权其引入未来候选。Pillow 12.3.0 保持既有锁定版本；不引入其余
+未经批准候选、不下载权重、不调用未批准外部模型服务，也不预实现 P3–P7 能力。Terra 发现新
+候选时只能提交 `THIRD_PARTY_CANDIDATE_FOUND` 报告，包含名称、用途、upstream、Phase、来源与
+claim status、许可证证据、模型/数据依赖、收益、替换成本和风险，由 Principal 决定是否建立未来
+评估任务。

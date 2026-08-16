@@ -16,7 +16,10 @@
 
 ## Model artifact and dataset controls
 
-任何 `.pth`、`.pt`、`.onnx`、`.ckpt`、`.safetensors` 或等价模型资产都必须登记 identifier、upstream、version、checksum、license、purpose、approval、storage、security review 与 reproduction notes；大型权重默认不进入 Git。
+任何 `.pth`、`.pt`、`.onnx`、`.ckpt`、`.safetensors`、`.bin`、`.gguf`、`.mlmodel`、
+`.tflite` 或等价模型资产都必须登记 identifier、upstream、version、checksum、license、purpose、
+approval、storage、security review 与 reproduction notes；大型权重默认不进入 Git。Gate 必须同时
+比较 tracked 与新 untracked artifact manifest，并记录是否执行过模型下载命令。
 
 所有训练、微调、benchmark、评估、问卷生成和回归数据集必须登记 source、license、permitted/commercial use、redistribution、privacy、real/synthetic classification 与 retention。生产问卷仍只允许可追溯成年合成人物，禁止以抓取真人脸数据作为捷径。
 
@@ -35,4 +38,18 @@ AI-BOM 未来应评估 SPDX 3.x AI/Dataset profiles，但标准或工具选择�
 
 Terra 不得自行安装重大依赖、下载权重、接受条款、采用 hosted service 或重构架构。候选从 `RESEARCH_ONLY` 到 `CANDIDATE` 再到 `APPROVED` 的每次跃迁都需要 Principal；Vision、Canvas、Agent、生成模型、分割模型、模型 runtime、支付和认证框架等高影响项还需 ADR。
 
-本政策不改变 P1 frozen implementation 或当前 P2-M1 Gate：不新增依赖、模型资产，不提前实现 P3–P7 能力。
+## External research claim status
+
+论文、README、上游 benchmark、模型卡和用户提供的研究报告都必须将“来源主张”与“Project
+Mirror 证据”分开。重要条目至少记录：`SOURCE`、`SOURCE_TYPE`、`ACCESSED_AT`、`CLAIM`、
+`CLAIM_STATUS`、`REPRODUCED`、`PROJECT_MIRROR_EVIDENCE`、`LICENSE_EVIDENCE` 和
+`CONFIDENCE`。
+
+`CLAIM_STATUS` 只允许 `UPSTREAM_CLAIM`、`INDEPENDENTLY_VERIFIED`、
+`PROJECT_MIRROR_REPRODUCED`、`INFERENCE` 或 `UNVERIFIED`。只有绑定可复现实验、fixture
+manifest、commit SHA 和 artifact 的结果才能标记 `PROJECT_MIRROR_REPRODUCED`。上游宣称质量、
+性能或适用性不能写成 Project Mirror 已证明事实。
+
+本政策预期不改变 P1 frozen implementation 或任何当前 active milestone Gate：
+`EXPECTED_DEPENDENCIES_ADDED: NONE`、`EXPECTED_MODEL_ARTIFACTS_ADDED: NONE`。实际结果必须由
+before/after manifest 验证；不一致时停止集成，不提前实现 P3–P7 能力。

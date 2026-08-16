@@ -5,7 +5,9 @@
 - 状态：`PROVISIONAL` directional architecture。
 - 新方向：`P7 — Visual Memory OS & Persistent Preference Learning`。
 - 本文不授权 P7 实现、Milestone 分解、Terra task、schema、索引或 Provider 选择。
-- 当前 P1-M2 的 DAG、依赖和 Gate 均不改变；不得提前安装图数据库、向量数据库、记忆 SaaS 或视觉 embedding 模型。
+- P0/P1 与 P2-M1 保持 `FROZEN`，P2-M2 保持 `EXECUTING`；本文不得改变任何当前
+  active milestone 的 DAG、依赖或 Gate。不得提前安装图数据库、向量数据库、记忆 SaaS 或视觉
+  embedding 模型。
 - P7 到达 rolling-wave planning 时必须依据当时的 P5/P6 证据语义、真实规模、隐私要求和 Provider 能力重新规划。
 
 ## 核心原则
@@ -155,4 +157,8 @@ P6 必须使 Final Save 可追溯到 source asset、resulting ImageVersion、Edi
 
 P7 rolling-wave planning 必须重新回答：何种动作构成 Visual Truth；Save/Export/Favorite/Share 权重；FinalImage 与 trajectory 关联；独立性与近重复；exemplar 与 facet 选择；确定性/LLM 边界；PostgreSQL 是否足够表达初始 temporal graph；漂移、反证、Memory Card 与删除传播；哪种架构在 MirrorMemoryBench 胜出。
 
-当前结论：`CURRENT_MILESTONE_IMPACT: NONE`、`DEPENDENCIES_ADDED: NONE`、`MODEL_ARTIFACTS_ADDED: NONE`、`NEW_ADRS: NONE`。
+当前预期：`EXPECTED_CURRENT_MILESTONE_IMPACT: NONE`、`EXPECTED_DEPENDENCIES_ADDED: NONE`、
+`EXPECTED_MODEL_ARTIFACTS_ADDED: NONE`、`EXPECTED_NEW_ADRS: NONE`。实际结果由
+`docs/operations/P3_P7_RESEARCH_ALIGNMENT_REPORT.md` 的 before/after evidence 决定；不一致时
+必须报告并停止集成，不能强制写成 `NONE`。P7 当前 maturity 为 `DIRECTIONAL`，完整路线见
+`docs/research/P3_P7_RESEARCH_ROADMAP.md`。

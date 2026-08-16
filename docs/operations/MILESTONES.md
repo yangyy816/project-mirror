@@ -12,8 +12,9 @@
 | P1-M4   | FROZEN    | closure `fd910f2`；run `31903994976` 三 jobs 与 artifacts 全绿   |
 | P1-M5   | FROZEN    | closure `ccbd136`；run `31921591091` 三 jobs 与 artifacts 全绿   |
 | P1-M6   | FROZEN    | closure `cc926ce`；run `31924651458` 三 jobs 与 artifacts 全绿   |
-| Phase 2 | COMMITTED | Synthetic Dataset Engine；仅 P2-M1 已细化到可执行粒度            |
+| Phase 2 | COMMITTED | Synthetic Dataset Engine；P2-M1 已冻结，P2-M2 正在执行           |
 | P2-M1   | FROZEN    | closure `27cede8`；run `31932349425` 三 jobs 与 artifacts 全绿   |
+| P2-M2   | EXECUTING | ADR-025/protocol 已冻结；当前仅按 P2-M2 task DAG 前进            |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
@@ -37,12 +38,12 @@ P1-M6 只执行 Phase 1 集成、安全、恢复、可观测性、CI 证据与�
 
 ## Phase 2 — Synthetic Dataset Engine
 
-Phase 2 仅处理可追溯的成年合成人物刺激资产；真实用户数据、真人图片、SelfState、问卷运行、DesiredDelta、编辑、支付和部署均不在范围。P2-M1 的当前规划修订、T01 权限、Principal checkpoint、研究 Gate 与停止条件见 `P2_PLANNING_AMENDMENT.md`。
+Phase 2 仅处理可追溯的成年合成人物刺激资产；真实用户数据、真人图片、SelfState、问卷运行、DesiredDelta、编辑、支付和部署均不在范围。P2-M1 的已冻结规划修订、T01 权限、Principal checkpoint、研究 Gate 与停止条件见 `P2_PLANNING_AMENDMENT.md`；当前 active milestone 的权威见 `P2_M2_EXECUTION_PROTOCOL.md`。
 
 | Milestone | State     | Boundary                                                                         |
 | --------- | --------- | -------------------------------------------------------------------------------- |
 | P2-M1     | FROZEN    | closure `27cede8`；run `31932349425` 三 jobs 与 exact-SHA artifacts 全绿         |
-| P2-M2     | EXECUTING | ADR-025/protocol 已冻结；T02 `0009_generation_batch_pipeline` ready              |
+| P2-M2     | EXECUTING | T05 Worker pipeline 已接受；R03/R04 PASS；当前授权 T06 integration/security      |
 | P2-M3     | COMMITTED | Synthetic normalization/base identity QA；须待 M2 Gate 后 refinement             |
 | P2-M4     | COMMITTED | Deterministic geometry variant research/engine；须待 M3 Gate 后 refinement       |
 | P2-M5     | COMMITTED | Variable isolation, duplicate and diversity QA；须待 M3/M4 Gate 后 refinement    |
@@ -57,9 +58,12 @@ P2 的可执行状态不解除 P3 真实 facial-data 的 Legal/Consent/PIPIA/Sec
 
 - ADR-024 冻结首个 P2 internal coverage package 的 China-market-first / East-Asian-presenting /
   synthetic-only 方向，同时保持 continuous morphology、pack extensibility、style separation、
-  no-sensitive-user-routing 与 anti-homogenization。它只影响当前 M1 governance/domain contract；
-  不改变 Milestone DAG、M1 task graph、`0008` 或 P1 frozen implementation。
+  no-sensitive-user-routing 与 anti-homogenization。它只定义已冻结的 M1 governance/domain
+  contract，不改变后续 active milestone、Milestone DAG、`0008` 或 P1 frozen implementation。
 - P2–P7 采用 benchmark-gated development：重要候选必须经过 PoC、MirrorBench、ablation、许可/隐私/安全/成本审查和 ADR；简单 baseline 与复杂候选效果接近时选择简单方案。完整 family 与 future PoC backlog 见 `docs/ai/MIRROR_BENCH.md`。
+- P3–P7 的 maturity 当前全部为 `DIRECTIONAL`；`RESEARCH_APPROVED` 要求完整预注册 PoC
+  合同，`EXECUTION_READY` 还要求对应 Phase 已激活并由 Principal 拆成 bounded tasks。权威路线见
+  `docs/research/P3_P7_RESEARCH_ROADMAP.md`。
 - P3 保持 provider-neutral `FaceObservation` / landmark / pose / measurement / confidence authority；MediaPipe 与 3DDFA 只是未来 benchmark 候选，不冻结 winner。
 - P4 保持 self-conditioned active preference acquisition；ASAP 仅作 baseline。72-slot taxonomy 是覆盖能力，不是固定答题数，需比较 random/fixed/active 与 full/quick/progressive calibration。
 - P5 保持 DesiredDelta + self-transfer validation；Profile 是带 provenance、uncertainty、context 与 version 的派生模型，不是不可变真相。
@@ -71,7 +75,7 @@ P2 的可执行状态不解除 P3 真实 facial-data 的 Legal/Consent/PIPIA/Sec
 - P7 未来高层 deliverables 包括 AcceptedVisualEpisode、EditTrajectory evidence、Admission/Write/Memory Gate、hierarchical memory、Active Visual Exemplars、temporal/procedural memory、Memory Consolidation、Context Compiler、删除/重编译和 MirrorMemoryBench；这些不得直接转换为当前 Milestones 或 bounded tasks。
 - P6 必须保留 Final Save 到 source/result asset、ImageVersion、EditPlan、operations/manual corrections、Profile、context、Agent/provider version 与明确指令的 provenance，供 P7 使用；P7 不得重新发明 P6 的编辑证据语义。
 - P6 Agent runtime 和修改型 Tool 的 future contract 见 `docs/architecture/TOOL_EFFECT_CONTRACT.md`；runtime/SDK、Tool 和 Verifier 选择必须由 benchmark + ADR 决定。
-- 此定位不改变 P1 frozen implementation，也不改变当前 P2-M1 目标、任务图或 mandatory Gate：`CURRENT_MILESTONE_IMPACT: NONE`。
+- 此定位预期不改变 P1 frozen implementation，也不改变任何当前 active milestone 的目标、任务图或 mandatory Gate：`EXPECTED_CURRENT_MILESTONE_IMPACT: NONE`。实际影响必须由 Principal 的 before/after evidence 计算，不得预先强制为 `NONE`。
 
 ## Phase 0 Milestones
 

@@ -5,7 +5,10 @@
 - 状态：`ACCEPTED DIRECTION / PROVISIONAL EXECUTION`。
 - 适用范围：P2–P7 的候选算法、Provider、Agent runtime、Tool、编辑与视觉记忆架构。
 - 本文只建立 benchmark authority、证据格式和未来 PoC backlog；不授权安装依赖、下载模型、处理真实用户图片或执行 P3–P7。
-- P1 保持 `FROZEN`。当前 P2-M1 的 schema、typed ports、synthetic-only 和生产 fail-closed Gate 不因本文改变。
+- P0/P1 与 P2-M1 保持 `FROZEN`，P2-M2 保持 `EXECUTING`。本文不得改变当前 active
+  milestone 的 schema、typed ports、task DAG、synthetic-only 边界或生产 fail-closed Gate。
+- P3–P7 当前全部为 `DIRECTIONAL`，不是 `RESEARCH_APPROVED` 或 `EXECUTION_READY`。
+  完整 maturity 定义和跨 Phase 依赖见 `docs/research/P3_P7_RESEARCH_ROADMAP.md`。
 
 Project Mirror 采用统一晋级链：
 
@@ -105,8 +108,23 @@ HTTP/JSON success 不等于视觉成功。每个修改型 Tool 受 `TOOL_EFFECT_
 | P7    | Memory Card compilation                              | evidence provenance、rebuild、deletion 与 query-time savings       |
 | P7    | MirrorMemoryBench scale                              | 20→10,000+ episodes 的质量、延迟、成本与 context bound             |
 
-每个 PoC refinement 必须补齐：`QUESTION`、`HYPOTHESIS`、`BASELINE`、`INPUT_DATA`、`LICENSE_STATUS`、`METRICS`、`TIME_BUDGET`、`COST_BUDGET`、`SUCCESS_GATE`、`FAILURE_DECISION`、`ARTIFACTS`、`OWNER_ROLE`。缺一不得执行。
+每个 PoC refinement 必须补齐：`QUESTION`、`HYPOTHESIS`、`BASELINE`、
+`BASELINE_COMMIT_SHA`、`INPUT_DATA`、`DATASET_VERSION`、`DATA_SPLIT`、
+`SOURCE_PROVENANCE`、`PRIVACY_CLASS`、`LICENSE_STATUS`、`METRICS`、`SUCCESS_GATE`、
+`NEGATIVE_CONTROL`、`ABLATION_PLAN`、`TIME_BUDGET`、`COST_BUDGET`、
+`STOP_CONDITION`、`REPRODUCTION_COMMAND`、`RANDOM_SEED`、`FAILURE_DECISION`、
+`ROLLBACK_PLAN`、`ARTIFACTS`、`OWNER_ROLE`、`DECISION_OWNER` 与 `RESULT_STATUS`。
+缺失字段必须标记 `NOT_PRE_REGISTERED_BLOCKING`，不得执行或由实现 Agent 猜测。
 
-`DEPENDENCIES_ADDED: NONE`
+P4 的 mandatory baselines 至少包含 Random、Fixed Canonical、Uncertainty-only 与
+Information-Gain Acquisition，并包含 shuffled/uninformative negative control。Active Acquisition
+若不能在更少问题下达到相同 held-out transfer accuracy 或稳定性，则保留 fixed/progressive
+baseline，不得因为复杂度或新颖性继续推进。
 
-`MODEL_ARTIFACTS_ADDED: NONE`
+外部论文、README、模型卡或上游 benchmark 只按其证据状态记录为 `UPSTREAM_CLAIM`、
+`INDEPENDENTLY_VERIFIED`、`PROJECT_MIRROR_REPRODUCED`、`INFERENCE` 或 `UNVERIFIED`。
+没有 Project Mirror artifact 的候选不得描述为已证明适用。
+
+`EXPECTED_DEPENDENCIES_ADDED: NONE`
+
+`EXPECTED_MODEL_ARTIFACTS_ADDED: NONE`

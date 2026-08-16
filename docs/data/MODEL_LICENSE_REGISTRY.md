@@ -6,6 +6,12 @@
 
 本轮仅登记用户提供的研究线索与治理默认值，没有下载代码、模型、权重或数据，也没有完成权威 upstream 许可证核验。
 
+外部研究主张与许可事实分开记录。重要候选必须包含 `SOURCE`、`SOURCE_TYPE`、
+`ACCESSED_AT`、`CLAIM`、`CLAIM_STATUS`、`REPRODUCED`、`PROJECT_MIRROR_EVIDENCE`、
+`LICENSE_EVIDENCE` 和 `CONFIDENCE`。允许的 claim status 为 `UPSTREAM_CLAIM`、
+`INDEPENDENTLY_VERIFIED`、`PROJECT_MIRROR_REPRODUCED`、`INFERENCE` 和 `UNVERIFIED`。
+“可研究”不表示“许可证允许”或“Project Mirror 已复现”。
+
 | Candidate                               | Code license                                          | Model / weight license                    | Training / evaluation data           | Research status                    | Production status                       | Required next evidence                                                                         |
 | --------------------------------------- | ----------------------------------------------------- | ----------------------------------------- | ------------------------------------ | ---------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | MediaPipe source code                   | Apache-2.0 upstream claim，待 exact tag notice review | N/A                                       | N/A                                  | LICENSE_REVIEW_REQUIRED            | PRODUCTION_BLOCKED                      | 锁定 source tag，核验 LICENSE/NOTICE、传递依赖与发行义务                                       |
@@ -30,15 +36,32 @@ Stable-Makeup 是高优先级研究参考，但生产采用需要完整依赖许
 
 ## Artifact inventory
 
-`MODEL_ARTIFACTS_ADDED: NONE`
+`EXPECTED_MODEL_ARTIFACTS_ADDED: NONE`
 
-P2-M1 不得安装 MediaPipe、OpenCV 或 imagededup，也不得添加 `.pt`、`.pth`、`.onnx`、`.ckpt`、`.safetensors`、`.tflite`、`.task`、模型 archive 或 cache。发现基线已有 artifact 时只报告并核验 provenance，不得自动删除。
+任何当前 active milestone 都不得因为本 registry 安装 MediaPipe、OpenCV、imagededup 或未来
+候选，也不得添加 `.pt`、`.pth`、`.onnx`、`.ckpt`、`.safetensors`、`.bin`、`.gguf`、
+`.mlmodel`、`.tflite`、`.task`、模型 archive 或 cache。Gate 必须同时比较 tracked 和新
+untracked artifact manifest，并记录模型下载命令；发现基线已有 artifact 时只报告并核验
+provenance，不得自动删除。
 
 P2-M1 的组件级 upstream 与依赖证据见 `docs/security/P2_SUPPLY_CHAIN_DECISIONS.md`；本表仍是模型、权重和数据批准状态的权威。
 
 后续新增条目必须包含 artifact identifier、version、checksum、source、storage location、purpose、approval、security review、license evidence、dataset provenance 和 reproduction notes。
 
 未来 AI-BOM 必须与本 registry 和 package SBOM 可交叉核验，但不得把尚未批准的候选、模型或权重写入 production manifest。当前新增条目仅记录用户批准的研究/阻断方向；未进行实时 upstream 法律核验。
+
+## Research evidence status
+
+2026-08-16 用户提供的研究报告是二级来源。本次没有实时刷新上游条款或复现实验，因此
+MediaPipe/3DDFA、Stable-Makeup、MagicMakeup、FLUX-Makeup 和 future visual embedding 的能力主张
+保持 `UPSTREAM_CLAIM` 或 `UNVERIFIED`，`REPRODUCED: NO`，
+`PROJECT_MIRROR_EVIDENCE: NONE`。现有 `PRODUCTION_BLOCKED` 和
+`REQUIRES FULL DEPENDENCY LICENSE REVIEW` 结论不放宽。
+
+MediaPipe release metadata 的独立核验只证明当时的 upstream release/version observation，不证明
+Face Landmarker artifact、模型数据、商业用途或 Project Mirror measurement reliability。FLUX-Makeup
+及其被报告的 foundation-model 限制在权威 dependency-chain 与法律复核前继续
+`PRODUCTION_BLOCKED`。
 
 ## Real-person reference rights boundary
 
