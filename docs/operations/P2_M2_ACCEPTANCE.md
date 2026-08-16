@@ -12,17 +12,17 @@
 
 | Gate            | Required evidence                                     | Current status      |
 | --------------- | ----------------------------------------------------- | ------------------- |
-| Scope           | synthetic-only generation; no M3/public API           | PENDING             |
+| Scope           | synthetic-only generation; no M3/public API           | T06 PASS            |
 | Database        | `0008→0009→0008→0009`, drift and invariants           | T02 PASS            |
 | Batch/item      | monotonic lifecycle, idempotency and concurrency      | T02/T03 PASS        |
 | Budget/cost     | row-lock admission, ceilings and append-only facts    | T02/T03 PASS        |
 | Worker          | reference-only, at-least-once, retry/cancel/reconcile | T05 PASS            |
 | Raw storage     | private namespace, conflict, orphan/TTL cleanup       | T04 PASS            |
 | Provenance      | actual Provider facts and immutable evidence          | T02 FOUNDATION PASS |
-| Prompt/security | ephemeral redacted material, zero log/task leakage    | T03 PASS            |
+| Prompt/security | ephemeral redacted material, zero log/task leakage    | T03/T06 PASS        |
 | Provider        | approved controlled real-candidate benchmark          | NOT VERIFIED        |
-| Supply chain    | no unapproved dependency/model; SBOM/license evidence | PENDING             |
-| Regression      | P1/P2-M1, OpenAPI, Docker and zero-skip CI            | PENDING             |
+| Supply chain    | no unapproved dependency/model; SBOM/license evidence | T06 LOCAL PASS      |
+| Regression      | P1/P2-M1, OpenAPI, Docker and zero-skip CI            | T06 LOCAL PASS      |
 
 No row may be marked PASS from a plan, Mock result or unexecuted command. A candidate Provider is
 not production-approved by completing a benchmark, and benchmark output cannot become a released
@@ -117,3 +117,29 @@ asset in M2.
   services were then updated to the candidate image/configuration and returned healthy.
 
 `P2_M2_T05: TASK_ACCEPTED`
+
+## T06 accepted evidence
+
+- Independent security evaluation proves that `SyntheticGenerationTaskMessage` contains exactly
+  item, Job, request and schema references and rejects Prompt, bytes, image, URL, policy payload,
+  object key, credential and secret fields. AST/source scans reject network/Provider SDK imports,
+  literal external URLs and sensitive logging paths across the M2 application and Worker source.
+- The same evaluation proves that internal P2 contracts leave OpenAPI and generated TypeScript
+  unchanged, production generation/storage remain disabled, and M2 does not create M3 QA,
+  SyntheticIdentity, variant, QuestionBank release or real-user processing authority.
+- `P2-M2-R05` removes the raw Provider/storage exception chain from the generic Celery retry
+  fallback. Its regression asserts the precise safe exception type/message, no `__cause__`, and no
+  Provider response detail in the surfaced failure.
+- Principal validation passed Ruff format/lint across 156 files, strict mypy across 98 sources,
+  contract drift, complete `pnpm check` including 54 Web tests and Next build, and diff checks.
+  Fresh Linux containers passed 307 API tests plus 27 Worker tests with zero skip against isolated
+  PostgreSQL, Redis and a real Celery worker, including partial failure, budget/retry, cancellation,
+  duplicate delivery, stale lease, orphan cleanup, provenance and storage integrity paths.
+- Both isolated databases, the dedicated Redis test DB and the temporary Worker container were
+  removed after testing; the five normal Compose services returned healthy. Windows host pytest
+  could not use either the pre-existing or newly isolated temp directory because of runtime ACLs,
+  so it is not claimed as evidence; the zero-skip Docker/Linux run is authoritative.
+- No dependency, model artifact, real-person fixture, live Provider call, public API or migration
+  was added. The controlled real-Provider benchmark remains the explicit T07 external Gate.
+
+`P2_M2_T06: TASK_ACCEPTED`
