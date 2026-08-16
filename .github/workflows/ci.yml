@@ -139,7 +139,7 @@ jobs:
           python -m mirror_api.scripts.phase1_ci_evidence \
             --commit-sha "$GITHUB_SHA" \
             --migration-head-file phase1-migration-head.txt \
-            --expected-migration-head 0009_generation_batch_pipeline \
+            --expected-migration-head 0010_synthetic_asset_qa \
             --openapi packages/contracts/openapi.json \
             --test-results phase1-integration-results.xml \
             --output phase1-ci-evidence.json
@@ -153,7 +153,7 @@ jobs:
           python -m mirror_api.scripts.p2_m1_ci_evidence \
             --commit-sha "$GITHUB_SHA" \
             --migration-head-file p2-m1-migration-head.txt \
-            --expected-migration-head 0009_generation_batch_pipeline \
+            --expected-migration-head 0010_synthetic_asset_qa \
             --openapi packages/contracts/openapi.json \
             --test-results p2-m1-results.xml \
             --output p2-m1-ci-evidence.json
@@ -167,7 +167,7 @@ jobs:
           python -m mirror_api.scripts.p2_m2_ci_evidence \
             --commit-sha "$GITHUB_SHA" \
             --migration-head-file p2-m2-migration-head.txt \
-            --expected-migration-head 0009_generation_batch_pipeline \
+            --expected-migration-head 0010_synthetic_asset_qa \
             --openapi packages/contracts/openapi.json \
             --test-results p2-m2-results.xml \
             --output p2-m2-ci-evidence.json
