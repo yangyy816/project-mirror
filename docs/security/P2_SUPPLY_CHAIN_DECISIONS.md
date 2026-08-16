@@ -23,6 +23,19 @@ MediaPipe upstream version labels are not collapsed: the v0.10.35 release is the
 - Future fixture admission requires source, license, checksum and synthetic/non-human classification.
 - Future model/data assets require identifier, exact version, checksum, source, storage location, purpose, approval, security review, license evidence, dataset provenance and reproduction notes.
 
+## Codex native offline source addendum
+
+Project Owner change control and ADR-026 approve the currently exposed Codex native `image_gen`
+capability only as an operator-assisted P2 synthetic research source. It adds no package, SDK,
+runtime Provider, model artifact or network path to Project Mirror. The capability does not expose
+an exact model identifier/version, request identifier, seed, usage or Provider cost, so these facts
+remain `NULL` and provenance is classified as `PROVENANCE_ONLY`.
+
+This research approval does not establish model/weight redistribution rights or production hosted
+Provider approval. Generated binaries stay in private ignored storage; the committed V01 artifact
+contains checksums and bounded facts only. Runtime production generation remains blocked by
+`PRODUCTION-BLOCKER-IMAGEGEN-PROVIDER`.
+
 ## Future first-party duplicate core
 
 The later P2-M5 component is deliberately limited to exact SHA-256 comparison, perceptual hashing, Hamming distance, similarity candidate generation, deterministic threshold evaluation and duplicate-cluster evidence. It will not recreate the imagededup package. Thresholds require measured distributions and deterministic fixtures covering identical, re-encoded, brightness, resize, crop, geometry variant, clearly different identity, boundary and Hamming determinism cases.
@@ -30,3 +43,5 @@ The later P2-M5 component is deliberately limited to exact SHA-256 comparison, p
 `DEPENDENCIES_ADDED: NONE`
 
 `MODEL_ARTIFACTS_ADDED: NONE`
+
+`PROVIDER_SDKS_ADDED: NONE`

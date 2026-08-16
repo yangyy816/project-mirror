@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import cast
 
-SCHEMA_VERSION = "mirror.p2-m2.ci-evidence/v1"
+SCHEMA_VERSION = "mirror.p2-m2.ci-evidence/v2"
 _COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
 _MAX_JUNIT_BYTES = 4 * 1024 * 1024
 _REQUIRED_CHECKS = {
@@ -25,6 +25,9 @@ _REQUIRED_CHECKS = {
     "raw_retention_and_orphan_cleanup": ("test_retention_and_failed_attempt_orphan_reconciliation"),
     "celery_postgresql_round_trip": (
         "test_linux_celery_postgresql_synthetic_generation_round_trip"
+    ),
+    "codex_native_offline_admission": (
+        "test_codex_native_source_admits_only_known_facts_to_private_raw_storage"
     ),
 }
 
@@ -141,9 +144,14 @@ def generate_evidence(
         "openapi_sha256": _openapi_digest(openapi_path),
         "m2_tests": tests,
         "deterministic_checks": checks,
-        "external_provider_gate": {
-            "status": "external_validation_required",
+        "programmatic_provider_gate": {
+            "status": "deferred_external_production_dependency",
             "production_approved": False,
+        },
+        "codex_native_source": {
+            "status": "approved_for_p2_research",
+            "runtime_provider": False,
+            "provenance_level": "PROVENANCE_ONLY",
         },
     }
 

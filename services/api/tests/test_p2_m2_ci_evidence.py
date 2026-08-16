@@ -17,6 +17,7 @@ REQUIRED_TESTS = (
     "test_reservation_concurrency_retry_cost_and_ephemeral_prompt",
     "test_retention_and_failed_attempt_orphan_reconciliation",
     "test_linux_celery_postgresql_synthetic_generation_round_trip",
+    "test_codex_native_source_admits_only_known_facts_to_private_raw_storage",
 )
 
 
@@ -33,7 +34,7 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
     )
     results = tmp_path / "p2-m2-results.xml"
     results.write_text(
-        '<testsuites><testsuite tests="7" failures="0" errors="0" skipped="0">'
+        '<testsuites><testsuite tests="8" failures="0" errors="0" skipped="0">'
         f"{cases}</testsuite></testsuites>",
         encoding="utf-8",
     )
@@ -57,23 +58,31 @@ def test_generates_allowlisted_p2_m2_evidence(tmp_path: Path) -> None:
         "openapi_sha256",
         "m2_tests",
         "deterministic_checks",
-        "external_provider_gate",
+        "programmatic_provider_gate",
+        "codex_native_source",
     }
     assert evidence["commit_sha"] == COMMIT_SHA
     assert evidence["migration_head"] == MIGRATION_HEAD
     tests = evidence["m2_tests"]
     checks = evidence["deterministic_checks"]
-    provider = evidence["external_provider_gate"]
+    provider = evidence["programmatic_provider_gate"]
+    native_source = evidence["codex_native_source"]
     assert isinstance(tests, dict)
     assert isinstance(checks, dict)
     assert isinstance(provider, dict)
-    assert tests["tests"] == 7
+    assert isinstance(native_source, dict)
+    assert tests["tests"] == 8
     assert tests["skipped"] == 0
-    assert checks["checks"] == 7
+    assert checks["checks"] == 8
     assert checks["status"] == "passed"
     assert provider == {
-        "status": "external_validation_required",
+        "status": "deferred_external_production_dependency",
         "production_approved": False,
+    }
+    assert native_source == {
+        "status": "approved_for_p2_research",
+        "runtime_provider": False,
+        "provenance_level": "PROVENANCE_ONLY",
     }
     assert not any("path" in key for key in evidence)
 

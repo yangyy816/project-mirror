@@ -6,23 +6,27 @@
 - State: `EXECUTING`
 - Frozen entry SHA: `4a69f93f0d092afa0b520bbfb6e7d192e0f3dff1`
 - Migration target: `0009_generation_batch_pipeline`
-- External Gate: `EXTERNAL_VALIDATION_REQUIRED: IMAGE_GENERATION_PROVIDER`
+- Programmatic Provider Gate: `DEFERRED_EXTERNAL_PRODUCTION_DEPENDENCY`
+- Codex native source Gate: P2 research source approved under ADR-026; V01 PASS
+- Production Provider approval: `NOT_GRANTED`; production generation remains fail closed
 
 ## Mandatory evidence matrix
 
-| Gate            | Required evidence                                     | Current status      |
-| --------------- | ----------------------------------------------------- | ------------------- |
-| Scope           | synthetic-only generation; no M3/public API           | T06 PASS            |
-| Database        | `0008→0009→0008→0009`, drift and invariants           | T02 PASS            |
-| Batch/item      | monotonic lifecycle, idempotency and concurrency      | T02/T03 PASS        |
-| Budget/cost     | row-lock admission, ceilings and append-only facts    | T02/T03 PASS        |
-| Worker          | reference-only, at-least-once, retry/cancel/reconcile | T05 PASS            |
-| Raw storage     | private namespace, conflict, orphan/TTL cleanup       | T04 PASS            |
-| Provenance      | actual Provider facts and immutable evidence          | T02 FOUNDATION PASS |
-| Prompt/security | ephemeral redacted material, zero log/task leakage    | T03/T06 PASS        |
-| Provider        | approved controlled real-candidate benchmark          | NOT VERIFIED        |
-| Supply chain    | no unapproved dependency/model; SBOM/license evidence | T06 LOCAL PASS      |
-| Regression      | P1/P2-M1, OpenAPI, Docker and zero-skip CI            | T06 LOCAL PASS      |
+| Gate                  | Required evidence                                       | Current status      |
+| --------------------- | ------------------------------------------------------- | ------------------- |
+| Scope                 | synthetic-only generation; no M3/public API             | T06 PASS            |
+| Database              | `0008→0009→0008→0009`, drift and invariants             | T02 PASS            |
+| Batch/item            | monotonic lifecycle, idempotency and concurrency        | T02/T03 PASS        |
+| Budget/cost           | row-lock admission, ceilings and append-only facts      | T02/T03 PASS        |
+| Worker                | reference-only, at-least-once, retry/cancel/reconcile   | T05 PASS            |
+| Raw storage           | private namespace, conflict, orphan/TTL cleanup         | T04 PASS            |
+| Provenance            | actual Provider facts and immutable evidence            | T02 FOUNDATION PASS |
+| Prompt/security       | ephemeral redacted material, zero log/task leakage      | T03/T06 PASS        |
+| Runtime Provider      | deterministic typed boundary; production stays closed   | CORE PASS           |
+| Native source         | 8-image bounded offline admission and redacted evidence | V01 PASS            |
+| Production dependency | domestic Provider terms/Adapter/live benchmark          | DEFERRED            |
+| Supply chain          | no unapproved dependency/model; SBOM/license evidence   | T06 LOCAL PASS      |
+| Regression            | P1/P2-M1, OpenAPI, Docker and zero-skip CI              | T06 LOCAL PASS      |
 
 No row may be marked PASS from a plan, Mock result or unexecuted command. A candidate Provider is
 not production-approved by completing a benchmark, and benchmark output cannot become a released
@@ -140,11 +144,12 @@ asset in M2.
   could not use either the pre-existing or newly isolated temp directory because of runtime ACLs,
   so it is not claimed as evidence; the zero-skip Docker/Linux run is authoritative.
 - No dependency, model artifact, real-person fixture, live Provider call, public API or migration
-  was added. The controlled real-Provider benchmark remains the explicit T07 external Gate.
+  was added. ADR-026 keeps the controlled real-Provider benchmark as a production dependency while
+  permitting separately bounded native offline validation for P2 research.
 
 `P2_M2_T06: TASK_ACCEPTED`
 
-## T07 external Provider Gate assessment
+## T07 programmatic Provider production-dependency assessment
 
 - The Provider registry still describes Tencent/image-generation implementations as candidates
   that fail closed. No Adapter is approved for a live call and no real Provider credential is
@@ -152,27 +157,49 @@ asset in M2.
 - The model/data license registry keeps the future image-generation Provider at `CANDIDATE` and
   `PRODUCTION_BLOCKED`: exact model terms, training/data terms, region, retention, public training,
   subprocessors, deletion, output rights, safety and cost evidence remain unknown.
-- A Mock result cannot satisfy this Gate, and calling an unapproved Provider would violate the M2
-  execution contract. T07 therefore records no fabricated benchmark, output or cost fact.
-- T08 may still produce same-SHA deterministic CI and independent review evidence, but M2 can be at
-  most `CONDITIONAL`, cannot become `PASS`/`FROZEN`, and cannot open M3 until this external Gate is
-  completed under separate approval.
+- A Mock result cannot produce production approval, and calling an unapproved Provider would
+  violate the M2 execution contract. No fabricated benchmark, output or cost fact is recorded.
+- ADR-026 reclassifies this missing live Provider as a deferred external production dependency. It
+  no longer blocks synthetic-only M2 research or M3 entry after M2 freeze, but it continues to
+  block every production runtime-generation release.
 
-`P2_M2_T07: BLOCKED`
+`P2_M2_T07: RECLASSIFIED_BY_ADR_026`
 
-`EXTERNAL_VALIDATION_REQUIRED: IMAGE_GENERATION_PROVIDER`
+`P2_M2_PROGRAMMATIC_PROVIDER_GATE: DEFERRED_EXTERNAL_PRODUCTION_DEPENDENCY`
+
+`P2_M2_PRODUCTION_PROVIDER_APPROVAL: NOT_GRANTED`
+
+## P2-M2-V01 accepted evidence
+
+- Four versioned categories × two images were generated serially through the authorized native
+  capability: 8 requested, 8 admitted, 8 attempts used, 12-attempt budget, one retry ceiling and no
+  retry used.
+- Every source checksum was recomputed and matched. The observed `1254×1254 PNG` output retained
+  the requested `1024×1024` facts and explicitly records `dimensions_match_requested=false`; no
+  normalization or resampling occurred in M2.
+- Model/version, Provider request, seed, usage and Provider cost are unavailable and remain
+  `NULL`. Evidence uses `PROVENANCE_ONLY` and `REQUEST_COUNT_ONLY`.
+- Private source binaries, Prompt text, paths and storage references remain outside Git. The
+  committed redacted manifest contains only allowlisted aggregate/item facts and checksums.
+- No real-person reference, user data, production credential, runtime Codex adapter, browser
+  automation, unofficial endpoint, M3 QA or QuestionBank eligibility was introduced.
+
+`P2_M2_V01: PASS`
+
+`P2_M2_CODEX_NATIVE_SOURCE_GATE: PASS`
 
 ## T08 candidate evidence implementation
 
-- `mirror.p2-m2.ci-evidence/v1` binds a full candidate SHA, unique `0009` migration head, OpenAPI
-  digest, zero-failure/error/skip JUnit summary and seven required M2 deterministic checks. Its
-  external Provider field is deliberately fixed to `external_validation_required` with
-  `production_approved=false`; CI cannot manufacture Provider approval.
+- `mirror.p2-m2.ci-evidence/v2` binds a full candidate SHA, unique `0009` migration head, OpenAPI
+  digest, zero-failure/error/skip JUnit summary and eight required M2 deterministic checks. It
+  records the programmatic Provider as deferred with `production_approved=false` and the native
+  source as offline, P2-research-approved and `PROVENANCE_ONLY`; CI cannot manufacture production
+  approval.
 - The Linux CI Celery worker now subscribes to `mirror.synthetic`, matching Compose and allowing
   the existing full Python gate plus the dedicated M2 round trip to execute instead of timing out.
-- Local isolated Linux validation passed all 37 evidence cases with zero skip and generated a
-  readable allowlisted artifact. Same-SHA GitHub Actions and independent final review remain
-  pending, so this section is not yet a T08 acceptance or Milestone Gate decision.
+- Local isolated Linux validation passed the repaired full 353-test API/Worker suite with zero
+  skip, plus 11 targeted R06/R07 tests. Final same-SHA GitHub Actions and the v2 artifact remain
+  pending, so this section is not yet a Milestone Gate decision.
 
 `P2_M2_T08_LOCAL_EVIDENCE: PASS`
 
@@ -180,12 +207,12 @@ asset in M2.
 
 ## Independent final review
 
-The read-only local review is recorded in `docs/operations/P2_M2_FINAL_REVIEW.md`. It found no new
-implementation, security, privacy, data, migration, contract or supply-chain defect, but it cannot
-substitute for the unexecuted same-SHA GitHub Actions run or the blocked real-Provider benchmark.
+The independent read-only review is recorded in `docs/operations/P2_M2_FINAL_REVIEW.md`. It accepted
+R06/R07 and found no remaining ADR-026 security, privacy, phase or supply-chain defect. Its only
+condition is the final same-SHA GitHub Actions run.
 
 `P2_M2_T08_LOCAL_REVIEW: PASS`
 
-`P2_M2_LOCAL_GATE: CONDITIONAL`
+`P2_M2_LOCAL_GATE: PASS`
 
 `P2_M2_STATE: EXECUTING`

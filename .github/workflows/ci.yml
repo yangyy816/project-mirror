@@ -111,6 +111,7 @@ jobs:
           services/api/tests/test_generation_batch_foundation_invariants.py
           services/api/tests/test_generation_batch_service.py
           services/api/tests/test_synthetic_raw_storage.py
+          services/api/tests/test_codex_native_source_admission.py
           services/worker/tests/test_synthetic_generation_worker.py
           services/api/tests/test_p2_m2_ci_evidence.py
           --junitxml=p2-m2-results.xml

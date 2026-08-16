@@ -6,7 +6,7 @@
 - Entry baseline: P2-M1 frozen SHA `4a69f93f0d092afa0b520bbfb6e7d192e0f3dff1`
 - State: `EXECUTING`
 - Branch: `codex/phase2-m2-generation-pipeline`
-- Authority: ADR-021, ADR-022, ADR-023, ADR-024 and ADR-025
+- Authority: ADR-021, ADR-022, ADR-023, ADR-024, ADR-025 and superseding Gate change ADR-026
 - Public API impact: none
 - Dependency/model/live-call impact at entry: none
 
@@ -35,6 +35,9 @@ public/internal HTTP API, add a management CLI, or authorize real-user facial pr
   pinned batch version or exceed item/batch ceilings.
 - CI uses deterministic Mock and zero network. No real Provider is production-approved by M2
   implementation alone.
+- `CODEX_NATIVE_IMAGEGEN` is an operator-assisted offline development source, not a runtime
+  Provider. Its outputs enter only through bounded private raw admission and carry
+  `PROVENANCE_ONLY` known-fact evidence.
 
 ## Bounded tasks
 
@@ -95,15 +98,26 @@ All task reports use:
 - Validation: complete Python suites, Ruff, strict mypy, OpenAPI/generated TypeScript unchanged,
   dependency/model/real-face/URL/Prompt/secret scans, zero mandatory skip.
 
-### P2-M2-T07 — Controlled live Provider benchmark Gate
+### P2-M2-T07 — Programmatic Provider production-dependency assessment
 
 - Scope: separately approved candidate Adapter/config, bounded benchmark harness and allowlisted
   aggregate evidence only after rights/retention/training/region/security/cost approval.
 - Forbidden: default CI network, committed credentials/Prompt/output bytes, release eligibility,
   unapproved SDK/model/dependency.
-- Acceptance: at least one real candidate run records exact policy/provider/model/version, safety,
-  output bounds, latency, cost and failure facts. Otherwise report
-  `EXTERNAL_VALIDATION_REQUIRED: IMAGE_GENERATION_PROVIDER` and M2 cannot freeze.
+- Acceptance after ADR-026: record
+  `P2_M2_PROGRAMMATIC_PROVIDER_GATE=DEFERRED_EXTERNAL_PRODUCTION_DEPENDENCY`, keep
+  `production_approved=false`, and preserve a durable production blocker. A controlled live
+  benchmark remains mandatory before production approval but no longer blocks P2 synthetic
+  research or M2 freeze.
+
+### P2-M2-V01 — Codex native synthetic source validation
+
+- Scope: Principal-controlled, serial, 8-image offline generation and bounded admission with a
+  12-attempt maximum, one retry per item and no real-person reference.
+- Deliver: private raw objects plus a checksum-bound redacted evidence manifest. Prompt text,
+  binaries, paths and storage references stay outside Git and CI artifacts.
+- Acceptance: 8/8 admitted, known-null provenance preserved, production runtime remains disabled,
+  and no M3 normalization/QA or QuestionBank eligibility is claimed.
 
 ### P2-M2-T08 — CI evidence and independent final review
 
@@ -125,24 +139,27 @@ flowchart LR
   T03 --> T05["T05 Worker pipeline"]
   T04 --> T05
   T05 --> T06["T06 Integration/security"]
-  T06 --> T07["T07 Live benchmark"]
+  T06 --> T07["T07 Production dependency assessment"]
+  T06 --> V01["V01 Native offline validation"]
   T07 --> T08["T08 CI/review"]
+  V01 --> T08
 ```
 
 - T02 owns models/migration/database invariant tests.
 - T03 owns P2 application/domain/repository services.
 - T04 owns synthetic raw storage adapters and storage tests.
 - T05 owns Worker/task integration.
-- T06–T08 run sequentially after integration.
+- T07 and V01 follow T06; both must converge before the final T08 evidence refresh.
 - No task may modify public OpenAPI or add a dependency/model without Principal change control.
 
 ## Entry and exit Gate
 
 Entry requires clean tracked worktree at the M1 frozen SHA, migration head
 `0008_synth_dataset_foundation`, healthy PostgreSQL/Redis/Docker, and no Provider credentials,
-model weights or real images. Exit requires all deterministic implementation and full CI evidence
-plus T07 real-candidate evidence. Without T07, the correct result is `CONDITIONAL`, not PASS or
-FROZEN; M3 remains unopened.
+model weights or real images. Under ADR-026, exit requires all deterministic implementation,
+V01 native admission and full same-SHA CI evidence. A programmatic production Provider and its
+controlled live benchmark remain deferred production dependencies and cannot be represented as
+passed.
 
 `P2_M2_T01: PASS`
 
@@ -164,16 +181,26 @@ FROZEN; M3 remains unopened.
 
 `P2_M2_REPAIR_P2_M2_R05: PASS`
 
+`P2_M2_REPAIR_P2_M2_R06: PASS`
+
+`P2_M2_REPAIR_P2_M2_R07: PASS`
+
 `P2_M2_T06: TASK_ACCEPTED`
 
-`P2_M2_T07: BLOCKED`
+`P2_M2_T07: RECLASSIFIED_BY_ADR_026`
 
-`EXTERNAL_VALIDATION_REQUIRED: IMAGE_GENERATION_PROVIDER`
+`P2_M2_PROGRAMMATIC_PROVIDER_GATE: DEFERRED_EXTERNAL_PRODUCTION_DEPENDENCY`
 
-`P2_M2_EXECUTION_AUTHORIZATION: T08_READY_FOR_CONDITIONAL_EVIDENCE`
+`P2_M2_PRODUCTION_PROVIDER_APPROVAL: NOT_GRANTED`
+
+`P2_M2_V01: PASS`
+
+`P2_M2_EXECUTION_AUTHORIZATION: T08_FINAL_EVIDENCE_REFRESH`
 
 `P2_M2_T08_LOCAL_REVIEW: PASS`
 
-`P2_M2_REMOTE_CI: NOT_VERIFIED`
+`P2_M2_REMOTE_CI_BASELINE: PASS_AT_c24b03b_RUN_31954658786`
 
-`P2_M2_LOCAL_GATE: CONDITIONAL`
+`P2_M2_FINAL_CANDIDATE_CI: PENDING`
+
+`P2_M2_LOCAL_GATE: PASS_PENDING_FULL_REGRESSION`

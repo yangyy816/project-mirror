@@ -1,0 +1,88 @@
+{
+  "schema_version": "mirror.p2-m2.codex-native-validation-redacted/v1",
+  "validation_reference": "p2-m2-v01",
+  "status": "passed",
+  "execution_date": "2026-08-16",
+  "source_kind": "CODEX_NATIVE_IMAGEGEN",
+  "runtime_provider": false,
+  "provenance_level": "PROVENANCE_ONLY",
+  "cost_accounting_mode": "REQUEST_COUNT_ONLY",
+  "images_requested": 8,
+  "images_admitted": 8,
+  "attempts_used": 8,
+  "attempt_budget": 12,
+  "retry_ceiling_per_item": 1,
+  "concurrency_ceiling": 1,
+  "requested_output": {
+    "media_type": "image/png",
+    "width": 1024,
+    "height": 1024
+  },
+  "observed_output": {
+    "media_type": "image/png",
+    "width": 1254,
+    "height": 1254,
+    "aspect_ratio_match": true,
+    "dimensions_match_requested": false
+  },
+  "known_null_facts": [
+    "model_reference",
+    "model_version_reference",
+    "provider_request_reference",
+    "provider_actual_seed",
+    "provider_usage",
+    "provider_cost"
+  ],
+  "items": [
+    {
+      "item_reference": "v01-category-a-01",
+      "attempt": 1,
+      "sha256": "7a33792fd24266e38f0672274bf112b7722b3a66ab0d770599d4d616232a936e",
+      "byte_size": 1902265
+    },
+    {
+      "item_reference": "v01-category-a-02",
+      "attempt": 1,
+      "sha256": "8352aa17791de092ae8ad79e6c4fbc98771af47aaee7918926f5654c16f56a7e",
+      "byte_size": 1989786
+    },
+    {
+      "item_reference": "v01-category-b-01",
+      "attempt": 1,
+      "sha256": "27288382e4cac7a3ceb4afcd454086c48bbdc90f8f1c6cb764bd953282787ccb",
+      "byte_size": 1912954
+    },
+    {
+      "item_reference": "v01-category-b-02",
+      "attempt": 1,
+      "sha256": "c6fdff581b15d09aec8eb028dece37d9b9c099188df46d49111ea168c1a65abc",
+      "byte_size": 1845916
+    },
+    {
+      "item_reference": "v01-category-c-01",
+      "attempt": 1,
+      "sha256": "eaf9b129a32a1505adb73da698905f41d59dbb262d0d34017d83be86112077cb",
+      "byte_size": 1804103
+    },
+    {
+      "item_reference": "v01-category-c-02",
+      "attempt": 1,
+      "sha256": "a223c9c994547d06e6c936496dfa84352660465df73a9f761eaa2a44be6d07c2",
+      "byte_size": 1861853
+    },
+    {
+      "item_reference": "v01-category-d-01",
+      "attempt": 1,
+      "sha256": "ae9e1ed11023c364fbf01c6e3d3caf67fb0f5660a8a55fb7d7b00b0afb5c9399",
+      "byte_size": 1931495
+    },
+    {
+      "item_reference": "v01-category-d-02",
+      "attempt": 1,
+      "sha256": "fc9f585d669f26c684108994ee29fff0a025c63bdf657d11e2ace1492ee96be6",
+      "byte_size": 1805372
+    }
+  ],
+  "production_provider_approved": false,
+  "production_generation_enabled": false
+}

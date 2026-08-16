@@ -74,6 +74,11 @@ class SyntheticOutputSpecification:
 
 
 GenerationParameterValue = bool | int | float
+SyntheticGenerationSourceKind = Literal[
+    "CODEX_NATIVE_IMAGEGEN",
+    "PROGRAMMATIC_PROVIDER",
+    "DETERMINISTIC_FIXTURE",
+]
 
 
 @dataclass(frozen=True)
@@ -168,6 +173,71 @@ class ProviderProvenanceFact:
             raise ValueError("unknown provider retention is forbidden")
         if self.output_rights not in {"internal_evaluation_only", "synthetic_release_permitted"}:
             raise ValueError("provider output rights are not allowed")
+
+
+@dataclass(frozen=True)
+class OfflineSyntheticSourceProvenanceFact:
+    """Known facts for an operator-assisted source that is not a runtime Provider."""
+
+    source_kind: Literal["CODEX_NATIVE_IMAGEGEN"]
+    provenance_level: Literal["PROVENANCE_ONLY"]
+    generation_policy_reference: str
+    prompt_template_reference: str
+    prompt_digest: str
+    generated_at: datetime
+    coverage_pack_reference: str | None = None
+    coverage_cell_reference: str | None = None
+    synthetic_only: Literal[True] = True
+    real_person_reference_used: Literal[False] = False
+    cost_accounting_mode: Literal["REQUEST_COUNT_ONLY"] = "REQUEST_COUNT_ONLY"
+    credit_source: Literal["CODEX_NATIVE_ENTITLEMENT"] = "CODEX_NATIVE_ENTITLEMENT"
+    model_reference: None = None
+    model_version_reference: None = None
+    provider_request_reference: None = None
+    provider_actual_seed: None = None
+    provider_usage: None = None
+    provider_cost: None = None
+
+    def __post_init__(self) -> None:
+        if self.source_kind != "CODEX_NATIVE_IMAGEGEN":
+            raise ValueError("offline source kind is not allowed")
+        if self.provenance_level != "PROVENANCE_ONLY":
+            raise ValueError("offline source provenance must remain provenance-only")
+        for field_name, reference in (
+            ("generation policy reference", self.generation_policy_reference),
+            ("prompt template reference", self.prompt_template_reference),
+        ):
+            _require_opaque_reference(reference, field_name=field_name)
+        for optional_field_name, optional_reference in (
+            ("coverage pack reference", self.coverage_pack_reference),
+            ("coverage cell reference", self.coverage_cell_reference),
+        ):
+            if optional_reference is not None:
+                _require_opaque_reference(optional_reference, field_name=optional_field_name)
+        if re.fullmatch(r"[0-9a-f]{64}", self.prompt_digest) is None:
+            raise ValueError("offline source prompt digest must be lowercase SHA-256")
+        if self.generated_at.tzinfo is None or self.generated_at.utcoffset() is None:
+            raise ValueError("offline source generation timestamp must be timezone-aware")
+        if self.synthetic_only is not True or self.real_person_reference_used is not False:
+            raise ValueError(
+                "offline source must be synthetic-only without a real-person reference"
+            )
+        if self.cost_accounting_mode != "REQUEST_COUNT_ONLY":
+            raise ValueError("offline source cost accounting must use request counts")
+        if self.credit_source != "CODEX_NATIVE_ENTITLEMENT":
+            raise ValueError("offline source credit source is not allowed")
+        if any(
+            value is not None
+            for value in (
+                self.model_reference,
+                self.model_version_reference,
+                self.provider_request_reference,
+                self.provider_actual_seed,
+                self.provider_usage,
+                self.provider_cost,
+            )
+        ):
+            raise ValueError("offline source unknown provenance facts must remain null")
 
 
 @dataclass(frozen=True)
@@ -348,7 +418,7 @@ class SyntheticStorageWriteRequest:
 
     storage_reference: str
     payload: GeneratedImagePayload
-    provenance: ProviderProvenanceFact
+    provenance: ProviderProvenanceFact | OfflineSyntheticSourceProvenanceFact
     subject_kind: Literal["synthetic"] = "synthetic"
 
     def __post_init__(self) -> None:
