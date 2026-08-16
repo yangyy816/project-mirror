@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from mirror_api.models import (
     Asset,
     GeometryOntologyVersion,
+    QuestionBankVersion,
     SyntheticGenerationPolicy,
     SyntheticIdentity,
     SyntheticPromptTemplate,
@@ -179,6 +180,38 @@ def test_synthetic_authority_content_is_unique_immutable_and_approval_is_termina
             .values(schema_version="mirror.synthetic-dataset/Other/v1")
         )
     session.rollback()
+    with pytest.raises(DBAPIError, match="synthetic authority record identity is immutable"):
+        session.execute(
+            update(authority_model)
+            .where(authority_model.id == authority.id)
+            .values(id=new_id(), approval_status="APPROVED", approved_at=text("now()"))
+        )
+    session.rollback()
+    with pytest.raises(DBAPIError, match="synthetic authority record identity is immutable"):
+        session.execute(
+            update(authority_model)
+            .where(authority_model.id == authority.id)
+            .values(
+                created_at=text("now() + interval '1 hour'"),
+                approval_status="APPROVED",
+                approved_at=text("now()"),
+            )
+        )
+    session.rollback()
+
+    authority.id = new_id()
+    authority.approval_status = "APPROVED"
+    authority.approved_at = authority.created_at
+    with pytest.raises(ValueError, match="synthetic authority record identity is immutable"):
+        session.commit()
+    session.rollback()
+
+    authority.created_at = authority.created_at.replace(year=authority.created_at.year + 1)
+    authority.approval_status = "APPROVED"
+    authority.approved_at = authority.created_at
+    with pytest.raises(ValueError, match="synthetic authority record identity is immutable"):
+        session.commit()
+    session.rollback()
 
     session.execute(
         update(authority_model)
@@ -212,6 +245,37 @@ def test_synthetic_identity_is_bank_independent_and_synthetic_asset_shape_is_imm
     session.add(identity)
     session.commit()
     assert identity.bank_version_id is None
+
+    bank = QuestionBankVersion(id=new_id(), version="fixture-bank-v1", qa_version="fixture-qa-v1")
+    session.add(bank)
+    session.commit()
+
+    orm_identity = SyntheticIdentity(
+        id=new_id(),
+        bank_version_id=bank.id,
+        generator_provider="deterministic_fixture",
+        generator_model="fixture-v1",
+        prompt_version="fixture-prompt-v1",
+        provenance={"source": "synthetic"},
+        adult_synthetic_attested=True,
+    )
+    session.add(orm_identity)
+    with pytest.raises(ValueError, match="synthetic identities must be bank-independent"):
+        session.commit()
+    session.rollback()
+
+    identity.bank_version_id = bank.id
+    with pytest.raises(ValueError, match="synthetic identities must be bank-independent"):
+        session.commit()
+    session.rollback()
+
+    with pytest.raises(IntegrityError):
+        session.execute(
+            update(SyntheticIdentity)
+            .where(SyntheticIdentity.id == identity.id)
+            .values(bank_version_id=bank.id)
+        )
+    session.rollback()
 
     owner = User(id=new_id(), phone_hash="f" * 64)
     session.add(owner)

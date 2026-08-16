@@ -915,6 +915,7 @@ class SyntheticIdentity(IdMixin, Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
+    __table_args__ = (CheckConstraint("bank_version_id IS NULL", name="bank_independent"),)
 
 
 class QuestionAsset(IdMixin, Base):
@@ -1767,6 +1768,8 @@ def _protect_synthetic_authority_record(mapper: object, connection: object, targ
         for field in ("schema_version", "version", "content", "content_digest")
     ):
         raise ValueError("synthetic authority content is immutable")
+    if any(state.attrs[field].history.has_changes() for field in ("id", "created_at")):
+        raise ValueError("synthetic authority record identity is immutable")
     old_status = state.attrs["approval_status"].history.deleted
     if old_status and old_status[0] == "APPROVED":
         raise ValueError("synthetic authority approval is immutable once approved")
@@ -1789,3 +1792,15 @@ for synthetic_authority_model in (
     event.listen(synthetic_authority_model, "before_insert", _validate_synthetic_authority_insert)
     event.listen(synthetic_authority_model, "before_update", _protect_synthetic_authority_record)
     event.listen(synthetic_authority_model, "before_delete", _reject_immutable_change)
+
+
+def _validate_synthetic_identity_bank_independence(
+    mapper: object, connection: object, target: SyntheticIdentity
+) -> None:
+    del mapper, connection
+    if target.bank_version_id is not None:
+        raise ValueError("synthetic identities must be bank-independent")
+
+
+event.listen(SyntheticIdentity, "before_insert", _validate_synthetic_identity_bank_independence)
+event.listen(SyntheticIdentity, "before_update", _validate_synthetic_identity_bank_independence)

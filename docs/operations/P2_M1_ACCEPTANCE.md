@@ -5,8 +5,8 @@
 - Milestone: `P2-M1 — Domain, Provenance, Governance and Research Baseline`
 - State: `EXECUTING`
 - Local validation target: current working tree based on `f2fec9ece18c54f3952cc877ad18d2b70ec54e32`
-- Candidate commit SHA: `PENDING_PRINCIPAL_COMMIT`
-- Same-SHA GitHub Actions evidence: `PENDING_PRINCIPAL_PUSH`
+- Candidate commit SHA: `a901337ca8e0ef1fc93e64638ef72abb56bc1d28`
+- Same-SHA GitHub Actions evidence: run `31930761620` — all three jobs passed
 
 ## Machine-readable evidence contract
 
@@ -30,16 +30,16 @@ has not yet created the candidate commit; it is generator evidence, not same-SHA
 evidence. Remote candidate and acceptance closure results must be recorded by the Principal only
 after the committed candidate SHA completes all three `project-gates` jobs.
 
-| Gate                       | Result  | Evidence                                                                                                 |
-| -------------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
-| Python format/lint/type    | PASS    | Ruff 142 files; strict mypy 90 source files                                                              |
-| Python API/Worker tests    | PASS    | API 275; Worker 19; P2-M1 evidence 87; zero mandatory skip                                               |
-| Migration lifecycle        | PASS    | isolated PostgreSQL fresh→`0007→0008→0007→0008`; `alembic check`                                         |
-| TypeScript/contracts/build | PASS    | complete `pnpm check`; OpenAPI digest `8809c9c63c609cc270c211d3f8cca03f47d76243fa5aeb6304bb385653adfdb2` |
-| Docker                     | PASS    | Compose config/build; five healthy services; three HTTP 200 responses; Celery ping                       |
-| Supply chain               | PASS    | Python/Node audits; Python/Node licenses; Python SBOM; no dependency/model additions                     |
-| Secret scan                | PASS    | Gitleaks 8.28.0 candidate snapshot and 63-commit full history; no leaks                                  |
-| GitHub Actions             | PENDING | same-SHA three-job run                                                                                   |
+| Gate                       | Result | Evidence                                                                                                 |
+| -------------------------- | ------ | -------------------------------------------------------------------------------------------------------- |
+| Python format/lint/type    | PASS   | Ruff 142 files; strict mypy 90 source files                                                              |
+| Python API/Worker tests    | PASS   | API 275; Worker 19; P2-M1 evidence 87; zero mandatory skip                                               |
+| Migration lifecycle        | PASS   | isolated PostgreSQL fresh→`0007→0008→0007→0008`; `alembic check`                                         |
+| TypeScript/contracts/build | PASS   | complete `pnpm check`; OpenAPI digest `8809c9c63c609cc270c211d3f8cca03f47d76243fa5aeb6304bb385653adfdb2` |
+| Docker                     | PASS   | Compose config/build; five healthy services; three HTTP 200 responses; Celery ping                       |
+| Supply chain               | PASS   | Python/Node audits; Python/Node licenses; Python SBOM; no dependency/model additions                     |
+| Secret scan                | PASS   | Gitleaks 8.28.0 candidate snapshot and 63-commit full history; no leaks                                  |
+| GitHub Actions             | PASS   | run `31930761620`; all three jobs passed on `a901337ca8e0ef1fc93e64638ef72abb56bc1d28`                   |
 
 Candidate `6d9d97f3aa7f0aba5b7a3ea3f7eaf1c2a15a5440` run `31929764395` passed
 secret-scan, Docker, and every quality step through contract drift, but the retained Phase 1
@@ -82,5 +82,53 @@ Compose PostgreSQL database, Ruff format/lint, strict mypy and `git diff --check
 
 `P2-M1-R06_TASK_ACCEPTED: PASS`
 
+## Candidate remote evidence
+
+Run `31930761620` completed on candidate
+`a901337ca8e0ef1fc93e64638ef72abb56bc1d28` with `quality-and-integration`,
+`secret-scan` and `docker-validation` all passing. The quality job executed Python quality,
+the PostgreSQL migration lifecycle, the complete Python suite, retained Phase 1 vertical and
+recovery coverage, P2-M1 deterministic boundary tests, TypeScript/build, browser integration,
+contract drift, both evidence generators, dependency/license audits and the SBOM.
+
+The downloaded artifacts were present and unexpired:
+
+- `p2-m1-ci-evidence` artifact `9259243734` binds the exact candidate SHA, migration head
+  `0008_synth_dataset_foundation`, Git-blob OpenAPI SHA-256
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`, 87 tests with
+  zero failures/errors/skips and five passing boundary scan classes;
+- `phase1-ci-evidence` artifact `9259243527` binds the same SHA, current head and OpenAPI digest,
+  with the retained vertical test passing and zero failures/errors/skips;
+- `project-docker-evidence` artifact `9259220684` records the healthy Linux topology and successful
+  Celery/Redis probe;
+- `project-audit-evidence` artifact `9259246877` contains license summaries and the Python SBOM;
+- Gitleaks artifact `9259193639` contains zero SARIF results.
+
+The Windows working-tree OpenAPI file has CRLF-byte digest
+`8809c9c63c609cc270c211d3f8cca03f47d76243fa5aeb6304bb385653adfdb2`; the evidence digest above
+was independently reproduced from the committed Git blob and is the authoritative same-SHA value.
+
+`P2_M1_CANDIDATE_GATE: PASS`
+
+The independent T08 review subsequently found mandatory database/domain authority defects despite
+the green candidate run. The review is recorded in `P2_M1_T08_REVIEW.md`; R07 and R08 must pass and
+a new same-SHA remote Gate is required before this Milestone can advance.
+
+`P2_M1_T08_REVIEW: FAIL`
+
+R07 and R08 subsequently passed Principal diff review, 32 domain tests, 10 isolated real-
+PostgreSQL migration/invariant tests, scoped Ruff, strict mypy and `git diff --check`. The repairs
+enforce bank-independent identities, immutable authority identity evidence and fail-closed direct
+`CanonicalPolicy` construction. The independent review now passes locally, but the repair SHA and
+new same-SHA GitHub Actions evidence remain pending.
+
+`P2_M1_R07_TASK_ACCEPTED: PASS`
+
+`P2_M1_R08_TASK_ACCEPTED: PASS`
+
+`P2_M1_T08_REPAIR_REVIEW: PASS`
+
+`P2_M1_REPAIR_CANDIDATE_GATE: PENDING_PRINCIPAL_COMMIT`
+
 `P2_M1_T07_LOCAL_GATE: PASS`
-`P2_M1_T07_STATUS: EXECUTING`
+`P2_M1_T07_STATUS: PASS`

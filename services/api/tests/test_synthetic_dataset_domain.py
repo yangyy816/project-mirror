@@ -52,6 +52,93 @@ def test_canonical_policy_content_and_digest_are_deterministic() -> None:
     assert len(first.content_digest) == 64
 
 
+def test_direct_canonical_policy_construction_validates_the_authority_contract() -> None:
+    policy = CanonicalPolicy.create(
+        kind=PolicyKind.GEOMETRY_ONTOLOGY_VERSION,
+        version="geometry-ontology-v1",
+        content={"ontology": "fixture"},
+    )
+
+    assert (
+        CanonicalPolicy(
+            kind=policy.kind,
+            version=policy.version,
+            canonical_content=policy.canonical_content,
+            content_digest=policy.content_digest,
+        )
+        == policy
+    )
+
+
+@pytest.mark.parametrize(
+    ("kind", "version", "canonical_content", "content_digest", "reason_code"),
+    [
+        (
+            PolicyKind.SYNTHETIC_QA_POLICY,
+            "invalid-version",
+            '{"hard_gates":["origin"]}',
+            "0" * 64,
+            ReasonCode.INVALID_VERSION,
+        ),
+        (
+            PolicyKind.SYNTHETIC_QA_POLICY,
+            "synthetic-qa-policy-v1",
+            "not-json",
+            "0" * 64,
+            ReasonCode.INVALID_POLICY_CONTENT,
+        ),
+        (
+            PolicyKind.SYNTHETIC_QA_POLICY,
+            "synthetic-qa-policy-v1",
+            "[]",
+            "0" * 64,
+            ReasonCode.INVALID_POLICY_CONTENT,
+        ),
+        (
+            PolicyKind.SYNTHETIC_QA_POLICY,
+            "synthetic-qa-policy-v1",
+            '{"b":2, "a":1}',
+            "0" * 64,
+            ReasonCode.INVALID_POLICY_CONTENT,
+        ),
+        (
+            PolicyKind.SYNTHETIC_QA_POLICY,
+            "synthetic-qa-policy-v1",
+            '{"hard_gates":["origin"]}',
+            "f" * 64,
+            ReasonCode.CONTENT_DIGEST_MISMATCH,
+        ),
+    ],
+    ids=["bad-version", "non-json", "non-object", "noncanonical", "bad-digest"],
+)
+def test_direct_canonical_policy_construction_fails_closed(
+    kind: PolicyKind,
+    version: str,
+    canonical_content: str,
+    content_digest: str,
+    reason_code: ReasonCode,
+) -> None:
+    with pytest.raises(DomainValidationError) as error:
+        CanonicalPolicy(
+            kind=kind,
+            version=version,
+            canonical_content=canonical_content,
+            content_digest=content_digest,
+        )
+    assert error.value.reason_code is reason_code
+
+
+def test_geometry_ontology_rejects_a_forged_direct_policy_authority() -> None:
+    with pytest.raises(DomainValidationError) as error:
+        CanonicalPolicy(
+            kind=PolicyKind.GEOMETRY_ONTOLOGY_VERSION,
+            version="geometry-ontology-v1",
+            canonical_content='{"ontology":"fixture"}',
+            content_digest="0" * 64,
+        )
+    assert error.value.reason_code is ReasonCode.CONTENT_DIGEST_MISMATCH
+
+
 def test_external_policy_rejects_unknown_schema_and_digest_without_echoing_content() -> None:
     payload_marker = "provider-payload-must-not-appear"
     with pytest.raises(DomainValidationError) as unknown_schema:

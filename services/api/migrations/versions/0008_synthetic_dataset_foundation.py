@@ -105,6 +105,10 @@ def _install_synthetic_authority_protection() -> None:
                OR OLD.content_digest IS DISTINCT FROM NEW.content_digest THEN
                 RAISE EXCEPTION 'synthetic authority content is immutable';
             END IF;
+            IF OLD.id IS DISTINCT FROM NEW.id
+               OR OLD.created_at IS DISTINCT FROM NEW.created_at THEN
+                RAISE EXCEPTION 'synthetic authority record identity is immutable';
+            END IF;
             IF OLD.approval_status = 'APPROVED' THEN
                 RAISE EXCEPTION 'synthetic authority approval is immutable once approved';
             END IF;
@@ -212,6 +216,11 @@ def upgrade() -> None:
         existing_type=sa.String(length=32),
         nullable=True,
     )
+    op.create_check_constraint(
+        op.f("ck_synthetic_identities_bank_independent"),
+        "synthetic_identities",
+        "bank_version_id IS NULL",
+    )
     op.add_column("assets", sa.Column("internal_purpose", sa.String(length=64), nullable=True))
     op.create_check_constraint(
         op.f("ck_assets_valid_asset_internal_purpose_shape"),
@@ -245,6 +254,11 @@ def downgrade() -> None:
     )
     op.drop_column("assets", "internal_purpose")
     _restore_original_asset_blob_protection()
+    op.drop_constraint(
+        op.f("ck_synthetic_identities_bank_independent"),
+        "synthetic_identities",
+        type_="check",
+    )
     op.alter_column(
         "synthetic_identities",
         "bank_version_id",

@@ -14,6 +14,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum, StrEnum
+from typing import cast
 
 type JsonScalar = str | int | float | bool | None
 type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
@@ -98,6 +99,20 @@ class CanonicalPolicy:
     canonical_content: str
     content_digest: str
 
+    def __post_init__(self) -> None:
+        """Reject direct construction that bypasses the canonical authority contract."""
+        if not isinstance(self.kind, PolicyKind):
+            raise DomainValidationError(ReasonCode.UNSUPPORTED_SCHEMA)
+        _validate_version(self.version)
+        canonical_content = _validate_canonical_content(self.canonical_content)
+        if not isinstance(self.content_digest, str) or not _is_lowercase_sha256(
+            self.content_digest
+        ):
+            raise DomainValidationError(ReasonCode.CONTENT_DIGEST_MISMATCH)
+        expected_digest = _digest(self.kind.schema_version, self.version, canonical_content)
+        if self.content_digest != expected_digest:
+            raise DomainValidationError(ReasonCode.CONTENT_DIGEST_MISMATCH)
+
     @property
     def schema_version(self) -> str:
         return self.kind.schema_version
@@ -145,8 +160,24 @@ def canonicalize_policy_content(content: Mapping[str, JsonValue]) -> str:
 
 
 def _validate_version(version: str) -> None:
-    if _VERSION_PATTERN.fullmatch(version) is None:
+    if not isinstance(version, str) or _VERSION_PATTERN.fullmatch(version) is None:
         raise DomainValidationError(ReasonCode.INVALID_VERSION)
+
+
+def _validate_canonical_content(canonical_content: str) -> str:
+    """Accept only the exact canonical object JSON emitted by this module."""
+    if not isinstance(canonical_content, str):
+        raise DomainValidationError(ReasonCode.INVALID_POLICY_CONTENT)
+    try:
+        decoded: object = json.loads(canonical_content)
+    except (TypeError, json.JSONDecodeError):
+        raise DomainValidationError(ReasonCode.INVALID_POLICY_CONTENT) from None
+    if not isinstance(decoded, Mapping):
+        raise DomainValidationError(ReasonCode.INVALID_POLICY_CONTENT)
+    normalized = canonicalize_policy_content(cast(Mapping[str, JsonValue], decoded))
+    if canonical_content != normalized:
+        raise DomainValidationError(ReasonCode.INVALID_POLICY_CONTENT)
+    return normalized
 
 
 def _kind_for_schema(schema_version: str) -> PolicyKind:
