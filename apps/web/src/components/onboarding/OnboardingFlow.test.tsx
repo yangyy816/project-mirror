@@ -130,7 +130,7 @@ describe("OnboardingFlow", () => {
     fireEvent.click(action);
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("该步骤未完成，请稍后重试。");
-    expect(alert).toHaveFocus();
+    await waitFor(() => expect(alert).toHaveFocus());
     expect(document.body.textContent).not.toContain("one-shot-credential");
 
     fireEvent.click(action);

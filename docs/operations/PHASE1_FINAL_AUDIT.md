@@ -54,6 +54,12 @@ acceptance SHA, migration head `0007_account_quarantine_evidence`, OpenAPI LF-by
 SHA-256 `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841` and one
 passing vertical test with zero failures, errors or skips; SARIF contains zero results.
 
+Freeze-state run `31925010676` passed secret and Docker jobs but exposed one
+nondeterministic onboarding focus assertion after all Python, migration and vertical
+checks had passed. `P1-M6-R01` waits for the existing React focus effect instead of
+asserting before effect settlement; it does not change product behavior or weaken a
+Gate. The repair commit receives a new complete remote run reported at handoff.
+
 ## Explicitly deferred
 
 This Gate does not approve real user or face data, production registration, real SMS or

@@ -105,12 +105,18 @@ verification; that run is reported at handoff and is not recursively written bac
 
 ## Defect classification
 
-No product implementation defect required a `P1-M6-Rxx` task. During candidate
-assembly, test-only assertions were aligned with the frozen phone-hash de-association
-semantics, logger state was isolated across the full suite, the evidence configuration
-was corrected to the repository's exact migration revision, and two synthetic
-idempotency literals were changed to low-entropy fixtures after local Gitleaks findings.
-No Gate or security rule was weakened.
+No product implementation defect was found. During candidate assembly, test-only
+assertions were aligned with the frozen phone-hash de-association semantics, logger
+state was isolated across the full suite, the evidence configuration was corrected to
+the repository's exact migration revision, and two synthetic idempotency literals were
+changed to low-entropy fixtures after local Gitleaks findings.
+
+Freeze-state run `31925010676` then exposed `P1-M6-R01`: the onboarding accessibility
+test asserted focus immediately after locating the alert, racing React's documented
+post-render effect on the Linux runner. The rendered alert, sanitized message and
+focus effect were correct; only the assertion timing was nondeterministic. R01 changed
+the test to await the focus postcondition with Testing Library's bounded `waitFor`,
+without changing production code, timeout policy, accessibility behavior or any Gate.
 
 ## Deferred production gates
 
