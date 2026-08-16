@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 import mirror_api.dependencies as dependencies
+import mirror_api.middleware as middleware_module
 from mirror_api.config import Settings
 from mirror_api.main import app
 
@@ -34,6 +36,29 @@ def test_request_id_is_preserved_when_safe(client: TestClient) -> None:
     request_id = "request-test-1234"
     response = client.get("/health/live", headers={"X-Request-ID": request_id})
     assert response.headers["X-Request-ID"] == request_id
+
+
+def test_operational_event_uses_route_template_and_redacts_local_grant(
+    client: TestClient,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    event_logger = middleware_module.logger
+    monkeypatch.setattr(event_logger, "disabled", False)
+    monkeypatch.setattr(event_logger, "propagate", True)
+    caplog.set_level(logging.INFO, logger=event_logger.name)
+    marker = "sensitive-local-grant-marker"
+
+    response = client.get(f"/_local/private-download/{marker}")
+
+    assert response.status_code == 404
+    events = [
+        json.loads(record.message) for record in caplog.records if record.name == event_logger.name
+    ]
+    assert events[-1]["route_template"] == "/_local/private-download/{grant_id}"
+    assert events[-1]["status_code"] == 404
+    assert events[-1]["outcome"] == "rejected"
+    assert marker not in caplog.text
 
 
 def test_cors_allows_delete_for_current_session_logout(client: TestClient) -> None:

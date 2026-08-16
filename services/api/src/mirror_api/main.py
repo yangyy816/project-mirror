@@ -22,7 +22,11 @@ from mirror_api.errors import (
     validation_error_handler,
 )
 from mirror_api.ingestion_dependencies import create_ingestion_infrastructure
-from mirror_api.middleware import LocalUploadAccessLogRedactionMiddleware, RequestIDMiddleware
+from mirror_api.middleware import (
+    LocalUploadAccessLogRedactionMiddleware,
+    OperationalEventMiddleware,
+    RequestIDMiddleware,
+)
 from mirror_api.routers import (
     auth_router,
     data_rights_router,
@@ -108,6 +112,7 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(RequestIDMiddleware)
     app.add_middleware(LocalUploadAccessLogRedactionMiddleware)
+    app.add_middleware(OperationalEventMiddleware)
     app.add_exception_handler(APIError, api_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, validation_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(StarletteHTTPException, http_error_handler)  # type: ignore[arg-type]

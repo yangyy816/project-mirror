@@ -5,6 +5,7 @@ import logging
 from mirror_api.ingestion.service import IngestionService
 from mirror_api.ingestion.task_contract import IngestionDispatcher, IngestionTaskMessage
 from mirror_api.ingestion.types import IngestionJobResult, IngestionJobView
+from mirror_api.logging import OperationalEvent, emit_operational_event
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +37,26 @@ class IngestionCoordinator:
                     IngestionTaskMessage(job_id=result.job.job_id, request_id=request_id)
                 )
             except Exception:
-                logger.warning(
-                    "ingestion dispatch deferred to reconciler",
-                    extra={"job_id": result.job.job_id, "request_id": request_id},
+                emit_operational_event(
+                    logger,
+                    OperationalEvent(
+                        event_name="job.dispatch.completed",
+                        outcome="deferred",
+                        operation="asset_ingestion",
+                        job_id=result.job.job_id,
+                        request_id=request_id,
+                    ),
+                )
+            else:
+                emit_operational_event(
+                    logger,
+                    OperationalEvent(
+                        event_name="job.dispatch.completed",
+                        outcome="succeeded",
+                        operation="asset_ingestion",
+                        job_id=result.job.job_id,
+                        request_id=request_id,
+                    ),
                 )
         return result
 

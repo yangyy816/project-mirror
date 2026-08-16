@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
+import logging
 from typing import Any
 
 import pytest
 
-import mirror_api.ingestion.coordinator as coordinator_module
 from mirror_api.ingestion.coordinator import IngestionCoordinator
 from mirror_api.ingestion.dispatcher import (
     CeleryIngestionDispatcher,
@@ -52,14 +53,14 @@ class _Dispatcher:
 
 @pytest.mark.asyncio
 async def test_coordinator_dispatches_new_job_once_and_leaves_failure_recoverable(
+    caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    warnings: list[tuple[str, dict[str, str]]] = []
-
-    def capture_warning(message: str, *, extra: dict[str, str]) -> None:
-        warnings.append((message, extra))
-
-    monkeypatch.setattr(coordinator_module.logger, "warning", capture_warning)
+    logger_name = "mirror_api.ingestion.coordinator"
+    event_logger = logging.getLogger(logger_name)
+    monkeypatch.setattr(event_logger, "disabled", False)
+    monkeypatch.setattr(event_logger, "propagate", True)
+    caplog.set_level(logging.INFO, logger=logger_name)
     dispatcher = _Dispatcher()
     coordinator = IngestionCoordinator(_Service(), dispatcher)  # type: ignore[arg-type]
     result = await coordinator.create(
@@ -91,13 +92,15 @@ async def test_coordinator_dispatches_new_job_once_and_leaves_failure_recoverabl
         request_id=REQUEST_ID,
     )
     assert still_accepted.job.status == "pending"
-    assert warnings == [
-        (
-            "ingestion dispatch deferred to reconciler",
-            {"job_id": JOB_ID, "request_id": REQUEST_ID},
-        )
-    ]
-    assert "object_key" not in str(warnings)
+    events = [json.loads(record.message) for record in caplog.records]
+    assert events[-1] == {
+        "event_name": "job.dispatch.completed",
+        "job_id": JOB_ID,
+        "operation": "asset_ingestion",
+        "outcome": "deferred",
+        "request_id": REQUEST_ID,
+    }
+    assert "object_key" not in caplog.text
 
 
 def test_dispatch_adapters_emit_only_safe_reference_message(

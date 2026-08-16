@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
+import logging
 from typing import Any
 
 import pytest
 
-import mirror_api.asset_deletion.coordinator as coordinator_module
 from mirror_api.asset_deletion.coordinator import AssetDeletionCoordinator
 from mirror_api.asset_deletion.dispatcher import (
     CeleryAssetDeletionDispatcher,
@@ -48,14 +49,14 @@ class _Dispatcher:
 
 @pytest.mark.asyncio
 async def test_deletion_coordinator_keeps_durable_request_on_dispatch_failure(
+    caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    warnings: list[tuple[str, dict[str, str]]] = []
-
-    def capture_warning(message: str, *, extra: dict[str, str]) -> None:
-        warnings.append((message, extra))
-
-    monkeypatch.setattr(coordinator_module.logger, "warning", capture_warning)
+    logger_name = "mirror_api.asset_deletion.coordinator"
+    event_logger = logging.getLogger(logger_name)
+    monkeypatch.setattr(event_logger, "disabled", False)
+    monkeypatch.setattr(event_logger, "propagate", True)
+    caplog.set_level(logging.INFO, logger=logger_name)
     dispatcher = _Dispatcher(fail=True)
     coordinator = AssetDeletionCoordinator(  # type: ignore[arg-type]
         service=_Service(), dispatcher=dispatcher
@@ -67,12 +68,14 @@ async def test_deletion_coordinator_keeps_durable_request_on_dispatch_failure(
         request_id=REQUEST_ID,
     )
     assert accepted.status == "requested"
-    assert warnings == [
-        (
-            "asset deletion dispatch deferred to reconciler",
-            {"job_id": JOB_ID, "request_id": REQUEST_ID},
-        )
-    ]
+    events = [json.loads(record.message) for record in caplog.records]
+    assert events[-1] == {
+        "event_name": "job.dispatch.completed",
+        "job_id": JOB_ID,
+        "operation": "asset_deletion",
+        "outcome": "deferred",
+        "request_id": REQUEST_ID,
+    }
     dispatcher.fail = False
     assert await coordinator.reconcile(request_id="reconcile-request", limit=2) == (JOB_ID,)
     assert len(dispatcher.messages) == 2

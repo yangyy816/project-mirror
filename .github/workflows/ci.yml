@@ -88,6 +88,10 @@ jobs:
           echo $! > celery.pid
       - name: Python tests
         run: python -m pytest services/api/tests services/worker/tests
+      - name: Phase 1 vertical integration and recovery
+        run: >-
+          python -m pytest services/worker/tests/test_phase1_vertical.py
+          --junitxml=phase1-integration-results.xml
       - name: TypeScript quality and build
         run: pnpm check
       - name: Install Playwright Chromium
@@ -106,6 +110,20 @@ jobs:
           python -m mirror_api.scripts.export_openapi
           pnpm contracts:generate
           git diff --exit-code -- packages/contracts/openapi.json packages/contracts/src/schema.ts
+      - name: Generate Phase 1 CI evidence
+        run: |
+          python -m alembic -c services/api/alembic.ini heads > phase1-migration-head.txt
+          python -m mirror_api.scripts.phase1_ci_evidence \
+            --commit-sha "$GITHUB_SHA" \
+            --migration-head-file phase1-migration-head.txt \
+            --expected-migration-head 0007_account_quarantine_evidence \
+            --openapi packages/contracts/openapi.json \
+            --test-results phase1-integration-results.xml \
+            --output phase1-ci-evidence.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase1-ci-evidence
+          path: phase1-ci-evidence.json
       - name: Dependency and license audits
         run: |
           pip-audit --local

@@ -10,6 +10,7 @@ from mirror_api.data_rights.task_contract import (
     DataExportTaskMessage,
     DataRightsDispatcher,
 )
+from mirror_api.logging import OperationalEvent, emit_operational_event
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ class DataRightsCoordinator:
 
     def _dispatch_export(self, job_id: str, request_id: str) -> None:
         self._dispatch(
-            "data export",
+            "data_export",
             lambda: self._dispatcher.dispatch_data_export(
                 DataExportTaskMessage(job_id=job_id, request_id=request_id)
             ),
@@ -67,7 +68,7 @@ class DataRightsCoordinator:
 
     def _dispatch_account(self, job_id: str, request_id: str) -> None:
         self._dispatch(
-            "account deletion",
+            "account_deletion",
             lambda: self._dispatcher.dispatch_account_deletion(
                 AccountDeletionTaskMessage(job_id=job_id, request_id=request_id)
             ),
@@ -76,12 +77,28 @@ class DataRightsCoordinator:
         )
 
     @staticmethod
-    def _dispatch(label: str, action: Callable[[], str], job_id: str, request_id: str) -> None:
+    def _dispatch(operation: str, action: Callable[[], str], job_id: str, request_id: str) -> None:
         try:
             action()
         except Exception:
-            logger.warning(
-                "%s dispatch deferred to reconciler",
-                label,
-                extra={"job_id": job_id, "request_id": request_id},
+            emit_operational_event(
+                logger,
+                OperationalEvent(
+                    event_name="job.dispatch.completed",
+                    outcome="deferred",
+                    operation=operation,
+                    job_id=job_id,
+                    request_id=request_id,
+                ),
+            )
+        else:
+            emit_operational_event(
+                logger,
+                OperationalEvent(
+                    event_name="job.dispatch.completed",
+                    outcome="succeeded",
+                    operation=operation,
+                    job_id=job_id,
+                    request_id=request_id,
+                ),
             )

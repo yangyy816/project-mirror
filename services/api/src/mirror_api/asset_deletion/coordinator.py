@@ -7,6 +7,7 @@ from mirror_api.asset_deletion.task_contract import (
     AssetDeletionDispatcher,
     AssetDeletionTaskMessage,
 )
+from mirror_api.logging import OperationalEvent, emit_operational_event
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,24 @@ class AssetDeletionCoordinator:
                 AssetDeletionTaskMessage(job_id=job_id, request_id=request_id)
             )
         except Exception:
-            logger.warning(
-                "asset deletion dispatch deferred to reconciler",
-                extra={"job_id": job_id, "request_id": request_id},
+            emit_operational_event(
+                logger,
+                OperationalEvent(
+                    event_name="job.dispatch.completed",
+                    outcome="deferred",
+                    operation="asset_deletion",
+                    job_id=job_id,
+                    request_id=request_id,
+                ),
+            )
+        else:
+            emit_operational_event(
+                logger,
+                OperationalEvent(
+                    event_name="job.dispatch.completed",
+                    outcome="succeeded",
+                    operation="asset_deletion",
+                    job_id=job_id,
+                    request_id=request_id,
+                ),
             )
