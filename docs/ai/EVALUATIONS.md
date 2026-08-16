@@ -2,6 +2,8 @@
 
 所有 Phase 0 评估只使用确定性数值、几何 placeholder 或非人类 fixture。真实人脸评估受 `CONSENT_REQUIRED`、`PRIVACY_REVIEW_REQUIRED`、`SECURITY_REVIEW_REQUIRED`、`LEGAL_REVIEW_REQUIRED`、`PROVIDER_VALIDATION_REQUIRED`、`PRODUCTION_READINESS_REQUIRED` 阻断。
 
+P2–P7 的统一 benchmark authority、预注册/holdout/ablation 合同、MirrorBench family 与 future PoC backlog 见 `MIRROR_BENCH.md`。候选不得从“设计合理”直接进入生产架构；PoC 或单一指标成功不等于批准。
+
 ## Baseline Routing Sensitivity
 
 输入两个只在相关可靠维度变化的 SelfState，以及一个只在无关/低可靠维度变化的 control。记录 routing algorithm、normalization、descriptor、metric、bank、stimulus 与 seed 版本；期望相关变化能改变 priority/stimulus neighborhood，无关变化保持稳定。
@@ -37,3 +39,7 @@ P6 必须在同一套成年合成身份 benchmark 上比较确定性区域/颜�
 最低评估维度为：身份保持、非请求几何保持、参考妆容忠实度、区域准确性、皮肤纹理保持、伪影率、姿态鲁棒性、光照鲁棒性、强度单调可控性和用户偏好对齐。身份保持与显式约束是硬约束，优先级高于参考妆容忠实度；任何静默几何漂移、feature-lock 违反或非目标区域变化都必须使候选结果失败。
 
 自动指标不能替代用户证据。用户对结果的接受、拒绝和区域级纠正可在 P7 形成 `PreferenceEvent`；模型生成结果本身不得进入长期学习。阈值、指标与最终 `MakeupPlan` schema 在 P6 研究获得证据前保持未冻结。
+
+## Tool and memory evaluation direction
+
+P6 的 `MirrorToolBench` 必须覆盖 tool/parameter/target-region correctness、forbidden-effect violation、rollback、idempotency、region leakage、cost、latency 及 EffectVerifier false-positive/negative。P7 的 `MirrorMemoryBench` 必须覆盖 visual/explicit/procedural recall、错上下文/陈旧/未授权记忆、时序冲突与漂移、相关证据降权、删除传播、Profile rebuild、context bound、延迟和成本。精确 ablation matrix 见 `MIRROR_BENCH.md`。

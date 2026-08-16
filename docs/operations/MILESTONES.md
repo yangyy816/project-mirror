@@ -55,6 +55,14 @@ P2 的可执行状态不解除 P3 真实 facial-data 的 Legal/Consent/PIPIA/Sec
 
 ## Future rolling-wave positioning
 
+- ADR-024 冻结首个 P2 internal coverage package 的 China-market-first / East-Asian-presenting /
+  synthetic-only 方向，同时保持 continuous morphology、pack extensibility、style separation、
+  no-sensitive-user-routing 与 anti-homogenization。它只影响当前 M1 governance/domain contract；
+  不改变 Milestone DAG、M1 task graph、`0008` 或 P1 frozen implementation。
+- P2–P7 采用 benchmark-gated development：重要候选必须经过 PoC、MirrorBench、ablation、许可/隐私/安全/成本审查和 ADR；简单 baseline 与复杂候选效果接近时选择简单方案。完整 family 与 future PoC backlog 见 `docs/ai/MIRROR_BENCH.md`。
+- P3 保持 provider-neutral `FaceObservation` / landmark / pose / measurement / confidence authority；MediaPipe 与 3DDFA 只是未来 benchmark 候选，不冻结 winner。
+- P4 保持 self-conditioned active preference acquisition；ASAP 仅作 baseline。72-slot taxonomy 是覆盖能力，不是固定答题数，需比较 random/fixed/active 与 full/quick/progressive calibration。
+- P5 保持 DesiredDelta + self-transfer validation；Profile 是带 provenance、uncertainty、context 与 version 的派生模型，不是不可变真相。
 - P6 — Hybrid Non-Destructive Editor & Agent Runtime 保持 `PROVISIONAL`，其一级能力子系统为 Deterministic Editor、Geometry Editor、Generative Editor、Identity-Preserving Makeup Transfer 与 Agent Tool Layer。
 - Identity-Preserving Makeup Transfer 是 P6 的高优先级研究轨道和一级能力边界，不得降格为 Generative Editor 内的单个 `makeup_transfer()` 工具。它可向前影响 P5 Reference Profile refinement，并向后为 P7 PreferenceEvent 提供用户确认/纠正证据。
 - 该轨道的目标链为：Reference Makeup Understanding → MakeupStyleRepresentation → StyleProfile personalization → Structured MakeupPlan → Region-level execution → Identity/geometry verification → User correction → PreferenceEvent。
@@ -62,7 +70,8 @@ P2 的可执行状态不解除 P3 真实 facial-data 的 Legal/Consent/PIPIA/Sec
 - P7 的前向名称升级为 `Visual Memory OS & Persistent Preference Learning`，状态保持 `PROVISIONAL`。其权威层是用户确认的视觉、行为和明确证据；AestheticProfile、图、索引、Memory Card 与 semantic/temporal/procedural views 均为可重建派生状态。
 - P7 未来高层 deliverables 包括 AcceptedVisualEpisode、EditTrajectory evidence、Admission/Write/Memory Gate、hierarchical memory、Active Visual Exemplars、temporal/procedural memory、Memory Consolidation、Context Compiler、删除/重编译和 MirrorMemoryBench；这些不得直接转换为当前 Milestones 或 bounded tasks。
 - P6 必须保留 Final Save 到 source/result asset、ImageVersion、EditPlan、operations/manual corrections、Profile、context、Agent/provider version 与明确指令的 provenance，供 P7 使用；P7 不得重新发明 P6 的编辑证据语义。
-- 此定位不改变当前 P1-M2 DAG、任务依赖或 Gate：`CURRENT_MILESTONE_IMPACT: NONE`。
+- P6 Agent runtime 和修改型 Tool 的 future contract 见 `docs/architecture/TOOL_EFFECT_CONTRACT.md`；runtime/SDK、Tool 和 Verifier 选择必须由 benchmark + ADR 决定。
+- 此定位不改变 P1 frozen implementation，也不改变当前 P2-M1 目标、任务图或 mandatory Gate：`CURRENT_MILESTONE_IMPACT: NONE`。
 
 ## Phase 0 Milestones
 

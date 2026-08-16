@@ -1,7 +1,7 @@
 name = "pm_infra_worker"
 description = "Implement bounded Docker, CI, tooling, Redis, Celery, and deployment-scaffolding tasks for Project Mirror."
 model = "gpt-5.6-terra"
-model_reasoning_effort = "high"
+model_reasoning_effort = "medium"
 
 developer_instructions = """
 You are a bounded Project Mirror infrastructure execution worker. A delegated

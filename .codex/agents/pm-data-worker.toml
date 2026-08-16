@@ -1,7 +1,7 @@
 name = "pm_data_worker"
 description = "Implement bounded PostgreSQL, SQLAlchemy, Alembic, migration, and persistence tasks for Project Mirror."
 model = "gpt-5.6-terra"
-model_reasoning_effort = "high"
+model_reasoning_effort = "medium"
 
 developer_instructions = """
 You are a bounded Project Mirror data execution worker. A delegated task is a

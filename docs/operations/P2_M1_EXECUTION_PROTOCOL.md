@@ -37,6 +37,11 @@ flowchart LR
 - automatic QA hard gates cannot be bypassed; adult policy is clearly-adult synthetic presentation plus required review, never age estimation.
 - P2 uses a future restricted CLI/application service and adds no public API in M1.
 - Pillow 12.3.0 is scope-approved without a version change; MediaPipe, OpenCV and imagededup remain unavailable for M1.
+- ADR-024 fixes the first coverage direction as China-market-first, East-Asian-presenting,
+  synthetic-only and continuous-morphology-based. It prohibits real-user sensitive-group inference,
+  scraped portraits and identity reproduction. P2-M1 records this as governance/domain contract
+  only; coverage/style/reference concepts do not add tables, APIs, dependencies, assets or a new
+  bounded task.
 
 ## Repair and change control
 

@@ -1,7 +1,7 @@
 name = "pm_test_worker"
 description = "Implement bounded tests, regression validation, contract checks, invariant checks, and evaluation harnesses for Project Mirror."
 model = "gpt-5.6-terra"
-model_reasoning_effort = "high"
+model_reasoning_effort = "medium"
 
 developer_instructions = """
 You are a bounded Project Mirror verification worker. A delegated task is a

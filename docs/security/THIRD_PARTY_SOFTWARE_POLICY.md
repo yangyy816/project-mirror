@@ -20,10 +20,19 @@
 
 所有训练、微调、benchmark、评估、问卷生成和回归数据集必须登记 source、license、permitted/commercial use、redistribution、privacy、real/synthetic classification 与 retention。生产问卷仍只允许可追溯成年合成人物，禁止以抓取真人脸数据作为捷径。
 
+真人 reference 默认 `PROHIBITED_FOR_DATASET_GENERATION`。未来 restricted reference study 必须将
+source-image copyright/license、adult model release、portrait/privacy permission、AI processing、
+derivative/commercial use、storage/retention、territory、redistribution 与 revocation rights 分别登记；
+README、公开可访问、CC/public-domain copyright 或单一 stock license 不能自动证明全部权利。缺失
+任何必需证据只能标为 `REQUIRES_LEGAL_REVIEW` 或 `PRODUCTION_BLOCKED`。获清权 source 仍默认
+`REFERENCE_RESEARCH_ONLY`，pixels 不进 Git，identity/likeness reproduction 不得进入 corpus。
+
 ## SBOM and change control
 
-传统 package SBOM 必须覆盖进入生产的代码依赖；AI 供应链还必须登记模型校验和、权重 provenance、数据 provenance、运行时、辅助模型和外部 Provider 版本。单个受阻依赖会阻断完整生产路径。
+传统 package SBOM 必须覆盖进入生产的代码依赖；AI 供应链还必须形成 AI-BOM，分别登记 model id/version/upstream、artifact hash/signature/provenance、code/model/weight/dataset licenses、dataset lineage、transitive foundation model、商业/SaaS/再分发权利、biometric restrictions、purpose、approved environment、运行时、辅助模型、外部 Provider version 和 security review。单个受阻依赖会阻断完整生产路径。
+
+AI-BOM 未来应评估 SPDX 3.x AI/Dataset profiles，但标准或工具选择保持开放。AI-BOM 记录不能包含用户图片、私有 object key、signed URL、AestheticProfile 或 face geometry。模型 artifact 进入任何 approved environment 前必须有 checksum 与 provenance；许可未指定时只能标 `UNSPECIFIED` 或 `REQUIRES_LEGAL_REVIEW`，禁止猜测。
 
 Terra 不得自行安装重大依赖、下载权重、接受条款、采用 hosted service 或重构架构。候选从 `RESEARCH_ONLY` 到 `CANDIDATE` 再到 `APPROVED` 的每次跃迁都需要 Principal；Vision、Canvas、Agent、生成模型、分割模型、模型 runtime、支付和认证框架等高影响项还需 ADR。
 
-本政策不改变当前 P1-M2：不新增依赖、模型资产或 Gate，不提前实现 P6 能力。
+本政策不改变 P1 frozen implementation 或当前 P2-M1 Gate：不新增依赖、模型资产，不提前实现 P3–P7 能力。

@@ -76,6 +76,24 @@ No Phase-wide authorization exists. After a future M1 Gate, work stops before M2
 
 This amendment stops at `PLAN_STATUS: READY_FOR_EXECUTION`. T01 now has separate execution authorization; no Phase-wide or T02–T08 authorization follows from it.
 
+## CC-P2-09 — China-first synthetic coverage and reference research
+
+ADR-024 adds a forward governance/domain-contract amendment without changing the accepted M1–M9
+DAG or T01–T08 graph. The first internal coverage package is China-market-first and
+East-Asian-presenting, while corpus engineering remains continuous-morphology-based,
+pack-extensible, synthetic-only and non-sensitive.
+
+P2-M1 adds no table, route or Python contract for `SyntheticCoveragePack`,
+`MorphologyCoverageCell`, `StyleContextPack` or `ReferenceResearchRecord`. Existing versioned
+GenerationPolicy/GeometryOntology authority carries the M1 governance boundary; later rolling-wave
+refinement decides durable persistence and manifest binding. This is change control, not a Repair
+Task.
+
+Real-user race/ethnicity/ancestry/nationality inference and routing are prohibited. Web research
+defaults to abstract descriptor extraction; scraped real-person portraits and identity reproduction
+are prohibited. A future licensed-reference pathway requires separate rights, legal, privacy,
+security and likeness Gates and remains `REFERENCE_RESEARCH_ONLY` by default.
+
 ## Amendment outcome
 
 - `MEDIAPIPE_UPSTREAM_CORRECTION: DISCREPANCY_RECORDED`
@@ -90,7 +108,8 @@ This amendment stops at `PLAN_STATUS: READY_FOR_EXECUTION`. T01 now has separate
 - `OPENCV_DECISION: POC_REQUIRED`
 - `DEPENDENCIES_ADDED: NONE`
 - `MODEL_ARTIFACTS_ADDED: NONE`
+- `REAL_PERSON_IMAGES_ADDED: NONE`
 - `MILESTONE_DAG_CHANGED: NO`
 - `P2_M1_TASK_GRAPH_CHANGED: CONTRACT_ONLY`
-- `CHANGE_CONTROL_ITEMS: T01_AUTHORITY_PR1_MVR_MEDIAPIPE_FACT_SPLIT`
+- `CHANGE_CONTROL_ITEMS: T01_AUTHORITY_PR1_MVR_MEDIAPIPE_FACT_SPLIT_CC_P2_09`
 - `PLAN_STATUS: READY_FOR_EXECUTION`

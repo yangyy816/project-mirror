@@ -70,7 +70,9 @@ Raw quarantine bytes 从不成为 Asset。sanitized object 先以固定 opaque k
 
 ## Agent Runtime
 
-Agent 的职责是 Understand → Plan → Call Tools → Verify → Explain → Learn。LLM 不得直接写数据库、访问 COS 或扣减额度。EditPlan 必须结构化，列出操作、参数、保持项、强度和验证条件。
+P6 的未来状态机为 `CLARIFY → RETRIEVE → PLAN → SIMULATE → AUTHORIZE → EXECUTE → VERIFY → PRESENT → LEARN`。LLM 不得直接写数据库、访问 COS 或扣减额度。EditPlan 必须结构化，列出操作、参数、保持项、强度和验证条件；`LEARN` 只能接纳可信用户 evidence，不能从 Agent 自己的输出学习。
+
+所有修改型 Tool 必须有 versioned Tool Effect Contract。transport 成功不等于视觉成功；实际 target effect、non-target drift、region leakage、identity/geometry/texture preservation 与 feature locks 必须由 EffectVerifier 验证。完整 provisional contract 见 `TOOL_EFFECT_CONTRACT.md`。
 
 ## Self-conditioned personalization
 
@@ -137,3 +139,9 @@ flowchart LR
 P7 的权威层是用户确认且仍获授权保留的证据，不是 Profile、embedding、图或供应商记忆。用户保存的最终结果与到达该结果的 EditOperation trajectory 必须共同可追溯；未保存的 AI 生成结果没有直接长期权威。所有派生表示必须可重建、可版本化并传播删除。
 
 检索按 geometry、makeup、skin、lighting、scene、global style、identity constraint、procedure 和 temporal history 等 facet 路由，并在进入 AgentContext 前经过同用户、授权、目的、保留、冲突、当前指令和来源可信度检查。Agent 只接收有界的任务上下文，而不是原始记忆语料。完整 provisional 方向见 `VISUAL_MEMORY_OS.md`。
+
+## P2–P7 benchmark-gated development
+
+P2–P7 的高影响候选统一经过 `Candidate → isolated PoC → MirrorBench → ablation → license/privacy/security/cost review → ADR → APPROVED`。第三方框架只能是 Provider、Adapter、research baseline 或 reference implementation，不得重新定义 `SelfState`、`DesiredDelta`、`StyleProfile`、`IdentityConstraints`、`AestheticProfile`、`EditPlan` 或 evidence semantics。
+
+MirrorBench family、跨 Phase Gate 与 future PoC backlog 见 `docs/ai/MIRROR_BENCH.md`。该方向不修改 P1 frozen production implementation，不为 P3–P7 创建 execution-ready task，也不向当前 production manifests 添加依赖或模型。

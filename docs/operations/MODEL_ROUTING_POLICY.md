@@ -4,17 +4,31 @@
 
 - Status: `ACCEPTED`
 - Scope: Codex engineering workflow only; it does not change product requirements, Phase objectives, architecture, security/privacy invariants, research hypotheses, or acceptance Gates.
-- Objective: use the fastest model that can safely complete an already-bounded task, while keeping architecture and integrated acceptance with higher-authority agents.
+- Objective: use the lowest-cost model that can reliably complete the task, while keeping architecture and integrated acceptance with higher-authority agents and preserving the user's interactive model choice.
 
-## Three execution tiers
+## Five execution tiers
 
-| Tier | Model / role        | Use                                                                                                                                          |
-| ---- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | Sol High            | Planning, architecture-aware decomposition, risk decisions, acceptance definitions, integrated final review                                  |
-| 2    | Terra High          | Bounded engineering across one or more coordinated files/modules, integration, investigation, tests, infrastructure and security remediation |
-| 3    | GPT-5.3-Codex-Spark | Small, precise, atomic, reversible and mechanically verifiable micro tasks                                                                   |
+| Tier | Model / role        | Use                                                                                                            |
+| ---- | ------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1    | Sol High            | Architecture, high-risk decisions, Phase/Milestone planning, task decomposition and integrated final review    |
+| 2    | Terra High          | Difficult implementation with frozen contracts: deep control flow, concurrency, transactions and subtle bugs   |
+| 3    | Terra Medium        | Default bounded implementation, tests, ordinary refactors and coordinated but well-understood multi-file work  |
+| 4    | Luna Medium         | Deterministic batch changes, format conversion, documentation sync, extraction and template-driven scaffolding |
+| 5    | GPT-5.3-Codex-Spark | Small, precise, atomic, reversible and mechanically verifiable low-latency micro tasks                         |
 
-Neither Terra nor Spark may redefine the Master Specification, Phase/Milestone objectives, architecture, invariants or Gates. Worker PASS is evidence; only the Principal may accept integrated work or decide a Milestone/Phase Gate.
+Luna, Terra and Spark may not redefine the Master Specification, Phase/Milestone objectives, architecture, invariants or Gates. Worker PASS is evidence; only the Principal may accept integrated work or decide a Milestone/Phase Gate.
+
+## Default routing and escalation
+
+- Use one agent by default. Delegate only when parallelism, isolation or independent review materially improves speed or quality.
+- Use Terra Medium for ordinary bounded work. Do not select Terra High merely because a task spans multiple files.
+- Use Terra High only when the objective and contract are frozen and implementation difficulty is established by control-flow, failure-path, concurrency, transaction or boundary evidence.
+- Use Luna for repetitive, deterministic work where rules and validation are explicit. Ambiguity or business logic escalates to Terra Medium.
+- Use Spark for immediate atomic edits, not for cheap batch processing.
+- Use Sol High for architecture, schema or public-contract decisions, security/privacy/authentication/billing decisions, Milestone/Phase planning and final Gate review.
+- Default escalation is `Spark/Luna -> Terra Medium -> Terra High -> Sol High -> Principal`.
+
+Every delegated task follows the bounded-task contract in the root `AGENTS.md`, including `BOOTSTRAP_STATUS`, scope, allowed and forbidden areas, acceptance criteria, validation commands, recommended role/tier, output format and escalation condition.
 
 ## SPARK eligibility gate
 
@@ -48,13 +62,13 @@ Spark must not autonomously decide authentication/authorization, cryptography, s
 
 Spark must return `ESCALATION_REQUIRED` without expanding implementation when architecture, public API redesign, unclear security/database semantics, conflicting ADR/specification, unrelated failures, cross-subsystem coordination, or materially larger scope is discovered.
 
-Escalation path:
+Spark escalation path:
 
 ```text
-Spark -> Terra -> Sol -> Principal
+Spark -> Terra Medium -> Terra High -> Sol High -> Principal
 ```
 
-Unavailable or rate-limited Spark work falls back to Terra, not automatically to Sol.
+Unavailable or rate-limited Spark work falls back to Terra Medium, not automatically to Sol.
 
 ## Validation and output
 
@@ -80,9 +94,10 @@ Future bounded-task plans should also record `RECOMMENDED_AGENT`, `RECOMMENDED_M
 
 - Official model identifier: `gpt-5.3-codex-spark`.
 - Project agent: `pm_fast_worker` in `.codex/agents/pm-fast-worker.toml`.
-- The existing default remains `gpt-5.6-terra`; existing Sol/Terra agents remain unchanged.
-- The installed local Codex CLI is `0.148.0-alpha.9`. The WindowsApps executable is ACL-protected in the desktop sandbox; the app-managed `.codex/.sandbox-bin/codex.exe` entry completed fresh version, dynamic-model-catalog and strict-config checks.
-- Current official OpenAI documentation confirms project-scoped custom agents, the exact Spark identifier, and `medium` reasoning in a Spark custom-agent example.
-- A read-only, ephemeral CLI smoke started `gpt-5.3-codex-spark` with `medium` reasoning and completed without modifying project files.
-- A read-only named-agent smoke discovered `pm_fast_worker`, delegated one no-tool task and returned the required contract, validation and escalation rules. The first ephemeral delegation attempt could not create a child thread; the normal read-only retry passed.
-- Non-blocking local warnings remain: the `.sandbox-bin` copy lacks `codex-code-mode-host.exe`, PowerShell shell snapshots are unsupported, and two plugin icon paths are ignored. None prevented strict config parsing, direct Spark execution or named-agent delegation.
+- Project batch agent: `pm_luna_worker` in `.codex/agents/pm-luna-worker.toml` using `gpt-5.6-luna` with medium reasoning.
+- Difficult bounded implementation agent: `pm_terra_high_worker` in `.codex/agents/pm-terra-high-worker.toml` using `gpt-5.6-terra` with high reasoning.
+- The default subagent is `gpt-5.6-terra` with medium reasoning. Backend, data, frontend, infrastructure and test workers use Terra Medium; the security reviewer remains Terra High; planning and final review remain Sol High.
+- Project `.codex/config.toml` intentionally does not define a top-level `model`, `model_reasoning_effort` or plan-mode model. The user remains free to select and change the Principal model from the conversation UI; project routing only binds delegated roles.
+- Project concurrency is capped at four threads, but the default remains single-agent execution.
+- Python 3.13 `tomllib` parses every project TOML, verifies unique agent names, and asserts that Principal model keys are absent.
+- The current desktop sandbox cannot execute the ACL-protected WindowsApps `codex.exe`, so discovery of newly added named agents requires a fresh conversation and remains the only unexecuted smoke check.

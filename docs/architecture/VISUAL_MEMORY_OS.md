@@ -99,6 +99,14 @@ Memory Gate 在任何记忆进入 AgentContext 前验证：同一用户、仍获
 
 Agent Context Compiler 只输出小型任务上下文：Core Memory、current context/preference、少量 visual exemplars、counterevidence 与 procedural memory。随着历史从 10 增至 10,000+ episodes，Agent context 不得线性增长。
 
+第一版 vector-index research candidate 优先比较 PostgreSQL + pgvector 与 Profile/SQL baseline，不因 P7 自动部署独立 vector database 或 graph database。Graphiti、GBrain 的 temporal/provenance、hybrid retrieval、RRF/reranking 只作 pattern reference；任何依赖采用仍需 benchmark、供应链、隐私与 ADR。
+
+## Analytic Memory 与 MemoryObservation
+
+P7 必须研究 structured analytic memory，而不只做“找相似历史图片”。`MemoryObservation` 是 provisional research concept，至少表达 namespace、dimension、value、context、valid time、learned/system time、confidence、independence weight 与 evidence provenance。
+
+诸如“最近 90 天夜景自拍的最终 jaw delta median”或“eye > +3% 候选被向下修正的比例”应由有权限的 structured filter + SQL/statistical operation 回答，不能把全部视觉历史交给 LLM 猜测。确定性 aggregate、trend、compare、rank 与 temporal analysis 优先；LLM 只负责有 provenance 的 label/explanation/pattern candidate。
+
 ## 程序记忆、Memory Card 与动态参考
 
 P7 不仅学习“用户喜欢什么”，还研究“怎样最可靠、低成本地得到用户会接受的结果”：成功工具序列、操作顺序、初始参数、Provider/tool 成功率、纠正次数、接受概率、成本和延迟。程序记忆不得静默覆盖当前指令。
@@ -108,6 +116,8 @@ Memory Card 是由 evidence 编译的可重建检索加速器，必须引用支�
 ## 用户控制、删除和隐私
 
 未来必须支持删除单条视觉记忆、移除派生偏好、重置 Profile、清除学习、关闭学习、删除全部视觉记忆和删除账户。源证据删除后，依赖它的 embedding、图节点、Memory Card、Profile evidence 和其他索引必须删除或失效，并支持基于剩余证据重新编译。
+
+删除传播必须进入 `Deletion Propagation Bench`：验证 authoritative evidence 删除后 embedding、graph/index、Memory Card、Profile、analytic observation、cache 与 active exemplar 全部删除或失效，且 wrong-user/unauthorized retrieval 为零。
 
 视觉资产只进入获批准的私有对象存储；embedding 与 facial geometry 按敏感数据处理；日志不得记录签名 URL 或原始特征。不得默认把完整视觉记忆语料发送给通用 memory SaaS。Mem0、Graphiti、Letta、LangGraph/LangMem、图数据库、向量数据库与 embedding 模型均只是未来候选，必须经过 Adapter、OSS/模型/数据许可证、安全、隐私和 benchmark Gate。
 
@@ -122,7 +132,7 @@ Memory Card 是由 evidence 编译的可重建检索加速器，必须引用支�
 - stability：重复 consolidation、Profile/rebuild reproducibility、删除传播、长期退化；
 - personalization：接受率、纠正率、重复生成数和偏好预测准确率。
 
-至少比较 Profile Only、Vector Only、Profile + Vector、Hybrid Text、Graph + Vector、Graph + Vector + Temporal、Visual Exemplars + Profile/Graph/Temporal 和 Full Mirror Visual Memory OS。复杂度只有产生可测产品收益才可进入生产。
+至少比较 No Memory、Profile Only、Vector Only、Profile + Vector、Profile + Visual Exemplars、Hybrid Retrieval、Hybrid + Temporal、Visual Exemplars + Temporal、+ Analytic Memory、+ Memory Cards、+ Procedural Memory 和 Full Visual Memory OS。复杂度只有产生可测产品收益才可进入生产。完整指标、规模和 artifact contract 见 `docs/ai/MIRROR_BENCH.md`。
 
 ## P7 方向性 Invariants
 

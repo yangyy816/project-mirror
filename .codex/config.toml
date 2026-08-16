@@ -1,3 +1,8 @@
+# Deliberately omit top-level `model` and `model_reasoning_effort` so the
+# interactive conversation model remains user-selectable in the Codex UI.
 [agents]
+enabled = true
+max_concurrent_threads_per_session = 4
 default_subagent_model = "gpt-5.6-terra"
-default_subagent_reasoning_effort = "high"
+default_subagent_reasoning_effort = "medium"
+interrupt_message = true

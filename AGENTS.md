@@ -23,7 +23,7 @@
 - Terra Agent 只能实现或把 Principal 已明确批准的架构编码为 ADR，不得自行创建新架构决策。遇到新决策时必须停止在决策边界并上报 Principal。
 - 计划外实现缺陷使用最小 Repair Task，编号为 `P<phase>-M<milestone>-R<nn>`；不得用新增 `T09/T10` 代替。架构变化必须走 change control，不能包装成 Repair Task。
 - Terra 的 PASS 只是证据。只有 Principal 审查实际 diff、验证输出、安全影响和集成结果后才能给出 `TASK_ACCEPTED`，并且只有 Principal 能决定 Milestone Gate。
-- 模型路由使用 Sol High 做规划/架构/最终审查，Terra High 做需要仓库推理、多文件协调或集成的 bounded engineering，`pm_fast_worker` / GPT-5.3-Codex-Spark 只做小、精确、原子、可逆且验证明确的 micro task；不确定时选 Terra。
+- 模型路由使用 Sol High 做规划/架构/最终审查，Terra Medium 做默认 bounded implementation，`pm_terra_high_worker` / Terra High 只做契约已冻结但实现困难的仓库推理、多文件控制流、并发或事务任务，`pm_luna_worker` / Luna Medium 做规则明确的机械批处理，`pm_fast_worker` / GPT-5.3-Codex-Spark 做小、精确、原子、可逆且验证明确的即时 micro task；不确定时先选 Terra Medium，再按证据升级。
 - Spark 任务必须明示 `OBJECTIVE / ALLOWED AREA / EXPECTED CHANGE / FORBIDDEN / VALIDATION`，不得自主决定架构、安全/隐私、认证、数据库/迁移、敏感人脸领域或产品 invariant；发现边界扩大时立即 `ESCALATION_REQUIRED`。Spark 未执行指定验证时只能报 `IMPLEMENTED_NOT_VERIFIED`。完整规则见 `docs/operations/MODEL_ROUTING_POLICY.md`。
 
 ## A. 不可违反的产品 Invariants
@@ -73,6 +73,25 @@
 - 统计模型、题目数量、最低覆盖率、landmark + deterministic warp 都是 `RESEARCH HYPOTHESIS`，必须放在研究规格中并允许实验替换。
 - 合成身份数量、成本、延迟和覆盖目标是 `OPERATIONAL TARGET`，可随 QA 与实验结果调整。
 - 研究假设和运营目标不得升级为本文件中的永久产品 Invariant。
+
+## C.1 P2–P7 Benchmark Gate
+
+- P2–P7 的高影响算法、Provider、Agent runtime、Tool、编辑与视觉记忆候选必须依次经过 Candidate、isolated PoC、MirrorBench、ablation、license/privacy/security/cost review、ADR 和 Principal approval；设计合理或 PoC 成功不等于 production approval。
+- 每项 Bench 必须固定 baseline、dataset/fixture provenance、metrics、预注册 threshold、failure interpretation、artifact、reproducibility 和 model/provider version；不得看到 holdout 后放宽同一版本阈值以强迫 PASS。
+- 第三方框架只能作为 Provider、Adapter、research baseline 或 reference implementation，不得成为 SelfState、DesiredDelta、StyleProfile、IdentityConstraints、AestheticProfile、EditPlan、Visual/Preference Evidence 的业务权威。
+- P3–P7 仍为 PROVISIONAL；research backlog 不是 execution authorization。完整 family 与 backlog 见 `docs/ai/MIRROR_BENCH.md`。
+
+## C.2 China-first Synthetic Coverage Boundary
+
+- 首个 internal coverage pack 是 China-market-first、East-Asian-presenting、clearly-adult 与
+  synthetic-only；该 presentation scope 不是 ancestry、nationality、ethnicity、race 或真实用户标签，
+  也不代表人口平均脸或普遍审美标准。
+- corpus coverage、question selection 与 future user compatibility 主要依赖连续 morphology、
+  reliability、uncertainty 与 Local Morphological Neighborhood。不得创建敏感群体 classifier，不得
+  从真实用户照片推断或路由 race/ethnicity/ancestry/nationality。
+- 网络研究默认只提取人工复核的抽象 descriptors。抓取真人肖像、社交媒体/搜索结果 face source、
+  celebrity/influencer imitation、one-to-one identity reproduction 和未经独立权利 Gate 的真人 reference
+  一律禁止。完整决定见 ADR-024。
 
 ## D. P7 Visual Memory OS 方向性 Invariants
 
