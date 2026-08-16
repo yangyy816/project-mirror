@@ -175,6 +175,13 @@ and must reconcile all eight private checksums before use.
   platform and eight-asset calibration evidence can be produced.
 - T06 therefore returns the protocol-defined evidence-backed blocker without weakening the Gate.
   T07/T08 and M4 entry remain closed.
+- `docs/research/P2_M3_V02_VISION_CALIBRATION_PROTOCOL.md` now freezes the exact `0.10.35` candidate,
+  artifact manifest, four-stage audit, V01 calibration/holdout split, negative controls and
+  policy-freeze-before-holdout rule. This removes planning ambiguity but does not authorize a
+  download, install, model run or threshold.
+- PyPI `1.0.1` was rejected for this PoC because it retains the same unpinned dependency families and
+  missing Python/license metadata, substantially enlarges both target wheels and introduces a
+  GitHub/PyPI version mapping mismatch without closing any T06 blocker.
 
 `P2_M3_T06_STATUS: BLOCKED`
 

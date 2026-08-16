@@ -267,6 +267,11 @@ Every task reports:
 
 ### P2-M3-T06 — Vision candidate license review, PoC and calibration
 
+The exact artifact acquisition, isolated runtime audit, calibration/holdout split, negative controls
+and threshold-freeze sequence are preregistered in
+`docs/research/P2_M3_V02_VISION_CALIBRATION_PROTOCOL.md`. That protocol is non-executable until the
+Project Owner explicitly authorizes the exact wheel and model-bundle downloads.
+
 - BOOTSTRAP_STATUS: `OK`.
 - TASK_ID: `P2-M3-T06`.
 - OBJECTIVE: select and prove one synthetic-only Vision candidate or return an evidence-backed blocker

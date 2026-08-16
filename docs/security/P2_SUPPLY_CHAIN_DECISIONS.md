@@ -36,6 +36,12 @@ Python 3.13 compatibility, zero-network behavior and Windows/Linux repeatability
 
 `MODEL_ARTIFACTS_ADDED: NONE`
 
+The preregistered acquisition and audit contract is
+`docs/research/P2_M3_V02_VISION_CALIBRATION_PROTOCOL.md`. PyPI `1.0.1` was compared and rejected for
+this PoC: it retains the same unpinned dependency families and absent `Requires-Python`/license
+expression while materially increasing the Windows/Linux wheel sizes. The exact `0.10.35` candidate
+therefore remains frozen; this is not package or model approval.
+
 ## Frozen implementation boundary
 
 - P2-M1 adds no MediaPipe, OpenCV, imagededup, PyMC, ASAP, React-Konva, OpenAI Agents SDK, makeup-transfer, memory-graph or 3D-face dependency.
