@@ -121,7 +121,11 @@ and must reconcile all eight private checksums before use.
   from that frozen M2 source set.
 - The four focused M2 security-boundary tests pass locally; Ruff format/lint and `git diff --check`
   also pass. The wider evidence tests require Linux CI because the known Windows pytest temporary
-  directory ACL fault recurred; same-SHA Actions evidence remains required before accepting R02.
+  directory ACL fault recurred.
+- Repair commit `d37f61b253c2240478d72aacedd167ede6d96eaa` completed same-SHA run `31966877634`.
+  `quality-and-integration`, `secret-scan` and `docker-validation` all passed, including the original
+  P2-M2 deterministic integration and boundary evidence step. Phase 1, P2-M1, P2-M2, Docker,
+  project-audit and zero-result Gitleaks artifacts were present. `P2-M3-R02` is accepted.
 
 ## Deferred production boundary
 
