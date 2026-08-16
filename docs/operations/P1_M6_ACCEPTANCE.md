@@ -5,14 +5,14 @@
 - Milestone: `P1-M6 — Application Foundation Integration Gate`
 - Candidate SHA: `ed24b3d856e22bc1d0779a9eace254200041fb81`
 - Candidate run: [31924258547](https://github.com/yangyy816/project-mirror/actions/runs/31924258547)
-- Principal decision: `PASS_AWAITING_CLOSURE`
-- Acceptance SHA: `PENDING_THIS_COMMIT`
-- Closure run: `PENDING`
-- Freeze state: `NOT_FROZEN`
+- Principal decision: `PASS`
+- Acceptance SHA: `cc926ceb49c7978cb7b57df778ec2f1c7f4cc878`
+- Closure run: [31924651458](https://github.com/yangyy816/project-mirror/actions/runs/31924651458)
+- Freeze state: `FROZEN`
 
-T01–T05 and all mandatory candidate evidence are accepted. P1-M6 and Phase 1 can
-become `FROZEN` only after this acceptance record's own commit repeats the complete
-remote Gate successfully.
+T01–T05 and all mandatory candidate evidence are accepted. The acceptance record's
+own commit repeated the complete remote Gate successfully, so P1-M6 and Phase 1 are
+frozen without entering P2.
 
 ## Accepted scope
 
@@ -77,6 +77,32 @@ The conditional browser-failure artifact step was correctly skipped because brow
 integration passed. GitHub's Node 20 action-runtime deprecation annotations are
 nonblocking upstream maintenance debt; all mandatory steps completed successfully.
 
+## Remote closure evidence
+
+Run `31924651458` is bound to acceptance SHA
+`cc926ceb49c7978cb7b57df778ec2f1c7f4cc878` and completed successfully.
+
+| Job                       | Job ID        | Result  |
+| ------------------------- | ------------- | ------- |
+| `quality-and-integration` | `95110182752` | SUCCESS |
+| `secret-scan`             | `95110182730` | SUCCESS |
+| `docker-validation`       | `95110182753` | SUCCESS |
+
+Artifacts were downloaded, readable and unexpired on 2026-08-16:
+
+- `project-audit-evidence` (`9257494004`)
+- `phase1-ci-evidence` (`9257491150`): acceptance SHA, head
+  `0007_account_quarantine_evidence`, OpenAPI LF-byte SHA-256
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`, and one
+  passing vertical test with zero failures, errors or skips
+- `project-docker-evidence` (`9257470076`)
+- `gitleaks-results.sarif` (`9257448027`): zero results
+
+The closure repeated Python, migration, Redis/Celery, Phase 1 vertical recovery,
+TypeScript/build, browser, contract, dependency/license, SBOM, Docker/Compose and
+complete-history secret-scan Gates. The freeze-state commit receives its own full CI
+verification; that run is reported at handoff and is not recursively written back.
+
 ## Defect classification
 
 No product implementation defect required a `P1-M6-Rxx` task. During candidate
@@ -95,6 +121,6 @@ No Gate or security rule was weakened.
 - P2 synthetic dataset implementation must not begin until Phase 1 is frozen and a new
   rolling-wave plan is authorized.
 
-`P1-M6_GATE: PASS_AWAITING_CLOSURE`
+`P1-M6_GATE: PASS`
 
-`P1-M6_STATE: PASS`
+`P1-M6_STATE: FROZEN`

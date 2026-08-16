@@ -5,11 +5,14 @@
 - Phase: `P1 — Application Foundation`
 - Candidate SHA: `ed24b3d856e22bc1d0779a9eace254200041fb81`
 - Candidate run: [31924258547](https://github.com/yangyy816/project-mirror/actions/runs/31924258547)
-- Decision: `PASS_AWAITING_CLOSURE`
+- Acceptance SHA: `cc926ceb49c7978cb7b57df778ec2f1c7f4cc878`
+- Closure run: [31924651458](https://github.com/yangyy816/project-mirror/actions/runs/31924651458)
+- Decision: `PASS — FROZEN`
 
 The candidate proves the integrated M1–M5 application foundation on one SHA. The
-acceptance record and final state commits still require their own complete remote Gates;
-therefore this audit does not yet call Phase 1 `FROZEN`.
+acceptance record's own SHA repeated the complete remote Gate successfully, so P1-M6
+and Phase 1 are frozen. The final freeze-state commit receives one complete remote CI
+run whose identifier is reported at handoff without creating a documentation loop.
 
 ## Accepted foundation
 
@@ -38,6 +41,19 @@ Remote run `31924258547` completed `quality-and-integration` (`95109211376`),
 The four artifacts are readable and bind to the same SHA; machine evidence records the
 exact migration head, OpenAPI digest and zero-failure/error/skip vertical assertion.
 
+## Acceptance closure
+
+Remote run `31924651458` completed `quality-and-integration` (`95110182752`),
+`secret-scan` (`95110182730`) and `docker-validation` (`95110182753`) successfully on
+acceptance SHA `cc926ceb49c7978cb7b57df778ec2f1c7f4cc878`.
+
+Its four artifacts were downloaded and checked: `project-audit-evidence`
+(`9257494004`), `phase1-ci-evidence` (`9257491150`), `project-docker-evidence`
+(`9257470076`) and `gitleaks-results.sarif` (`9257448027`). Machine evidence binds the
+acceptance SHA, migration head `0007_account_quarantine_evidence`, OpenAPI LF-byte
+SHA-256 `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841` and one
+passing vertical test with zero failures, errors or skips; SARIF contains zero results.
+
 ## Explicitly deferred
 
 This Gate does not approve real user or face data, production registration, real SMS or
@@ -45,4 +61,6 @@ age Provider, Tencent COS/AI, payment, public launch, deployment,备案/PIPIA, p
 testing, production monitoring or P2 work. Those remain fail closed under their later
 engineering and legal Gates.
 
-`PHASE_1_GATE: PASS_AWAITING_CLOSURE`
+`PHASE_1_GATE: PASS`
+
+`PHASE_1_STATE: FROZEN`
