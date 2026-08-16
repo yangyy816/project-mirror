@@ -225,40 +225,106 @@ engine remains an Adapter candidate.
 **Entry dependency:** P6 provides accepted final-save semantics and edit provenance; P5
 provides rebuildable Profile/evidence semantics.
 
-**First-party authority:** accepted visual, behavioral, and explicit user evidence. Unsaved
-AI output, model-generated interpretations, image OCR, and external content never gain
-persistent instruction authority.
+**First-party authority:** accepted visual, behavioral, and explicit user evidence first enter
+an `Evidence Ledger` authority boundary. Directional evidence includes accepted final saves,
+edit trajectories, explicit preference set/remove, feature lock/unlock, manual corrections,
+self-transfer/questionnaire evidence, and deletion/reset events. Unsaved AI output,
+model-generated interpretations, image OCR, external content, vector similarity, Graph nodes,
+Memory Cards, and Profile materializations never gain persistent instruction authority.
+
+**Refined architecture direction:**
+
+```text
+User Truth
+→ Evidence Ledger
+→ Versioned Incremental Memory Compiler
+→ Rebuildable Retrieval Views
+→ Retrieval Router
+→ Task-Conditioned Memory Gate
+→ Bounded Context Compiler
+→ Agent
+```
+
+Profile, Visual Index, temporal facts/graph, Active Exemplars, Memory Cards, and Procedural
+Memory are optional derived views. Each must be versioned, evidence-linked, deletion-aware,
+and rebuildable. A graph, vector index, LLM summary, or third-party memory runtime cannot become
+Project Mirror's memory authority.
+
+**Directional research priorities:**
+
+1. Evidence Ledger contract and authority/provenance/deletion semantics.
+2. Compiler idempotency, checkpoint, partial retry, generation invalidation, and rebuild.
+3. Profile-only and PostgreSQL structured-evidence retrieval baselines.
+4. Deterministic Memory Gate v1 with `ALLOW | DOWNWEIGHT | ASK | DENY` decisions.
+5. Bounded Context Compiler with separate Profile, exemplar, counterevidence, and procedure
+   budgets.
+6. Bi-temporal preference facts using valid time and system/learned time without destructive
+   overwrite.
+7. Evidence Independence grouping/weighting for same-session, burst, photoshoot, near-duplicate,
+   shared-reference, or batch-correlated evidence; raw evidence remains preserved.
+8. Retrieval explain traces and supporting/counterevidence channels.
+9. Diverse Active Visual Exemplars and faceted retrieval for global, geometry, makeup, skin,
+   lighting, scene, pose, procedure, temporal history, and identity constraints.
+10. Memory Cards as versioned intent-to-evidence acceleration, never user truth.
+11. Procedural Memory as analytics-first recommendation; no autonomous prompt, tool-policy, or
+    code self-modification.
+12. Complete delete propagation, derived-orphan verification, and rebuild from remaining
+    evidence.
+13. A dedicated graph backend only if PostgreSQL relational temporal baselines fail their
+    preregistered Gate.
+
+Every item remains `DIRECTIONAL`. The list does not create tasks, freeze a schema, select a
+Provider/model/backend, or imply `RESEARCH_APPROVED`.
 
 **Mandatory ablation ladder:**
 
 ```text
 No Memory
 → Profile Only
+→ SQL Structured Evidence Retrieval
 → Vector Only
 → Profile + Vector
-→ Profile + Visual Exemplars
-→ Hybrid Retrieval
+→ Profile + Active Visual Exemplars
+→ Hybrid Structured + Visual
 → Hybrid + Temporal
-→ Visual Exemplars + Temporal
-→ + Analytic Memory
+→ + Evidence Independence
+→ + Counterevidence
 → + Memory Cards
 → + Procedural Memory
-→ Full Visual Memory OS
+→ Full Candidate Visual Memory OS
 ```
 
-The first vector candidate is PostgreSQL/pgvector compared with Profile/SQL baselines; no
-graph database, vector database, memory SaaS, or embedding model is selected in advance.
-Graphiti, Mem0, GBrain, MemEye, PMMC, and related work are research references only.
+SQL Structured Evidence Retrieval is deliberately earlier than vector-only because Project
+Mirror already owns rich domain evidence. The first vector candidate is PostgreSQL/pgvector
+compared with Profile/SQL baselines; no graph database, vector database, memory SaaS, neural
+Memory Gate, or embedding model is selected in advance.
 
-`MirrorMemoryBench` must measure retrieval precision/recall, explicit locks, wrong-context,
-stale/hallucinated/unauthorized memory, temporal drift, counterevidence, evidence
-independence, profile rebuild, deletion propagation, latency, context size, storage/compile
-cost, first-pass acceptance, manual correction count, generation count, and cost per final
-save across 20 to 10,000+ episodes.
+`MirrorMemoryBench` must cover stable/context-conditioned preference, drift, contradiction,
+explicit lock/unlock, correlated photoshoot burst, manual correction, unsaved candidates,
+counterevidence, deletion, image/OCR prompt injection, and cross-user visual similarity. It
+must measure retrieval precision/recall/MRR/nDCG, current/historical/visual/facet evidence,
+explicit locks, wrong-context/user, stale/hallucinated/unsupported Profile facts, temporal
+ordering, evidence independence, image-ablation visual necessity, profile rebuild, deletion
+propagation, retrieval/compiler p50/p95/p99, context size, DB/object/embedding/LLM calls,
+storage/compile cost, first-pass acceptance, manual correction count, generation count, time,
+and cost per final save across 20 to 10,000+ episodes and multi-tenant fixtures.
+
+Every run preserves candidate IDs, score breakdown, Gate/rejection decision, selected evidence,
+and final context output. Wrong-user admission, unauthorized admission, unsaved AI-output
+promotion, and derived orphan after completed deletion are zero-tolerance hard Gates. All other
+numeric suggestions from research remain `SUGGESTED_NOT_PRE_REGISTERED` until the Principal
+approves a complete versioned PoC contract.
 
 **Failure decision:** if a simpler Profile or exemplar design performs materially the same,
 the complex memory layer is rejected. Deletion, wrong-user isolation, authorization, current
-instruction priority, and bounded context are hard Gates.
+instruction priority, evidence provenance, rebuild, and bounded context are hard Gates. A
+learned Memory Gate, graph backend, Memory Card, or procedural-learning layer is rejected when
+it does not provide a reproducible utility/security/cost improvement over its simpler baseline.
+
+**Research references, not decisions:** Mem0, GBrain, Graphiti/Zep, PMMC, MemEye, MemLens,
+LangGraph/LangMem, Letta, MemGate, MemMachine, V-Mem, and SAGE. Their reported benefits remain
+`UPSTREAM_CLAIM` or `UNVERIFIED` until a Project Mirror artifact reproduces them; community issue
+reports are not generalized production defects.
 
 ## External research claim evidence
 
@@ -269,8 +335,8 @@ External claims use these fields: `SOURCE`, `SOURCE_TYPE`, `ACCESSED_AT`, `CLAIM
 Allowed `CLAIM_STATUS` values are `UPSTREAM_CLAIM`, `INDEPENDENTLY_VERIFIED`,
 `PROJECT_MIRROR_REPRODUCED`, `INFERENCE`, and `UNVERIFIED`.
 
-The user-provided research report was accessed on 2026-08-16 and is a secondary research
-source. Its links identify candidates but do not establish Project Mirror reproduction or
+The user-provided research reports were accessed on 2026-08-16 and are secondary research
+sources. Their links identify candidates but do not establish Project Mirror reproduction or
 commercial approval. Unless an existing repository record says otherwise, candidate benefit
 claims are `UPSTREAM_CLAIM` or `UNVERIFIED`, `REPRODUCED: NO`,
 `PROJECT_MIRROR_EVIDENCE: NONE`, and `CONFIDENCE: PROVISIONAL`.
