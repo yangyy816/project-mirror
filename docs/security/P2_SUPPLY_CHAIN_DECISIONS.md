@@ -42,6 +42,12 @@ this PoC: it retains the same unpinned dependency families and absent `Requires-
 expression while materially increasing the Windows/Linux wheel sizes. The exact `0.10.35` candidate
 therefore remains frozen; this is not package or model approval.
 
+Exact-tag static source review found no explicit network client in the Python Face Landmarker module
+and confirmed local model path/buffer input. However `BaseOptions.to_ctypes()` passes a `certifi`
+CA-bundle path into native code. Static Python review therefore cannot prove no telemetry or egress;
+native inventory plus process-level network denial/capture remain mandatory before any runtime
+approval.
+
 ## Frozen implementation boundary
 
 - P2-M1 adds no MediaPipe, OpenCV, imagededup, PyMC, ASAP, React-Konva, OpenAI Agents SDK, makeup-transfer, memory-graph or 3D-face dependency.

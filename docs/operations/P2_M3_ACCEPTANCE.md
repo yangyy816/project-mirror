@@ -182,6 +182,11 @@ and must reconcile all eight private checksums before use.
 - PyPI `1.0.1` was rejected for this PoC because it retains the same unpinned dependency families and
   missing Python/license metadata, substantially enlarges both target wheels and introduces a
   GitHub/PyPI version mapping mismatch without closing any T06 blocker.
+- Exact-tag static review found local model path/buffer APIs and no explicit Python HTTP/socket
+  client in `face_landmarker.py`, but `BaseOptions` passes a `certifi` CA-bundle path to native code.
+  This is not zero-network proof; process-level egress denial/capture remains mandatory. V02 freezes
+  `num_faces=2`, CPU/image mode, upstream `0.5` confidence baselines, blendshapes disabled and
+  transformation matrices enabled before calibration.
 
 `P2_M3_T06_STATUS: BLOCKED`
 

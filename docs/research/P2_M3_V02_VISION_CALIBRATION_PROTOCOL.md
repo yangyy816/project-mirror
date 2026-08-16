@@ -64,6 +64,17 @@ PDF SHA-256 values are:
 
 ## Four-stage execution Gate
 
+### Exact-tag static source evidence
+
+The `v0.10.35` Python `face_landmarker.py` module imports local MediaPipe bindings and NumPy and
+exposes model creation through local `model_asset_path`/buffer. No explicit HTTP, URL or socket
+client appears in that module. This is static source evidence only.
+
+`base_options.py` passes the `certifi` CA-bundle path into the native `BaseOptionsC` structure.
+Therefore the absence of a Python network import does not prove that the native runtime is
+zero-network. Stage C must retain process-level egress denial and capture; the CA-bundle field and
+all native libraries are explicit audit targets.
+
 ### A. Non-executing artifact admission
 
 1. Download only the exact manifest entries into the fresh private directory.
@@ -122,8 +133,13 @@ eligible for identity registration or release:
 
 ## Measurement and threshold freeze
 
-- Runtime mode is still-image CPU inference. Maximum reported faces must be at least `2`, otherwise
-  the provider cannot prove the exactly-one-face gate.
+- Runtime mode is still-image CPU inference with `num_faces=2`,
+  `min_face_detection_confidence=0.5`, `min_face_presence_confidence=0.5`,
+  `min_tracking_confidence=0.5`, `output_face_blendshapes=false` and
+  `output_facial_transformation_matrixes=true`. These are the exact-tag upstream baseline values
+  except that face count is raised from `1` to `2` to make multi-face rejection observable and the
+  transformation matrix is enabled for pose evidence. They are frozen before calibration and are
+  not Project Mirror quality thresholds.
 - Canonical output must use first-party `FaceObservation`, `FaceLandmarkSet`, `PoseEstimate` and
   `GeometryMeasurement`; raw MediaPipe types and blendshape categories are not persisted.
 - Exactly one observation, complete bounded landmark output, finite normalized coordinates,
