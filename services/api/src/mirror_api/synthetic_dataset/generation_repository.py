@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import cast
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,7 @@ from mirror_api.models import (
     SyntheticGenerationEvidence,
     SyntheticPromptTemplate,
     SyntheticSourceObject,
+    SyntheticSourceObjectDeletionEvidence,
 )
 from mirror_api.synthetic_dataset.generation_types import (
     GenerationBatchCreate,
@@ -235,3 +236,65 @@ class GenerationRepository:
         if row is None:
             return None
         return row.tuple()
+
+    async def lock_storage_reference(self, storage_reference: str) -> None:
+        await self.session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:reference, 0))"),
+            {"reference": storage_reference},
+        )
+
+    async def source_by_storage_reference(
+        self, storage_reference: str
+    ) -> SyntheticSourceObject | None:
+        return cast(
+            SyntheticSourceObject | None,
+            await self.session.scalar(
+                select(SyntheticSourceObject).where(
+                    SyntheticSourceObject.storage_reference == storage_reference
+                )
+            ),
+        )
+
+    async def expired_source_ids(self, *, now: datetime, limit: int) -> tuple[str, ...]:
+        has_evidence = (
+            select(SyntheticSourceObjectDeletionEvidence.id)
+            .where(
+                SyntheticSourceObjectDeletionEvidence.source_object_id == SyntheticSourceObject.id
+            )
+            .exists()
+        )
+        return tuple(
+            (
+                await self.session.scalars(
+                    select(SyntheticSourceObject.id)
+                    .where(
+                        SyntheticSourceObject.retention_expires_at <= now,
+                        ~has_evidence,
+                    )
+                    .order_by(SyntheticSourceObject.retention_expires_at, SyntheticSourceObject.id)
+                    .limit(limit)
+                )
+            ).all()
+        )
+
+    async def locked_source(self, source_id: str) -> SyntheticSourceObject | None:
+        return cast(
+            SyntheticSourceObject | None,
+            await self.session.scalar(
+                select(SyntheticSourceObject)
+                .where(SyntheticSourceObject.id == source_id)
+                .with_for_update()
+            ),
+        )
+
+    async def source_deletion_evidence(
+        self, source_id: str
+    ) -> SyntheticSourceObjectDeletionEvidence | None:
+        return cast(
+            SyntheticSourceObjectDeletionEvidence | None,
+            await self.session.scalar(
+                select(SyntheticSourceObjectDeletionEvidence).where(
+                    SyntheticSourceObjectDeletionEvidence.source_object_id == source_id
+                )
+            ),
+        )

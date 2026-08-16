@@ -17,7 +17,7 @@
 | Batch/item      | monotonic lifecycle, idempotency and concurrency      | T02/T03 PASS        |
 | Budget/cost     | row-lock admission, ceilings and append-only facts    | T02/T03 PASS        |
 | Worker          | reference-only, at-least-once, retry/cancel/reconcile | PENDING             |
-| Raw storage     | private namespace, conflict, orphan/TTL cleanup       | PENDING             |
+| Raw storage     | private namespace, conflict, orphan/TTL cleanup       | T04 PASS            |
 | Provenance      | actual Provider facts and immutable evidence          | T02 FOUNDATION PASS |
 | Prompt/security | ephemeral redacted material, zero log/task leakage    | T03 PASS            |
 | Provider        | approved controlled real-candidate benchmark          | NOT VERIFIED        |
@@ -68,3 +68,27 @@ asset in M2.
   No dependency, model, real-person image, live call or public contract was added.
 
 `P2_M2_T03: TASK_ACCEPTED`
+
+## T04 accepted evidence
+
+- The first-party synthetic storage port now supports bounded immutable create-if-absent,
+  inspect, stream and exact-reference delete. Mock remains deterministic and zero-network;
+  Tencent remains an explicit fail-closed candidate.
+- `LocalSyntheticRawStorageProvider` is development/test infrastructure only. It maps opaque
+  references through a one-way digest into `internal-synthetic/v1/raw`, atomically installs a
+  payload/metadata object directory, rejects traversal, symlinks, unexpected members, corrupt
+  metadata, size/checksum mismatch and conflicting replay, and removes only an exact validated
+  object directory. No object key crosses the adapter boundary.
+- Raw references are deterministic per item/attempt without exposing either identifier.
+  PostgreSQL advisory locking coordinates raw completion and failed-attempt orphan cleanup after the common
+  `batch → item → job/attempt` order.
+- Retention cleanup leaves `SyntheticSourceObject` authority intact, deletes only the blob and
+  appends one immutable deletion-evidence row. A delete-before-commit crash is recovered as an
+  idempotent `not_found` fact; repeated cleanup does not rewrite evidence. Orphan deletion requires
+  a matching failed, quiescent attempt and refuses active work or a referenced object.
+- Principal validation passed Ruff format/lint, strict mypy and 51 Linux tests across Provider,
+  production config, T02/T03 PostgreSQL invariants/concurrency, raw storage integrity, orphan/TTL
+  reconciliation and crash retry with zero skip. No dependency, model, real-person image, live
+  call, public API or migration was added.
+
+`P2_M2_T04: TASK_ACCEPTED`

@@ -363,15 +363,40 @@ class SyntheticStoredImage:
     namespace: Literal["internal_synthetic_v1"] = "internal_synthetic_v1"
 
     def __post_init__(self) -> None:
+        if not isinstance(self.storage_reference, str):
+            raise ValueError("synthetic storage reference must be text")
         _require_opaque_reference(self.storage_reference, field_name="synthetic storage reference")
-        if self.byte_size <= 0 or self.byte_size > MAX_SYNTHETIC_GENERATED_IMAGE_BYTES:
+        if (
+            type(self.byte_size) is not int
+            or self.byte_size <= 0
+            or self.byte_size > MAX_SYNTHETIC_GENERATED_IMAGE_BYTES
+        ):
             raise ValueError("stored synthetic image size is outside the allowed boundary")
+        if not isinstance(self.media_type, str) or not isinstance(self.sha256, str):
+            raise ValueError("stored synthetic image metadata must use scalar text")
         if self.media_type not in SYNTHETIC_IMAGE_MEDIA_TYPES:
             raise ValueError("stored synthetic image media type is not allowed")
         if not re.fullmatch(r"[0-9a-f]{64}", self.sha256):
             raise ValueError("stored synthetic image checksum must be lowercase SHA-256")
         if self.namespace != "internal_synthetic_v1":
             raise ValueError("stored image must use the internal synthetic namespace")
+
+
+class SyntheticStorageConflictError(Exception):
+    """An opaque synthetic reference already contains different immutable bytes."""
+
+    def __init__(self) -> None:
+        super().__init__("synthetic storage conflict")
+
+
+class SyntheticStorageOperationError(Exception):
+    """A fail-closed storage rejection that never exposes a path or object key."""
+
+    def __init__(self, reason: str) -> None:
+        if not re.fullmatch(r"[a-z][a-z0-9_]{2,63}", reason):
+            reason = "synthetic_storage_rejected"
+        self.reason = reason
+        super().__init__("synthetic storage operation was rejected")
 
 
 class SanitizedObjectConflictError(Exception):
@@ -541,6 +566,14 @@ class SyntheticObjectStorageProvider(Protocol):
     async def store_generated_image_if_absent(
         self, *, request: SyntheticStorageWriteRequest
     ) -> SyntheticStoredImage: ...
+
+    async def inspect_generated_image(
+        self, *, storage_reference: str
+    ) -> SyntheticStoredImage | None: ...
+
+    def stream_generated_image(self, *, storage_reference: str) -> AsyncIterator[bytes]: ...
+
+    async def delete_generated_image(self, *, storage_reference: str) -> DeleteResult: ...
 
 
 class VisionProvider(Protocol):

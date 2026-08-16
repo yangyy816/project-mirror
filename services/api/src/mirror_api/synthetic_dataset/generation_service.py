@@ -386,6 +386,7 @@ class GenerationBatchService:
                     or attempt.lease_token != job.lease_token
                 ):
                     raise GenerationOperationRejected("generation_attempt_mismatch")
+                await repo.lock_storage_reference(stored.storage_reference)
                 if (
                     result.request_reference != item.request_reference
                     or result.provenance.provider_reference != batch.provider_reference

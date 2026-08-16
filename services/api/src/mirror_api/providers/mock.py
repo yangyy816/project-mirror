@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
 from typing import Final, Literal
 
 from mirror_api.providers.base import (
     AgeAssuranceResult,
     AgeAssuranceStatus,
     AgentPlan,
+    DeleteResult,
     FaceLandmark,
     FaceLandmarkSet,
     FaceObservation,
@@ -20,6 +21,8 @@ from mirror_api.providers.base import (
     SyntheticGenerationRequest,
     SyntheticGenerationResult,
     SyntheticOutputSpecification,
+    SyntheticStorageConflictError,
+    SyntheticStorageOperationError,
     SyntheticStorageWriteRequest,
     SyntheticStoredImage,
     SyntheticVisionRequest,
@@ -170,7 +173,7 @@ class MockSyntheticObjectStorageProvider:
     """Zero-network, deterministic P2 storage double with no user-object namespace."""
 
     def __init__(self) -> None:
-        self._objects: dict[str, SyntheticStoredImage] = {}
+        self._objects: dict[str, tuple[SyntheticStoredImage, bytes]] = {}
 
     async def store_generated_image_if_absent(
         self, *, request: SyntheticStorageWriteRequest
@@ -183,10 +186,27 @@ class MockSyntheticObjectStorageProvider:
             sha256=hashlib.sha256(payload.content).hexdigest(),
         )
         existing = self._objects.get(request.storage_reference)
-        if existing is not None and existing != result:
-            raise ValueError("synthetic storage reference already contains different content")
-        self._objects[request.storage_reference] = result
+        if existing is not None and existing != (result, payload.content):
+            raise SyntheticStorageConflictError
+        self._objects[request.storage_reference] = (result, payload.content)
         return result
+
+    async def inspect_generated_image(
+        self, *, storage_reference: str
+    ) -> SyntheticStoredImage | None:
+        existing = self._objects.get(storage_reference)
+        return None if existing is None else existing[0]
+
+    async def stream_generated_image(self, *, storage_reference: str) -> AsyncIterator[bytes]:
+        existing = self._objects.get(storage_reference)
+        if existing is None:
+            raise SyntheticStorageOperationError("synthetic_object_not_found")
+        yield existing[1]
+
+    async def delete_generated_image(self, *, storage_reference: str) -> DeleteResult:
+        if self._objects.pop(storage_reference, None) is None:
+            return "not_found"
+        return "deleted"
 
 
 class MockAgentProvider:

@@ -127,6 +127,19 @@ class TencentSyntheticObjectStorageCandidateProvider:
         del request
         _not_verified("synthetic object storage")
 
+    async def inspect_generated_image(self, *, storage_reference: str) -> NoReturn:
+        del storage_reference
+        _not_verified("synthetic object storage")
+
+    async def stream_generated_image(self, *, storage_reference: str) -> AsyncIterator[bytes]:
+        del storage_reference
+        _not_verified("synthetic object storage")
+        yield b""  # pragma: no cover
+
+    async def delete_generated_image(self, *, storage_reference: str) -> NoReturn:
+        del storage_reference
+        _not_verified("synthetic object storage")
+
 
 class TencentVisionCandidateProvider:
     async def inspect_synthetic(self, *, request: SyntheticVisionRequest) -> NoReturn:

@@ -144,6 +144,29 @@ async def test_provider_fakes_are_deterministic_and_private(
     assert stored.sha256 == sha256(generated.payload.content).hexdigest()
     assert "quarantine" not in repr(stored)
     assert "sanitized" not in repr(stored)
+    assert (
+        await synthetic_storage.inspect_generated_image(storage_reference=stored.storage_reference)
+        == stored
+    )
+    assert (
+        b"".join(
+            [
+                chunk
+                async for chunk in synthetic_storage.stream_generated_image(
+                    storage_reference=stored.storage_reference
+                )
+            ]
+        )
+        == generated.payload.content
+    )
+    assert (
+        await synthetic_storage.delete_generated_image(storage_reference=stored.storage_reference)
+        == "deleted"
+    )
+    assert (
+        await synthetic_storage.delete_generated_image(storage_reference=stored.storage_reference)
+        == "not_found"
+    )
     assert (await agent.create_plan(intent="inspect")).operations == ("inspect_only",)
 
 
