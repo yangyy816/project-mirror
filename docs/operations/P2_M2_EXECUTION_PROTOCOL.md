@@ -4,7 +4,7 @@
 
 - Milestone: `P2-M2 — Generation Batch and Provider Pipeline`
 - Entry baseline: P2-M1 frozen SHA `4a69f93f0d092afa0b520bbfb6e7d192e0f3dff1`
-- State: `PASS`; acceptance closure CI pending before `FROZEN`
+- State: `FROZEN`
 - Branch: `codex/phase2-m2-generation-pipeline`
 - Authority: ADR-021, ADR-022, ADR-023, ADR-024, ADR-025 and superseding Gate change ADR-026
 - Public API impact: none
@@ -207,4 +207,10 @@ passed.
 
 `P2_M2_MILESTONE_GATE: PASS`
 
-`P2_M2_ACCEPTANCE_CLOSURE_CI: PENDING`
+`P2_M2_ACCEPTANCE_CLOSURE_CI: PASS_AT_e211adb_RUN_31958454155`
+
+`P2_M2_STATE: FROZEN`
+
+`P2_M3_REFINEMENT_ENTRY: OPEN`
+
+`P2_M3_IMPLEMENTATION: NOT_AUTHORIZED`

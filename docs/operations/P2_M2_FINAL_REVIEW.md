@@ -85,11 +85,13 @@ P2_M2_PRODUCTION_GENERATION: FAIL_CLOSED
 P2_M2_T08_SECURITY_REVIEW: PASS
 P2_M2_LOCAL_GATE: PASS
 P2_M2_REMOTE_CI: PASS_AT_1e1e70e_RUN_31957815455
-P2_M2_STATE: PASS
+P2_M2_STATE: FROZEN
 P2_M2_PASS: AUTHORIZED
-P2_M2_FROZEN: PENDING_ACCEPTANCE_CLOSURE_CI
-P2_M3_ENTRY: CLOSED_UNTIL_M2_FROZEN
+P2_M2_FROZEN: AUTHORIZED_BY_CLOSURE_RUN_31958454155
+P2_M3_REFINEMENT_ENTRY: OPEN
+P2_M3_IMPLEMENTATION: NOT_AUTHORIZED
 ```
 
-The Principal may now create the acceptance closure. M2 becomes `FROZEN` and M3 rolling-wave
-refinement opens only after the closure commit passes all three jobs with exact-SHA artifacts.
+Closure commit `e211adb54da2c24e517e2ae3e49ab92746e0d7b2` passed all three jobs in run
+`31958454155`; exact-SHA artifacts were inspected. M2 is `FROZEN`. Only M3 rolling-wave refinement
+is open; implementation still requires an accepted refinement and explicit execution authorization.

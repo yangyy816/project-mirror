@@ -3,7 +3,7 @@
 ## Status
 
 - Milestone: `P2-M2 — Generation Batch and Provider Pipeline`
-- State: `PASS`; acceptance closure same-SHA CI pending before `FROZEN`
+- State: `FROZEN`
 - Frozen entry SHA: `4a69f93f0d092afa0b520bbfb6e7d192e0f3dff1`
 - Migration target: `0009_generation_batch_pipeline`
 - Programmatic Provider Gate: `DEFERRED_EXTERNAL_PRODUCTION_DEPENDENCY`
@@ -241,6 +241,28 @@ browser integration itself passed and every mandatory evidence upload succeeded.
 
 `P2_M2_MILESTONE_GATE: PASS`
 
-`P2_M2_ACCEPTANCE_CLOSURE_CI: PENDING`
+## Acceptance closure evidence
 
-`P2_M2_STATE: PASS`
+Acceptance closure `e211adb54da2c24e517e2ae3e49ab92746e0d7b2` completed run
+`31958454155` with `quality-and-integration`, `secret-scan` and `docker-validation` all passing.
+Downloaded, unexpired artifacts were independently inspected:
+
+- `p2-m2-ci-evidence` `9266632362` binds the exact closure SHA, migration head
+  `0009_generation_batch_pipeline`, unchanged OpenAPI SHA-256
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`, 48 M2 tests with
+  zero failures/errors/skips and all eight deterministic checks passing;
+- `phase1-ci-evidence` `9266631837` and `p2-m1-ci-evidence` `9266632098` bind the same SHA and
+  retain their zero-skip regression and boundary evidence;
+- `project-docker-evidence` `9266606944` and `project-audit-evidence` `9266635276` are readable;
+- `gitleaks-results.sarif` `9266585013` contains one SARIF run and zero results.
+
+The evidence continues to state `production_approved=false`, programmatic Provider deferred,
+native source offline/non-runtime and provenance `PROVENANCE_ONLY`.
+
+`P2_M2_ACCEPTANCE_CLOSURE_CI: PASS`
+
+`P2_M2_STATE: FROZEN`
+
+`P2_M3_REFINEMENT_ENTRY: OPEN`
+
+`P2_M3_IMPLEMENTATION: NOT_AUTHORIZED`
