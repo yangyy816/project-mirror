@@ -6,11 +6,11 @@
 - Candidate SHA: `6d46b4be2368870252905b472915e5a5b1f7cd1a`
 - Candidate run: [31921199397](https://github.com/yangyy816/project-mirror/actions/runs/31921199397)
 - Principal decision: `PASS`
-- Acceptance SHA: `PENDING_CLOSURE_COMMIT`
-- Closure run: `PENDING_REMOTE_CI`
-- Freeze state: `PASS_AWAITING_CLOSURE`
+- Acceptance SHA: `ccbd136a42e7d3a702acd2050265ba0e8a211d3e`
+- Closure run: [31921591091](https://github.com/yangyy816/project-mirror/actions/runs/31921591091)
+- Freeze state: `FROZEN`
 
-T01–T08 and all mandatory M5 evidence are accepted. The Milestone becomes `FROZEN` only after this acceptance record's own commit completes the same full remote Gate.
+T01–T08 and all mandatory M5 evidence are accepted. The acceptance record's own commit completed the same full remote Gate, so the Milestone is frozen.
 
 ## Accepted scope
 
@@ -59,6 +59,18 @@ Artifacts were downloaded, readable and unexpired on 2026-08-16:
 - `project-docker-evidence` (`9256419054`): Compose log.
 - `gitleaks-results.sarif` (`9256396276`): readable SARIF with zero results.
 
+Acceptance closure run `31921591091` is bound to SHA `ccbd136a42e7d3a702acd2050265ba0e8a211d3e` and repeated the complete Gate successfully:
+
+- `quality-and-integration` (`95102180035`)
+- `secret-scan` (`95102179949`)
+- `docker-validation` (`95102179935`)
+
+Closure artifacts were downloaded, readable and unexpired:
+
+- `project-audit-evidence` (`9256539346`)
+- `project-docker-evidence` (`9256524297`)
+- `gitleaks-results.sarif` (`9256505465`), with zero SARIF results.
+
 The conditional browser-failure artifact step was correctly skipped because browser integration passed. The historical workflow display name `phase-0-gates` and Node action-runtime deprecation annotations are nonblocking maintenance debt; the current jobs and mandatory steps above executed.
 
 ## Material repairs and change controls closed
@@ -77,4 +89,4 @@ The conditional browser-failure artifact step was correctly skipped because brow
 
 `P1-M5_GATE: PASS`
 
-`P1-M5_STATE: PASS_AWAITING_CLOSURE`
+`P1-M5_STATE: FROZEN`

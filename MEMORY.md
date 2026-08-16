@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 1 — Application Foundation（COMMITTED）
-- 当前 Milestone：P1-M5 — Asset Access, User Data Rights and Lifecycle UI（EXECUTING）
+- 当前 Milestone：P1-M5 — Asset Access, User Data Rights and Lifecycle UI（FROZEN）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -36,7 +36,7 @@
 - Phase 0 OpenAPI 暴露 inactive domain schemas 供生成契约使用，但没有新增成功型业务 endpoint；未实施业务仍为 501/401。
 - Project Mirror 使用项目级 `.codex` 定义专属 subagents：规划与最终审查使用 Sol High，边界明确的执行/测试/安全角色使用 Terra High；未指定 subagent 默认 Terra High，不覆盖主交互模型、不固定并发数、不修改全局 Codex 配置。
 - 新增第三层 `pm_fast_worker`，精确使用 `gpt-5.3-codex-spark` + `medium`，仅路由通过 Small/Precise/Atomic/Reversible/Known-validation 全部条件的 micro task；Spark 不是默认模型，不得决定架构、安全/数据库语义或 Project Mirror 敏感领域 invariant，不确定时回退 Terra。
-- 执行状态统一为 `PROVISIONAL → COMMITTED → EXECUTION_READY → EXECUTING → PASS → FROZEN`；Phase 0 与 P1-M1/M2/M3/M4 已 FROZEN，Phase 1 COMMITTED，P1-M5 已完成 rolling-wave refinement 并进入 EXECUTING。
+- 执行状态统一为 `PROVISIONAL → COMMITTED → EXECUTION_READY → EXECUTING → PASS → FROZEN`；Phase 0 与 P1-M1/M2/M3/M4/M5 已 FROZEN，Phase 1 COMMITTED；下一步只能对 P1-M6 做 rolling-wave refinement。
 - Terra 只能实现 Principal 已批准的架构；新架构决策必须停止并上报。计划外实现缺陷使用 `P1-M1-Rxx` 最小 Repair Task，架构变化不得包装成 Repair Task。
 - OSS 复用原则为“复用通用基础设施，保留个性化智能”：重大第三方组件必须分别审查代码、模型/权重、数据与传递依赖许可证，并通过 Principal change control；Terra 只能报告候选，不得自行安装、下载权重或接受条款。
 - Identity-Preserving Makeup Transfer 已提升为 P6 Hybrid Editor 的一级高优先级研究轨道和能力子系统，与 Deterministic、Geometry、Generative Editor 和 Agent Tool Layer 并列，不得降格为单一 `makeup_transfer()` 工具；其未来链路为 Reference Makeup Understanding → MakeupStyleRepresentation → StyleProfile personalization → Structured MakeupPlan → region execution → identity/geometry verification → user correction → PreferenceEvent。
@@ -171,3 +171,4 @@
 - 2026-08-16：P1-M5-T06 经 Principal 本地验收。ADR-020 的 Asset list/detail/download grant/delete、data-export create/status/download grant、account-deletion create/current 九个 `/api/v1` 操作已接入真实 application/coordinator，严格 response schema 不暴露 object key、hash、Provider payload 或内部 evidence；Local synthetic export 使用独立隐藏下载路由，运行时 OpenAPI 不暴露 `_local` Adapter。OpenAPI→generated TypeScript 已同步，旧 M3“Assets 路由尚不存在”断言已按阶段前向更新。`CC-P1-M5-02` 关闭账户删除立即撤销 session 后 current-status 端点不可达的问题：普通 auth/refresh 仍拒绝被撤销 family，仅该只读端点可在原 access JWT 未过期、revocation reason 为 `account_deletion` 且用户已进入 deletion 状态时读取最小状态，不恢复 session 或授权其他资源。隔离 PostgreSQL 定向 6 PASS、完整 API 204 PASS、131-file Ruff、86-source strict mypy、完整 `pnpm check`（52 Web tests、contracts、Next build）及五服务健康通过；仅使用合成非人脸 fixture。
 - 2026-08-16：P1-M5-T07 经 Principal 本地验收。`/account` 现通过生成客户端提供 owner-bound Asset 列表/详情/瞬时下载/删除、真实异步数据导出状态与短期 ZIP 下载，以及输入固定确认短语后的账户删除状态页；access JWT 仍只驻留 `BrowserAuthSession` 内存，download grant URL/headers 只在客户端 Adapter 内瞬时兑换，不进入组件状态、URL、analytics、localStorage 或 sessionStorage。账户删除提交后普通内容立即隐藏，保留原 5 分钟 JWT 仅轮询 `CC-P1-M5-02` 只读端点，不 refresh 已撤销 family，并在完成或 4 分钟窗口结束后清除本地会话。确定性 Fake API 与 Playwright 覆盖资产读取失败重试、详情、下载、删除、export requested→processing→ready→download、二次确认、删除状态完成及存储零敏感值；`pnpm check`、54 Web tests、5 Edge E2E、Next build、Web 镜像重建、五服务 health 与 `/account` HTTP 200 全绿，仅使用 synthetic/non-face fixture。
 - 2026-08-16：P1-M5 candidate `6d46b4be2368870252905b472915e5a5b1f7cd1a` 经 Principal Gate PASS。远端 run `31921199397` 的 `quality-and-integration`、`secret-scan`、`docker-validation` 全绿，PostgreSQL migration、Redis/Celery、完整 Python/TypeScript、5 项浏览器流程、契约、供应链、Docker 和 Gitleaks 均实际执行；三项 artifacts 已下载核验，Compose/Celery 证据可读且 Gitleaks SARIF 为零结果。P1-M5 当前为 PASS，等待 acceptance closure CI 后才能 FROZEN，不得进入 P1-M6。
+- 2026-08-16：P1-M5 acceptance closure `ccbd136a42e7d3a702acd2050265ba0e8a211d3e` 的远端 run `31921591091` 三个 jobs 全绿，并生成可读的 `project-audit-evidence`、`project-docker-evidence` 与零结果 Gitleaks SARIF；Principal 将 P1-M5 前向更新为 FROZEN。下一步只允许对 P1-M6 Application Foundation Integration Gate 做 rolling-wave refinement，不在本次冻结提交中进入 M6 实现。
