@@ -20,6 +20,7 @@ from mirror_worker.celery_adapter import (
     reconcile_asset_ingestion,
     reconcile_synthetic_generation,
 )
+from mirror_worker.ingestion import RetryableWorkerFailure
 from mirror_worker.local import LocalTaskRunner
 
 
@@ -165,6 +166,28 @@ def test_ingestion_tasks_use_late_ack_and_worker_lost_recovery() -> None:
     for task in (process_asset_ingestion, cleanup_asset_ingestion, reconcile_asset_ingestion):
         assert task.acks_late is True
         assert task.reject_on_worker_lost is True
+
+
+def test_synthetic_celery_fallback_does_not_chain_raw_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fail_without_exposing_provider_details(message: dict[str, str]) -> dict[str, str]:
+        del message
+        raise RuntimeError("provider raw response must stay private")
+
+    monkeypatch.setattr(
+        "mirror_worker.celery_adapter.run_synthetic_generation_message",
+        fail_without_exposing_provider_details,
+    )
+    message = SyntheticGenerationTaskMessage(
+        item_id="f" * 32,
+        job_id="a" * 32,
+        request_id="synthetic-redaction-test",
+    )
+    with pytest.raises(RetryableWorkerFailure, match="execution failed transiently") as failure:
+        process_synthetic_generation.run(message.to_message())
+    assert failure.value.__cause__ is None
+    assert "provider raw response" not in str(failure.value)
     for task in (process_synthetic_generation, reconcile_synthetic_generation):
         assert task.acks_late is True
         assert task.reject_on_worker_lost is True

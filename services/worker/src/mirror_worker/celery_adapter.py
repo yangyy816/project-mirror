@@ -238,8 +238,8 @@ def process_synthetic_generation(message: dict[str, Any]) -> dict[str, str]:
         return asyncio.run(run_synthetic_generation_message(message))
     except RetryableWorkerFailure:
         raise
-    except Exception as exc:
-        raise RetryableWorkerFailure("synthetic generation execution failed transiently") from exc
+    except Exception:
+        raise RetryableWorkerFailure("synthetic generation execution failed transiently") from None
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
