@@ -45,7 +45,8 @@ jobs:
       STORAGE_PROVIDER: local
       VISION_PROVIDER: mock
       IMAGE_GENERATION_PROVIDER: mock
-      SYNTHETIC_STORAGE_PROVIDER: mock
+      SYNTHETIC_STORAGE_PROVIDER: local
+      LOCAL_STORAGE_ROOT: ${{ runner.temp }}/mirror-private
       AGENT_PROVIDER: mock
       OBJECT_STORAGE_PRIVATE: "true"
       SENSITIVE_PROCESSING_ENABLED: "false"
@@ -216,7 +217,10 @@ jobs:
           curl --fail --show-error --silent http://127.0.0.1:3000/
           docker compose -f compose.yaml exec -T worker \
             celery -A mirror_worker.app:celery_app inspect ping --timeout=10
-          docker compose -f compose.yaml exec -T -e RUN_CELERY_INTEGRATION=true worker \
+          docker compose -f compose.yaml exec -T \
+            -e RUN_CELERY_INTEGRATION=true \
+            -e TEST_DATABASE_URL=postgresql+psycopg://mirror:mirror_compose_only@postgres:5432/mirror \
+            worker \
             python -m pytest tests -q
           docker compose -f compose.yaml exec -T api alembic check
       - name: Capture container evidence
