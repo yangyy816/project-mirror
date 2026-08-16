@@ -3,7 +3,7 @@
 ## Candidate status
 
 - Milestone: `P2-M1 — Domain, Provenance, Governance and Research Baseline`
-- State: `EXECUTING`
+- State: `PASS`；等待 acceptance closure CI 后 `FROZEN`
 - Local validation target: current working tree based on `f2fec9ece18c54f3952cc877ad18d2b70ec54e32`
 - Candidate commit SHA: `a901337ca8e0ef1fc93e64638ef72abb56bc1d28`
 - Same-SHA GitHub Actions evidence: run `31930761620` — all three jobs passed
@@ -128,7 +128,37 @@ new same-SHA GitHub Actions evidence remain pending.
 
 `P2_M1_T08_REPAIR_REVIEW: PASS`
 
-`P2_M1_REPAIR_CANDIDATE_GATE: PENDING_PRINCIPAL_COMMIT`
+## Repair candidate remote evidence
+
+Repair candidate `9f3ca343223478f60a8eb0aed1b6d2342235f497` completed run `31932052115`
+with `quality-and-integration`, `secret-scan` and `docker-validation` all passing. Every mandatory
+quality step completed: Python format/lint/type, real PostgreSQL migration lifecycle, Linux Celery,
+complete Python and retained Phase 1 recovery tests, P2-M1 boundary evidence, TypeScript/build,
+browser integration, contract drift, dependency/license audits and SBOM.
+
+Downloaded, unexpired artifacts were independently inspected:
+
+- `p2-m1-ci-evidence` `9259615693`: exact SHA, head `0008_synth_dataset_foundation`, OpenAPI
+  SHA-256 `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`, 94 tests with
+  zero failures/errors/skips and five passing boundary classes;
+- `phase1-ci-evidence` `9259615509`: same SHA/head/OpenAPI digest and retained vertical evidence
+  with zero failures/errors/skips;
+- `project-docker-evidence` `9259595719`: healthy PostgreSQL/Redis/API/Worker/Web topology,
+  successful HTTP probes and Celery evidence;
+- `project-audit-evidence` `9259618402`: license summaries and Python SBOM;
+- `gitleaks-results.sarif` `9259575389`: one SARIF run and zero results.
+
+The skipped artifact-upload step in the quality job is the workflow's conditional browser-failure
+upload path; the browser integration itself passed and all mandatory evidence uploads succeeded.
+
+`P2_M1_REPAIR_CANDIDATE_GATE: PASS`
+
+`P2_M1_T08_FINAL_STATUS: PASS`
+
+`P2_M1_MILESTONE_GATE: PASS`
+
+Acceptance closure must bind the forward status/evidence commit to a new all-green three-job run
+before the Milestone is declared `FROZEN`.
 
 `P2_M1_T07_LOCAL_GATE: PASS`
 `P2_M1_T07_STATUS: PASS`

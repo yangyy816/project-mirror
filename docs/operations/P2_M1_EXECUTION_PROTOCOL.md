@@ -4,7 +4,7 @@
 
 - Milestone: `P2-M1 — Domain, Provenance, Governance and Research Baseline`
 - Entry baseline: Phase 1 frozen final fix `fb0d6a4b67494d32b865d0eb170f43232c68efb9`
-- State: `EXECUTING`
+- State: `PASS`；等待 acceptance closure CI 后 `FROZEN`
 - Authority: `ENCODE_APPROVED_DECISIONS_ONLY`
 - Objective: freeze P2 authority, provenance, lifecycle, typed boundaries, QA/supply-chain governance and research protocol before any synthetic generation.
 - Non-goals: generation batch, image normalization, Vision model, geometry transform, QuestionBank release, public API, model download, new dependency, real Provider, real facial data or P3 implementation.
@@ -54,6 +54,6 @@ Unexpected implementation defects use the smallest `P2-M1-Rxx` task with root ca
 - unchanged OpenAPI/generated TypeScript; full local and same-SHA three-job remote CI evidence;
 - no mandatory skip, real data, external generation or model artifact.
 
-`P2_M1_EXECUTION_GATE: EXECUTING`
+`P2_M1_EXECUTION_GATE: PASS`
 
 Principal review evidence is recorded in `P2_M1_PR1_REVIEW.md`.

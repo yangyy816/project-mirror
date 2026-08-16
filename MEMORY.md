@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 2 — Synthetic Dataset Engine（COMMITTED）
-- 当前 Milestone：P2-M1 — Domain, Provenance, Governance and Research Baseline（EXECUTING）
+- 当前 Milestone：P2-M1 — Domain, Provenance, Governance and Research Baseline（PASS；等待 acceptance closure 后 FROZEN）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -190,3 +190,4 @@
 - 2026-08-16：P2-M1 candidate `a901337ca8e0ef1fc93e64638ef72abb56bc1d28` 的 run `31930761620` 三个 jobs 全绿且 same-SHA artifacts 可读，但独立 T08 仍发现两个 mandatory authority 缺陷。`P2-M1-R07` 以前向 `0008` PostgreSQL check + ORM guard 强制所有新 `SyntheticIdentity` 永远 bank-independent，并使四类 authority 的 `id`/`created_at` 与 content/version/digest 同样不可变；`P2-M1-R08` 使 `CanonicalPolicy` 的正常直接构造统一校验 kind、version、canonical object JSON 与 digest envelope。Principal 独立复验 domain 32 PASS、真实隔离 PostgreSQL migration/invariant 10 PASS、Ruff、strict mypy 和 diff check；仍需新 repair SHA 的完整远端 Gate 后才能冻结 M1。
 - 2026-08-16：接受 P2–P7 benchmark-gated 前向治理增补，不改变 P1 frozen implementation 或当前 P2-M1 Gate。高影响算法、Provider、Agent runtime、Tool、编辑和视觉记忆候选统一遵循 `Candidate → isolated PoC → MirrorBench → ablation → license/privacy/security/cost review → ADR → APPROVED`；第三方只能作为 Adapter/Provider/baseline/reference，不能成为 Mirror domain authority。P3–P7 保持 PROVISIONAL，future PoC backlog 不等于执行授权；本次未新增 dependency 或 model artifact。
 - 2026-08-16：通过 `CC-P2-09` 与 ADR-024 接受 China-first synthetic coverage 前向决定。首个 internal pack 以 `CN_MAINLAND` market scope 和候选 `CN_EAST_ASIAN_PRESENTATION_V1` synthetic presentation scope 服务中国大陆，但底层 coverage/QuestionBank matching 仍以连续 morphology cells、reliability、uncertainty 和 Local Morphological Neighborhood 为主；presentation scope 不能成为真实用户 race/ethnicity/ancestry/nationality 推断或路由。`SyntheticCoveragePack`、`MorphologyCoverageCell`、`StyleContextPack` 在 M1 只冻结治理合同，不新增表/API，后续 rolling-wave 决定持久化。网络研究默认只提取抽象 descriptors；真人 reference 默认禁止用于 dataset generation，未来 restricted path 必须单独证明 copyright、adult model/portrait release、AI/derivative/commercial/storage/retention/territory/revocation rights 并通过 likeness/legal/privacy/security Gate。本次无 dependency、model artifact 或真人图片，DAG 与 `0008` 不变。
+- 2026-08-16：P2-M1 repair candidate `9f3ca343223478f60a8eb0aed1b6d2342235f497` 经 Principal Gate PASS。远端 run `31932052115` 的 `quality-and-integration`、`secret-scan`、`docker-validation` 全绿；P2 artifact `9259615693` 精确绑定 candidate SHA、`0008_synth_dataset_foundation`、OpenAPI digest `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`、94 tests 零 failure/error/skip 与五类 boundary PASS，Phase 1 evidence `9259615509` 同 SHA，Docker evidence `9259595719` 可读，audit artifact `9259618402` 存在，Gitleaks artifact `9259575389` 为零 SARIF results。R07/R08 与 T08 最终接受，P2-M1 前向进入 PASS；只有 acceptance closure CI 全绿后才能 FROZEN。

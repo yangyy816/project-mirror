@@ -72,4 +72,10 @@ pre-repair candidate run as repair evidence.
 
 `P2_M1_T08_REPAIR_REVIEW: PASS`
 
-`P2_M1_T08_FINAL_STATUS: PENDING_NEW_SAME_SHA_CI`
+The repair candidate `9f3ca343223478f60a8eb0aed1b6d2342235f497` completed GitHub Actions run
+`31932052115` with all three jobs passing. The downloaded P2 evidence reports migration head
+`0008_synth_dataset_foundation`, the unchanged OpenAPI digest, 94 tests with zero
+failures/errors/skips and all five boundary classes passing. Retained Phase 1 evidence binds the
+same SHA; Docker evidence is readable and Gitleaks SARIF contains zero results.
+
+`P2_M1_T08_FINAL_STATUS: PASS`

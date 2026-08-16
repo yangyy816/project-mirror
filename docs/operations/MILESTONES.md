@@ -13,7 +13,7 @@
 | P1-M5   | FROZEN    | closure `ccbd136`；run `31921591091` 三 jobs 与 artifacts 全绿   |
 | P1-M6   | FROZEN    | closure `cc926ce`；run `31924651458` 三 jobs 与 artifacts 全绿   |
 | Phase 2 | COMMITTED | Synthetic Dataset Engine；仅 P2-M1 已细化到可执行粒度            |
-| P2-M1   | EXECUTING | T01 accepted；`P2-M1-PR1` PASS；Wave 2 已解锁                    |
+| P2-M1   | PASS      | candidate `9f3ca34`；run `31932052115` 三 jobs 与 artifacts 全绿 |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
@@ -39,17 +39,17 @@ P1-M6 只执行 Phase 1 集成、安全、恢复、可观测性、CI 证据与�
 
 Phase 2 仅处理可追溯的成年合成人物刺激资产；真实用户数据、真人图片、SelfState、问卷运行、DesiredDelta、编辑、支付和部署均不在范围。P2-M1 的当前规划修订、T01 权限、Principal checkpoint、研究 Gate 与停止条件见 `P2_PLANNING_AMENDMENT.md`。
 
-| Milestone | State     | Boundary                                                                          |
-| --------- | --------- | --------------------------------------------------------------------------------- |
-| P2-M1     | EXECUTING | T01 与 PR1 已通过；执行 `0008`、domain types、typed ports 与 supply-chain records |
-| P2-M2     | COMMITTED | Generation batch/provider pipeline；须待 M1 Gate 后 refinement                    |
-| P2-M3     | COMMITTED | Synthetic normalization/base identity QA；须待 M2 Gate 后 refinement              |
-| P2-M4     | COMMITTED | Deterministic geometry variant research/engine；须待 M3 Gate 后 refinement        |
-| P2-M5     | COMMITTED | Variable isolation, duplicate and diversity QA；须待 M3/M4 Gate 后 refinement     |
-| P2-M6     | COMMITTED | QuestionBank draft, immutable release and revocation；须待 M5 Gate 后 refinement  |
-| P2-M7     | COMMITTED | Internal operations, cost and observability；须待 M2 contracts 后 refinement      |
-| P2-M8     | COMMITTED | Golden dataset and integrated evaluation；须待 M5–M7 Gate 后 refinement           |
-| P2-M9     | COMMITTED | Final audit and freeze；须待 M1–M8 Gate 后 refinement                             |
+| Milestone | State     | Boundary                                                                         |
+| --------- | --------- | -------------------------------------------------------------------------------- |
+| P2-M1     | PASS      | R07/R08/T08 已接受；等待 acceptance closure CI 后 FROZEN                         |
+| P2-M2     | COMMITTED | Generation batch/provider pipeline；须待 M1 Gate 后 refinement                   |
+| P2-M3     | COMMITTED | Synthetic normalization/base identity QA；须待 M2 Gate 后 refinement             |
+| P2-M4     | COMMITTED | Deterministic geometry variant research/engine；须待 M3 Gate 后 refinement       |
+| P2-M5     | COMMITTED | Variable isolation, duplicate and diversity QA；须待 M3/M4 Gate 后 refinement    |
+| P2-M6     | COMMITTED | QuestionBank draft, immutable release and revocation；须待 M5 Gate 后 refinement |
+| P2-M7     | COMMITTED | Internal operations, cost and observability；须待 M2 contracts 后 refinement     |
+| P2-M8     | COMMITTED | Golden dataset and integrated evaluation；须待 M5–M7 Gate 后 refinement          |
+| P2-M9     | COMMITTED | Final audit and freeze；须待 M1–M8 Gate 后 refinement                            |
 
 P2 的可执行状态不解除 P3 真实 facial-data 的 Legal/Consent/PIPIA/Security/Provider Gates。P2 research threshold、identity count、模型选择和 live Provider benchmark 继续是可替换的研究或运营决策，不是本仓库 invariant。
 
