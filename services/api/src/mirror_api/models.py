@@ -1116,7 +1116,7 @@ class SyntheticGenerationEvidence(IdMixin, Base):
         ),
         CheckConstraint("safety_outcome IN ('passed','rejected')", name="safety_outcome"),
         CheckConstraint(
-            "safety_reason_code ~ '^[a-z][a-z0-9_]{2,63}$'",
+            "safety_reason_code ~ '^[a-z][a-z0-9_-]{2,63}$'",
             name="safety_reason_code",
         ),
         CheckConstraint(

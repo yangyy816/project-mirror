@@ -310,7 +310,7 @@ def _create_evidence_tables() -> None:
             name=op.f("ck_synthetic_generation_evidence_safety_outcome"),
         ),
         sa.CheckConstraint(
-            "safety_reason_code ~ '^[a-z][a-z0-9_]{2,63}$'",
+            "safety_reason_code ~ '^[a-z][a-z0-9_-]{2,63}$'",
             name=op.f("ck_synthetic_generation_evidence_safety_reason_code"),
         ),
         sa.CheckConstraint(
@@ -669,11 +669,17 @@ def _install_evidence_guards() -> None:
             item_record generation_items%ROWTYPE;
             batch_record generation_batches%ROWTYPE;
             attempt_job_id varchar(32);
+            item_batch_id varchar(32);
         BEGIN
+            SELECT batch_id INTO item_batch_id FROM generation_items
+             WHERE id = NEW.generation_item_id;
+            SELECT * INTO batch_record FROM generation_batches
+             WHERE id = item_batch_id FOR UPDATE;
             SELECT * INTO item_record FROM generation_items
              WHERE id = NEW.generation_item_id FOR UPDATE;
-            SELECT * INTO batch_record FROM generation_batches
-             WHERE id = item_record.batch_id FOR UPDATE;
+            IF item_record.batch_id IS DISTINCT FROM batch_record.id THEN
+                RAISE EXCEPTION 'generation evidence item authority changed while locking';
+            END IF;
             SELECT job_id INTO attempt_job_id FROM job_attempts WHERE id = NEW.job_attempt_id;
             IF attempt_job_id IS DISTINCT FROM item_record.job_id THEN
                 RAISE EXCEPTION 'generation evidence attempt does not belong to item job';
@@ -712,13 +718,19 @@ def _install_evidence_guards() -> None:
             item_record generation_items%ROWTYPE;
             batch_record generation_batches%ROWTYPE;
             attempt_job_id varchar(32);
+            item_batch_id varchar(32);
             item_spend bigint;
             batch_spend bigint;
         BEGIN
+            SELECT batch_id INTO item_batch_id FROM generation_items
+             WHERE id = NEW.generation_item_id;
+            SELECT * INTO batch_record FROM generation_batches
+             WHERE id = item_batch_id FOR UPDATE;
             SELECT * INTO item_record FROM generation_items
              WHERE id = NEW.generation_item_id FOR UPDATE;
-            SELECT * INTO batch_record FROM generation_batches
-             WHERE id = item_record.batch_id FOR UPDATE;
+            IF item_record.batch_id IS DISTINCT FROM batch_record.id THEN
+                RAISE EXCEPTION 'provider cost item authority changed while locking';
+            END IF;
             SELECT job_id INTO attempt_job_id FROM job_attempts WHERE id = NEW.job_attempt_id;
             IF attempt_job_id IS DISTINCT FROM item_record.job_id THEN
                 RAISE EXCEPTION 'provider cost attempt does not belong to item job';

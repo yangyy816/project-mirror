@@ -237,6 +237,8 @@ class GenerationItemState(StrEnum):
     REQUESTED = "REQUESTED"
     GENERATING = "GENERATING"
     RAW_STORED = "RAW_STORED"
+    GENERATION_FAILED = "GENERATION_FAILED"
+    CANCELLED = "CANCELLED"
     NORMALIZATION_PENDING = "NORMALIZATION_PENDING"
     NORMALIZED = "NORMALIZED"
     QA_PENDING = "QA_PENDING"
@@ -286,9 +288,19 @@ _BATCH_TRANSITIONS: Mapping[GenerationBatchState, frozenset[GenerationBatchState
 }
 
 _ITEM_TRANSITIONS: Mapping[GenerationItemState, frozenset[GenerationItemState]] = {
-    GenerationItemState.REQUESTED: frozenset({GenerationItemState.GENERATING}),
-    GenerationItemState.GENERATING: frozenset({GenerationItemState.RAW_STORED}),
+    GenerationItemState.REQUESTED: frozenset(
+        {GenerationItemState.GENERATING, GenerationItemState.CANCELLED}
+    ),
+    GenerationItemState.GENERATING: frozenset(
+        {
+            GenerationItemState.RAW_STORED,
+            GenerationItemState.GENERATION_FAILED,
+            GenerationItemState.CANCELLED,
+        }
+    ),
     GenerationItemState.RAW_STORED: frozenset({GenerationItemState.NORMALIZATION_PENDING}),
+    GenerationItemState.GENERATION_FAILED: frozenset(),
+    GenerationItemState.CANCELLED: frozenset(),
     GenerationItemState.NORMALIZATION_PENDING: frozenset({GenerationItemState.NORMALIZED}),
     GenerationItemState.NORMALIZED: frozenset({GenerationItemState.QA_PENDING}),
     GenerationItemState.QA_PENDING: frozenset(

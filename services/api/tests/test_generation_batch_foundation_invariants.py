@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from threading import Barrier
 
 import pytest
-from sqlalchemy import create_engine, delete, text, update
+from sqlalchemy import create_engine, delete, func, select, text, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
@@ -789,3 +790,114 @@ def test_concurrent_cost_events_cannot_exceed_item_reservation(session: Session)
         {"item_id": item.id},
     ).scalar_one()
     assert total == 60
+
+
+def test_cost_trigger_uses_batch_before_item_lock_order(session: Session) -> None:
+    database_url = os.environ["TEST_DATABASE_URL"]
+    batch = _batch(session)
+    job = _job(session, suffix="l")
+    item = _item(session, batch, job)
+    attempt = _attempt(session, job, attempt=1)
+    now = utcnow()
+    session.execute(
+        update(GenerationBatch)
+        .where(GenerationBatch.id == batch.id)
+        .values(status="QUEUED", queued_at=now, updated_at=now)
+    )
+    session.execute(
+        update(GenerationBatch)
+        .where(GenerationBatch.id == batch.id)
+        .values(status="RUNNING", started_at=now, updated_at=now)
+    )
+    session.execute(
+        update(GenerationItem)
+        .where(GenerationItem.id == item.id)
+        .values(status="GENERATING", started_at=now, updated_at=now)
+    )
+    session.commit()
+
+    writer_engine = create_engine(
+        database_url,
+        connect_args={"application_name": "p2_m2_cost_lock_order_writer"},
+    )
+    blocker_engine = create_engine(database_url)
+    observer_engine = create_engine(database_url)
+
+    def post_cost() -> None:
+        with writer_engine.begin() as connection:
+            connection.execute(text("SET LOCAL lock_timeout = '3s'"))
+            connection.execute(
+                text(
+                    "INSERT INTO provider_cost_events "
+                    "(id, schema_version, generation_item_id, job_attempt_id, event_kind, "
+                    "currency, amount_micros, pricing_snapshot_reference, occurred_at, created_at) "
+                    "VALUES (:id, 'mirror.synthetic-dataset/ProviderCostEvent/v1', :item_id, "
+                    ":attempt_id, 'final', 'CNY', 10, :pricing, :now, :now)"
+                ),
+                {
+                    "id": new_id(),
+                    "item_id": item.id,
+                    "attempt_id": attempt.id,
+                    "pricing": batch.pricing_snapshot_reference,
+                    "now": now,
+                },
+            )
+
+    try:
+        with blocker_engine.connect() as blocker:
+            transaction = blocker.begin()
+            blocker.execute(text("SET LOCAL lock_timeout = '3s'"))
+            blocker.execute(
+                text("SELECT id FROM generation_batches WHERE id = :id FOR UPDATE"),
+                {"id": batch.id},
+            )
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(post_cost)
+                deadline = time.monotonic() + 3
+                waiting = False
+                while time.monotonic() < deadline:
+                    with observer_engine.connect() as observer:
+                        waiting = bool(
+                            observer.execute(
+                                text(
+                                    "SELECT EXISTS (SELECT 1 FROM pg_stat_activity "
+                                    "WHERE application_name = 'p2_m2_cost_lock_order_writer' "
+                                    "AND wait_event_type = 'Lock')"
+                                )
+                            ).scalar_one()
+                        )
+                    if waiting:
+                        break
+                    time.sleep(0.02)
+                assert waiting, "cost writer did not block on the batch authority lock"
+
+                blocker.execute(
+                    text(
+                        "UPDATE generation_items SET status = 'GENERATION_FAILED', "
+                        "result_code = 'provider_failed', finalized_at = :now, updated_at = :now "
+                        "WHERE id = :id"
+                    ),
+                    {"id": item.id, "now": now},
+                )
+                blocker.execute(
+                    text(
+                        "UPDATE generation_batches SET status = 'FAILED', finalized_at = :now, "
+                        "updated_at = :now WHERE id = :id"
+                    ),
+                    {"id": batch.id, "now": now},
+                )
+                transaction.commit()
+                future.result(timeout=5)
+    finally:
+        writer_engine.dispose()
+        blocker_engine.dispose()
+        observer_engine.dispose()
+
+    assert (
+        session.scalar(
+            select(func.count())
+            .select_from(ProviderCostEvent)
+            .where(ProviderCostEvent.generation_item_id == item.id)
+        )
+        == 1
+    )
