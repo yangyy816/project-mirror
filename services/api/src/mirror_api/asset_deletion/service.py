@@ -207,6 +207,19 @@ class AssetDeletionService:
 
     async def _record_evidence(self, *, request_id: str, asset: Asset, outcome: str) -> None:
         async with self._sessions() as session:
+            request = cast(
+                AssetDeletionRequest | None,
+                await session.scalar(
+                    select(AssetDeletionRequest)
+                    .where(
+                        AssetDeletionRequest.id == request_id,
+                        AssetDeletionRequest.owner_user_id == asset.owner_user_id,
+                    )
+                    .with_for_update()
+                ),
+            )
+            if request is None:
+                raise AssetDeletionFailure()
             await session.execute(
                 insert(ObjectDeletionEvidence)
                 .values(

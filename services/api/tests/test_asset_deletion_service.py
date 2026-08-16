@@ -296,6 +296,26 @@ async def test_asset_deletion_concurrent_duplicate_processing_is_idempotent(
 
 
 @pytest.mark.asyncio
+async def test_asset_deletion_evidence_requires_matching_request(tmp_path: Path) -> None:
+    async with _database() as sessions:
+        storage = LocalObjectStorageProvider(root=tmp_path)
+        _, original, _ = await _fixture(sessions, storage)
+        service = _service(sessions, storage)
+
+        with pytest.raises(AssetDeletionFailure):
+            await service._record_evidence(
+                request_id=new_id(),
+                asset=original,
+                outcome="already_absent",
+            )
+
+        async with sessions() as session:
+            assert (
+                await session.scalar(select(func.count()).select_from(ObjectDeletionEvidence)) == 0
+            )
+
+
+@pytest.mark.asyncio
 async def test_asset_deletion_records_already_absent_as_stable_evidence(tmp_path: Path) -> None:
     async with _database() as sessions:
         storage = LocalObjectStorageProvider(root=tmp_path)

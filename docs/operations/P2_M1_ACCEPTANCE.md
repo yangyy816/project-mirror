@@ -4,7 +4,7 @@
 
 - Milestone: `P2-M1 — Domain, Provenance, Governance and Research Baseline`
 - State: `EXECUTING`
-- Local validation target: current working tree based on `fb0d6a4b67494d32b865d0eb170f43232c68efb9`
+- Local validation target: current working tree based on `f2fec9ece18c54f3952cc877ad18d2b70ec54e32`
 - Candidate commit SHA: `PENDING_PRINCIPAL_COMMIT`
 - Same-SHA GitHub Actions evidence: `PENDING_PRINCIPAL_PUSH`
 
@@ -47,6 +47,13 @@ evidence step still expected frozen-era head `0007_account_quarantine_evidence`.
 updates only that current-head expectation to `0008_synth_dataset_foundation`; the Phase 1
 vertical JUnit, OpenAPI digest, full SHA and zero-skip requirements remain unchanged.
 
+Repair candidate `f2fec9ece18c54f3952cc877ad18d2b70ec54e32` run `31930089028` passed
+secret-scan and Docker. Its quality job reached the complete Python suite and exposed a retained
+Phase 1 Asset-deletion concurrency deadlock: duplicate evidence insertion acquired the target
+Asset trigger lock before `_complete()` acquired the deletion request lock, while the completion
+transaction held the request lock before updating Assets. The failure was unrelated to R05 but is
+a mandatory regression and is closed by `P2-M1-R06`; a new same-SHA run remains required.
+
 The isolated migration and evidence databases were checked for zero active sessions and removed
 after validation. Existing ACL-protected `.tmp` paths were not accessed or changed.
 
@@ -63,6 +70,17 @@ semantics are unchanged.
 `P2-M1-R05` updates the retained Phase 1 evidence invocation to validate the repository's current
 single Alembic head `0008_synth_dataset_foundation`. It does not change the evidence schema or
 remove the Phase 1 vertical test, OpenAPI digest, commit SHA, or zero-skip checks.
+
+`P2-M1-R06` establishes one lock order for Asset-deletion evidence: lock the matching
+owner-bound `AssetDeletionRequest` with `FOR UPDATE`, then insert append-only deletion evidence,
+after which the existing PostgreSQL trigger validates and locks the target Asset. Missing or
+owner-mismatched requests fail closed before evidence insertion. The repair changes no migration,
+trigger, state machine or deletion semantics. The implementation agent recorded 20/20 concurrent
+PostgreSQL passes, 6/6 Asset-deletion passes and a fresh PostgreSQL/Redis full API run with zero
+skips. Principal review independently passed the complete six-test Asset-deletion file on a fresh
+Compose PostgreSQL database, Ruff format/lint, strict mypy and `git diff --check`.
+
+`P2-M1-R06_TASK_ACCEPTED: PASS`
 
 `P2_M1_T07_LOCAL_GATE: PASS`
 `P2_M1_T07_STATUS: EXECUTING`
