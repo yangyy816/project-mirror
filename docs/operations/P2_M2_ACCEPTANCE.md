@@ -177,3 +177,15 @@ asset in M2.
 `P2_M2_T08_LOCAL_EVIDENCE: PASS`
 
 `P2_M2_T08_REMOTE_EVIDENCE: PENDING`
+
+## Independent final review
+
+The read-only local review is recorded in `docs/operations/P2_M2_FINAL_REVIEW.md`. It found no new
+implementation, security, privacy, data, migration, contract or supply-chain defect, but it cannot
+substitute for the unexecuted same-SHA GitHub Actions run or the blocked real-Provider benchmark.
+
+`P2_M2_T08_LOCAL_REVIEW: PASS`
+
+`P2_M2_LOCAL_GATE: CONDITIONAL`
+
+`P2_M2_STATE: EXECUTING`
