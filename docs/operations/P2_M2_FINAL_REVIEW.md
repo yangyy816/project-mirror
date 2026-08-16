@@ -6,12 +6,12 @@
 - Frozen entry: `4a69f93f0d092afa0b520bbfb6e7d192e0f3dff1`
 - Branch: `codex/phase2-m2-generation-pipeline`
 - Last same-SHA baseline: `c24b03b636722614f1c23eef1e1b4a83c28fcd28`, run `31954658786`
-- Current review target: ADR-026 / V01 candidate working tree; final commit SHA pending
+- Final candidate: `1e1e70e116c893be400a1766758ede76ab565ea0`, run `31957815455`
 - Review mode: independent read-only security, privacy, schema, contract, phase and supply-chain
   review after Principal implementation and repair
-- Review result: `CONDITIONAL_REMOTE_ONLY`
+- Review result: `PASS`
 
-The only remaining condition is the final candidate same-SHA GitHub Actions run. The review found no
+The final candidate same-SHA GitHub Actions run and v2 evidence artifact passed. The review found no
 unresolved implementation, security, privacy, phase-boundary or supply-chain defect and does not
 require a production runtime Provider for P2 synthetic-only research.
 
@@ -84,12 +84,12 @@ P2_M2_PRODUCTION_PROVIDER_APPROVAL: NOT_GRANTED
 P2_M2_PRODUCTION_GENERATION: FAIL_CLOSED
 P2_M2_T08_SECURITY_REVIEW: PASS
 P2_M2_LOCAL_GATE: PASS
-P2_M2_REMOTE_CI: PENDING_FINAL_CANDIDATE
-P2_M2_STATE: EXECUTING
-P2_M2_PASS: PENDING_FINAL_SAME_SHA_CI
-P2_M2_FROZEN: NOT_YET_AUTHORIZED
-P2_M3_ENTRY: CLOSED_UNTIL_FINAL_CI
+P2_M2_REMOTE_CI: PASS_AT_1e1e70e_RUN_31957815455
+P2_M2_STATE: PASS
+P2_M2_PASS: AUTHORIZED
+P2_M2_FROZEN: PENDING_ACCEPTANCE_CLOSURE_CI
+P2_M3_ENTRY: CLOSED_UNTIL_M2_FROZEN
 ```
 
-If all three final candidate jobs and the v2 evidence artifact pass on one SHA, the Principal may
-declare M2 `PASS`, create the acceptance closure, and then freeze M2 after the closure same-SHA CI.
+The Principal may now create the acceptance closure. M2 becomes `FROZEN` and M3 rolling-wave
+refinement opens only after the closure commit passes all three jobs with exact-SHA artifacts.

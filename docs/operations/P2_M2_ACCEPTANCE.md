@@ -3,7 +3,7 @@
 ## Status
 
 - Milestone: `P2-M2 — Generation Batch and Provider Pipeline`
-- State: `EXECUTING`
+- State: `PASS`; acceptance closure same-SHA CI pending before `FROZEN`
 - Frozen entry SHA: `4a69f93f0d092afa0b520bbfb6e7d192e0f3dff1`
 - Migration target: `0009_generation_batch_pipeline`
 - Programmatic Provider Gate: `DEFERRED_EXTERNAL_PRODUCTION_DEPENDENCY`
@@ -198,21 +198,49 @@ asset in M2.
 - The Linux CI Celery worker now subscribes to `mirror.synthetic`, matching Compose and allowing
   the existing full Python gate plus the dedicated M2 round trip to execute instead of timing out.
 - Local isolated Linux validation passed the repaired full 353-test API/Worker suite with zero
-  skip, plus 11 targeted R06/R07 tests. Final same-SHA GitHub Actions and the v2 artifact remain
-  pending, so this section is not yet a Milestone Gate decision.
+  skip, plus 11 targeted R06/R07 tests.
 
 `P2_M2_T08_LOCAL_EVIDENCE: PASS`
 
-`P2_M2_T08_REMOTE_EVIDENCE: PENDING`
+`P2_M2_T08_REMOTE_EVIDENCE: PASS`
 
 ## Independent final review
 
 The independent read-only review is recorded in `docs/operations/P2_M2_FINAL_REVIEW.md`. It accepted
-R06/R07 and found no remaining ADR-026 security, privacy, phase or supply-chain defect. Its only
-condition is the final same-SHA GitHub Actions run.
+R06/R07 and found no remaining ADR-026 security, privacy, phase or supply-chain defect. Its
+remote-only condition was satisfied by candidate run `31957815455`.
 
 `P2_M2_T08_LOCAL_REVIEW: PASS`
 
 `P2_M2_LOCAL_GATE: PASS`
 
-`P2_M2_STATE: EXECUTING`
+## Final candidate remote evidence
+
+Candidate `1e1e70e116c893be400a1766758ede76ab565ea0` completed run `31957815455`
+with `quality-and-integration`, `secret-scan` and `docker-validation` all passing. Downloaded,
+unexpired artifacts were independently inspected:
+
+- `p2-m2-ci-evidence` `9266469638` binds the exact candidate SHA, migration head
+  `0009_generation_batch_pipeline`, OpenAPI SHA-256
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`, 48 M2 tests with
+  zero failures/errors/skips and all eight deterministic checks passing. It keeps the
+  programmatic Provider deferred with `production_approved=false` and records the native source
+  as offline, research-approved and `PROVENANCE_ONLY`.
+- `phase1-ci-evidence` `9266469096` and `p2-m1-ci-evidence` `9266469357` bind the same SHA,
+  migration head and OpenAPI digest; their retained tests and boundary scans pass with zero skip.
+- `project-docker-evidence` `9266443703` is readable and records the synthetic-generation Celery
+  round trip; `project-audit-evidence` `9266472877` contains license and Python SBOM evidence.
+- `gitleaks-results.sarif` `9266417306` contains one SARIF run and zero results.
+
+The skipped upload step in the quality job is the workflow's conditional browser-failure artifact;
+browser integration itself passed and every mandatory evidence upload succeeded.
+
+`P2_M2_FINAL_CANDIDATE_GATE: PASS`
+
+`P2_M2_T08_FINAL_STATUS: PASS`
+
+`P2_M2_MILESTONE_GATE: PASS`
+
+`P2_M2_ACCEPTANCE_CLOSURE_CI: PENDING`
+
+`P2_M2_STATE: PASS`
