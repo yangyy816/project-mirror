@@ -41,6 +41,12 @@ after the committed candidate SHA completes all three `project-gates` jobs.
 | Secret scan                | PASS    | Gitleaks 8.28.0 candidate snapshot and 63-commit full history; no leaks                                  |
 | GitHub Actions             | PENDING | same-SHA three-job run                                                                                   |
 
+Candidate `6d9d97f3aa7f0aba5b7a3ea3f7eaf1c2a15a5440` run `31929764395` passed
+secret-scan, Docker, and every quality step through contract drift, but the retained Phase 1
+evidence step still expected frozen-era head `0007_account_quarantine_evidence`. `P2-M1-R05`
+updates only that current-head expectation to `0008_synth_dataset_foundation`; the Phase 1
+vertical JUnit, OpenAPI digest, full SHA and zero-skip requirements remain unchanged.
+
 The isolated migration and evidence databases were checked for zero active sessions and removed
 after validation. Existing ACL-protected `.tmp` paths were not accessed or changed.
 
@@ -53,6 +59,10 @@ LocalTaskRunner production rejection. The repair explicitly sets
 `synthetic_storage_provider="disabled"` only in that production fixture. The targeted test and the
 complete 19-test Worker suite pass with the CI mock environment; production code and fail-closed
 semantics are unchanged.
+
+`P2-M1-R05` updates the retained Phase 1 evidence invocation to validate the repository's current
+single Alembic head `0008_synth_dataset_foundation`. It does not change the evidence schema or
+remove the Phase 1 vertical test, OpenAPI digest, commit SHA, or zero-skip checks.
 
 `P2_M1_T07_LOCAL_GATE: PASS`
 `P2_M1_T07_STATUS: EXECUTING`

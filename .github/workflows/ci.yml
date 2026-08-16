@@ -127,7 +127,7 @@ jobs:
           python -m mirror_api.scripts.phase1_ci_evidence \
             --commit-sha "$GITHUB_SHA" \
             --migration-head-file phase1-migration-head.txt \
-            --expected-migration-head 0007_account_quarantine_evidence \
+            --expected-migration-head 0008_synth_dataset_foundation \
             --openapi packages/contracts/openapi.json \
             --test-results phase1-integration-results.xml \
             --output phase1-ci-evidence.json
