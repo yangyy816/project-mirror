@@ -2,15 +2,16 @@
 
 ## 当前执行状态
 
-| Scope   | State     | Evidence / Boundary                                                |
-| ------- | --------- | ------------------------------------------------------------------ |
-| Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`     |
-| Phase 1 | COMMITTED | Application Foundation；P1-M1/M2/M3/M4/M5 frozen；下一步 refine M6 |
-| P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿   |
-| P1-M2   | FROZEN    | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿   |
-| P1-M3   | FROZEN    | closure `05c9f00`；run `31897780247` 三 jobs 与 artifacts 全绿     |
-| P1-M4   | FROZEN    | closure `fd910f2`；run `31903994976` 三 jobs 与 artifacts 全绿     |
-| P1-M5   | FROZEN    | closure `ccbd136`；run `31921591091` 三 jobs 与 artifacts 全绿     |
+| Scope   | State     | Evidence / Boundary                                               |
+| ------- | --------- | ----------------------------------------------------------------- |
+| Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`    |
+| Phase 1 | COMMITTED | Application Foundation；P1-M1/M2/M3/M4/M5 frozen；P1-M6 executing |
+| P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿  |
+| P1-M2   | FROZEN    | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿  |
+| P1-M3   | FROZEN    | closure `05c9f00`；run `31897780247` 三 jobs 与 artifacts 全绿    |
+| P1-M4   | FROZEN    | closure `fd910f2`；run `31903994976` 三 jobs 与 artifacts 全绿    |
+| P1-M5   | FROZEN    | closure `ccbd136`；run `31921591091` 三 jobs 与 artifacts 全绿    |
+| P1-M6   | EXECUTING | Phase 1 integrated lifecycle/recovery/observability/freeze Gate   |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
@@ -28,7 +29,9 @@ P1-M4 的本地/远端 Gate、repairs 与 deferred production Gates 见 `P1_M4_A
 
 P1-M5 的私有 Asset 访问、异步删除、数据导出、账户删除传播和 P1-M6 边界见 `ADR-020-user-data-rights-and-asset-lifecycle.md` 与 `P1_M5_EXECUTION_PROTOCOL.md`。
 
-P1-M5 的本地/远端 Gate、repairs 与 deferred production Gates 见 `P1_M5_ACCEPTANCE.md`。P1-M6 尚未 rolling-wave refinement，不得从本状态提交推断已进入 M6。
+P1-M5 的本地/远端 Gate、repairs 与 deferred production Gates 见 `P1_M5_ACCEPTANCE.md`。
+
+P1-M6 只执行 Phase 1 集成、安全、恢复、可观测性、CI 证据与冻结验收；完整边界和 bounded tasks 见 `P1_M6_EXECUTION_PROTOCOL.md`，不得加入新业务或进入 P2。
 
 ## Future rolling-wave positioning
 
