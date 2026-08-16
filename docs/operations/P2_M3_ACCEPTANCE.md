@@ -22,9 +22,9 @@
 | QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | T04 PASS    |
 | Adult policy              | explicit review contract; ambiguous/minor-looking reject; no age estimate  | T04 PARTIAL |
 | Vision                    | approved exact package/model/data/license + controlled benchmark           | PENDING     |
-| Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | T02 PASS    |
+| Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | T05 PASS    |
 | Synthetic-only            | no User relation, real-person fixture, scraping or sensitive classifier    | T02 PASS    |
-| Recovery                  | duplicate delivery, lease expiry, blob-before-commit and cleanup race      | T03 PARTIAL |
+| Recovery                  | duplicate delivery, lease expiry, blob-before-commit and cleanup race      | T05 PASS    |
 | Contracts                 | OpenAPI/generated TypeScript unchanged                                     | T02 PASS    |
 | Supply chain              | Pillow unchanged; every new package/model separately approved              | T02 PASS    |
 | Full Gate                 | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA Actions            | PENDING     |
@@ -126,6 +126,34 @@ and must reconcile all eight private checksums before use.
   `quality-and-integration`, `secret-scan` and `docker-validation` all passed, including the original
   P2-M2 deterministic integration and boundary evidence step. Phase 1, P2-M1, P2-M2, Docker,
   project-audit and zero-result Gitleaks artifacts were present. `P2-M3-R02` is accepted.
+
+## T05 Worker orchestration and P2-M3-R03 evidence
+
+- Normalization and QA task messages are closed, reference-only schemas containing only the
+  record/run ID, deterministic Job ID, request ID and schema version. `Job`/`JobAttempt` remain an
+  empty-payload execution envelope; no image bytes, Prompt, policy payload, storage location, URL or
+  Provider SDK type enters Celery.
+- The Celery-independent application service schedules, leases, retries and reconciles M3 work;
+  Celery routes normalization/QA to `mirror.synthetic` and reconciliation to
+  `mirror.maintenance`. Production still rejects local synthetic storage and no public API or CLI
+  was added.
+- Canonical identity registration revalidates the approved policy and all append-only hard-gate
+  evidence under PostgreSQL locks. Concurrent registration creates one identity, and the existing
+  `0010` trigger atomically advances the record to `IDENTITY_REGISTERED`.
+- Principal review rejected the initial Worker PASS and opened `P2-M3-R03`: reserve used
+  `Job → record/run` while completion used `record/run → Job`; a crash after QA finalization also
+  left `QA_PASSED` permanently unreconciled, and retry exhaustion terminalized only the Job.
+  R03 now uses domain-authority-before-envelope lock order, reconciles `QA_PASSED` records until
+  identity registration, and atomically moves exhausted normalization/QA work to
+  `NORMALIZATION_FAILED`/`QA_FAILED` with a failed final attempt. A fifth delivery is a no-op.
+- Fresh Linux targeted evidence passed: five PostgreSQL normalization/QA/concurrency/recovery tests,
+  one real Redis/Celery queue test and two Worker adapter tests. A fresh full API/Worker suite with
+  PostgreSQL 17.6, Redis 8.2.1 and an external Celery Worker passed with zero failures.
+  `alembic check` reported no operations; Ruff covered 178 files, strict mypy covered 110 sources,
+  contract drift and `git diff --check` passed. All exact T05/R03 temporary containers and private
+  test directories were removed.
+- T05 and R03 do not approve a Vision candidate, provide V02 calibration or satisfy T06–T08. M3
+  remains `EXECUTING` and M4 entry remains closed.
 
 ## Deferred production boundary
 

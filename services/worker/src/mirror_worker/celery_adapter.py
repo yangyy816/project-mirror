@@ -15,7 +15,11 @@ from mirror_api.data_rights.task_contract import (
     DataExportTaskMessage,
 )
 from mirror_api.ingestion.task_contract import IngestionTaskMessage
-from mirror_api.synthetic_dataset.task_contract import SyntheticGenerationTaskMessage
+from mirror_api.synthetic_dataset.task_contract import (
+    SyntheticGenerationTaskMessage,
+    SyntheticNormalizationTaskMessage,
+    SyntheticQATaskMessage,
+)
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
 from mirror_worker.ingestion import RetryableWorkerFailure
@@ -30,6 +34,9 @@ from mirror_worker.runtime import (
     run_reconciliation,
     run_synthetic_generation_message,
     run_synthetic_generation_reconciliation,
+    run_synthetic_m3_reconciliation,
+    run_synthetic_normalization_message,
+    run_synthetic_qa_message,
     run_synthetic_raw_cleanup,
 )
 
@@ -57,6 +64,9 @@ celery_app.conf.update(
         "mirror.synthetic_generation.process": {"queue": "mirror.synthetic"},
         "mirror.synthetic_generation.reconcile": {"queue": "mirror.maintenance"},
         "mirror.synthetic_generation.cleanup": {"queue": "mirror.maintenance"},
+        "mirror.synthetic_normalization.process": {"queue": "mirror.synthetic"},
+        "mirror.synthetic_qa.process": {"queue": "mirror.synthetic"},
+        "mirror.synthetic_m3.reconcile": {"queue": "mirror.maintenance"},
     },
 )
 
@@ -268,6 +278,57 @@ def cleanup_synthetic_generation(*, limit: int = 100) -> list[str]:
     return list(asyncio.run(run_synthetic_raw_cleanup(limit=limit)))
 
 
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.synthetic_normalization.process",
+    autoretry_for=(RetryableWorkerFailure,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=300,
+    time_limit=360,
+    **INGESTION_RETRY_POLICY,
+)
+def process_synthetic_normalization(message: dict[str, Any]) -> dict[str, str | None]:
+    try:
+        return asyncio.run(run_synthetic_normalization_message(message))
+    except RetryableWorkerFailure:
+        raise
+    except Exception:
+        raise RetryableWorkerFailure(
+            "synthetic normalization execution failed transiently"
+        ) from None
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.synthetic_qa.process",
+    autoretry_for=(RetryableWorkerFailure,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=300,
+    time_limit=360,
+    **INGESTION_RETRY_POLICY,
+)
+def process_synthetic_qa(message: dict[str, Any]) -> dict[str, str | None]:
+    try:
+        return asyncio.run(run_synthetic_qa_message(message))
+    except RetryableWorkerFailure:
+        raise
+    except Exception:
+        raise RetryableWorkerFailure("synthetic QA execution failed transiently") from None
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.synthetic_m3.reconcile",
+    autoretry_for=(RetryableWorkerFailure,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    **INGESTION_RETRY_POLICY,
+)
+def reconcile_synthetic_m3(*, limit: int = 100) -> list[str]:
+    return list(
+        asyncio.run(run_synthetic_m3_reconciliation(dispatcher=CeleryTaskDispatcher(), limit=limit))
+    )
+
+
 class CeleryTaskDispatcher:
     def dispatch(self, envelope: TaskEnvelope) -> str:
         envelope.validate()
@@ -321,6 +382,26 @@ class CeleryTaskDispatcher:
     def dispatch_synthetic_generation(self, message: SyntheticGenerationTaskMessage) -> str:
         message.validate()
         process_synthetic_generation.apply_async(
+            args=[message.to_message()],
+            task_id=secrets.token_hex(16),
+            headers={"request_id": message.request_id, "job_id": message.job_id},
+            queue="mirror.synthetic",
+        )
+        return message.job_id
+
+    def dispatch_synthetic_normalization(self, message: SyntheticNormalizationTaskMessage) -> str:
+        message.validate()
+        process_synthetic_normalization.apply_async(
+            args=[message.to_message()],
+            task_id=secrets.token_hex(16),
+            headers={"request_id": message.request_id, "job_id": message.job_id},
+            queue="mirror.synthetic",
+        )
+        return message.job_id
+
+    def dispatch_synthetic_qa(self, message: SyntheticQATaskMessage) -> str:
+        message.validate()
+        process_synthetic_qa.apply_async(
             args=[message.to_message()],
             task_id=secrets.token_hex(16),
             headers={"request_id": message.request_id, "job_id": message.job_id},

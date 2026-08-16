@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -121,7 +121,19 @@ class SyntheticNormalizationService:
         record_id = await self.ensure_record(source_object_id=source_object_id)
         return await self.normalize_record(record_id=record_id)
 
-    async def normalize_record(self, *, record_id: str) -> NormalizationResult:
+    async def normalize_record(
+        self,
+        *,
+        record_id: str,
+        completion_guard: Callable[[AsyncSession], Awaitable[None]] | None = None,
+    ) -> NormalizationResult:
+        """Normalize one record, optionally proving an enclosing worker lease at commit.
+
+        The guard is deliberately invoked only in the record/Asset transaction, after the
+        source->record locks have been acquired and before any immutable database evidence is
+        written.  It lets an at-least-once adapter reject an expired delivery without turning
+        a transient lease race into a content failure.
+        """
         self._require_id(record_id, field_name="synthetic asset record id")
         claimed = await self._claim(record_id)
         if isinstance(claimed, NormalizationResult):
@@ -182,7 +194,9 @@ class SyntheticNormalizationService:
             or stored.normalizer_config_digest != self.authority.normalizer_config_digest
         ):
             return await self._fail(record_id, "normalized_metadata_mismatch")
-        return await self._complete(record_id, stored.storage_key, sanitized)
+        return await self._complete(
+            record_id, stored.storage_key, sanitized, completion_guard=completion_guard
+        )
 
     async def _claim(self, record_id: str) -> _NormalizationClaim | NormalizationResult:
         async with _transaction(self._sessions) as session:
@@ -220,7 +234,12 @@ class SyntheticNormalizationService:
             return self._claim_value(record, source)
 
     async def _complete(
-        self, record_id: str, storage_key: str, sanitized: SanitizedImage
+        self,
+        record_id: str,
+        storage_key: str,
+        sanitized: SanitizedImage,
+        *,
+        completion_guard: Callable[[AsyncSession], Awaitable[None]] | None,
     ) -> NormalizationResult:
         async with _transaction(self._sessions) as session:
             repository = SyntheticNormalizationRepository(session)
@@ -244,6 +263,8 @@ class SyntheticNormalizationService:
                 record.result_code = "source_object_deleted"
                 await repository.flush()
                 return self._result(record, asset=None)
+            if completion_guard is not None:
+                await completion_guard(session)
             asset = Asset(
                 id=new_id(),
                 owner_user_id=None,

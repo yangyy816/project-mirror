@@ -8,7 +8,11 @@ from mirror_api.data_rights.task_contract import (
     DataExportTaskMessage,
 )
 from mirror_api.ingestion.task_contract import IngestionTaskMessage
-from mirror_api.synthetic_dataset.task_contract import SyntheticGenerationTaskMessage
+from mirror_api.synthetic_dataset.task_contract import (
+    SyntheticGenerationTaskMessage,
+    SyntheticNormalizationTaskMessage,
+    SyntheticQATaskMessage,
+)
 
 from mirror_worker.application import TaskEnvelope
 
@@ -25,3 +29,9 @@ class TaskDispatcher(Protocol):
     def dispatch_account_deletion(self, message: AccountDeletionTaskMessage) -> str: ...
 
     def dispatch_synthetic_generation(self, message: SyntheticGenerationTaskMessage) -> str: ...
+
+    def dispatch_synthetic_normalization(
+        self, message: SyntheticNormalizationTaskMessage
+    ) -> str: ...
+
+    def dispatch_synthetic_qa(self, message: SyntheticQATaskMessage) -> str: ...

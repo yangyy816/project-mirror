@@ -5,6 +5,8 @@ from dataclasses import asdict, dataclass
 from typing import Any, Protocol
 
 SYNTHETIC_GENERATION_TASK_SCHEMA = "synthetic-generation-task-v1"
+SYNTHETIC_NORMALIZATION_TASK_SCHEMA = "synthetic-normalization-task-v1"
+SYNTHETIC_QA_TASK_SCHEMA = "synthetic-qa-task-v1"
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 
 
@@ -50,3 +52,81 @@ class SyntheticGenerationTaskMessage:
 
 class SyntheticGenerationDispatcher(Protocol):
     def dispatch_synthetic_generation(self, message: SyntheticGenerationTaskMessage) -> str: ...
+
+
+@dataclass(frozen=True)
+class SyntheticNormalizationTaskMessage:
+    """Reference-only M3 normalization work; raw bytes and storage locations are forbidden."""
+
+    record_id: str
+    job_id: str
+    request_id: str
+    schema_version: str = SYNTHETIC_NORMALIZATION_TASK_SCHEMA
+
+    def validate(self) -> None:
+        if _ID.fullmatch(self.record_id) is None or _ID.fullmatch(self.job_id) is None:
+            raise ValueError("normalization task identifiers must be opaque")
+        if not 8 <= len(self.request_id) <= 128 or any(
+            character in self.request_id for character in "\r\n\0"
+        ):
+            raise ValueError("normalization task request id is outside the safe boundary")
+        if self.schema_version != SYNTHETIC_NORMALIZATION_TASK_SCHEMA:
+            raise ValueError("unsupported synthetic normalization task schema version")
+
+    def to_message(self) -> dict[str, str]:
+        self.validate()
+        return asdict(self)
+
+    @classmethod
+    def from_message(cls, message: dict[str, Any]) -> SyntheticNormalizationTaskMessage:
+        expected = {"record_id", "job_id", "request_id", "schema_version"}
+        if set(message) != expected or not all(
+            isinstance(value, str) for value in message.values()
+        ):
+            raise ValueError("synthetic normalization task message has an invalid shape")
+        result = cls(**message)
+        result.validate()
+        return result
+
+
+@dataclass(frozen=True)
+class SyntheticQATaskMessage:
+    """Reference-only M3 QA work; sensitive execution input stays in authority stores."""
+
+    qa_run_id: str
+    job_id: str
+    request_id: str
+    schema_version: str = SYNTHETIC_QA_TASK_SCHEMA
+
+    def validate(self) -> None:
+        if _ID.fullmatch(self.qa_run_id) is None or _ID.fullmatch(self.job_id) is None:
+            raise ValueError("QA task identifiers must be opaque")
+        if not 8 <= len(self.request_id) <= 128 or any(
+            character in self.request_id for character in "\r\n\0"
+        ):
+            raise ValueError("QA task request id is outside the safe boundary")
+        if self.schema_version != SYNTHETIC_QA_TASK_SCHEMA:
+            raise ValueError("unsupported synthetic QA task schema version")
+
+    def to_message(self) -> dict[str, str]:
+        self.validate()
+        return asdict(self)
+
+    @classmethod
+    def from_message(cls, message: dict[str, Any]) -> SyntheticQATaskMessage:
+        expected = {"qa_run_id", "job_id", "request_id", "schema_version"}
+        if set(message) != expected or not all(
+            isinstance(value, str) for value in message.values()
+        ):
+            raise ValueError("synthetic QA task message has an invalid shape")
+        result = cls(**message)
+        result.validate()
+        return result
+
+
+class SyntheticM3Dispatcher(Protocol):
+    def dispatch_synthetic_normalization(
+        self, message: SyntheticNormalizationTaskMessage
+    ) -> str: ...
+
+    def dispatch_synthetic_qa(self, message: SyntheticQATaskMessage) -> str: ...

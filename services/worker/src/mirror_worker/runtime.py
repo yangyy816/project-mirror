@@ -16,22 +16,31 @@ from mirror_api.data_rights.task_contract import (
 )
 from mirror_api.ingestion.service import IngestionService
 from mirror_api.ingestion.task_contract import IngestionDispatcher, IngestionTaskMessage
-from mirror_api.providers.base import ImageGenerationProvider, SyntheticObjectStorageProvider
+from mirror_api.providers.base import (
+    ImageGenerationProvider,
+    SyntheticObjectStorageProvider,
+)
 from mirror_api.providers.mock import (
     MockImageGenerationProvider,
     MockSyntheticObjectStorageProvider,
 )
 from mirror_api.providers.synthetic_local import LocalSyntheticRawStorageProvider
+from mirror_api.providers.synthetic_normalized_local import LocalSyntheticNormalizedStorageProvider
 from mirror_api.providers.tencent import (
     TencentImageCandidateProvider,
     TencentSyntheticObjectStorageCandidateProvider,
 )
 from mirror_api.storage_dependencies import create_object_storage_provider
 from mirror_api.synthetic_dataset.generation_service import GenerationBatchService
+from mirror_api.synthetic_dataset.normalization_service import SyntheticNormalizationService
+from mirror_api.synthetic_dataset.orchestration_service import SyntheticM3OrchestrationService
 from mirror_api.synthetic_dataset.raw_storage import SyntheticRawStorageService
 from mirror_api.synthetic_dataset.task_contract import (
     SyntheticGenerationDispatcher,
     SyntheticGenerationTaskMessage,
+    SyntheticM3Dispatcher,
+    SyntheticNormalizationTaskMessage,
+    SyntheticQATaskMessage,
 )
 from mirror_api.upload_control.types import ConsentRequirement
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
@@ -48,6 +57,7 @@ from mirror_worker.synthetic_generation import (
     SyntheticGenerationReconciler,
     SyntheticGenerationTaskExecutor,
 )
+from mirror_worker.synthetic_m3 import SyntheticM3Reconciler, SyntheticM3TaskExecutor
 
 
 @dataclass(frozen=True)
@@ -67,6 +77,12 @@ class SyntheticGenerationRuntime:
     provider: ImageGenerationProvider
     storage: SyntheticObjectStorageProvider
     raw_storage: SyntheticRawStorageService
+
+
+@dataclass(frozen=True)
+class SyntheticM3Runtime:
+    engine: AsyncEngine
+    application: SyntheticM3OrchestrationService
 
 
 def _requirement(settings: Settings) -> ConsentRequirement:
@@ -147,6 +163,28 @@ def create_synthetic_generation_runtime(settings: Settings) -> SyntheticGenerati
         provider=provider,
         storage=storage,
         raw_storage=SyntheticRawStorageService(session_factory=sessions, storage=storage),
+    )
+
+
+def create_synthetic_m3_runtime(settings: Settings) -> SyntheticM3Runtime:
+    """Only deterministic local synthetic namespaces are available to the M3 worker."""
+    if settings.synthetic_storage_provider != "local":
+        raise RuntimeError("M3 normalization requires local synthetic storage in this environment")
+    engine = create_async_engine(settings.database_url)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    normalizer = SyntheticNormalizationService(
+        session_factory=sessions,
+        raw_storage=LocalSyntheticRawStorageProvider(root=settings.local_storage_root),
+        normalized_storage=LocalSyntheticNormalizedStorageProvider(
+            root=settings.local_storage_root
+        ),
+    )
+    return SyntheticM3Runtime(
+        engine=engine,
+        application=SyntheticM3OrchestrationService(
+            session_factory=sessions,
+            normalizer=normalizer,
+        ),
     )
 
 
@@ -297,5 +335,41 @@ async def run_synthetic_raw_cleanup(
     try:
         results = await runtime.raw_storage.cleanup_expired(limit=limit)
         return tuple(result.source_object_id for result in results)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_synthetic_normalization_message(
+    message: dict[str, Any], *, settings: Settings | None = None
+) -> dict[str, str | None]:
+    runtime = create_synthetic_m3_runtime(settings or get_settings())
+    try:
+        result = await SyntheticM3TaskExecutor(runtime.application).execute_normalization(
+            SyntheticNormalizationTaskMessage.from_message(message)
+        )
+        return asdict(result)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_synthetic_qa_message(
+    message: dict[str, Any], *, settings: Settings | None = None
+) -> dict[str, str | None]:
+    runtime = create_synthetic_m3_runtime(settings or get_settings())
+    try:
+        result = await SyntheticM3TaskExecutor(runtime.application).execute_qa(
+            SyntheticQATaskMessage.from_message(message)
+        )
+        return asdict(result)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_synthetic_m3_reconciliation(
+    *, dispatcher: SyntheticM3Dispatcher, limit: int = 100, settings: Settings | None = None
+) -> tuple[str, ...]:
+    runtime = create_synthetic_m3_runtime(settings or get_settings())
+    try:
+        return await SyntheticM3Reconciler(runtime.application, dispatcher).execute(limit=limit)
     finally:
         await runtime.engine.dispose()
