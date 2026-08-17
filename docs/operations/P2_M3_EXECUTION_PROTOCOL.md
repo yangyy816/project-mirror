@@ -7,7 +7,7 @@
 - Entry run: `31958786882`; all three jobs passed with exact-SHA artifacts
 - Branch: `codex/phase2-m3-normalization-base-qa`
 - State: `EXECUTING`
-- Architecture authority: ADR-021–032
+- Architecture authority: ADR-021–033
 - Scope: synthetic-only normalization, base QA evidence and canonical identity registration
 - Public API impact: none
 - Production image-generation Provider: `NOT_CONFIGURED`; generation remains `FAIL_CLOSED`
@@ -25,6 +25,11 @@ The rejected upstream wheels remain prohibited. Stage A may inspect only the fro
 private ignored storage; build, install, model execution and calibration remain closed until their
 preceding evidence and Principal approvals exist. Complete rules are in
 `docs/research/P2_M3_V03_SOURCE_BUILT_VISION_PROTOCOL.md`.
+
+ADR-033 freezes the source candidate's otherwise-uncontrolled OpenCV build input for isolated V03
+research only. It pins OpenCV 3.4.11 by SHA-256, limits it to `core,imgproc`, disables secondary
+download/video/UI/codec surfaces and requires an offline Linux build. This is not project/runtime
+OpenCV adoption; complete evidence is in `P2_M3_V03_BUILD_CLOSURE_REPORT.md`.
 
 ## Frozen boundary
 

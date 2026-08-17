@@ -1,0 +1,65 @@
+diff --git a/WORKSPACE b/WORKSPACE
+index 1f57dd8..3da8542 100644
+--- a/WORKSPACE
++++ b/WORKSPACE
+@@ -609,6 +609,7 @@ http_archive(
+ http_archive(
+     name = "opencv",
+     build_file_content = all_content,
++    sha256 = "10898a0268d8f8cbaf0354ddd1d9de6abaac84e3d9a6c9754f56a0aa3383d73b",
+     strip_prefix = "opencv-3.4.11",
+     urls = ["https://github.com/opencv/opencv/archive/3.4.11.tar.gz"],
+ )
+diff --git a/third_party/BUILD b/third_party/BUILD
+index 2ab0a7d..3f9e7e8 100644
+--- a/third_party/BUILD
++++ b/third_party/BUILD
+@@ -188,12 +188,6 @@ bzl_library(
+ # linker, so if library A depends on library B, library B must come _after_.
+ # Hence core is at the bottom.
+ OPENCV_MODULES = [
+-    "calib3d",
+-    "features2d",
+-    "highgui",
+-    "video",
+-    "videoio",
+-    "imgcodecs",
+     "imgproc",
+     "core",
+ ]
+@@ -218,17 +212,31 @@ cmake(
+         "BUILD_TESTS": "OFF",
+         "BUILD_PERF_TESTS": "OFF",
+         "BUILD_EXAMPLES": "OFF",
++        "BUILD_DOCS": "OFF",
++        "BUILD_JAVA": "OFF",
++        "BUILD_opencv_apps": "OFF",
+         "BUILD_SHARED_LIBS": "ON" if OPENCV_SHARED_LIBS else "OFF",
+         "WITH_ITT": "OFF",
++        "WITH_IPP": "OFF",
++        "WITH_TBB": "OFF",
++        "WITH_OPENMP": "OFF",
++        "WITH_EIGEN": "OFF",
++        "WITH_LAPACK": "OFF",
++        "WITH_1394": "OFF",
++        "WITH_V4L": "OFF",
++        "WITH_FFMPEG": "OFF",
++        "WITH_GSTREAMER": "OFF",
++        "WITH_GTK": "OFF",
++        "WITH_QT": "OFF",
+         "WITH_JASPER": "OFF",
+-        "WITH_JPEG": "ON",
+-        "WITH_PNG": "ON",
+-        "WITH_TIFF": "ON",
++        "WITH_JPEG": "OFF",
++        "WITH_PNG": "OFF",
++        "WITH_TIFF": "OFF",
++        "WITH_OPENEXR": "OFF",
+         "WITH_OPENCL": "OFF",
+         "WITH_WEBP": "OFF",
+         # Optimization flags
+         "CV_ENABLE_INTRINSICS": "ON",
+-        "WITH_EIGEN": "ON",
+         "WITH_PTHREADS": "ON",
+         "WITH_PTHREADS_PF": "ON",
+         # When building tests, by default Bazel builds them in dynamic mode.

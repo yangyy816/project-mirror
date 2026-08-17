@@ -218,10 +218,12 @@ and must reconcile all eight private checksums before use.
 Stage A verified the exact source commit and public dummy-logger closure, froze patch SHA-256
 `cdde123e56bcd637726d7162171a75bed10de415cd323aa95952b1cba7e942eb`, and selected a minimal C ABI
 shared-library target instead of the upstream Python wheel/full task library. No build, install,
-model execution or calibration occurred. Stage B must freeze target-specific Bazel downloads,
-toolchains, licenses, native inventory and output hashes before execution.
+model execution or calibration occurred. ADR-033 then froze the Linux toolchain, 39-repository
+configured closure and OpenCV 3.4.11 `core,imgproc` build-lock overlay. An offline Linux build is now
+authorized, but Windows toolchain, artifact/native/license/SBOM audit and all runtime/model stages
+remain pending.
 
-`P2_M3_V03_STATUS: STAGE_A_PASS_BUILD_FREEZE_PENDING`
+`P2_M3_V03_STATUS: STAGE_B_LINUX_OFFLINE_BUILD_AUTHORIZED`
 
 ## Deferred production boundary
 

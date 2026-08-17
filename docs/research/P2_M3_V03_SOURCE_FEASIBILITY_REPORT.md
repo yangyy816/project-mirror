@@ -70,6 +70,9 @@ are frozen:
 No QAPolicy calibration, holdout, identity registration, project dependency, model execution or
 P2-M4 work is authorized by this report.
 
+The later Stage B closure work is recorded separately in
+`P2_M3_V03_BUILD_CLOSURE_REPORT.md` and ADR-033. It does not rewrite this Stage A result.
+
 `SOURCE_BUILD_APPROVED_FOR_POC: NO`
 
 `POC_RUNTIME_APPROVED: NO`
