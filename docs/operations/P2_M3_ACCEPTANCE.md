@@ -424,3 +424,21 @@ release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts rem
   vulnerability disposition, exact model disposition, Stage C, V02, T07 and T08 remain mandatory.
 
 `P2_M3_R17_LINUX_REPRODUCIBILITY: PASS`
+
+## R17 Stage B audit checkpoint
+
+- The authoritative R17 configured dependency graph contains 22,719 labels and zero `fft2d`/Ooura
+  matches; the obsolete R05 graph was not reused as current evidence.
+- Regenerated private evidence includes a 51-component CycloneDX SBOM
+  (`902088a0e70d3ce005885c01f7ee472fba19458ae803e09700df52949d152dda`) and a
+  38-repository/124-license-file inventory
+  (`e1e77546b0a2a8148cc2f6ef6b3dc700305edad16311b09d9a836caa3c2742d3`).
+- Offline Grype reports zero direct source-closure matches. Focused OpenCV CPE findings remain visible:
+  the core persistence issue has the exact backport and no-crash negative controls; affected
+  objdetect/HOG, video/DIS and imgcodecs/JPEG modules and symbols are absent.
+- The model bundle is approved only for the already-authorized private synthetic PoC. Incomplete
+  training-data/redistribution provenance keeps distribution and production blocked.
+
+`P2_M3_V03_STAGE_B: PASS_FOR_ISOLATED_STAGE_C`
+
+`P2_M3_V03_STAGE_C: PENDING`

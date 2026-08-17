@@ -111,3 +111,17 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   surface scans are zero.
 - Cross-platform build reproducibility is now evidence-complete. Updated SBOM/license/vulnerability
   disposition, exact model disposition and Stage C remain the next Gate; P2-M3 stays `EXECUTING`.
+
+## 2026-08-18T09:20:00+08:00 — P2-M3-V03 Stage B audit disposition
+
+- A fresh R17 `cquery deps(...)` export contains 22,719 configured labels and zero `fft2d`/Ooura
+  matches. The old R05 dependency list was rejected as stale for current closure evidence.
+- The regenerated private 51-component CycloneDX SBOM SHA-256 is
+  `902088a0e70d3ce005885c01f7ee472fba19458ae803e09700df52949d152dda`; the 38-repository,
+  124-file license inventory SHA-256 is
+  `e1e77546b0a2a8148cc2f6ef6b3dc700305edad16311b09d9a836caa3c2742d3`.
+- Offline Grype 0.117.0/database v6.1.9 reports zero direct closure matches. The focused OpenCV CPE
+  findings were independently dispositioned through exact-backport malformed-input tests or absent
+  affected modules/symbols; none was silently suppressed.
+- The fixed model is private-research-only because redistribution/data provenance remains incomplete.
+  Stage B passes for isolated synthetic Stage C only; no production/model/dependency approval exists.

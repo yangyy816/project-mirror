@@ -237,6 +237,38 @@ runtime qualification remain mandatory. Windows and Linux clean reproduction are
 runtime qualification pass. No model execution, calibration, holdout or identity registration is
 authorized by this report.
 
+## R17 SBOM, license and vulnerability disposition
+
+The authoritative R17 `cquery deps(...)` export contains 22,719 configured labels and zero `fft2d`
+or Ooura matches. Regenerating from that graph, rather than the obsolete R05 dependency export,
+produced a 51-component CycloneDX closure with SHA-256
+`902088a0e70d3ce005885c01f7ee472fba19458ae803e09700df52949d152dda`. The 38-repository license
+inventory contains 124 retained files across 32 external repositories; missing roots/files are only
+generated local toolchain repositories or the separately reviewed Ninja toolchain. Inventory
+SHA-256 is `e1e77546b0a2a8148cc2f6ef6b3dc700305edad16311b09d9a836caa3c2742d3`.
+
+Offline Grype 0.117.0 with valid database schema v6.1.9 built 2026-08-16 reported zero direct matches
+against the regenerated source closure. The focused OpenCV 3.4.11 CPE negative control still reports
+four version findings, so each was dispositioned rather than hidden:
+
+- `CVE-2019-14493`: the exact core persistence null-check backport is present. R17-linked malformed
+  JSON/YAML fixtures reject with `cv::Exception`; the retained upstream XML crash fixture does not
+  crash.
+- `CVE-2019-15939`: `objdetect/HOG` is not built and `HOGDescriptor` symbols are absent.
+- `CVE-2019-19624`: `video/DIS` is not built and `DISOpticalFlow` symbols are absent.
+- `CVE-2025-53644`: `imgcodecs/JPEG` is not built; `imdecode` and JPEG decoder symbols are absent.
+
+The exact Face Landmarker bundle remains `PRIVATE_RESEARCH_ONLY`: its three official component model
+cards are Apache-2.0, but incomplete training-data and redistribution provenance keeps distribution
+and production blocked. That bounded disposition permits the already-authorized isolated Stage C;
+it does not create model adoption or commercial approval.
+
+`STAGE_B_ARTIFACT_AUDIT: PASS_FOR_ISOLATED_STAGE_C`
+
+`SOURCE_BUILD_APPROVED_FOR_POC: YES_PRIVATE_SYNTHETIC_ONLY`
+
+Stage C Windows/Linux process-level zero-egress runtime qualification is now the next mandatory Gate.
+
 `PROJECT_DEPENDENCIES_ADDED: NONE`
 
 `MODEL_ARTIFACTS_ADDED: NONE`
