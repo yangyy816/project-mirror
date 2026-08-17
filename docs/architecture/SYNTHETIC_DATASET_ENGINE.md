@@ -2,7 +2,7 @@
 
 ## 状态与边界
 
-Phase 2 是 `COMMITTED`，P2-M1 与 P2-M2 已 `FROZEN`，P2-M3 是 `EXECUTION_READY`。该阶段仅处理可追溯的成年合成人物资产；真人、用户资料、SelfState、问卷运行、DesiredDelta、编辑、支付、部署和公开 API 都不在范围。P2-M4 及以后仍须 rolling-wave refinement。
+Phase 2 是 `COMMITTED`，P2-M1 与 P2-M2 已 `FROZEN`，P2-M3 是 `EXECUTING`。该阶段仅处理可追溯的成年合成人物资产；真人、用户资料、SelfState、问卷运行、DesiredDelta、编辑、支付、部署和公开 API 都不在范围。P2-M4 及以后仍须 rolling-wave refinement。
 
 ## 权威链
 
@@ -56,6 +56,20 @@ non-target morphology similarity、Local Morphological Neighborhood、isolation 
 P2-M1 只冻结这些 first-party contracts，不新增表或 API。后续 Milestone refinement 决定 pack/cell/
 style 的 typed/persistence 形态和 immutable manifest binding；所有未来 packs 复用同一 ontology、
 provenance、QA、isolation、release/revoke 与 no-sensitive-routing 规则。完整决定见 ADR-024。
+
+ADR-028 为首包增加版本化年龄呈现控制：18–25 是 clearly-adult primary presentation target，
+26–30 仅在 coverage 需要时作为 secondary，31–34 de-emphasized，明显 35+ 从首包 selection 排除。
+未成年/疑似未成年、childlike 与 schoolgirl framing 是 hard reject。该轴由 Prompt 与人工 review
+约束，不是年龄估计；不得通过幼态化、单一模板脸或损失 morphology/identity diversity 实现年轻化。
+
+ADR-029 为独立的 style-aware cohort 增加多峰、非打分式视觉方向。Style context 只描述可替换的
+presentation、styling、lighting 与女性向问卷 product fit；它不拥有 identity、morphology、QA 或
+路由 authority。首版允许 `PURE_CLEAN_NATURAL`、`GENTLE_SWEET_APPROACHABLE`、
+`REFINED_ELEGANT`、`SOPHISTICATED_URBAN`、`GLAMOROUS_STRIKING`、`CHARMING_ALLURING`、
+`ADULT_SAFE_SEXY` 与 `INTELLECTUAL_ELEGANT_LIGHT_MATURE` 八个非排他 context。任何 beauty/
+attractiveness score、percentile、ranking 或统一理想脸均禁止；adult/minor safety 是 hard gate，
+style/product mismatch 只作为首包 soft curation exclusion。现有 V01 与 age-only V-next evidence 不
+重写、不覆盖、不追溯重标。
 
 ## Reference research boundary
 

@@ -7,11 +7,11 @@
 - Entry run: `31958786882`; all three jobs passed with exact-SHA artifacts
 - Branch: `codex/phase2-m3-normalization-base-qa`
 - State: `EXECUTING`
-- Architecture authority: ADR-021–027
+- Architecture authority: ADR-021–028
 - Scope: synthetic-only normalization, base QA evidence and canonical identity registration
 - Public API impact: none
 - Production image-generation Provider: `NOT_CONFIGURED`; generation remains `FAIL_CLOSED`
-- Vision candidate: `EXTERNAL_VALIDATION_REQUIRED`
+- Vision candidate: `CANDIDATE_FAILED_REPLACEMENT_REQUIRED`
 
 Project Owner change control explicitly opens M3 for synthetic research and permits the bounded
 P2-M2-V01 Codex-native raw assets to be used for Pillow normalization, metadata sanitation, image
@@ -44,6 +44,31 @@ M3 explicitly excludes:
 - age estimation, beauty scoring, sensitive inference, celebrity similarity or race-based routing;
 - unapproved dependency, SDK, model, weight, dataset or live Provider call;
 - dedicated coverage-pack/style-pack persistence before later rolling-wave authority.
+
+## Approved age-presentation change control
+
+ADR-028 and `docs/research/P2_AGE_PRESENTATION_CONTROL_V1.md` add a forward-only content-governance
+control for V-next. The first-pack primary presentation target is clearly-adult women aged 18–25 in
+visual presentation, with 26–30 secondary only for coverage, 31–34 de-emphasized and visibly 35+
+excluded from first-pack selection. Minor ambiguity, childlike presentation and schoolgirl framing
+are hard rejects. This is an operator-reviewed presentation scope, not age estimation.
+
+The change creates new private PromptTemplate/policy versions and must not modify V01. It does not
+change schema, public API, the Vision port, M3 lifecycle or P2-M6 release authority. Codex native
+generation remains offline/operator-assisted under ADR-026; real-user runtime generation stays zero.
+
+## Approved multi-peak style-presentation change control
+
+ADR-029 and `docs/research/P2_STYLE_PRESENTATION_CONTROL_V1.md` add a forward-only, non-numeric
+curation contract for a separate style-aware cohort. The approved style contexts are presentation
+descriptors, not identity/sensitive labels or morphology authorities. They must preserve multiple
+appealing peaks, questionnaire suitability, identity/morphology diversity and anti-homogenization.
+
+Beauty/attractiveness score, percentile, ranking and a universal ideal face are forbidden. Adult and
+minor safety remain hard gates; style/product-context mismatch is only a first-pack soft curation
+exclusion and cannot override or erase QA evidence. Existing V01 and age-only V-next evidence remain
+immutable and are not retroactively style-evaluated. No schema, public API, Vision threshold,
+production Provider or P2-M6 release authority changes.
 
 ## Data and migration contract
 

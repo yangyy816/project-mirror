@@ -7,7 +7,7 @@
 - Frozen entry: `0b579ebdb1c2a63936225bc59a4b0ca780544df2`
 - Planned migration: `0010_synthetic_asset_qa`
 - Public API change: none
-- Vision candidate Gate: `EXTERNAL_VALIDATION_REQUIRED`
+- Vision candidate Gate: `CANDIDATE_FAILED_REPLACEMENT_REQUIRED`
 - Real-user facial processing: prohibited
 
 ## Mandatory evidence matrix
@@ -159,22 +159,28 @@ and must reconcile all eight private checksums before use.
   P2-M2, Docker, project-audit and zero-result Gitleaks artifacts were present. Principal accepts
   T05 and R03; this is not the final T07 M3 evidence Gate.
 
-## T06 Vision candidate supply-chain Gate
+## T06 Vision candidate supply-chain and runtime Gate
 
-- Exact MediaPipe source candidate remains `v0.10.35` at commit
+- Exact MediaPipe source candidate was `v0.10.35` at commit
   `f8ef212d5c962c0e853db7e59d217056b187084b`; Windows and Linux wheel SHA-256 values are recorded,
-  but wheel contents and the native/transitive dependency chain have not been acquired or audited.
+  and the authorized private wheel and bundle acquisitions matched the frozen manifest.
 - The Principal read and rendered all pages of the official BlazeFace Short Range, Face Mesh V2 and
   Blendshape V2 model cards. Each model card explicitly states Apache-2.0. Their training/evaluation
   data descriptions are high level and do not close per-dataset rights, territory, deletion or
   redistribution evidence.
 - GCS metadata fixes the Face Landmarker bundle at generation `1683136941468629`, size `3758596`,
   MD5 `b0e7274907a1644404fef66b28dd6d85` and CRC32C `2FSEdQ==`; upstream publishes no SHA-256.
-- No wheel, package or `.task` artifact was downloaded, installed or executed. Explicit artifact
-  acquisition authority is required before checksum, package notice/SBOM, Python 3.13, zero-network,
-  platform and eight-asset calibration evidence can be produced.
-- T06 therefore returns the protocol-defined evidence-backed blocker without weakening the Gate.
-  T07/T08 and M4 entry remain closed.
+- The bundle SHA-256 was independently computed as
+  `64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff`; an exact CPython 3.13 package
+  set and private SBOM were produced without changing project manifests or adding tracked artifacts.
+- Stage C produced a protocol-defined hard failure. A bounded Windows inference completed while
+  outbound egress was blocked, but the native runtime still attempted to upload to Google Clearcut.
+  Native static evidence includes the portable Clearcut uploader, HTTP client and
+  `https://play.googleapis.com/log`. Linux `--network none` completed without the same message, which
+  does not waive a Windows platform failure.
+- No calibration, negative-control run, QAPolicy threshold freeze, holdout or identity registration
+  followed. T07/T08 and M4 entry remain closed pending an independently approved replacement Vision
+  candidate.
 - `docs/research/P2_M3_V02_VISION_CALIBRATION_PROTOCOL.md` now freezes the exact `0.10.35` candidate,
   artifact manifest, four-stage audit, V01 calibration/holdout split, negative controls and
   policy-freeze-before-holdout rule. This removes planning ambiguity but does not authorize a
@@ -184,17 +190,44 @@ and must reconcile all eight private checksums before use.
   GitHub/PyPI version mapping mismatch without closing any T06 blocker.
 - Exact-tag static review found local model path/buffer APIs and no explicit Python HTTP/socket
   client in `face_landmarker.py`, but `BaseOptions` passes a `certifi` CA-bundle path to native code.
-  This is not zero-network proof; process-level egress denial/capture remains mandatory. V02 freezes
+  This prediction was confirmed unsafe by the Windows runtime result. V02 had frozen
   `num_faces=2`, CPU/image mode, upstream `0.5` confidence baselines, blendshapes disabled and
   transformation matrices enabled before calibration.
 
-`P2_M3_T06_STATUS: BLOCKED`
+`P2_M3_T06_STATUS: CANDIDATE_FAIL`
+
+`P2_M3_VISION_REPLACEMENT_REQUIRED: YES`
 
 ## Deferred production boundary
 
 `PRODUCTION-BLOCKER-IMAGEGEN-PROVIDER` remains `OPEN`. M3 synthetic research does not approve a
 runtime image-generation Provider, real-user Vision processing, production QuestionBank or public
 release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts remain `NULL`.
+
+## Approved age-presentation change control
+
+- ADR-028 and `P2_AGE_PRESENTATION_CONTROL_V1.md` were accepted by the Principal as a forward-only
+  control. V01 remains immutable.
+- V-next primary presentation is clearly-adult 18–25; 26–30 is secondary only for coverage, 31–34
+  is de-emphasized, and visibly 35+ is a first-pack selection exclusion.
+- Minor ambiguity, childlike presentation and schoolgirl framing are hard rejects. No age-estimation
+  model or real-person reference is authorized.
+- New images may be generated only with new private Prompt/policy versions and must pass adult
+  clarity plus morphology/identity-diversity review before any admission claim.
+
+## Approved multi-peak style-presentation change control
+
+- ADR-029 and `P2_STYLE_PRESENTATION_CONTROL_V1.md` were accepted as a forward-only content and
+  curation control for a separate style-aware cohort.
+- The cohort uses eight non-exclusive style contexts and categorical questionnaire/style suitability
+  evidence. It records no beauty/attractiveness score, percentile or ranking.
+- Adult/minor safety remains a hard gate. `PRODUCT_CONTEXT_MISMATCH`,
+  `WEAK_STYLISTIC_DISTINCTIVENESS` and `FIRST_PACK_STYLE_REDUNDANCY` are soft first-pack curation
+  exclusions only.
+- V01 and the age-only V-next cohort remain immutable and are not considered style-evaluated.
+- Style-aware generation/admission evidence cannot satisfy the still-blocked Vision candidate,
+  calibration, QAPolicy freeze, identity registration, QuestionBank release or production Provider
+  Gates.
 
 `P2_M3_LOCAL_GATE: PENDING`
 

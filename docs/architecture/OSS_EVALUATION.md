@@ -16,30 +16,30 @@ reproduction artifact 的候选不得写成已证明适用。
 
 ## Provisional registry
 
-| Component                                                       | Intended Phase / purpose                  | Current classification                | Required evidence before adoption                                                   |
-| --------------------------------------------------------------- | ----------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------- |
-| MediaPipe / Face Landmarker                                     | P2-M3/P3 landmark、姿态与几何输入         | LICENSE_REVIEW_REQUIRED / POC_BLOCKED | package/runtime、bundle checksum、传递依赖、数据权利与隔离运行证据仍须闭合          |
-| OpenCV                                                          | P2-M4/P3/P5/P6 确定性变换、warp、mask、QA | POC_REQUIRED                          | Python 3.13、Windows/Linux/Docker、wheel/SBOM、性能、确定性、替换边界               |
-| imagededup                                                      | P2-M5 duplicate candidate                 | REJECT                                | 不采用依赖链；后续仅第一方实现 exact SHA-256、pHash、Hamming 与候选证据             |
-| Konva / React-Konva                                             | P6 Web canvas                             | CANDIDATE                             | bundle、性能、可访问性、维护与 ImageVersion DAG 集成；不得成为状态权威              |
-| miniPaint                                                       | P6 editor patterns                        | RESEARCH_ONLY / REFERENCE             | 只研究交互和工具组织；深度复用需单独 ADR                                            |
-| Filerobot Image Editor                                          | P6 UX prototype                           | PROTOTYPE CANDIDATE                   | 与 React-Konva 对照评估；不得同时无决策引入两套框架                                 |
-| Uppy                                                            | P1-M3 upload UX                           | HIGH-PRIORITY CANDIDATE               | M3 时评估；不得绕过 UploadIntent、quarantine、归属、校验与审计                      |
-| tus / tusd                                                      | P1-M3/M4 或 iOS resumable upload          | DEFERRED CANDIDATE                    | 只有网络/产品测量证明普通签名上传不足时评估                                         |
-| OpenAI Agents SDK                                               | P6 Agent orchestration                    | CANDIDATE                             | 与直接 orchestration 对比；必须位于 `AgentRuntimeProvider` 类边界后                 |
-| PerTouch / RetouchIQ / IEA / InstantRetouch / Agentic Retoucher | P6 retouch baselines                      | RESEARCH_ONLY / REFERENCE             | 逐项核验 upstream、code/model/data；进入 MirrorRetouchBench 前不得安装              |
-| MagicMakeup                                                     | P6 makeup-transfer baseline               | RESEARCH_ONLY / REFERENCE             | 完整代码、foundation model、weights、data、auxiliary stack 许可与 benchmark         |
-| PMMC / MemEye / MemLens                                         | P7 prospective compilation / visual bench | RESEARCH_ONLY / REFERENCE             | 只借鉴 evidence-path compilation 与 visual-necessity evaluation；不得直接依赖       |
-| Graphiti / Mem0 / GBrain                                        | P7 temporal/hybrid memory patterns        | RESEARCH_ONLY / REFERENCE             | 只登记上游主张；借鉴 provenance、add-only、hybrid/explain/session-demotion pattern  |
-| LangGraph / LangMem / Letta                                     | P7 memory taxonomy / context hierarchy    | RESEARCH_ONLY / REFERENCE             | 只借鉴 hot/background、semantic/episodic/procedural 与 hot/cold hierarchy           |
-| MemGate                                                         | P7 retrieval admission                    | RESEARCH_ONLY / REFERENCE             | deterministic first-party Gate 先行；learned Gate 只有独立 PoC 后可候选             |
-| MemMachine / V-Mem / SAGE                                       | P7 evidence/retrieval/write patterns      | RESEARCH_ONLY / REFERENCE             | 只借鉴 ground-truth preservation、facet routing、novelty/no-op pattern              |
-| pgvector                                                        | P7 first vector-index candidate           | DEFERRED POC CANDIDATE                | 仅 P7 rolling-wave 比较 PostgreSQL baseline、许可、运维、性能和删除传播             |
-| ASAP                                                            | P4 active pair selection                  | HIGH-VALUE RESEARCH CANDIDATE         | 仅作 acquisition baseline，不得替代 self-conditioned questionnaire domain           |
-| PyMC                                                            | P4/P7 offline Bayesian research           | RESEARCH / MODELING CANDIDATE         | 离线与同步生产可行性、性能及部署分别评估                                            |
-| 3DDFA_V2                                                        | P3/P5 3D alignment benchmark              | RESEARCH / BENCHMARK CANDIDATE        | 代码、权重、数据许可、维护、准确性与性能                                            |
-| FastAPI Users                                                   | P1 auth patterns                          | REFERENCE ONLY                        | 不替换已接受的邀请码、OTP、年龄、政策与 refresh-family 领域设计                     |
-| Pillow 12.3.0                                                   | P1-M4 ingestion；future P2 normalization  | APPROVED FOR P1-M4 AND P2 SCOPE       | 不升级版本；精确 wheel/hash/license/native feature/vulnerability 见 adoption record |
+| Component                                                       | Intended Phase / purpose                  | Current classification          | Required evidence before adoption                                                                  |
+| --------------------------------------------------------------- | ----------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------- |
+| MediaPipe / Face Landmarker `0.10.35`                           | P2-M3/P3 landmark、姿态与几何输入         | REJECTED_FOR_P2_M3_RUNTIME      | Windows Clearcut telemetry hard failure；新 candidate/build 必须重新走 change control 与预注册 PoC |
+| OpenCV                                                          | P2-M4/P3/P5/P6 确定性变换、warp、mask、QA | POC_REQUIRED                    | Python 3.13、Windows/Linux/Docker、wheel/SBOM、性能、确定性、替换边界                              |
+| imagededup                                                      | P2-M5 duplicate candidate                 | REJECT                          | 不采用依赖链；后续仅第一方实现 exact SHA-256、pHash、Hamming 与候选证据                            |
+| Konva / React-Konva                                             | P6 Web canvas                             | CANDIDATE                       | bundle、性能、可访问性、维护与 ImageVersion DAG 集成；不得成为状态权威                             |
+| miniPaint                                                       | P6 editor patterns                        | RESEARCH_ONLY / REFERENCE       | 只研究交互和工具组织；深度复用需单独 ADR                                                           |
+| Filerobot Image Editor                                          | P6 UX prototype                           | PROTOTYPE CANDIDATE             | 与 React-Konva 对照评估；不得同时无决策引入两套框架                                                |
+| Uppy                                                            | P1-M3 upload UX                           | HIGH-PRIORITY CANDIDATE         | M3 时评估；不得绕过 UploadIntent、quarantine、归属、校验与审计                                     |
+| tus / tusd                                                      | P1-M3/M4 或 iOS resumable upload          | DEFERRED CANDIDATE              | 只有网络/产品测量证明普通签名上传不足时评估                                                        |
+| OpenAI Agents SDK                                               | P6 Agent orchestration                    | CANDIDATE                       | 与直接 orchestration 对比；必须位于 `AgentRuntimeProvider` 类边界后                                |
+| PerTouch / RetouchIQ / IEA / InstantRetouch / Agentic Retoucher | P6 retouch baselines                      | RESEARCH_ONLY / REFERENCE       | 逐项核验 upstream、code/model/data；进入 MirrorRetouchBench 前不得安装                             |
+| MagicMakeup                                                     | P6 makeup-transfer baseline               | RESEARCH_ONLY / REFERENCE       | 完整代码、foundation model、weights、data、auxiliary stack 许可与 benchmark                        |
+| PMMC / MemEye / MemLens                                         | P7 prospective compilation / visual bench | RESEARCH_ONLY / REFERENCE       | 只借鉴 evidence-path compilation 与 visual-necessity evaluation；不得直接依赖                      |
+| Graphiti / Mem0 / GBrain                                        | P7 temporal/hybrid memory patterns        | RESEARCH_ONLY / REFERENCE       | 只登记上游主张；借鉴 provenance、add-only、hybrid/explain/session-demotion pattern                 |
+| LangGraph / LangMem / Letta                                     | P7 memory taxonomy / context hierarchy    | RESEARCH_ONLY / REFERENCE       | 只借鉴 hot/background、semantic/episodic/procedural 与 hot/cold hierarchy                          |
+| MemGate                                                         | P7 retrieval admission                    | RESEARCH_ONLY / REFERENCE       | deterministic first-party Gate 先行；learned Gate 只有独立 PoC 后可候选                            |
+| MemMachine / V-Mem / SAGE                                       | P7 evidence/retrieval/write patterns      | RESEARCH_ONLY / REFERENCE       | 只借鉴 ground-truth preservation、facet routing、novelty/no-op pattern                             |
+| pgvector                                                        | P7 first vector-index candidate           | DEFERRED POC CANDIDATE          | 仅 P7 rolling-wave 比较 PostgreSQL baseline、许可、运维、性能和删除传播                            |
+| ASAP                                                            | P4 active pair selection                  | HIGH-VALUE RESEARCH CANDIDATE   | 仅作 acquisition baseline，不得替代 self-conditioned questionnaire domain                          |
+| PyMC                                                            | P4/P7 offline Bayesian research           | RESEARCH / MODELING CANDIDATE   | 离线与同步生产可行性、性能及部署分别评估                                                           |
+| 3DDFA_V2                                                        | P3/P5 3D alignment benchmark              | RESEARCH / BENCHMARK CANDIDATE  | 代码、权重、数据许可、维护、准确性与性能                                                           |
+| FastAPI Users                                                   | P1 auth patterns                          | REFERENCE ONLY                  | 不替换已接受的邀请码、OTP、年龄、政策与 refresh-family 领域设计                                    |
+| Pillow 12.3.0                                                   | P1-M4 ingestion；future P2 normalization  | APPROVED FOR P1-M4 AND P2 SCOPE | 不升级版本；精确 wheel/hash/license/native feature/vulnerability 见 adoption record                |
 
 模型、权重与数据相关候选的许可证状态以 `docs/data/MODEL_LICENSE_REGISTRY.md` 为权威登记。以上分类是规划候选，不是已完成的 upstream、法律或生产验收。
 
@@ -76,7 +76,7 @@ P2-M1 的逐项 upstream、license、dependency、decision 与 review-trigger ev
 
 - 2026-08-16 通过 `google-ai-edge/mediapipe` GitHub Releases API 核验：`v0.10.35` 是有效 release，发布于 2026-04-28；它是本次 P2 评估指定的候选快照。
 - 同日 `releases/latest` 返回 `v1.0.0`，而该 release notes 又写明内部版本升至 `0.10.36`。因此仓库不把 `v0.10.35`、GitHub tag 或 package/runtime version 混写为同一个“当前版本”，后续 PoC 必须锁定并分别核验 exact source tag、package 和 artifact。
-- MediaPipe 的批准链固定为 `LICENSE_REVIEW_REQUIRED → POC_APPROVED → RUNTIME_CANDIDATE → APPROVED`；任何一步都不得从 permissive source-code license 推导模型 artifact 已获商业批准。
+- MediaPipe 的批准链固定为 `LICENSE_REVIEW_REQUIRED → POC_APPROVED → RUNTIME_CANDIDATE → APPROVED`；任何一步都不得从 permissive source-code license 推导模型 artifact 已获商业批准。`0.10.35` 未通过 `POC_APPROVED`。
 - 2026-08-17 独立读取并完整渲染 Google 官方 BlazeFace Short Range、Face Mesh V2 与 Blendshape
   V2 model cards。三份卡均明确把相应模型标为 Apache-2.0；BlazeFace 卡称训练/评估使用经同意的
   mobile-AR 真人图像，Face Mesh V2 卡称使用真实环境 smartphone 图像，Blendshape V2 卡称使用
@@ -84,9 +84,11 @@ P2-M1 的逐项 upstream、license、dependency、decision 与 review-trigger ev
   模型许可与高层数据来源描述，不是训练数据逐项权利、地域、删除或再分发证明。
 - Face Landmarker public object 的 GCS metadata 给出 immutable generation
   `1683136941468629`、size `3758596`、MD5 `b0e7274907a1644404fef66b28dd6d85` 与 CRC32C，
-  但 upstream 不发布 SHA-256。未经显式 artifact-download authorization，Project Mirror 未下载
-  bundle 或 wheel，因此 package contents、bundle SHA-256、SBOM、native notices、Python 3.13、
-  zero-network 和平台重复性仍为 `NOT_VERIFIED`，T06 保持 `POC_BLOCKED`。
+  但 upstream 不发布 SHA-256。授权后的 private acquisition 计算 bundle SHA-256 为
+  `64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff`，且 exact wheels 匹配预注册
+  hashes。Windows CPython 3.13 的 bounded inference 在出站阻断下仍尝试 Google Clearcut telemetry；
+  Linux `--network none` 的单次成功不能覆盖 Windows hard failure。`0.10.35` 因此为
+  `REJECTED_FOR_P2_M3_RUNTIME`，V02 calibration/holdout 未执行。
 
 ## Current execution boundary
 

@@ -3,10 +3,11 @@
 ## Status and authority
 
 - Milestone: `P2-M3 — Synthetic Normalization and Base Identity QA`.
-- Protocol status: `PREREGISTERED_BLOCKED_PENDING_ARTIFACT_AUTHORIZATION`.
+- Protocol status: `EXECUTED_STOPPED_AT_STAGE_C_RUNTIME_TELEMETRY_FAILURE`.
 - Candidate: MediaPipe `0.10.35`, synthetic-only, internal evaluation only.
-- This document does not authorize artifact download, package installation, model execution,
-  dependency changes, production Vision, real-user facial processing or threshold selection.
+- The Project Owner subsequently authorized the exact private artifacts and isolated PoC. That
+  authorization did not permit project dependency changes, production Vision, real-user facial
+  processing, threshold selection or calibration before Stages A-C passed.
 - Only the Principal may authorize acquisition, approve the exact package/model/data chain, freeze
   the QAPolicy and decide `PASS | FAIL | FURTHER_RESEARCH`.
 
@@ -42,8 +43,8 @@ Accessed read-only on 2026-08-17:
 
 ## Exact acquisition manifest
 
-Acquisition is prohibited until the Project Owner explicitly authorizes these exact artifacts.
-After authorization, all downloads must go to a fresh private directory outside the Git worktree.
+Acquisition was prohibited until the Project Owner explicitly authorized these exact artifacts.
+After that authorization, all downloads went to a fresh private directory outside the Git worktree.
 No URL, path, image, model byte or raw package payload may enter logs or committed evidence.
 
 | Artifact               | Immutable reference                                    | Upstream size | Upstream integrity                                                                                               |
@@ -114,6 +115,29 @@ V02 may start only after A-C pass and the Principal records `POC_RUNTIME_APPROVE
 existing private P2-M2-V01 assets after all eight source SHA-256 values reconcile and P2-M3-V01
 normalization completes.
 
+## Executed PoC outcome
+
+The exact Windows and Linux wheels matched their preregistered SHA-256 values. The acquired Face
+Landmarker bundle matched GCS generation `1683136941468629`, size `3758596`, upstream MD5 and CRC32C;
+its independently computed SHA-256 is
+`64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff`. Artifacts, the disposable
+CPython 3.13 environment, the resolved package set, SBOM and the single normalized calibration input
+remained outside Git and outside Project Mirror runtime dependency manifests.
+
+Stage C failed on Windows. With outbound egress blocked, one bounded synthetic inference completed,
+but the native runtime emitted `portable_clearcut_uploader.cc` evidence that it attempted to send to
+Google Clearcut and failed to connect. Static native inspection independently found Clearcut logging,
+the portable uploader, HTTP client code and `https://play.googleapis.com/log` in the Windows runtime.
+The temporary firewall deny rule was removed after the test. A Linux Docker reproduction under
+`--network none` completed the same bounded inference without an equivalent Clearcut message, but
+platform-local success cannot waive the Windows telemetry hard failure.
+
+Per the preregistered rule that any DNS, HTTP, telemetry, update or artifact request is a hard
+failure, exact candidate `mediapipe==0.10.35` is rejected for P2-M3 runtime use. The Principal did not
+record `POC_RUNTIME_APPROVED`; V02 calibration, negative-control execution, QAPolicy threshold freeze
+and holdout were not started. Selecting a replacement candidate or a differently built runtime
+requires new Principal change control and a new preregistered protocol; it is not a Repair Task.
+
 - Calibration set: `v01-category-a-01` through `v01-category-d-01`.
 - Holdout set: `v01-category-a-02` through `v01-category-d-02`.
 - The holdout is never opened or executed before the calibration report and exact QAPolicy content,
@@ -166,8 +190,12 @@ Return `FAIL` for an integrity, license, privacy, network or hard-gate bypass. R
 count behavior, negative-control ambiguity or holdout failure. Do not substitute a Mock result,
 change the candidate, expand the dataset or regenerate V01 assets to force a pass.
 
-`P2_M3_V02_EXECUTED: NO`
+`P2_M3_V02_EXECUTED: STOPPED_AT_STAGE_C_FAIL`
+
+`P2_M3_V02_DECISION: FAIL`
+
+`POC_RUNTIME_APPROVED: NO`
 
 `MODEL_ARTIFACTS_ADDED: NONE`
 
-`DEPENDENCIES_ADDED: NONE`
+`PROJECT_DEPENDENCIES_ADDED: NONE`
