@@ -63,6 +63,7 @@ async def test_data_rights_http_vertical_flow_is_owner_bound_and_idempotent(
     infrastructure = test_app.state.auth_infrastructure
     rights = cast(DataRightsInfrastructure, test_app.state.data_rights_infrastructure)
     storage = cast(LocalObjectStorageProvider, test_app.state.object_storage_provider)
+    session_expires_at = datetime.now(UTC) + timedelta(days=1)
 
     user = User(id=new_id(), phone_hash="a" * 128, status="active", created_at=NOW)
     outsider = User(id=new_id(), phone_hash="b" * 128, status="active", created_at=NOW)
@@ -73,7 +74,7 @@ async def test_data_rights_http_vertical_flow_is_owner_bound_and_idempotent(
         token_id=sha256(b"synthetic-rights-session").hexdigest(),
         refresh_token_hash="c" * 128,
         refresh_key_id="fixture-v1",
-        expires_at=NOW + timedelta(days=1),
+        expires_at=session_expires_at,
         created_at=NOW,
     )
     export_asset = await _asset(

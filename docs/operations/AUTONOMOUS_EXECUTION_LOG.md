@@ -125,3 +125,16 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   affected modules/symbols; none was silently suppressed.
 - The fixed model is private-research-only because redistribution/data provenance remains incomplete.
   Stage B passes for isolated synthetic Stage C only; no production/model/dependency approval exists.
+
+## 2026-08-18T07:40:00+08:00 — P2-M3-R20 data-rights CI time-boundary repair
+
+- Same-SHA run `32080603204` failed only the deletion-status step in
+  `test_data_rights_http_vertical_flow_is_owner_bound_and_idempotent`; the other 390 tests and the
+  secret/Docker jobs passed.
+- The fixture's database session expired at the fixed instant `2026-08-17T23:30:00Z`, one minute
+  before the failing CI step. The access token remained current, so production authentication
+  correctly rejected the expired backing session with HTTP 401.
+- R20 changes only the fixture session expiry to one day after the test's live clock. It does not
+  weaken token verification, revocation reason checks, deletion-status scope or product code.
+- On a fresh PostgreSQL database at migration head `0011_offline_synth_source`, the exact test passed
+  five consecutive runs and the complete API suite passed. Same-SHA remote CI remains mandatory.

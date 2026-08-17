@@ -442,3 +442,17 @@ release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts rem
 `P2_M3_V03_STAGE_B: PASS_FOR_ISOLATED_STAGE_C`
 
 `P2_M3_V03_STAGE_C: PENDING`
+
+## P2-M3-R20 data-rights CI time-boundary repair
+
+- Run `32080603204` failed one unrelated Phase 1 data-rights integration assertion because its
+  fixed database session expiry (`2026-08-17T23:30:00Z`) had elapsed before CI authentication.
+- R20 derives only the fixture session expiry from the live test clock. Product authentication and
+  deletion-status authorization remain unchanged and fail closed for expired sessions.
+- Fresh PostgreSQL at `0011_offline_synth_source`: exact test 5/5 PASS; complete API suite PASS.
+- R20 acceptance remains pending the repair commit's same-SHA GitHub Actions result and does not
+  advance Stage C, V02, T07, T08 or the M3 Gate.
+
+`P2_M3_R20_LOCAL: PASS`
+
+`P2_M3_R20_REMOTE_CI: PENDING`
