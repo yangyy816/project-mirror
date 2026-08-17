@@ -1,0 +1,49 @@
+diff --git a/utils/bazel/configure.bzl b/utils/bazel/configure.bzl
+index b976f39..c15c772 100644
+--- a/utils/bazel/configure.bzl
++++ b/utils/bazel/configure.bzl
+@@ -55,7 +55,7 @@ def _overlay_directories(repository_ctx):
+         "--target",
+         ".",
+     ]
+-    exec_result = repository_ctx.execute(cmd, timeout = 20)
++    exec_result = repository_ctx.execute(cmd, timeout = 600)
+
+     if exec_result.return_code != 0:
+         fail(("Failed to execute overlay script: '{cmd}'\n" +
+diff --git a/utils/bazel/overlay_directories.py b/utils/bazel/overlay_directories.py
+index 526a78e..dab1a69 100644
+--- a/utils/bazel/overlay_directories.py
++++ b/utils/bazel/overlay_directories.py
+@@ -14,6 +14,7 @@ contained in the overlay directory tree.
+ import argparse
+ import errno
+ import os
++import subprocess
+ import sys
+
+
+@@ -66,7 +67,22 @@ def parse_arguments():
+
+
+ def _symlink_abs(from_path, to_path):
+-    os.symlink(os.path.abspath(from_path), os.path.abspath(to_path))
++    source = os.path.abspath(from_path)
++    target = os.path.abspath(to_path)
++    if os.name == "nt":
++        if os.path.isdir(source):
++            result = subprocess.run(
++                ["cmd.exe", "/d", "/c", "mklink", "/J", target, source],
++                check=False,
++                capture_output=True,
++                text=True,
++            )
++            if result.returncode != 0:
++                raise OSError(result.returncode, result.stderr or result.stdout, target)
++        else:
++            os.link(source, target)
++        return
++    os.symlink(source, target)
+
+
+ def main(args):

@@ -5,7 +5,7 @@
 - Milestone: `P2-M3 — Synthetic Normalization and Base Identity QA`
 - State: `EXECUTING`
 - Frozen entry: `0b579ebdb1c2a63936225bc59a4b0ca780544df2`
-- Planned migration: `0010_synthetic_asset_qa`
+- Migration head: `0011_offline_synthetic_source_authority` after ADR-035 change control
 - Public API change: none
 - Vision candidate Gate: `CANDIDATE_FAILED_REPLACEMENT_REQUIRED`
 - Real-user facial processing: prohibited
@@ -15,7 +15,7 @@
 | Gate                      | Required evidence                                                          | Status      |
 | ------------------------- | -------------------------------------------------------------------------- | ----------- |
 | M2 authority preservation | no GenerationItem/raw/generation evidence rewrite                          | T02 PASS    |
-| Migration                 | fresh and `0009→0010→0009→0010`, drift zero                                | T02 PASS    |
+| Migration                 | `0010` evidence plus fresh and `0010→0011→0010→0011`, drift zero           | PASS        |
 | Normalization             | bounded decode, sanitation, canonical encode, second decode, checksum      | T03 PASS    |
 | Namespace                 | normalized private namespace separate from raw/user assets                 | T03 PASS    |
 | Immutability              | Asset/record/measurement/review/identity lineage cannot mutate/delete      | T02 PASS    |
@@ -36,14 +36,23 @@ The existing eight P2-M2-V01 source files may be reused from private storage aft
 source-evidence reconciliation. They are not regenerated merely to exercise M3. Requested
 `1024×1024 PNG` and observed `1254×1254 PNG` remain distinct facts.
 
+ADR-035 closes the discovered authority gap: V01 must not be represented by fabricated M2
+Batch/Item/Provider records. A forward `0011` offline admission authority preserves all known-null
+provenance, binds the private receipt digest and raw metadata, and then feeds the unchanged M3
+normalizer through `SyntheticSourceObject`. This is a formal change control, not a Repair Task or a
+production import API.
+
 The M3 validation sequence is:
 
 1. `P2-M3-V01`: normalize all eight admitted raw objects without resampling to the requested shape;
    verify sanitation, canonical output, second decode, namespace, checksum and no tracked binary.
 2. `P2-M3-V02`: after Vision candidate approval, run face/pose/visibility/landmark measurement,
    repeatability and negative controls under a preregistered QAPolicy.
-3. Explicit operator review records clearly-adult presentation, obvious text/watermark/background,
-   likeness risk and rights scope without overriding any automatic hard failure.
+3. Explicit operator review records the applicable versioned adult-presentation rubric, obvious
+   text/watermark/background, likeness risk and rights scope without overriding any automatic hard
+   failure. Under ADR-030, a general non-sexual portrait fails the age-presentation review only for
+   `CLEAR_PRE16_PRESENTATION` or `CHILD_OR_STUDENT_MINOR_CONTEXT`; adult-only style overlays remain
+   stricter.
 4. Register identities only for assets that satisfy every required gate. A rejected asset remains
    immutable evidence and is never silently replaced.
 
@@ -79,8 +88,27 @@ mandatory.
 - complete Linux Ruff format/lint and strict mypy passed; `pnpm.cmd contracts:check` passed; no
   dependency, model/weight, public API, OpenAPI/generated TypeScript or real-person fixture changed.
 
-T03 does not execute private V01 source normalization. That bounded evidence remains `P2-M3-V01`
-and must reconcile all eight private checksums before use.
+## P2-M3-V01 offline authority and normalization evidence
+
+- The frozen P2-M2-V01 manifest was not regenerated or rewritten. Its eight raw checksums,
+  byte counts and observed `1254×1254` dimensions were reconciled against private storage before
+  each immutable admission and source row was created.
+- The isolated `p2m3_v01_authority` PostgreSQL run completed with exactly 8 offline admissions,
+  8 offline sources, 8 normalized records and 8 normalized synthetic Assets. A second complete run
+  returned the same authority and result for every item, proving import and normalization replay
+  idempotency.
+- All eight normalized objects passed streamed byte/checksum verification and second JPEG decode.
+  The frozen normalizer was `image-sanitizer-v1` with config digest
+  `5ebe5ea3e9b0e5c8ad86b93166e38f11da7bdcd76a7a2801aadd0f30e32f81de`; requested dimensions
+  remained a distinct source fact and no resampling was performed.
+- The committed redacted evidence is
+  `docs/operations/P2_M3_V01_NORMALIZATION_REDACTED_EVIDENCE.json`; its canonical item evidence
+  digest is `eabea6fe4159cc8932d2ebd4d1797e0ed3aa3e982dcbc15b052f6136e294f299`.
+  It contains no Prompt, private path, storage reference, image bytes or fabricated Provider facts,
+  and records zero tracked binaries.
+- This closes V01 normalization only. Vision QA, the versioned adult review, morphology measurement,
+  identity registration and QuestionBank release remain blocked or not authorized until their own
+  gates pass.
 
 ## T03 same-SHA remote evidence
 
@@ -233,6 +261,45 @@ produced byte-identical main, OpenCV core and OpenCV imgproc libraries. All priv
 zero; OpenCV has no RPATH/RUNPATH and the main library has only a relative `$ORIGIN` RUNPATH. This
 does not close the independent OouraFFT distribution-license blocker, remaining vulnerability
 dispositions, Windows build/runtime, model/data or V02 calibration Gates.
+
+ADR-034 / `CC-P2-M3-02` freezes the OpenCV persistence-parser backport and unused RFFT2D removal;
+`P2-M3-R08` implements that already-frozen closure. After the exact OpenCV 3.4.11 backport correction
+described in R11 and R12 canonical whitespace normalization, the current outer runtime-closure patch
+SHA-256 is `9c7f6c9032f1ffa050044123e29cc596ca255332e78d5af7fb77cf5f20f65e60`; it apply/reverse-applies
+against the prepared exact source. This remains candidate evidence until both platforms, model
+operator inventory and Stage C pass.
+
+`P2-M3-R09` addresses the Windows foreign-CMake compiler-detection defect without changing the
+runtime graph. After R12 canonical whitespace normalization, the rules_foreign_cc patch SHA-256 is
+`c401de5d81a420ecdaa30f9c711b9b45d2bafdecbc7a5e7b71a0003845d02146`; it removes only the
+double-escaped MSVC `__DATE__`/`__TIME__`/`__TIMESTAMP__` flags at the CMake boundary. The MediaPipe
+toolchain patch SHA-256 is `38db262542d155dab30f55b43041ec4e56283f6fc6be6a4118ba938ccd545db1` and pins the frozen
+Windows SDK `mt.exe` (local SHA-256
+`1b8a272d586a9ab53ac2ccd457a88bd0210d7d7ac3daea5b34743cc2afe73b26`). `bw16` is preserved as
+failed evidence; no success claim is made yet.
+
+`P2-M3-R10` corrects only the exact TensorFlow `kernels/BUILD` ordering context in the RFFT2D removal
+patch. `bw18` failed during repository patching before compilation; the corrected inner patch then
+passed `git apply --check` against the exact snapshot. Fresh build roots must be used for acceptance.
+
+`P2-M3-R11` corrects the OpenCV persistence hardening patch target without changing ADR-034's frozen
+security outcome. `bw19` proved that upstream commit `5691d998...` targets the newer C++ parser layout,
+while the locked OpenCV 3.4.11 archive contains the legacy C parser layout. The backport now applies the
+same entry-point and post-skip null checks to the exact legacy JSON/XML/YAML parser functions. After
+R12 canonical whitespace normalization, the inner patch SHA-256 is
+`a1037142e804aeb74d072d159b36f03289bdfc1be223199c06b7543301ddba62`.
+`bw19` remains failed evidence; only fresh `bw20`/`bw21` roots may support reproducibility acceptance.
+
+`P2-M3-R12` removes trailing spaces only from added blank lines in five tracked patch artifacts after
+the pre-commit Gate found them. No source token, build flag, dependency or runtime graph changed. The
+normalized LLVM, runtime-closure, Windows-build, BusyBox and CMake-flags patch SHA-256 values are,
+respectively, `9c4524600297eda5f7df81b2aa7ed2b82b90907f33f441725710a3a7a56431ff`,
+`9c7f6c9032f1ffa050044123e29cc596ca255332e78d5af7fb77cf5f20f65e60`,
+`9bec126ea037a8a9d72417ba798252e5b32fdb2c94b0081c5de55cf89f6c5c9a`,
+`7a586cbe76741e1c620b11495ccbb5bf879d0cddfe4d2a186a5a8d0190140424` and
+`c401de5d81a420ecdaa30f9c711b9b45d2bafdecbc7a5e7b71a0003845d02146`. Each reverse-apply-checks
+against its prepared exact snapshot; the runtime closure also apply-checks against the pre-Windows
+baseline, and repository `git diff --check` is clean.
 
 ## Deferred production boundary
 

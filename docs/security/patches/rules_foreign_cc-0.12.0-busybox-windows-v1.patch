@@ -1,0 +1,85 @@
+diff --git a/foreign_cc/private/framework/toolchains/windows_commands.bzl b/foreign_cc/private/framework/toolchains/windows_commands.bzl
+index f74cd94..aa7003b 100644
+--- a/foreign_cc/private/framework/toolchains/windows_commands.bzl
++++ b/foreign_cc/private/framework/toolchains/windows_commands.bzl
+@@ -9,7 +9,7 @@ def script_extension():
+     return ".sh"
+
+ def pwd():
+-    return "$(type -t cygpath > /dev/null && cygpath $(pwd) -m || pwd -W)"
++    return "$(pwd)"
+
+ def echo(text):
+     return "echo \"{text}\"".format(text = text)
+@@ -88,12 +88,11 @@ if [ -d "$1" ]; then
+   SAVEIFS=$IFS
+   IFS=$'\n'
+   # Find all real files. Symlinks are assumed to be relative to something within the directory we're seaching and thus ignored
+-  local files=($($REAL_FIND -P "$1" -type f  \\( -type f -and \\( -name "*.pc" -or -name "*.la" -or -name "*-config" -or -name "*.mk" -or -name "*.cmake" \\) \\)))
+-  IFS=$SAVEIFS
++  local files="$($REAL_FIND -P "$1" -type f  \\( -type f -and \\( -name "*.pc" -or -name "*.la" -or -name "*-config" -or -name "*.mk" -or -name "*.cmake" \\) \\))"
+   # Escape any backslashes so sed can understand what it's supposed to replace
+   local argv2=$(echo "$2" | sed 's/\\\\/\\\\\\\\/g')
+   local argv3=$(echo "$3" | sed 's/\\\\/\\\\\\\\/g')
+-  for file in ${files[@]+"${files[@]}"}; do
++  for file in $files; do
+     local backup=$(mktemp)
+     touch -r "${file}" "${backup}"
+     sed -i 's'$'\001'"${argv2}"$'\001'"${argv3}"$'\001''g' "${file}"
+@@ -103,6 +102,7 @@ if [ -d "$1" ]; then
+     touch -r "${backup}" "${file}"
+     rm "${backup}"
+   done
++  IFS=$SAVEIFS
+ fi
+ """,
+     )
+@@ -134,11 +134,11 @@ elif [[ -L "$1" ]]; then
+ elif [[ -d "$1" ]]; then
+   SAVEIFS=$IFS
+   IFS=$'\n'
+-  local children=($($REAL_FIND -H "$1" -maxdepth 1 -mindepth 1))
+-  IFS=$SAVEIFS
+-  for child in "${children[@]}"; do
++  local children="$($REAL_FIND -H "$1" -maxdepth 1 -mindepth 1)"
++  for child in $children; do
+     ##symlink_to_dir## "$child" "$target" "$replace_in_files"
+   done
++  IFS=$SAVEIFS
+ fi
+ """
+     return FunctionAndCallInfo(text = text)
+@@ -163,7 +163,7 @@ if [[ -f "$1" ]]; then
+     dest="$target/$(basename \"$1\")"
+     cp "$1" "$dest" && chmod +w "$dest" && touch -r "$1" "$dest"
+   else
+-    ln -s -f -t "$target" "$1"
++    cp -R "$1" "$target"
+   fi
+ elif [[ -L "$1" ]]; then
+   local actual=$(readlink "$1")
+@@ -172,20 +172,20 @@ elif [[ -d "$1" ]]; then
+
+   # If not replacing in files, simply create a symbolic link rather than traversing tree of files, which can result in very slow builds
+   if [[ "$replace_in_files" = False ]]; then
+-    ln -s -f "$1" "$target"
++    cp -R "$1" "$target"
+     return
+   fi
+
+   SAVEIFS=$IFS
+   IFS=$'\n'
+-  local children=($($REAL_FIND -H "$1" -maxdepth 1 -mindepth 1))
+-  IFS=$SAVEIFS
++  local children="$($REAL_FIND -H "$1" -maxdepth 1 -mindepth 1)"
+   local dirname=$(basename "$1")
+-  for child in "${children[@]}"; do
++  for child in $children; do
+     if [[ -n "$child" && "$dirname" != *.ext_build_deps ]]; then
+       ##symlink_to_dir## "$child" "$target/$dirname" "$replace_in_files"
+     fi
+   done
++  IFS=$SAVEIFS
+ else
+   echo "Can not copy $1"
+ fi

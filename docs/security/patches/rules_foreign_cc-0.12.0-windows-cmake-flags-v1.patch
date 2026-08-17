@@ -1,0 +1,27 @@
+diff --git a/foreign_cc/private/cmake_script.bzl b/foreign_cc/private/cmake_script.bzl
+--- a/foreign_cc/private/cmake_script.bzl
++++ b/foreign_cc/private/cmake_script.bzl
+@@ -426,7 +426,22 @@ def _absolutize(workspace_name, text, force = False):
+     return absolutize_path_in_str(workspace_name, "$${EXT_BUILD_ROOT//\\\\//}$$/", text, force)
+
+ def _join_flags_list(workspace_name, flags):
+-    return " ".join([_absolutize(workspace_name, flag) for flag in flags])
++    # Bazel's MSVC toolchain injects quoted replacements for the volatile
++    # predefined date/time macros.  Passing those already-escaped values
++    # through the generated shell script and CMake toolchain file escapes them
++    # again, producing invalid cl.exe command lines during try_compile.  The
++    # OpenCV closure independently omits build timestamps and uses /Brepro, so
++    # drop only these three toolchain flags at the foreign-CMake boundary.
++    filtered = [
++        flag
++        for flag in flags
++        if not (
++            flag.startswith("-D__DATE__=") or
++            flag.startswith("-D__TIME__=") or
++            flag.startswith("-D__TIMESTAMP__=")
++        )
++    ]
++    return " ".join([_absolutize(workspace_name, flag) for flag in filtered])
+
+ export_for_test = struct(
+     absolutize = _absolutize,

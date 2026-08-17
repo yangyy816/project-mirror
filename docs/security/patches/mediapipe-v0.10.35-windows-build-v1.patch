@@ -1,0 +1,262 @@
+diff --git a/.bazelrc b/.bazelrc
+index d3bdbac..35f8fb6 100644
+--- a/.bazelrc
++++ b/.bazelrc
+@@ -31,6 +31,13 @@ build:linux --define=xnn_enable_avx512amx=false
+ # windows
+ build:windows --cxxopt=/std:c++20
+ build:windows --host_cxxopt=/std:c++20
++build:windows --cxxopt=/Zc:preprocessor
++build:windows --host_cxxopt=/Zc:preprocessor
++build:windows --cxxopt=/utf-8
++build:windows --host_cxxopt=/utf-8
++build:windows --copt=/experimental:deterministic
++build:windows --linkopt=/Brepro
++build:windows --build_python_zip=false
+ build:windows --copt=/w
+ # For using M_* math constants on Windows with MSVC.
+ build:windows --copt=/D_USE_MATH_DEFINES
+diff --git a/mediapipe/framework/api3/calculator_context.h b/mediapipe/framework/api3/calculator_context.h
+index 2137be3..736c85d 100644
+--- a/mediapipe/framework/api3/calculator_context.h
++++ b/mediapipe/framework/api3/calculator_context.h
+@@ -426,13 +426,12 @@ struct First {
+   using type = T;
+ };
+
+-template <typename T, int&... DoNotSpecify, typename F>
++template <typename T, typename F>
+ auto VisitPacketOrDie(F&& visitor, const mediapipe::Packet& packet) {
+   return std::forward<F>(visitor)(packet.Get<T>());
+ }
+
+-template <typename T, typename U, typename... Rest, int&... DoNotSpecify,
+-          typename F>
++template <typename T, typename U, typename... Rest, typename F>
+ auto VisitPacketOrDie(F&& visitor, const mediapipe::Packet& packet) {
+   if (packet.ValidateAsType<T>().ok()) {
+     return std::forward<F>(visitor)(packet.Get<T>());
+@@ -441,14 +440,13 @@ auto VisitPacketOrDie(F&& visitor, const mediapipe::Packet& packet) {
+   }
+ }
+
+-template <typename T, int&... DoNotSpecify, typename F>
++template <typename T, typename F>
+ auto VisitPacketAsPacketOrDie(F&& visitor, const mediapipe::Packet& packet) {
+   ABSL_CHECK_OK(packet.ValidateAsType<T>());
+   return std::forward<F>(visitor)(WrapLegacyPacket<T>(packet).value());
+ }
+
+-template <typename T, typename U, typename... Rest, int&... DoNotSpecify,
+-          typename F>
++template <typename T, typename U, typename... Rest, typename F>
+ auto VisitPacketAsPacketOrDie(F&& visitor, const mediapipe::Packet& packet) {
+   if (packet.ValidateAsType<T>().ok()) {
+     return std::forward<F>(visitor)(WrapLegacyPacket<T>(packet).value());
+diff --git a/mediapipe/framework/api3/graph.h b/mediapipe/framework/api3/graph.h
+index c6530df..7c0dbeb 100644
+--- a/mediapipe/framework/api3/graph.h
++++ b/mediapipe/framework/api3/graph.h
+@@ -106,6 +106,8 @@ class Graph;
+ // ```
+ class GenericGraph;
+ class FunctionGraphBuilder;
++template <typename NodeT>
++class SubgraphContext;
+
+ // `GraphNode` is returned by `Graph<...>::AddNode<...>()` function.
+ //
+diff --git a/mediapipe/framework/legacy_calculator_support.cc b/mediapipe/framework/legacy_calculator_support.cc
+index 13fd714..1dec64d 100644
+--- a/mediapipe/framework/legacy_calculator_support.cc
++++ b/mediapipe/framework/legacy_calculator_support.cc
+@@ -17,10 +17,10 @@
+ namespace mediapipe {
+
+ template <>
+-thread_local CalculatorContext*
++ABSL_CONST_INIT thread_local CalculatorContext*
+     LegacyCalculatorSupport::Scoped<CalculatorContext>::current_ = nullptr;
+ template <>
+-thread_local CalculatorContract*
++ABSL_CONST_INIT thread_local CalculatorContract*
+     LegacyCalculatorSupport::Scoped<CalculatorContract>::current_ = nullptr;
+
+ }  // namespace mediapipe
+diff --git a/mediapipe/gpu/gpu_service.cc b/mediapipe/gpu/gpu_service.cc
+index 53a0e0f..a18604a 100644
+--- a/mediapipe/gpu/gpu_service.cc
++++ b/mediapipe/gpu/gpu_service.cc
+@@ -16,7 +16,7 @@
+
+ namespace mediapipe {
+
+-const GraphService<GpuResources> kGpuService(
++ABSL_CONST_INIT const GraphService<GpuResources> kGpuService(
+     "kGpuService", GraphServiceBase::kAllowDefaultInitialization);
+
+ }  // namespace mediapipe
+diff --git a/WORKSPACE b/WORKSPACE
+index b055f7f..c68403a 100644
+--- a/WORKSPACE
++++ b/WORKSPACE
+@@ -262,6 +262,8 @@ http_archive(
+ http_archive(
+     name = "XNNPACK",
+     # `curl -L <url> | shasum -a 256`
++    patch_args = ["-p1"],
++    patches = ["//third_party:xnnpack_v03_windows_python.diff"],
+     sha256 = "7235b2b55fbf11b64f38db130efae0f293d2d6d6fd90613221b598a8847f41c5",
+     strip_prefix = "XNNPACK-68167d1fefa50296f0588ec280f48c58357ca898",
+     url = "https://github.com/google/XNNPACK/archive/68167d1fefa50296f0588ec280f48c58357ca898.zip",
+@@ -321,6 +321,8 @@ http_archive(
+ http_archive(
+     name = "pthreadpool",
+     # `curl -L <url> | shasum -a 256`
++    patch_args = ["-p1"],
++    patches = ["@//third_party:pthreadpool_v03_windows_c11.diff"],
+     sha256 = "d5a78b017839ee0474e6aef6e21742b03f641b260f29faf9538a0a6b8fae0704",
+     strip_prefix = "pthreadpool-995229919303dd98c0f1b3b585b54527067ef893",
+     urls = ["https://github.com/google/pthreadpool/archive/995229919303dd98c0f1b3b585b54527067ef893.zip"],
+diff --git a/third_party/BUILD b/third_party/BUILD
+index e55b18a..cf2029b 100644
+--- a/third_party/BUILD
++++ b/third_party/BUILD
+@@ -14,6 +14,7 @@
+ #
+
+ load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
++load("@bazel_skylib//lib:dicts.bzl", "dicts")
+ load("@rules_foreign_cc//foreign_cc:cmake.bzl", "cmake")
+ load(
+     "//mediapipe/framework/tool:mediapipe_files.bzl",
+@@ -29,6 +30,8 @@ exports_files([
+     "opencv_v03_reproducible_build_info.diff",
++    "pthreadpool_v03_windows_c11.diff",
+     "requirements_lock.txt",
+     "requirements_lock_3_10.txt",
+     "requirements_lock_3_11.txt",
+     "requirements_lock_3_12.txt",
++    "xnnpack_v03_windows_python.diff",
+ ])
+@@ -201,18 +203,12 @@ OPENCV_SHARED_LIBS = True
+
+ OPENCV_SO_VERSION = "3.4"
+
+-cmake(
+-    name = "opencv_cmake",
+-    # Values to be passed as -Dkey=value on the CMake command line;
+-    # here are serving to provide some CMake script configuration options
+-    cache_entries = {
++OPENCV_CMAKE_COMMON_CACHE_ENTRIES = {
+         # Keep sandbox sequence numbers and private build roots out of the
+         # OpenCV binaries. OpenCV's own RPATH is unnecessary because the
+         # parent C ABI library resolves both colocated runtime libraries. The
+         # generated build report must also omit its wall-clock timestamp.
+         "BUILD_INFO_SKIP_TIMESTAMP": "ON",
+-        "CMAKE_C_FLAGS": "-ffile-prefix-map=$EXT_BUILD_ROOT=/mirror-v03",
+-        "CMAKE_CXX_FLAGS": "-ffile-prefix-map=$EXT_BUILD_ROOT=/mirror-v03",
+         "CMAKE_SKIP_RPATH": "ON",
+         "CMAKE_BUILD_TYPE": "Release",
+         # The module list is always sorted alphabetically so that we do not
+@@ -269,7 +265,29 @@ cmake(
+         # ccache would be able to work across sandboxed Bazel builds, either.
+         # In any case, Bazel does its own caching of the rule's outputs.
+         "ENABLE_CCACHE": "OFF",
+-    },
++}
++
++OPENCV_CMAKE_CACHE_ENTRIES = select({
++    "//mediapipe:windows": dicts.add(OPENCV_CMAKE_COMMON_CACHE_ENTRIES, {
++        # MSVC rejects GCC's -ffile-prefix-map during compiler checks.
++        "CMAKE_C_FLAGS": "/experimental:deterministic /pathmap:$EXT_BUILD_ROOT=/mirror-v03",
++        "CMAKE_CXX_FLAGS": "/experimental:deterministic /pathmap:$EXT_BUILD_ROOT=/mirror-v03",
++        "CMAKE_SHARED_LINKER_FLAGS": "/Brepro",
++        "CMAKE_SYSTEM_PROCESSOR": "AMD64",
++        "WITH_PROTOBUF": "OFF",
++        "WITH_PTHREADS": "OFF",
++        "WITH_PTHREADS_PF": "OFF",
++    }),
++    "//conditions:default": dicts.add(OPENCV_CMAKE_COMMON_CACHE_ENTRIES, {
++        "CMAKE_C_FLAGS": "-ffile-prefix-map=$EXT_BUILD_ROOT=/mirror-v03",
++        "CMAKE_CXX_FLAGS": "-ffile-prefix-map=$EXT_BUILD_ROOT=/mirror-v03",
++    }),
++})
++
++cmake(
++    name = "opencv_cmake",
++    # Values to be passed as -Dkey=value on the CMake command line.
++    cache_entries = OPENCV_CMAKE_CACHE_ENTRIES,
+     lib_source = "@opencv//:all",
+     linkopts = [] if OPENCV_SHARED_LIBS else [
+         # When using static libraries, the binary that eventually depends on the
+@@ -301,12 +319,17 @@ cmake(
+     ],
+     out_shared_libs = select({
+         "@bazel_tools//src/conditions:darwin": ["libopencv_%s.%s.dylib" % (module, OPENCV_SO_VERSION) for module in OPENCV_MODULES],
++        "//mediapipe:windows": ["opencv_%s3411.dll" % module for module in OPENCV_MODULES],
+         # Only the shared objects listed here will be linked in the directory
+         # that Bazel adds to the RUNPATH of dependent executables. You cannot
+         # list both the versioned and unversioned name of the .so, and the
+         # versioned name is the one that the executables actually reference.
+         "//conditions:default": ["libopencv_%s.so.%s" % (module, OPENCV_SO_VERSION) for module in OPENCV_MODULES],
+     }) if OPENCV_SHARED_LIBS else None,
++    out_interface_libs = select({
++        "//mediapipe:windows": ["opencv_%s3411.lib" % module for module in OPENCV_MODULES],
++        "//conditions:default": [],
++    }) if OPENCV_SHARED_LIBS else None,
+     out_static_libs = [
+         "libopencv_%s.a" % module
+         for module in OPENCV_MODULES
+diff --git a/third_party/pthreadpool_v03_windows_c11.diff b/third_party/pthreadpool_v03_windows_c11.diff
+new file mode 100644
+index 0000000..4b819b0
+--- /dev/null
++++ b/third_party/pthreadpool_v03_windows_c11.diff
+@@ -0,0 +1,18 @@
++diff --git a/BUILD.bazel b/BUILD.bazel
++--- a/BUILD.bazel
+++++ b/BUILD.bazel
++@@ -63,9 +63,11 @@ cc_library(
++     hdrs = [
++         "include/pthreadpool.h",
++     ],
++-    copts = [
++-        "-std=c11",
++-    ] + select({
+++    copts = select({
+++        ":windows_x86_64": ["/std:c11", "/experimental:c11atomics"],
+++        ":windows_arm64": ["/std:c11", "/experimental:c11atomics"],
+++        "//conditions:default": ["-std=c11"],
+++    }) + select({
++         ":optimized_build": ["-O2"],
++         "//conditions:default": [],
++     }) + select({
+diff --git a/third_party/xnnpack_v03_windows_python.diff b/third_party/xnnpack_v03_windows_python.diff
+new file mode 100644
+index 0000000..8ba48f1
+--- /dev/null
++++ b/third_party/xnnpack_v03_windows_python.diff
+@@ -0,0 +1,22 @@
++diff --git a/BUILD.bazel b/BUILD.bazel
++index b63d1ae..6f44992 100644
++--- a/BUILD.bazel
+++++ b/BUILD.bazel
++@@ -648,6 +648,15 @@ genrule(
++         ":build_identifier_ukernel_srcs",
++     ],
++     outs = ["src/build_identifier.c"],
++-    cmd = "$(location generate_build_identifier_py) --output $@ --input_file_list $(location :build_identifier_ukernel_srcs_list)",
++-    tools = [":generate_build_identifier_py"],
+++    cmd = select({
+++        "//build_config:windows_x86_64": "$(location @python//:python3) $(location scripts/generate-build-identifier.py) --output $@ --input_file_list $(location :build_identifier_ukernel_srcs_list)",
+++        "//conditions:default": "$(location generate_build_identifier_py) --output $@ --input_file_list $(location :build_identifier_ukernel_srcs_list)",
+++    }),
+++    tools = select({
+++        "//build_config:windows_x86_64": [
+++            "@python//:python3",
+++            "scripts/generate-build-identifier.py",
+++        ],
+++        "//conditions:default": [":generate_build_identifier_py"],
+++    }),
++ )

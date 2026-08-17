@@ -1,0 +1,15 @@
+diff --git a/third_party/BUILD b/third_party/BUILD
+--- a/third_party/BUILD
++++ b/third_party/BUILD
+@@ -275,6 +275,11 @@ OPENCV_CMAKE_CACHE_ENTRIES = select({
+         # MSVC rejects GCC's -ffile-prefix-map during compiler checks.
+         "CMAKE_C_FLAGS": "/experimental:deterministic /pathmap:$EXT_BUILD_ROOT=/mirror-v03",
+         "CMAKE_CXX_FLAGS": "/experimental:deterministic /pathmap:$EXT_BUILD_ROOT=/mirror-v03",
++        # CMake does not discover mt.exe through the BusyBox/MSYS PATH used by
++        # rules_foreign_cc.  Pin the already frozen Windows SDK tool directly
++        # so try_compile and shared-library manifest steps fail closed instead
++        # of emitting CMAKE_MT-NOTFOUND.
++        "CMAKE_MT": "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/mt.exe",
+         "CMAKE_SHARED_LINKER_FLAGS": "/Brepro",
+         "CMAKE_SYSTEM_PROCESSOR": "AMD64",
+         "WITH_PROTOBUF": "OFF",

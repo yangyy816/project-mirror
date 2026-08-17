@@ -43,7 +43,7 @@ mandatory before any source-built candidate approval.
 M3 implements this chain only:
 
 ```text
-immutable M2 raw source
+immutable admitted raw source (M2 generation or ADR-035 offline authority)
 → deterministic normalization
 → private normalized namespace
 → immutable synthetic Asset + SyntheticAssetRecord
@@ -124,7 +124,9 @@ production Provider/runtime configuration, M3 normalization authority or M2 froz
 
 ## Data and migration contract
 
-The sole planned migration is `0010_synthetic_asset_qa` and must not modify `0001`–`0009`.
+The original planned migration is `0010_synthetic_asset_qa`. ADR-035 / `CC-P2-M3-03` authorizes the minimal forward
+`0011_offline_synthetic_source_authority` change control required to connect already-admitted
+Codex-native evidence without fabricated Provider facts. Neither migration may modify `0001`–`0010`.
 
 It establishes:
 
@@ -147,7 +149,8 @@ forbidden; later revocation is a separate Milestone.
 ## Normalization and storage contract
 
 - Reuse pinned Pillow 12.3.0 and the dependency-local sanitizer core; no version change.
-- Read only an undeleted M2 raw source through the synthetic storage port and verify authoritative
+- Read only an undeleted M2-generation or ADR-035 offline raw source through the synthetic storage port
+  and verify authoritative
   byte count, MIME, dimensions and SHA-256 before decode.
 - Enforce magic/MIME, bounded bytes, single frame, edge/pixel limits, decompression-bomb handling,
   orientation, fixed colorspace handling, metadata stripping, canonical JPEG encode, second decode
@@ -174,7 +177,9 @@ Required hard evidence:
 - exactly one face;
 - policy-bounded pose, occupancy, eye/mouth visibility and landmark confidence;
 - no unresolved automatic hard failure;
-- explicit clearly-adult presentation review;
+- explicit versioned adult-presentation review: under ADR-030, general non-sexual portraits fail only
+  for `CLEAR_PRE16_PRESENTATION` or `CHILD_OR_STUDENT_MINOR_CONTEXT`, while adult-only style contexts
+  retain their unambiguous-18+ overlay;
 - explicit likeness/no-real-person-reference and license/rights review;
 - approved Vision candidate/model artifact for any automated Vision claim.
 

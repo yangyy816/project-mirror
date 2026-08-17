@@ -83,9 +83,11 @@
 
 ## C.2 China-first Synthetic Coverage Boundary
 
-- 首个 internal coverage pack 是 China-market-first、East-Asian-presenting、clearly-adult 与
+- 首个 internal coverage pack 是 China-market-first、East-Asian-presenting、声明为成年且
   synthetic-only；该 presentation scope 不是 ancestry、nationality、ethnicity、race 或真实用户标签，
-  也不代表人口平均脸或普遍审美标准。
+  也不代表人口平均脸或普遍审美标准。按 ADR-030，未来一般非性感 cohort 仅在整体视觉明确呈现为
+  未满 16 岁，或包含儿童/学生未成年语境时 hard reject；round face、babyface、soft features 或
+  youthful appearance 本身不得触发拒绝。性感、诱惑、亲密或性化 context 仍要求 unambiguous 18+。
 - corpus coverage、question selection 与 future user compatibility 主要依赖连续 morphology、
   reliability、uncertainty 与 Local Morphological Neighborhood。不得创建敏感群体 classifier，不得
   从真实用户照片推断或路由 race/ethnicity/ancestry/nationality。

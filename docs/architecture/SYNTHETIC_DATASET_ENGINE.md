@@ -36,9 +36,10 @@ MVR-v1 counts, repeatability, supported 2D dimensions, tolerance, near-duplicate
 ## China-first coverage contract
 
 首个内部 synthetic coverage package 采用 `MarketScope=CN_MAINLAND` 与候选标识
-`CN_EAST_ASIAN_PRESENTATION_V1`。它只描述 China-market-first、clearly-adult、synthetic female
-stimuli 的生成/评估范围，不是 ancestry、nationality、ethnicity、race 或真实用户分类，也不宣称
-代表全部中国女性。
+`CN_EAST_ASIAN_PRESENTATION_V1`。它只描述 China-market-first、declared-adult、synthetic female
+stimuli 的生成/评估范围；其人工视觉呈现边界由当前版本化 rubric（一般非性感 cohort 为 ADR-030）
+约束。该 scope 不是 ancestry、nationality、ethnicity、race 或真实用户分类，也不宣称代表全部中国
+女性。
 
 架构必须分离：
 

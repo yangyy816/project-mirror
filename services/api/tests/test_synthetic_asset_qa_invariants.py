@@ -52,7 +52,8 @@ def session() -> Generator[Session]:
                 "synthetic_source_object_deletion_evidence, provider_cost_events, "
                 "synthetic_generation_evidence, synthetic_source_objects, generation_items, "
                 "generation_batches, job_attempts, jobs, synthetic_qa_policies, "
-                "synthetic_generation_policies, synthetic_prompt_templates, assets CASCADE"
+                "synthetic_generation_policies, synthetic_prompt_templates, assets, "
+                "offline_synthetic_source_admissions CASCADE"
             )
         )
     with Session(engine) as db_session:
@@ -475,7 +476,7 @@ def test_0010_downgrade_fails_closed_when_m3_authority_exists(
     engine = create_engine(database_url)
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "0010_synthetic_asset_qa"
+            "0011_offline_synth_source"
         )
     engine.dispose()
     get_settings.cache_clear()

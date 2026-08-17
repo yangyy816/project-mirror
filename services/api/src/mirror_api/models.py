@@ -1041,17 +1041,124 @@ class GenerationItem(IdMixin, TimestampMixin, Base):
     )
 
 
+class OfflineSyntheticSourceAdmission(IdMixin, Base):
+    """Immutable authority for an operator-admitted Codex-native raw source.
+
+    This deliberately records only facts exposed by the offline admission receipt;
+    provider/model/request/usage/cost facts remain known-null rather than being
+    replaced by invented placeholders.
+    """
+
+    __tablename__ = "offline_synthetic_source_admissions"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(96),
+        default="mirror.synthetic-dataset/OfflineSyntheticSourceAdmission/v1",
+        nullable=False,
+    )
+    admission_evidence_schema_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    specification_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    specification_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    generation_policy_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    prompt_template_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    prompt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    item_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    provenance_level: Mapped[str] = mapped_column(String(32), nullable=False)
+    cost_accounting_mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    synthetic_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    real_person_reference_used: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    admitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    media_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    byte_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    width: Mapped[int] = mapped_column(Integer, nullable=False)
+    height: Mapped[int] = mapped_column(Integer, nullable=False)
+    requested_width: Mapped[int | None] = mapped_column(Integer)
+    requested_height: Mapped[int | None] = mapped_column(Integer)
+    dimensions_match_requested: Mapped[bool | None] = mapped_column(Boolean)
+    storage_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    retention_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    admission_evidence_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_reference: Mapped[str | None] = mapped_column(String(128))
+    model_version_reference: Mapped[str | None] = mapped_column(String(128))
+    provider_request_reference: Mapped[str | None] = mapped_column(String(128))
+    provider_actual_seed: Mapped[int | None] = mapped_column(BigInteger)
+    provider_usage: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
+    provider_cost: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        UniqueConstraint("storage_reference", name="uq_offline_admission_storage"),
+        UniqueConstraint("admission_evidence_digest", name="uq_offline_admission_digest"),
+        UniqueConstraint(
+            "specification_reference",
+            "item_reference",
+            "attempt",
+            name="uq_offline_admission_attempt",
+        ),
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/OfflineSyntheticSourceAdmission/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint(
+            "admission_evidence_schema_version IN "
+            "('mirror.synthetic-dataset/CodexNativeAdmissionEvidence/v1',"
+            "'mirror.synthetic-dataset/CodexNativeAdmissionEvidence/v2')",
+            name="evidence_schema",
+        ),
+        CheckConstraint("source_kind = 'CODEX_NATIVE_IMAGEGEN'", name="source_kind"),
+        CheckConstraint("provenance_level = 'PROVENANCE_ONLY'", name="provenance_level"),
+        CheckConstraint("cost_accounting_mode = 'REQUEST_COUNT_ONLY'", name="cost_accounting_mode"),
+        CheckConstraint("synthetic_only", name="synthetic_only"),
+        CheckConstraint("NOT real_person_reference_used", name="no_real_person"),
+        CheckConstraint("attempt >= 1", name="attempt"),
+        CheckConstraint("prompt_digest ~ '^[0-9a-f]{64}$'", name="prompt_digest"),
+        CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="sha256"),
+        CheckConstraint("admission_evidence_digest ~ '^[0-9a-f]{64}$'", name="evidence_digest"),
+        CheckConstraint("media_type IN ('image/jpeg','image/png','image/webp')", name="media_type"),
+        CheckConstraint("byte_size > 0 AND width > 0 AND height > 0", name="positive_metadata"),
+        CheckConstraint(
+            "storage_reference ~ '^[a-z0-9][a-z0-9._:-]{2,127}$'",
+            name="storage_reference",
+        ),
+        CheckConstraint(
+            "(requested_width IS NULL AND requested_height IS NULL "
+            "AND dimensions_match_requested IS NULL) OR "
+            "(requested_width > 0 AND requested_height > 0 "
+            "AND dimensions_match_requested IS NOT NULL)",
+            name="request_dims",
+        ),
+        CheckConstraint(
+            "retention_expires_at > admitted_at AND admitted_at >= generated_at",
+            name="timestamp_order",
+        ),
+        CheckConstraint(
+            "model_reference IS NULL AND model_version_reference IS NULL "
+            "AND provider_request_reference IS NULL AND provider_actual_seed IS NULL "
+            "AND provider_usage IS NULL AND provider_cost IS NULL",
+            name="known_null_facts",
+        ),
+    )
+
+
 class SyntheticSourceObject(IdMixin, Base):
     __tablename__ = "synthetic_source_objects"
 
     schema_version: Mapped[str] = mapped_column(
         String(96), default="mirror.synthetic-dataset/SyntheticSourceObject/v1", nullable=False
     )
-    generation_item_id: Mapped[str] = mapped_column(
-        ForeignKey("generation_items.id", ondelete="RESTRICT"), unique=True, nullable=False
+    generation_item_id: Mapped[str | None] = mapped_column(
+        ForeignKey("generation_items.id", ondelete="RESTRICT"), unique=True
     )
-    job_attempt_id: Mapped[str] = mapped_column(
-        ForeignKey("job_attempts.id", ondelete="RESTRICT"), unique=True, nullable=False
+    job_attempt_id: Mapped[str | None] = mapped_column(
+        ForeignKey("job_attempts.id", ondelete="RESTRICT"), unique=True
+    )
+    offline_admission_id: Mapped[str | None] = mapped_column(
+        ForeignKey("offline_synthetic_source_admissions.id", ondelete="RESTRICT"), unique=True
     )
     storage_reference: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -1065,8 +1172,18 @@ class SyntheticSourceObject(IdMixin, Base):
     )
     __table_args__ = (
         CheckConstraint(
-            "schema_version = 'mirror.synthetic-dataset/SyntheticSourceObject/v1'",
+            "schema_version IN ('mirror.synthetic-dataset/SyntheticSourceObject/v1',"
+            "'mirror.synthetic-dataset/SyntheticSourceObject/v2')",
             name="schema_version",
+        ),
+        CheckConstraint(
+            "(schema_version = 'mirror.synthetic-dataset/SyntheticSourceObject/v1' "
+            "AND generation_item_id IS NOT NULL AND job_attempt_id IS NOT NULL "
+            "AND offline_admission_id IS NULL) OR "
+            "(schema_version = 'mirror.synthetic-dataset/SyntheticSourceObject/v2' "
+            "AND generation_item_id IS NULL AND job_attempt_id IS NULL "
+            "AND offline_admission_id IS NOT NULL)",
+            name="authority_shape",
         ),
         CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="sha256"),
         CheckConstraint("media_type IN ('image/jpeg','image/png','image/webp')", name="media_type"),

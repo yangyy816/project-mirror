@@ -1,0 +1,120 @@
+{
+  "schema_version": "mirror.p2-m3.v01-normalization-redacted-evidence/v1",
+  "validation_reference": "p2-m3-v01",
+  "status": "NORMALIZATION_PASS",
+  "execution_date": "2026-08-18",
+  "authority_references": ["adr-026", "adr-027", "adr-035"],
+  "migration_head": "0011_offline_synthetic_source_authority",
+  "source_manifest_reference": "P2_M2_V01_REDACTED_MANIFEST.json",
+  "source_manifest_sha256": "7f9c30e1e28d542705de19677a2545da9967ee5755435763d1ea8e96a54a926e",
+  "source_kind": "CODEX_NATIVE_IMAGEGEN",
+  "provenance_level": "PROVENANCE_ONLY",
+  "normalizer_version": "image-sanitizer-v1",
+  "normalizer_config_digest": "5ebe5ea3e9b0e5c8ad86b93166e38f11da7bdcd76a7a2801aadd0f30e32f81de",
+  "retention_policy_reference": "p2-m3-v01-offline-raw-retention-v1",
+  "counts": {
+    "offline_admissions": 8,
+    "offline_sources": 8,
+    "normalized_records": 8,
+    "normalized_assets": 8
+  },
+  "second_decode_passed": 8,
+  "idempotent_replay_passed": 8,
+  "item_evidence_digest": "eabea6fe4159cc8932d2ebd4d1797e0ed3aa3e982dcbc15b052f6136e294f299",
+  "items": [
+    {
+      "item_reference": "v01-category-a-01",
+      "source_sha256": "7a33792fd24266e38f0672274bf112b7722b3a66ab0d770599d4d616232a936e",
+      "source_byte_size": 1902265,
+      "source_dimensions": [1254, 1254],
+      "normalized_sha256": "67fe578bf2079813dd24a231c70c32d4c8b760124feaeccc4e35dbea6c5aa0a3",
+      "normalized_byte_size": 292796,
+      "normalized_dimensions": [1254, 1254],
+      "status": "NORMALIZED"
+    },
+    {
+      "item_reference": "v01-category-a-02",
+      "source_sha256": "8352aa17791de092ae8ad79e6c4fbc98771af47aaee7918926f5654c16f56a7e",
+      "source_byte_size": 1989786,
+      "source_dimensions": [1254, 1254],
+      "normalized_sha256": "71fc0fadc69841664664cd912132edb2d64adc227a78755be38dedf5113add1e",
+      "normalized_byte_size": 312068,
+      "normalized_dimensions": [1254, 1254],
+      "status": "NORMALIZED"
+    },
+    {
+      "item_reference": "v01-category-b-01",
+      "source_sha256": "27288382e4cac7a3ceb4afcd454086c48bbdc90f8f1c6cb764bd953282787ccb",
+      "source_byte_size": 1912954,
+      "source_dimensions": [1254, 1254],
+      "normalized_sha256": "73bc33073b7366f110c7b01e6bc9c17b885107ab058c81e71a1da8696d8eebd6",
+      "normalized_byte_size": 295224,
+      "normalized_dimensions": [1254, 1254],
+      "status": "NORMALIZED"
+    },
+    {
+      "item_reference": "v01-category-b-02",
+      "source_sha256": "c6fdff581b15d09aec8eb028dece37d9b9c099188df46d49111ea168c1a65abc",
+      "source_byte_size": 1845916,
+      "source_dimensions": [1254, 1254],
+      "normalized_sha256": "3532d0f7e30d64916a81059c24e6e0ea33f3c9fa5fff66600f7131a6728c9a05",
+      "normalized_byte_size": 303758,
+      "normalized_dimensions": [1254, 1254],
+      "status": "NORMALIZED"
+    },
+    {
+      "item_reference": "v01-category-c-01",
+      "source_sha256": "eaf9b129a32a1505adb73da698905f41d59dbb262d0d34017d83be86112077cb",
+      "source_byte_size": 1804103,
+      "source_dimensions": [1254, 1254],
+      "normalized_sha256": "de823f0eb0dff5707b36acc86f974e643004261f7ad252671fb32563627ba969",
+      "normalized_byte_size": 264207,
+      "normalized_dimensions": [1254, 1254],
+      "status": "NORMALIZED"
+    },
+    {
+      "item_reference": "v01-category-c-02",
+      "source_sha256": "a223c9c994547d06e6c936496dfa84352660465df73a9f761eaa2a44be6d07c2",
+      "source_byte_size": 1861853,
+      "source_dimensions": [1254, 1254],
+      "normalized_sha256": "a84f6a0316a665f311b42bf4c88d51caab1e0327109529d72f1a05d45940c3c5",
+      "normalized_byte_size": 276554,
+      "normalized_dimensions": [1254, 1254],
+      "status": "NORMALIZED"
+    },
+    {
+      "item_reference": "v01-category-d-01",
+      "source_sha256": "ae9e1ed11023c364fbf01c6e3d3caf67fb0f5660a8a55fb7d7b00b0afb5c9399",
+      "source_byte_size": 1931495,
+      "source_dimensions": [1254, 1254],
+      "normalized_sha256": "8e0ebb84869aa7d47af8f75425f6ea53b9c340afbff6dca47805e2722529d3e6",
+      "normalized_byte_size": 302272,
+      "normalized_dimensions": [1254, 1254],
+      "status": "NORMALIZED"
+    },
+    {
+      "item_reference": "v01-category-d-02",
+      "source_sha256": "fc9f585d669f26c684108994ee29fff0a025c63bdf657d11e2ace1492ee96be6",
+      "source_byte_size": 1805372,
+      "source_dimensions": [1254, 1254],
+      "normalized_sha256": "c225320284eceec77dbdf24d9a806ce77f030f40f17237487719411bcc8255c5",
+      "normalized_byte_size": 271479,
+      "normalized_dimensions": [1254, 1254],
+      "status": "NORMALIZED"
+    }
+  ],
+  "tracked_binary_count": 0,
+  "prompt_text_committed": false,
+  "private_path_committed": false,
+  "storage_reference_committed": false,
+  "provider_unknown_facts_fabricated": false,
+  "limitations": {
+    "vision_candidate_status": "CANDIDATE_FAILED_REPLACEMENT_REQUIRED",
+    "automatic_face_pose_landmark_qa": "NOT_VERIFIED",
+    "adult_presentation_review": "NOT_VERIFIED_BY_M3_QA",
+    "identity_registration": "BLOCKED",
+    "question_bank_release": "NOT_AUTHORIZED",
+    "production_vision_enabled": false,
+    "real_user_facial_processing_enabled": false
+  }
+}
