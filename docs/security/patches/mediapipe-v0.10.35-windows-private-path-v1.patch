@@ -1,0 +1,33 @@
+diff --git a/third_party/opencv_v03_reproducible_build_info.diff b/third_party/opencv_v03_reproducible_build_info.diff
+--- a/third_party/opencv_v03_reproducible_build_info.diff
++++ b/third_party/opencv_v03_reproducible_build_info.diff
+@@ -2,7 +2,7 @@ diff --git a/cmake/OpenCVUtils.cmake b/cmake/OpenCVUtils.cmake
+ index 969c3d8..3a68f5b 100644
+ --- a/cmake/OpenCVUtils.cmake
+ +++ b/cmake/OpenCVUtils.cmake
+-@@ -918,1 +918,7 @@
++@@ -918,1 +918,21 @@
+  macro(ocv_finalize_status)
+ +  # The build report is compiled into libopencv_core. Normalize the foreign_cc
+ +  # sandbox root so clean builds do not embed private paths or action numbers.
+@@ -10,6 +10,20 @@ index 969c3d8..3a68f5b 100644
+ +  string(REPLACE "${_opencv_v03_build_root}" "/mirror-v03" OPENCV_BUILD_INFO_STR "${OPENCV_BUILD_INFO_STR}")
+ +  unset(_opencv_v03_build_root)
+ +
+++  # Windows CMake records the absolute compiler and build-tool paths in the
+++  # report compiled into opencv_core. Preserve tool identity while removing
+++  # the private installation prefix from the distributable artifact.
+++  if(WIN32)
+++    foreach(_opencv_v03_tool_path "${CMAKE_BUILD_TOOL}" "${CMAKE_C_COMPILER}" "${CMAKE_CXX_COMPILER}")
+++      if(_opencv_v03_tool_path)
+++        get_filename_component(_opencv_v03_tool_name "${_opencv_v03_tool_path}" NAME)
+++        string(REPLACE "${_opencv_v03_tool_path}" "${_opencv_v03_tool_name}" OPENCV_BUILD_INFO_STR "${OPENCV_BUILD_INFO_STR}")
+++      endif()
+++    endforeach()
+++    unset(_opencv_v03_tool_path)
+++    unset(_opencv_v03_tool_name)
+++  endif()
+++
+ diff --git a/modules/core/CMakeLists.txt b/modules/core/CMakeLists.txt
+ --- a/modules/core/CMakeLists.txt
+ +++ b/modules/core/CMakeLists.txt

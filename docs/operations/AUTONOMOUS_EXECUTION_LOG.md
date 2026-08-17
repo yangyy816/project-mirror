@@ -52,3 +52,46 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - All five normalized artifacts reverse-apply-check against their exact prepared source/override
   snapshots; the runtime closure also apply-checks against the pre-Windows baseline. `git diff
 --check` is clean after normalization.
+
+## 2026-08-18T04:35:00+08:00 — P2-M3-R15 build success and R16 closure defects
+
+- `bw23` completed the exact Windows build with exit code zero after R15 pinned the frozen NMake,
+  resource compiler and manifest-tool paths. The 4,561-action build produced the main Face
+  Landmarker DLL and both OpenCV DLLs; this proves the toolchain path works but does not satisfy
+  reproducibility acceptance.
+- PE inspection found an absolute private output-root PDB path in the main DLL. The same class of
+  path is present in the OpenCV DLLs, so the artifacts fail the mandatory private-path scan before
+  any two-root equality claim.
+- The second fresh root `bw24` independently reached the compile phase, then visibly compiled
+  `fftsg2d.c` and `fftsg.c`. An exact configured Bazel `somepath` query identified the remaining
+  closure as Face Landmarker -> TFLite builtin kernels -> internal audio utilities -> `@fft2d`.
+  This contradicts ADR-034's no-Ooura closure outcome.
+- `bw24` was stopped normally at 1,842/4,561 actions once both mandatory failures were proven; its
+  root is retained and is not reused. No successful or reproducible claim is made for `bw24`.
+- A two-root MSVC probe proved `/Brepro /DEBUG:NONE` removes the RSDS/PDB path and yields
+  byte-identical DLLs with the same basename. R16 is therefore bounded to removing unused
+  AudioSpectrogram/MFCC/RFFT registrations and dependencies from the fixed-model V03 closure and
+  suppressing debug-path metadata in the Windows candidate DLLs. Model operator inventory and
+  Stage C remain mandatory regression evidence.
+
+## 2026-08-18T06:45:00+08:00 — P2-M3-R17/R18 Windows clean reproduction
+
+- R17 removed unused AudioSpectrogram/MFCC/RFFT2D registrations and dependencies. Configured
+  `somepath` from the minimal target to `@fft2d//:fft2d` is empty, and the 4,549-action graph no
+  longer compiles Ooura sources. The target also disables Bazel's `fastbuild` feature because
+  configured action evidence proved its later `/DEBUG:FASTLINK` overrode `/DEBUG:NONE`.
+- R17 patch SHA-256 is
+  `7099bdb0ed223d71110a18148880090f15311220f75e20cb1af6eb9619cca5dc`. Fresh roots `bw26` and
+  `bw27` completed successfully and produced byte-identical artifacts, but strict review found the
+  private MSVC/NMake installation path in OpenCV core's compiled build report.
+- R18 changes only that Windows report normalization; patch SHA-256 is
+  `b57ed5b0643d830cc9d66ad063eea211cbbab2b50c98df70d2b22f00b102775d`. The generated report now
+  records only `cl.exe` and `nmake.exe`.
+- Fresh roots `bw28` and `bw29` each completed 4,549 actions. Main/core/imgproc pairs are
+  byte-identical with SHA-256 values
+  `f99ba0a489d673ff58a1870a9e16037260913dca02912cf304173993e7e5e199`,
+  `19b1b9bad3c7ad402858f97ccdc0299defbfe1d18f3a3b83bc786d7c3e443c91` and
+  `1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4`.
+- Six-artifact scans found zero actual private path, PDB/RSDS, Ooura, Clearcut, certifi/CA-bundle or
+  Windows network API. PE debug records are deterministic `coffgrp`/`repro`, not PDB references.
+  Windows static reproduction passes; hardened Linux reproduction, audit and Stage C remain next.

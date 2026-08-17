@@ -254,7 +254,7 @@ network imports or Clearcut/CA-bundle strings. R05 clean reproduction is recorde
 distribution rights, remaining vulnerability dispositions, Windows toolchain/build and all
 runtime/model stages remain pending.
 
-`P2_M3_V03_STATUS: STAGE_B_LINUX_REPRODUCIBILITY_PASS_AUDIT_IN_PROGRESS`
+`P2_M3_V03_STATUS: STAGE_B_WINDOWS_REPRODUCIBILITY_PASS_HARDENED_LINUX_REPLAY_PENDING`
 
 `P2-M3-R05` closed the Linux bit-reproducibility defect. Two fresh no-network 4,610-action builds
 produced byte-identical main, OpenCV core and OpenCV imgproc libraries. All private path scans were
@@ -300,6 +300,31 @@ respectively, `9c4524600297eda5f7df81b2aa7ed2b82b90907f33f441725710a3a7a56431ff`
 `c401de5d81a420ecdaa30f9c711b9b45d2bafdecbc7a5e7b71a0003845d02146`. Each reverse-apply-checks
 against its prepared exact snapshot; the runtime closure also apply-checks against the pre-Windows
 baseline, and repository `git diff --check` is clean.
+
+`P2-M3-R17` closes two Windows closure defects. The exact configured graph no longer has a path from
+the minimal Face Landmarker target to `@fft2d`; unused AudioSpectrogram/MFCC/RFFT2D registrations and
+sources are absent. Bazel's target-level `fastbuild` feature is disabled so its later
+`/DEBUG:FASTLINK` cannot override `/DEBUG:NONE` and create an RSDS/PDB reference. The tracked patch
+SHA-256 is `7099bdb0ed223d71110a18148880090f15311220f75e20cb1af6eb9619cca5dc`.
+
+`bw26` and `bw27` proved byte reproducibility for the resulting 4,549-action graph, but a stricter
+scan found the frozen MSVC/NMake installation path in the OpenCV core build report. `P2-M3-R18`
+canonicalizes only those report fields to `cl.exe`/`nmake.exe`; its patch SHA-256 is
+`b57ed5b0643d830cc9d66ad063eea211cbbab2b50c98df70d2b22f00b102775d`.
+
+Fresh roots `bw28` and `bw29` each completed all 4,549 actions with exit code zero. The corresponding
+main, OpenCV core and OpenCV imgproc DLLs are byte-identical. Their final size/SHA-256 pairs are:
+
+- 30,324,736 / `f99ba0a489d673ff58a1870a9e16037260913dca02912cf304173993e7e5e199`;
+- 2,302,464 / `19b1b9bad3c7ad402858f97ccdc0299defbfe1d18f3a3b83bc786d7c3e443c91`;
+- 2,385,408 / `1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4`.
+
+All six final DLLs have zero actual private-root, PDB/RSDS, Ooura, Clearcut, certifi/CA-bundle and
+Windows network-API matches. Imports remain bounded to OpenCV, MSVC/CRT and Windows runtime support;
+all seven required Face Landmarker lifecycle/detection exports are present. Deterministic
+`coffgrp`/`repro` PE records remain and are not PDB references. Windows static build/reproduction
+evidence passes, but the hardened R17 graph still requires two fresh Linux reproductions, updated
+license/SBOM/vulnerability evidence and Stage C zero-egress runtime qualification before V02.
 
 ## Deferred production boundary
 

@@ -18,9 +18,16 @@
 
 `LINUX_DISTRIBUTION_LICENSE_GATE: BLOCKED`
 
-The exact frozen Linux closure now builds successfully with Docker networking disabled. This does
-not yet authorize model loading or inference because the Linux license/SBOM/vulnerability review,
-the Windows build and both-platform runtime qualification remain open.
+`WINDOWS_OFFLINE_BUILD: PASS`
+
+`WINDOWS_BIT_REPRODUCIBILITY: PASS`
+
+`WINDOWS_ARTIFACT_PATH_AND_NETWORK_SURFACE_AUDIT: PASS`
+
+The exact frozen Linux closure builds reproducibly with Docker networking disabled, and the hardened
+Windows closure now builds reproducibly in two fresh roots. This does not yet authorize model loading
+or inference: Linux must be replayed with the cross-platform R17 closure, the remaining license/SBOM/
+vulnerability review must close, and both-platform Stage C runtime qualification remains open.
 
 ## Frozen source and patches
 
@@ -36,6 +43,14 @@ the Windows build and both-platform runtime qualification remain open.
   `192056a6ad29362442fe440bf24ea4f998b09172ab0807f91bc9c24a96d41c68`.
   It normalizes foreign-build paths, disables OpenCV RPATH and omits the OpenCV build-report
   wall-clock timestamp. It does not change modules, algorithms, dependencies or runtime behavior.
+- `P2-M3-R17` Windows reproducibility/unused-audio closure patch SHA-256:
+  `7099bdb0ed223d71110a18148880090f15311220f75e20cb1af6eb9619cca5dc`. It disables the
+  toolchain-implied FASTLINK/PDB feature for the minimal Windows DLL and removes unused
+  AudioSpectrogram/MFCC/RFFT2D registrations and the resulting Ooura closure.
+- `P2-M3-R18` Windows OpenCV build-report path repair SHA-256:
+  `b57ed5b0643d830cc9d66ad063eea211cbbab2b50c98df70d2b22f00b102775d`. It replaces only
+  absolute Windows compiler/build-tool paths in the OpenCV report with `cl.exe`/`nmake.exe`; Linux
+  behavior, modules and algorithms are unchanged.
 - The runtime and build-lock patches pass reverse-apply validation against the inspected private
   working tree. The repair overlay passes apply-check against that frozen patched tree.
 
@@ -55,6 +70,33 @@ The private builder inventory contains 183 Debian package records and has SHA-25
 `3e1b20f7a0da2a214f204e94fc9f4fc26aa9432058d2693ffd8016483084a405`. It must be retained
 with the final SBOM evidence. No builder image or compiler is adopted into Project Mirror runtime
 images.
+
+## Windows clean reproduction evidence
+
+The first R17 candidate root, `bw25`, proved that `/DEBUG:NONE` alone was insufficient: Bazel's
+Windows `fastbuild` feature appended `/DEBUG:FASTLINK` later in the link action and generated an
+RSDS/PDB path. The minimal target now disables that feature while retaining `/DEBUG:NONE`.
+Configured `somepath` from the target to `@fft2d//:fft2d` is empty after removal of the unused audio
+registrations and sources.
+
+Fresh roots `bw26` and `bw27` each completed 4,549 actions, but a strict scan then found the frozen
+MSVC/NMake installation path in `opencv_core3411.dll`'s compiled build report. R18 retained the tool
+identity while canonicalizing those three report fields. Fresh roots `bw28` and `bw29` then each
+completed the same 4,549-action command with exit code zero. Corresponding artifacts are byte-identical:
+
+- Face Landmarker C ABI DLL: 30,324,736 bytes; SHA-256
+  `f99ba0a489d673ff58a1870a9e16037260913dca02912cf304173993e7e5e199`.
+- OpenCV core 3.4.11 DLL: 2,302,464 bytes; SHA-256
+  `19b1b9bad3c7ad402858f97ccdc0299defbfe1d18f3a3b83bc786d7c3e443c91`.
+- OpenCV imgproc 3.4.11 DLL: 2,385,408 bytes; SHA-256
+  `1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4`.
+
+All six final DLLs have zero actual private-root, `bw28`/`bw29`, PDB/RSDS, Ooura, Clearcut,
+certifi/CA-bundle and Windows network-API matches. Imports are limited to OpenCV, MSVC/CRT,
+`dbghelp.dll`, `ADVAPI32.dll` and `KERNEL32.dll`; the main DLL exports 203 symbols and contains all
+seven required Face Landmarker lifecycle/detection entries. PE debug directories contain only
+deterministic `coffgrp` and `repro` records, not a PDB reference. Exact exports remain inventory
+evidence rather than a newly invented Windows export allowlist.
 
 ## Configured dependency evidence
 
@@ -152,24 +194,26 @@ the main library are semantic API constants, not build dates.
   `CVE-2025-53644`. The built closure contains only `core,imgproc`; objdetect/HOG, video/DIS and
   imgcodecs/JPEG findings are outside that module closure. `CVE-2019-14493` still requires a sourced
   reachability/false-positive disposition before approval.
-- The main binary contains OouraFFT entry points `cdft`, `rdft`, `ddct`, `ddst`, `dfct` and `dfst`.
+- The previously reproduced Linux main binary contains OouraFFT entry points `cdft`, `rdft`, `ddct`,
+  `ddst`, `dfct` and `dfst`.
   The retained notice clearly permits use/copy/modify and distribution of the "ORIGINAL package",
   but modified/binary redistribution is not sufficiently clear for this Gate. Internal isolated
   research may continue; distribution and production remain blocked pending independent license
   judgment or removal of OouraFFT from the closure.
+
+  R17 removes that unused closure on Windows, but the same hardened source must be replayed in two
+  fresh Linux roots before the Linux distribution blocker can be closed.
 
 Grype coverage is source/SBOM focused and cannot prove reachability or absence of vulnerabilities by
 itself. These findings do not convert the source build into a runtime, model or production approval.
 
 ## Next Gate
 
-Close the OouraFFT distribution question and the remaining sourced vulnerability dispositions, then
-freeze and execute the Windows build with the same source and overlays. Linux clean-output bit
-reproduction is complete, but `SOURCE_BUILD_APPROVED_FOR_POC` remains `NO` until the whole Stage B
-contract passes.
-
-Windows toolchain and build remain mandatory and pending. No model execution, calibration, holdout or
-identity registration is authorized by this report.
+Replay the R17 hardened closure in two fresh no-network Linux roots, then finish sourced vulnerability,
+license and SBOM dispositions. Windows clean reproduction is complete, but
+`SOURCE_BUILD_APPROVED_FOR_POC` remains `NO` until the whole Stage B contract and both-platform Stage C
+runtime qualification pass. No model execution, calibration, holdout or identity registration is
+authorized by this report.
 
 `PROJECT_DEPENDENCIES_ADDED: NONE`
 

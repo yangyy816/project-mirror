@@ -1,0 +1,137 @@
+diff --git a/mediapipe/tasks/c/BUILD b/mediapipe/tasks/c/BUILD
+index 67878b1..469aeb1 100644
+--- a/mediapipe/tasks/c/BUILD
++++ b/mediapipe/tasks/c/BUILD
+@@ -73,11 +73,18 @@ cc_binary(
+ # text, GenAI, and unrelated vision task entry points from the shared library.
+ cc_binary(
+     name = "mirror_face_landmarker_source",
++    features = select({
++        "@platforms//os:windows": ["-fastbuild"],
++        "//conditions:default": [],
++    }),
+     linkopts = select({
+         "@platforms//os:linux": [
+             "-Wl,-soname=libmirror_face_landmarker.so",
+             "-Wl,--version-script=$(location :mediapipe_tasks_c_version_script.lds)",
+         ],
++        "@platforms//os:windows": [
++            "/DEBUG:NONE",
++        ],
+         "//conditions:default": [],
+     }),
+     linkshared = True,
+diff --git a/third_party/BUILD b/third_party/BUILD
+index dbe82e5..69376f5 100644
+--- a/third_party/BUILD
++++ b/third_party/BUILD
+@@ -280,7 +280,11 @@ OPENCV_CMAKE_CACHE_ENTRIES = select({
+         # so try_compile and shared-library manifest steps fail closed instead
+         # of emitting CMAKE_MT-NOTFOUND.
+         "CMAKE_MT": "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/mt.exe",
+-        "CMAKE_SHARED_LINKER_FLAGS": "/Brepro",
++        "CMAKE_RC_COMPILER": "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/rc.exe",
++        # Native CMake cannot resolve nmake.exe through rules_foreign_cc's
++        # BusyBox/POSIX-form PATH. Pin the matching frozen MSVC tool directly.
++        "CMAKE_MAKE_PROGRAM": "D:/p/.local-storage/p2-m3-vision-v03/toolchain/vs2022-buildtools/VC/Tools/MSVC/14.44.35207/bin/HostX64/x64/nmake.exe",
++        "CMAKE_SHARED_LINKER_FLAGS": "/Brepro /DEBUG:NONE",
+         "CMAKE_SYSTEM_PROCESSOR": "AMD64",
+         "WITH_PROTOBUF": "OFF",
+         "WITH_PTHREADS": "OFF",
+@@ -296,6 +300,13 @@ cmake(
+     name = "opencv_cmake",
+     # Values to be passed as -Dkey=value on the CMake command line.
+     cache_entries = OPENCV_CMAKE_CACHE_ENTRIES,
++    # Ninja 1.12.1 reproducibly deadlocks after the MSVC compiler probe emits
++    # its object in the nested CMake configure. Keep Linux on the existing
++    # generator and use rules_foreign_cc's supported NMake path on Windows.
++    generate_args = select({
++        "//mediapipe:windows": ["-G \"NMake Makefiles\""],
++        "//conditions:default": [],
++    }),
+     lib_source = "@opencv//:all",
+     linkopts = [] if OPENCV_SHARED_LIBS else [
+         # When using static libraries, the binary that eventually depends on the
+diff --git a/third_party/org_tensorflow_v03_remove_rfft2d.diff b/third_party/org_tensorflow_v03_remove_rfft2d.diff
+index 5d50393..625324f 100644
+--- a/third_party/org_tensorflow_v03_remove_rfft2d.diff
++++ b/third_party/org_tensorflow_v03_remove_rfft2d.diff
+@@ -1,27 +1,63 @@
+ diff --git a/tensorflow/lite/core/kernels/register.cc b/tensorflow/lite/core/kernels/register.cc
+-index 2f4e87dd7c9..cced4ba5abf 100644
+ --- a/tensorflow/lite/core/kernels/register.cc
+ +++ b/tensorflow/lite/core/kernels/register.cc
+-@@ -330,6 +330,5 @@ BuiltinOpResolver::BuiltinOpResolver() {
++@@ -27,5 +27,3 @@ namespace custom {
++ TfLiteRegistration* Register_NUMERIC_VERIFY();
++-TfLiteRegistration* Register_AUDIO_SPECTROGRAM();
++-TfLiteRegistration* Register_MFCC();
++ TfLiteRegistration* Register_DETECTION_POSTPROCESS();
++ TfLiteRegistration* Register_HADAMARD_ROTATION();
++@@ -331,6 +329,5 @@ BuiltinOpResolver::BuiltinOpResolver() {
+    AddBuiltin(BuiltinOperator_CALL_ONCE,
+               tflite::ops::builtin::Register_CALL_ONCE());
+ -  AddBuiltin(BuiltinOperator_RFFT2D, Register_RFFT2D());
+    AddBuiltin(BuiltinOperator_CONV_3D, Register_CONV_3D());
+    AddBuiltin(BuiltinOperator_IMAG, Register_IMAG());
+    AddBuiltin(BuiltinOperator_REAL, Register_REAL());
++@@ -393,9 +390,6 @@ BuiltinOpResolver::BuiltinOpResolver() {
++   AddCustom("NumericVerify", tflite::ops::custom::Register_NUMERIC_VERIFY());
++   // TODO(andrewharp, ahentz): Move these somewhere more appropriate so that
++   // custom ops aren't always included by default.
++-  AddCustom("Mfcc", tflite::ops::custom::Register_MFCC());
++-  AddCustom("AudioSpectrogram",
++-            tflite::ops::custom::Register_AUDIO_SPECTROGRAM());
++   AddCustom("TFLite_Detection_PostProcess",
++             tflite::ops::custom::Register_DETECTION_POSTPROCESS());
++   AddCustom("aeq.hadamard_rotation",
+ diff --git a/tensorflow/lite/kernels/BUILD b/tensorflow/lite/kernels/BUILD
+-index 3aa720bfbc1..196c435ed5d 100644
+ --- a/tensorflow/lite/kernels/BUILD
+ +++ b/tensorflow/lite/kernels/BUILD
+-@@ -740,7 +740,6 @@ BUILTIN_KERNEL_SRCS = [
++@@ -621,6 +621,5 @@ BUILTIN_KERNEL_SRCS = [
++     "arg_min_max.cc",
++     "atan2.cc",
++-    "audio_spectrogram.cc",
++     "basic_rnn.cc",
++     "batch_matmul.cc",
++     "batch_to_space_nd.cc",
++@@ -677,7 +676,6 @@ BUILTIN_KERNEL_SRCS = [
++     "matrix_diag.cc",
++     "matrix_set_diag.cc",
++     "maximum_minimum.cc",
++-    "mfcc.cc",
++     "mirror_pad.cc",
++     "mul.cc",
++     "neg.cc",
++@@ -740,6 +738,5 @@ BUILTIN_KERNEL_SRCS = [
+      "where.cc",
+      "while.cc",
+      "zeros_like.cc",
+ -    "rfft2d.cc",
+      "rng_bit_generator.cc",
+  ]
+-
+-@@ -819,7 +818,6 @@ cc_library(
++@@ -773,7 +770,6 @@ BUILTIN_KERNEL_DEPS = [
++     "//tensorflow/lite:util",
++     "//tensorflow/lite/core/c:common",
++-    "//tensorflow/lite/kernels/internal:audio_utils",
++     "//tensorflow/lite/kernels/internal:common",
++     "//tensorflow/lite/kernels/internal:compatibility",
++     "//tensorflow/lite/kernels/internal:cpu_check",
++     "//tensorflow/lite/kernels/internal:kernel_utils",
++@@ -819,7 +815,6 @@ cc_library(
+      deps = BUILTIN_KERNEL_DEPS + [
+          ":variable_op_kernels",
+          "@FP16",
+@@ -29,7 +65,7 @@ index 3aa720bfbc1..196c435ed5d 100644
+          "@ruy//ruy/profiler:instrumentation",
+          "//tensorflow/lite/c:c_api_types",
+          "//tensorflow/lite/c:common",
+-@@ -834,7 +832,6 @@ cc_library(
++@@ -833,7 +828,6 @@ cc_library(
+          "//tensorflow/lite/experimental/resource",
+          "//tensorflow/lite/kernels/internal:cppmath",
+          "//tensorflow/lite:string",
