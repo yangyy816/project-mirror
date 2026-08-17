@@ -204,6 +204,19 @@ and must reconcile all eight private checksums before use.
 
 `P2_M3_VISION_REPLACEMENT_REQUIRED: YES`
 
+## V03 source-built replacement candidate
+
+- ADR-032 and `P2_M3_V03_SOURCE_BUILT_VISION_PROTOCOL.md` authorize only an exact-source Stage A
+  feasibility study at MediaPipe commit `f8ef212d5c962c0e853db7e59d217056b187084b`.
+- The upstream `0.10.35` wheels remain rejected; a blocked destination or hidden warning is not a
+  telemetry fix.
+- Before build or execution, the patch, toolchain, dependency lock, artifact hashes, native
+  inventory, license/NOTICE set and private SBOM must be frozen.
+- Both Windows and Linux must prove the runtime closure has no Clearcut, telemetry, HTTP/network or
+  CA-bundle path and makes zero egress attempts. Calibration and holdout remain closed.
+
+`P2_M3_V03_STATUS: PREREGISTERED_SOURCE_FEASIBILITY_ONLY`
+
 ## Deferred production boundary
 
 `PRODUCTION-BLOCKER-IMAGEGEN-PROVIDER` remains `OPEN`. M3 synthetic research does not approve a

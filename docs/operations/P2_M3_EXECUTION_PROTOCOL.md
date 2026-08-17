@@ -7,7 +7,7 @@
 - Entry run: `31958786882`; all three jobs passed with exact-SHA artifacts
 - Branch: `codex/phase2-m3-normalization-base-qa`
 - State: `EXECUTING`
-- Architecture authority: ADR-021–031
+- Architecture authority: ADR-021–032
 - Scope: synthetic-only normalization, base QA evidence and canonical identity registration
 - Public API impact: none
 - Production image-generation Provider: `NOT_CONFIGURED`; generation remains `FAIL_CLOSED`
@@ -18,6 +18,13 @@ P2-M2-V01 Codex-native raw assets to be used for Pillow normalization, metadata 
 safety, synthetic Vision QA and QA policy calibration. It does not authorize real user photographs,
 runtime Codex invocation, ChatGPT Web automation, unofficial endpoints or production Provider
 approval.
+
+ADR-032 preregisters a new source-feasibility path for an exact MediaPipe `v0.10.35` source build
+whose Face Landmarker closure must remove Clearcut, telemetry, HTTP/network and CA-bundle plumbing.
+The rejected upstream wheels remain prohibited. Stage A may inspect only the frozen Git commit in
+private ignored storage; build, install, model execution and calibration remain closed until their
+preceding evidence and Principal approvals exist. Complete rules are in
+`docs/research/P2_M3_V03_SOURCE_BUILT_VISION_PROTOCOL.md`.
 
 ## Frozen boundary
 
