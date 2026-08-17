@@ -179,7 +179,7 @@ def test_upgrade_downgrade_reupgrade_and_schema_consistency(
             )
         ).one()
     assert restored_identity == ("deterministic_fixture", "fixture-v1", "fixture-prompt-v1")
-    command.upgrade(config, "0010_synthetic_asset_qa")
+    command.upgrade(config, "head")
     command.check(config)
     engine.dispose()
     get_settings.cache_clear()

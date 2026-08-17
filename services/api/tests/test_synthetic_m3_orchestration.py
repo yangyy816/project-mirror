@@ -4,7 +4,6 @@ import asyncio
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -41,7 +40,6 @@ from mirror_api.synthetic_dataset.orchestration_service import (
 from mirror_api.synthetic_dataset.task_contract import SyntheticQATaskMessage
 
 pytestmark = pytest.mark.integration
-NOW = datetime(2026, 8, 17, 12, tzinfo=UTC)
 
 
 @asynccontextmanager
@@ -195,7 +193,7 @@ async def _qa_run(
 async def test_identity_registration_is_concurrent_idempotent_and_lease_guarded() -> None:
     async with _database() as sessions:
         record_id, run_id = await _qa_run(sessions)
-        service = CanonicalIdentityRegistrationService(session_factory=sessions, now=lambda: NOW)
+        service = CanonicalIdentityRegistrationService(session_factory=sessions, now=utcnow)
         first, second = await asyncio.gather(
             service.register(record_id=record_id, qa_run_id=run_id),
             service.register(record_id=record_id, qa_run_id=run_id),
@@ -247,13 +245,13 @@ async def test_normalization_task_is_reference_only_idempotent_and_lease_guarded
             raw_storage=raw_storage,
             normalized_storage=LocalSyntheticNormalizedStorageProvider(root=private_root),
             spool_root=tmp_path / "spool",
-            now=lambda: NOW,
+            now=utcnow,
         )
         record_id = await normalizer.ensure_record(source_object_id=source.id)
         service = SyntheticM3OrchestrationService(
             session_factory=sessions,
             normalizer=normalizer,
-            now=lambda: NOW + timedelta(minutes=1),
+            now=utcnow,
         )
         message = await service.schedule_normalization(
             record_id=record_id, request_id="m3-normalization-idempotent"
@@ -277,7 +275,7 @@ async def test_qa_rejection_is_distinct_from_execution_failure_and_message_is_id
         service = SyntheticM3OrchestrationService(
             session_factory=sessions,
             normalizer=_NoopNormalizer(),  # type: ignore[arg-type]
-            now=lambda: NOW + timedelta(minutes=1),
+            now=utcnow,
         )
         message = await service.schedule_qa(qa_run_id=run_id, request_id="m3-qa-idempotent")
         assert isinstance(message, SyntheticQATaskMessage)
@@ -297,7 +295,7 @@ async def test_reconciliation_recovers_passed_qa_before_identity_registration() 
         service = SyntheticM3OrchestrationService(
             session_factory=sessions,
             normalizer=_NoopNormalizer(),  # type: ignore[arg-type]
-            now=lambda: NOW + timedelta(minutes=1),
+            now=utcnow,
         )
         candidates = await service.reconciliation_candidates()
         assert len(candidates) == 1
@@ -323,7 +321,7 @@ async def test_retry_exhaustion_terminalizes_qa_authority_and_stops_dispatch(
         service = SyntheticM3OrchestrationService(
             session_factory=sessions,
             normalizer=_NoopNormalizer(),  # type: ignore[arg-type]
-            now=lambda: NOW + timedelta(minutes=1),
+            now=utcnow,
         )
 
         async def unavailable(_: object) -> object:
@@ -374,7 +372,7 @@ async def test_redis_celery_executes_only_the_reference_only_qa_message() -> Non
         service = SyntheticM3OrchestrationService(
             session_factory=sessions,
             normalizer=_NoopNormalizer(),  # type: ignore[arg-type]
-            now=lambda: NOW + timedelta(minutes=1),
+            now=utcnow,
         )
         message = await service.schedule_qa(qa_run_id=run_id, request_id="m3-celery-qa")
         with start_worker(

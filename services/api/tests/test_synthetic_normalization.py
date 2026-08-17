@@ -181,10 +181,11 @@ async def _raw_source(
         )
         session.add_all((item, attempt))
         await session.commit()
+        event_at = datetime.now(UTC)
         await session.execute(
             update(GenerationItem)
             .where(GenerationItem.id == item.id)
-            .values(status="GENERATING", started_at=NOW)
+            .values(status="GENERATING", started_at=event_at)
         )
         await session.commit()
         reference = synthetic_raw_storage_reference(item.id, attempt.id)
@@ -205,8 +206,8 @@ async def _raw_source(
             byte_size=stored.byte_size,
             width=width,
             height=height,
-            retention_expires_at=NOW + timedelta(days=1),
-            created_at=NOW,
+            retention_expires_at=event_at + timedelta(days=1),
+            created_at=event_at,
         )
         session.add_all(
             (
@@ -227,8 +228,8 @@ async def _raw_source(
                     provider_actual_seed=None,
                     provider_actual_parameters={},
                     reproducibility_level="BIT_EXACT",
-                    generated_at=NOW,
-                    created_at=NOW,
+                    generated_at=event_at,
+                    created_at=event_at,
                 ),
                 ProviderCostEvent(
                     id=new_id(),
@@ -238,8 +239,8 @@ async def _raw_source(
                     currency="CNY",
                     amount_micros=100,
                     pricing_snapshot_reference=batch.pricing_snapshot_reference,
-                    occurred_at=NOW,
-                    created_at=NOW,
+                    occurred_at=event_at,
+                    created_at=event_at,
                 ),
             )
         )
@@ -247,13 +248,13 @@ async def _raw_source(
         await session.execute(
             update(JobAttempt)
             .where(JobAttempt.id == attempt.id)
-            .values(status="raw_stored", result_code="raw_stored", finished_at=NOW)
+            .values(status="raw_stored", result_code="raw_stored", finished_at=event_at)
         )
         await session.commit()
         await session.execute(
             update(GenerationItem)
             .where(GenerationItem.id == item.id)
-            .values(status="RAW_STORED", finalized_at=NOW, result_code="raw_stored")
+            .values(status="RAW_STORED", finalized_at=event_at, result_code="raw_stored")
         )
         await session.commit()
         return source
@@ -296,7 +297,7 @@ async def test_normalization_is_deterministic_private_and_concurrency_idempotent
             raw_storage=raw_storage,
             normalized_storage=normalized_storage,
             spool_root=tmp_path / "spool",
-            now=lambda: NOW + timedelta(minutes=1),
+            now=lambda: datetime.now(UTC),
         )
         first, second = await gather(
             service.normalize_source(source_object_id=source.id),
@@ -357,7 +358,7 @@ async def test_normalization_detects_raw_tamper_and_malformed_input(tmp_path: Pa
             raw_storage=raw_storage,
             normalized_storage=normalized_storage,
             spool_root=tmp_path / "spool",
-            now=lambda: NOW + timedelta(minutes=1),
+            now=lambda: datetime.now(UTC),
         )
         tampered = await service.normalize_source(source_object_id=source.id)
         assert tampered.status == "NORMALIZATION_FAILED"
@@ -385,7 +386,7 @@ async def test_normalized_storage_tamper_fails_closed(tmp_path: Path) -> None:
             raw_storage=raw_storage,
             normalized_storage=normalized_storage,
             spool_root=tmp_path / "spool",
-            now=lambda: NOW + timedelta(minutes=1),
+            now=lambda: datetime.now(UTC),
         )
         record_id = await service.ensure_record(source_object_id=source.id)
         reference = synthetic_normalized_storage_reference(
@@ -416,7 +417,7 @@ async def test_normalized_storage_conflict_fails_closed(tmp_path: Path) -> None:
             raw_storage=raw_storage,
             normalized_storage=normalized_storage,
             spool_root=tmp_path / "spool",
-            now=lambda: NOW + timedelta(minutes=1),
+            now=lambda: datetime.now(UTC),
         )
         record_id = await service.ensure_record(source_object_id=source.id)
         reference = synthetic_normalized_storage_reference(
@@ -458,7 +459,7 @@ async def test_blob_before_database_crash_is_recovered_without_overwrite(tmp_pat
             raw_storage=raw_storage,
             normalized_storage=crash_once,
             spool_root=tmp_path / "spool",
-            now=lambda: NOW + timedelta(minutes=1),
+            now=lambda: datetime.now(UTC),
         )
         record_id = await service.ensure_record(source_object_id=source.id)
         with pytest.raises(NormalizationRetryableError):
