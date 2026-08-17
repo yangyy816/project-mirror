@@ -229,6 +229,19 @@ release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts rem
   calibration, QAPolicy freeze, identity registration, QuestionBank release or production Provider
   Gates.
 
+## Approved youthful-adult review boundary v2
+
+- ADR-030, `P2_AGE_PRESENTATION_CONTROL_V2.md` and `P2_STYLE_PRESENTATION_CONTROL_V2.md` apply only
+  to future cohorts. All v1 evidence remains immutable.
+- General non-sexual portraits no longer fail solely for a round face, babyface or youthful adult
+  appearance. `CLEAR_PRE16_PRESENTATION` and `CHILD_OR_STUDENT_MINOR_CONTEXT` are hard rejects.
+- `ADULT_SAFE_SEXY`, `CHARMING_ALLURING` and other adult-only style contexts additionally require
+  unambiguous 18+ presentation; `ADULT_ONLY_STYLE_AGE_AMBIGUOUS` is a hard reject.
+- Review remains categorical and human. No automatic age estimation, numerical age, probability,
+  beauty score, percentile or ranking is permitted.
+- New generation/admission evidence must bind v2 policy/Prompt/rubric references and cannot be used
+  to rewrite or reinterpret V01, age-v1 or style-v1 evidence.
+
 `P2_M3_LOCAL_GATE: PENDING`
 
 `P2_M3_T03_REMOTE_CI: PASS`

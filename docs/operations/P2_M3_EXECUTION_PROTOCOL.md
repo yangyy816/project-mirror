@@ -70,6 +70,19 @@ exclusion and cannot override or erase QA evidence. Existing V01 and age-only V-
 immutable and are not retroactively style-evaluated. No schema, public API, Vision threshold,
 production Provider or P2-M6 release authority changes.
 
+## Approved youthful-adult review boundary v2
+
+ADR-030 and `P2_AGE_PRESENTATION_CONTROL_V2.md` supersede the universal `minor ambiguity` hard
+reject only for future general non-sexual cohorts. A youthful, round-faced or babyface adult
+presentation is allowed; hard rejection now requires a clearly pre-16 presentation or a
+child/student-minor context. This is human categorical review, not automatic age estimation.
+
+`P2_STYLE_PRESENTATION_CONTROL_V2.md` preserves the ADR-029 style contexts but adds an adult-only
+overlay: `ADULT_SAFE_SEXY`, `CHARMING_ALLURING` and any intimate/sexualized context require
+unambiguous 18+ presentation and reject 16–17 ambiguity. All v1 evidence remains immutable. New
+generation must bind v2 policy/Prompt/rubric references; no schema, API, Vision, release or production
+Provider authority changes.
+
 ## Data and migration contract
 
 The sole planned migration is `0010_synthetic_asset_qa` and must not modify `0001`–`0009`.

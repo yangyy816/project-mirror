@@ -71,6 +71,12 @@ attractiveness score、percentile、ranking 或统一理想脸均禁止；adult/
 style/product mismatch 只作为首包 soft curation exclusion。现有 V01 与 age-only V-next evidence 不
 重写、不覆盖、不追溯重标。
 
+ADR-030 通过 v2 policy 前向修订一般非性感 cohort 的人工年龄呈现边界：round face、babyface、
+soft features 或其他 youthful adult traits 本身不再触发拒绝；只有整体明确呈现为未满 16 岁，或
+出现儿童/学生未成年语境时 hard reject。该分类不是自动年龄估计，identity 仍声明为 synthetic
+adult。`ADULT_SAFE_SEXY`、`CHARMING_ALLURING` 与任何 intimate/sexualized context 保留严格的
+unambiguous 18+ overlay，不能使用可能呈现为 16–17 岁的主体。所有 v1 evidence 保持不可变。
+
 ## Reference research boundary
 
 网络、文献和获授权市场研究默认只提取人工复核的 abstract non-identifying descriptors，再进入
