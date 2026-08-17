@@ -1,0 +1,91 @@
+diff --git a/WORKSPACE b/WORKSPACE
+index 3da8542..5056150 100644
+--- a/WORKSPACE
++++ b/WORKSPACE
+@@ -609,6 +609,10 @@ http_archive(
+     name = "opencv",
+     build_file_content = all_content,
+     sha256 = "10898a0268d8f8cbaf0354ddd1d9de6abaac84e3d9a6c9754f56a0aa3383d73b",
++    patch_args = ["-p1"],
++    patches = [
++        "@//third_party:opencv_v03_reproducible_build_info.diff",
++    ],
+     strip_prefix = "opencv-3.4.11",
+     urls = ["https://github.com/opencv/opencv/archive/3.4.11.tar.gz"],
+ )
+diff --git a/third_party/BUILD b/third_party/BUILD
+index 3f9e7e8..94af10c 100644
+--- a/third_party/BUILD
++++ b/third_party/BUILD
+@@ -28,4 +28,5 @@ exports_files([
+     "LICENSE",
++    "opencv_v03_reproducible_build_info.diff",
+     "requirements_lock.txt",
+     "requirements_lock_3_10.txt",
+     "requirements_lock_3_11.txt",
+@@ -204,7 +205,15 @@ cmake(
+     name = "opencv_cmake",
+     # Values to be passed as -Dkey=value on the CMake command line;
+     # here are serving to provide some CMake script configuration options
+     cache_entries = {
++        # Keep sandbox sequence numbers and private build roots out of the
++        # OpenCV binaries. OpenCV's own RPATH is unnecessary because the
++        # parent C ABI library resolves both colocated runtime libraries. The
++        # generated build report must also omit its wall-clock timestamp.
++        "BUILD_INFO_SKIP_TIMESTAMP": "ON",
++        "CMAKE_C_FLAGS": "-ffile-prefix-map=$EXT_BUILD_ROOT=/mirror-v03",
++        "CMAKE_CXX_FLAGS": "-ffile-prefix-map=$EXT_BUILD_ROOT=/mirror-v03",
++        "CMAKE_SKIP_RPATH": "ON",
+         "CMAKE_BUILD_TYPE": "Release",
+         # The module list is always sorted alphabetically so that we do not
+         # cause a rebuild when changing the link order.
+diff --git a/third_party/opencv_v03_reproducible_build_info.diff b/third_party/opencv_v03_reproducible_build_info.diff
+new file mode 100644
+index 0000000..1e53f7a
+--- /dev/null
++++ b/third_party/opencv_v03_reproducible_build_info.diff
+@@ -0,0 +1,44 @@
++diff --git a/cmake/OpenCVUtils.cmake b/cmake/OpenCVUtils.cmake
++index 969c3d8..3a68f5b 100644
++--- a/cmake/OpenCVUtils.cmake
+++++ b/cmake/OpenCVUtils.cmake
++@@ -918,1 +918,7 @@
++ macro(ocv_finalize_status)
+++  # The build report is compiled into libopencv_core. Normalize the foreign_cc
+++  # sandbox root so clean builds do not embed private paths or action numbers.
+++  get_filename_component(_opencv_v03_build_root "${OpenCV_SOURCE_DIR}/../.." ABSOLUTE)
+++  string(REPLACE "${_opencv_v03_build_root}" "/mirror-v03" OPENCV_BUILD_INFO_STR "${OPENCV_BUILD_INFO_STR}")
+++  unset(_opencv_v03_build_root)
+++
++diff --git a/modules/core/CMakeLists.txt b/modules/core/CMakeLists.txt
++--- a/modules/core/CMakeLists.txt
+++++ b/modules/core/CMakeLists.txt
++@@ -113,5 +113,8 @@ ocv_install_3rdparty_licenses(SoftFloat "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/S
++ # generate data (samples data) config file
++ set(OPENCV_DATA_CONFIG_FILE "${CMAKE_BINARY_DIR}/opencv_data_config.hpp")
++ set(OPENCV_DATA_CONFIG_STR "")
++-
+++get_filename_component(_opencv_v03_build_root "${CMAKE_SOURCE_DIR}/../.." ABSOLUTE)
+++string(REPLACE "${_opencv_v03_build_root}" "/mirror-v03" _opencv_v03_install_prefix "${CMAKE_INSTALL_PREFIX}")
+++string(REPLACE "${_opencv_v03_build_root}" "/mirror-v03" _opencv_v03_build_dir "${CMAKE_BINARY_DIR}")
+++
++ if(CMAKE_INSTALL_PREFIX)
++@@ -118,4 +121,4 @@ if(CMAKE_INSTALL_PREFIX)
++   set(OPENCV_DATA_CONFIG_STR "${OPENCV_DATA_CONFIG_STR}
++-#define OPENCV_INSTALL_PREFIX \"${CMAKE_INSTALL_PREFIX}\"
+++#define OPENCV_INSTALL_PREFIX \"${_opencv_v03_install_prefix}\"
++ ")
++ endif()
++@@ -128,3 +131,3 @@ endif()
++ set(OPENCV_DATA_CONFIG_STR "${OPENCV_DATA_CONFIG_STR}
++-#define OPENCV_BUILD_DIR \"${CMAKE_BINARY_DIR}\"
+++#define OPENCV_BUILD_DIR \"${_opencv_v03_build_dir}\"
++ ")
++@@ -136,3 +139,6 @@ set(OPENCV_DATA_CONFIG_STR "${OPENCV_DATA_CONFIG_STR}
++ ")
++-
+++unset(_opencv_v03_install_prefix)
+++unset(_opencv_v03_build_dir)
+++unset(_opencv_v03_build_root)
+++
++ if(WIN32)

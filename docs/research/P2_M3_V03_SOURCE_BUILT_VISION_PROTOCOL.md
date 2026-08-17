@@ -7,7 +7,7 @@
 - Candidate family: `MEDIAPIPE_SOURCE_BUILD_ZERO_TELEMETRY_V1`.
 - Source: MediaPipe tag `v0.10.35`, commit
   `f8ef212d5c962c0e853db7e59d217056b187084b`.
-- Current state: `STAGE_B_LINUX_ARTIFACT_AUDIT_IN_PROGRESS`.
+- Current state: `STAGE_B_LINUX_REPRODUCIBLE_AUDIT_IN_PROGRESS`.
 - Upstream `mediapipe==0.10.35` wheels remain rejected and are the telemetry negative control.
 - Only the Principal may advance stages or record `PASS | FAIL | FURTHER_RESEARCH`.
 
@@ -114,12 +114,15 @@ upstream wheel. The approved patch adds a Face-Landmarker-only C shared-library 
 the unused CA-bundle field from that closure. Evidence is recorded in
 `P2_M3_V03_SOURCE_FEASIBILITY_REPORT.md`.
 
-`P2_M3_V03_EXECUTED: STAGE_B_LINUX_BUILD_PASS_AUDIT_IN_PROGRESS`
+`P2_M3_V03_EXECUTED: STAGE_B_LINUX_REPRODUCIBILITY_PASS_AUDIT_IN_PROGRESS`
 
 ADR-033 and `P2_M3_V03_BUILD_CLOSURE_REPORT.md` subsequently froze the Linux builder, configured
 repository closure and minimal OpenCV source overlay. The offline Linux build passed after the
-bounded `P2-M3-R04` CRLF version-stamp repair. Linux license/SBOM/vulnerability closure, clean-output
-reproduction, Windows toolchain/build and all runtime/model stages remain closed.
+bounded `P2-M3-R04` CRLF version-stamp repair. `P2-M3-R05` then removed foreign-build paths, OpenCV
+RPATH and the compiled OpenCV build-report timestamp. Two fresh 4,610-action Linux builds produced
+byte-identical main/core/imgproc artifacts with no private build paths. OouraFFT distribution rights,
+the remaining sourced vulnerability dispositions, Windows toolchain/build and all runtime/model
+stages remain closed.
 
 `SOURCE_BUILD_AUTHORIZED: YES`
 

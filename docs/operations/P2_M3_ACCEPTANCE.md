@@ -20,7 +20,7 @@
 | Namespace                 | normalized private namespace separate from raw/user assets                 | T03 PASS    |
 | Immutability              | Asset/record/measurement/review/identity lineage cannot mutate/delete      | T02 PASS    |
 | QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | T04 PASS    |
-| Adult policy              | explicit review contract; ambiguous/minor-looking reject; no age estimate  | T04 PARTIAL |
+| Adult policy              | reject clear pre-16 or child/student-minor context; no age estimate        | T04 PARTIAL |
 | Vision                    | approved exact package/model/data/license + controlled benchmark           | PENDING     |
 | Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | T05 PASS    |
 | Synthetic-only            | no User relation, real-person fixture, scraping or sensitive classifier    | T02 PASS    |
@@ -222,10 +222,17 @@ model execution or calibration occurred. ADR-033 then froze the Linux toolchain,
 configured closure and OpenCV 3.4.11 `core,imgproc` build-lock overlay. The offline Linux build
 completed after `P2-M3-R04` stripped a Windows CR from the upstream metadata version stamp. The
 minimal C ABI library and two OpenCV libraries have frozen hashes, bounded exports and no dynamic
-network imports or Clearcut/CA-bundle strings. Linux license/SBOM/vulnerability closure, clean
-reproduction, Windows toolchain/build and all runtime/model stages remain pending.
+network imports or Clearcut/CA-bundle strings. R05 clean reproduction is recorded below. OouraFFT
+distribution rights, remaining vulnerability dispositions, Windows toolchain/build and all
+runtime/model stages remain pending.
 
-`P2_M3_V03_STATUS: STAGE_B_LINUX_ARTIFACT_AUDIT_IN_PROGRESS`
+`P2_M3_V03_STATUS: STAGE_B_LINUX_REPRODUCIBILITY_PASS_AUDIT_IN_PROGRESS`
+
+`P2-M3-R05` closed the Linux bit-reproducibility defect. Two fresh no-network 4,610-action builds
+produced byte-identical main, OpenCV core and OpenCV imgproc libraries. All private path scans were
+zero; OpenCV has no RPATH/RUNPATH and the main library has only a relative `$ORIGIN` RUNPATH. This
+does not close the independent OouraFFT distribution-license blocker, remaining vulnerability
+dispositions, Windows build/runtime, model/data or V02 calibration Gates.
 
 ## Deferred production boundary
 

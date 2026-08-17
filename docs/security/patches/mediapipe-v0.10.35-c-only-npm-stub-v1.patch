@@ -1,0 +1,28 @@
+diff --git a/third_party/mirror_v03_empty_npm/WORKSPACE b/third_party/mirror_v03_empty_npm/WORKSPACE
+new file mode 100644
+--- /dev/null
++++ b/third_party/mirror_v03_empty_npm/WORKSPACE
+@@ -0,0 +1 @@
++workspace(name = "npm")
+diff --git a/third_party/mirror_v03_empty_npm/REPO.bazel b/third_party/mirror_v03_empty_npm/REPO.bazel
+new file mode 100644
+--- /dev/null
++++ b/third_party/mirror_v03_empty_npm/REPO.bazel
+@@ -0,0 +1 @@
++repo(default_visibility = ["//visibility:public"])
+diff --git a/third_party/mirror_v03_empty_npm/@bazel/typescript/index.bzl b/third_party/mirror_v03_empty_npm/@bazel/typescript/index.bzl
+new file mode 100644
+--- /dev/null
++++ b/third_party/mirror_v03_empty_npm/@bazel/typescript/index.bzl
+@@ -0,0 +1,5 @@
++"""Fail-closed TypeScript stub for the isolated V03 C-only build."""
++
++
++def ts_project(**_kwargs):
++    fail("TypeScript target entered the isolated V03 C-only build closure")
+diff --git a/third_party/mirror_v03_empty_npm/@bazel/typescript/BUILD.bazel b/third_party/mirror_v03_empty_npm/@bazel/typescript/BUILD.bazel
+new file mode 100644
+--- /dev/null
++++ b/third_party/mirror_v03_empty_npm/@bazel/typescript/BUILD.bazel
+@@ -0,0 +1 @@
++exports_files(["index.bzl"])

@@ -32,9 +32,11 @@ download/video/UI/codec surfaces and requires an offline Linux build. This is no
 OpenCV adoption; complete evidence is in `P2_M3_V03_BUILD_CLOSURE_REPORT.md`.
 
 The Linux offline build completed after bounded `P2-M3-R04` removed a Windows CR from the upstream
-metadata version stamp. Initial binary hashes, exports and dependency/string scans are frozen;
-license/SBOM/vulnerability closure, clean reproduction, Windows build and runtime qualification
-remain mandatory before any source-built candidate approval.
+metadata version stamp. `P2-M3-R05` subsequently removed private foreign-build paths, OpenCV RPATH
+and the compiled OpenCV build timestamp. Two fresh no-network builds produced byte-identical main,
+core and imgproc libraries. Linux bit reproducibility is therefore complete; OouraFFT distribution
+rights, remaining vulnerability dispositions, Windows build and runtime qualification remain
+mandatory before any source-built candidate approval.
 
 ## Frozen boundary
 

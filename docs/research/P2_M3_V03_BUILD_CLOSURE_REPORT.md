@@ -12,7 +12,11 @@
 
 `LINUX_OFFLINE_BUILD: PASS`
 
+`LINUX_BIT_REPRODUCIBILITY: PASS`
+
 `LINUX_ARTIFACT_AUDIT: IN_PROGRESS`
+
+`LINUX_DISTRIBUTION_LICENSE_GATE: BLOCKED`
 
 The exact frozen Linux closure now builds successfully with Docker networking disabled. This does
 not yet authorize model loading or inference because the Linux license/SBOM/vulnerability review,
@@ -28,6 +32,10 @@ the Windows build and both-platform runtime qualification remain open.
   `6b0d8771c1d1660abb6ee4cfca7a88b04ebb787faa36c8fd9cd15ecdbd3ecafa`.
 - Cross-platform version-stamp repair overlay SHA-256:
   `a59578edba3a6c350ef78850b26e6cbf5f5929a32048c5199f92b4c526a27823`.
+- `P2-M3-R05` OpenCV reproducibility overlay SHA-256:
+  `192056a6ad29362442fe440bf24ea4f998b09172ab0807f91bc9c24a96d41c68`.
+  It normalizes foreign-build paths, disables OpenCV RPATH and omits the OpenCV build-report
+  wall-clock timestamp. It does not change modules, algorithms, dependencies or runtime behavior.
 - The runtime and build-lock patches pass reverse-apply validation against the inspected private
   working tree. The repair overlay passes apply-check against that frozen patched tree.
 
@@ -97,14 +105,14 @@ schema version and does not change the graph, model, dependency set, compiler fl
 surface. The retry used the same builder digest, source/output volumes, read-only repository cache,
 configured flags, four-job limit and `--network none`; it completed all 4,610 actions.
 
-Initial artifact facts:
+Final reproducible artifact facts:
 
 - Face Landmarker C ABI shared library: 68,714,008 bytes; SHA-256
   `a892ba0976fcd557a9ff2056ae170f765ab68aca99f70607eee0c6989fb94e7b`.
-- OpenCV core 3.4.11: 4,715,592 bytes; SHA-256
-  `8bd2b27ff69e5c2a17cf675ff5879f6ed69d5a8fcdf93389bd8dc1e3f1b5b17f`.
-- OpenCV imgproc 3.4.11: 7,305,944 bytes; SHA-256
-  `876c4451d5a70b38b2326db979e13df8dc2ef8d5a97d719632358c73bafadd9c`.
+- OpenCV core 3.4.11: 4,707,400 bytes; SHA-256
+  `048df8097a7c444769e5c56708041aa0c60a48a5a442f2ebad2c60a03097653a`.
+- OpenCV imgproc 3.4.11: 7,297,752 bytes; SHA-256
+  `765ebf6c659e523d9d7e9557e63f004a041a9327fcba95e6d4ac0670485241f5`.
 - The main library exports nine versioned entries: the eight required MediaPipe C API/free
   functions plus the `VERS_1.0` version node.
 - Dynamic dependencies are limited to the two frozen OpenCV libraries and Linux C/C++ runtime
@@ -116,11 +124,49 @@ Initial artifact facts:
 All binaries, command logs, symbol listings and private paths remain in ignored private evidence.
 No artifact was added to Git or a Project Mirror dependency manifest.
 
+## P2-M3-R05 clean reproduction evidence
+
+The first repair builds exposed three separate non-reproducible OpenCV inputs: foreign-build source
+paths in compiled file names, generated `OPENCV_BUILD_DIR`/`OPENCV_INSTALL_PREFIX` macros, and the
+OpenCV configuration wall-clock timestamp. Each defect was retained as failed attempt evidence and
+fixed in the single R05 overlay above.
+
+Two new, empty output volumes then executed the same frozen 4,610-action command with the same
+builder, source, read-only repository cache, four-job limit and `--network none`. Both completed with
+exit code zero. `cmp` returned zero for the main, core and imgproc libraries; all three SHA-256 values
+match the final facts above.
+
+All six binaries across the two runs had zero matches for the private output root, workspace,
+sandbox, sandbox stash, execroot and action-root patterns. OpenCV core/imgproc have no RPATH or
+RUNPATH. The main library retains only the same relative `$ORIGIN` RUNPATH in both runs. The OpenCV
+build report contains no wall-clock `Timestamp` field; MediaPipe `Timestamp::*` protocol strings in
+the main library are semantic API constants, not build dates.
+
+## Linux supply-chain audit status
+
+- Debian `ninja-build 1.12.1-1` is the exact builder package. Its retained copyright/license file
+  SHA-256 is `c6dd93071b285c591075669795794cc31ee34af7d4ed3cdf8c98a3c0bc7c5c01`;
+  upstream is Apache-2.0 and bundled `src/getopt.*` carries a public-domain grant.
+- Offline Grype `0.117.0` used database schema `v6.1.9`, built `2026-08-16T06:14:30Z`. The focused
+  OpenCV source scan reported `CVE-2019-14493`, `CVE-2019-15939`, `CVE-2019-19624` and
+  `CVE-2025-53644`. The built closure contains only `core,imgproc`; objdetect/HOG, video/DIS and
+  imgcodecs/JPEG findings are outside that module closure. `CVE-2019-14493` still requires a sourced
+  reachability/false-positive disposition before approval.
+- The main binary contains OouraFFT entry points `cdft`, `rdft`, `ddct`, `ddst`, `dfct` and `dfst`.
+  The retained notice clearly permits use/copy/modify and distribution of the "ORIGINAL package",
+  but modified/binary redistribution is not sufficiently clear for this Gate. Internal isolated
+  research may continue; distribution and production remain blocked pending independent license
+  judgment or removal of OouraFFT from the closure.
+
+Grype coverage is source/SBOM focused and cannot prove reachability or absence of vulnerabilities by
+itself. These findings do not convert the source build into a runtime, model or production approval.
+
 ## Next Gate
 
-Complete the Linux notice/license closure, private SBOM and vulnerability review, then freeze and
-execute the Windows build with the same source and overlays. A clean-output Linux reproduction is
-also required before changing `SOURCE_BUILD_APPROVED_FOR_POC`.
+Close the OouraFFT distribution question and the remaining sourced vulnerability dispositions, then
+freeze and execute the Windows build with the same source and overlays. Linux clean-output bit
+reproduction is complete, but `SOURCE_BUILD_APPROVED_FOR_POC` remains `NO` until the whole Stage B
+contract passes.
 
 Windows toolchain and build remain mandatory and pending. No model execution, calibration, holdout or
 identity registration is authorized by this report.
