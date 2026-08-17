@@ -7,7 +7,7 @@
 - Entry run: `31958786882`; all three jobs passed with exact-SHA artifacts
 - Branch: `codex/phase2-m3-normalization-base-qa`
 - State: `EXECUTING`
-- Architecture authority: ADR-021–028
+- Architecture authority: ADR-021–031
 - Scope: synthetic-only normalization, base QA evidence and canonical identity registration
 - Public API impact: none
 - Production image-generation Provider: `NOT_CONFIGURED`; generation remains `FAIL_CLOSED`
@@ -47,11 +47,13 @@ M3 explicitly excludes:
 
 ## Approved age-presentation change control
 
-ADR-028 and `docs/research/P2_AGE_PRESENTATION_CONTROL_V1.md` add a forward-only content-governance
-control for V-next. The first-pack primary presentation target is clearly-adult women aged 18–25 in
-visual presentation, with 26–30 secondary only for coverage, 31–34 de-emphasized and visibly 35+
-excluded from first-pack selection. Minor ambiguity, childlike presentation and schoolgirl framing
-are hard rejects. This is an operator-reviewed presentation scope, not age estimation.
+ADR-028 and `docs/research/P2_AGE_PRESENTATION_CONTROL_V1.md` introduced the first forward-only
+content-governance control for V-next. The first-pack primary presentation target remains
+clearly-adult women aged 18–25 in visual presentation, with 26–30 secondary only for coverage,
+31–34 de-emphasized and visibly 35+ excluded from first-pack selection. ADR-028's universal
+`minor ambiguity` rejection rule is historical v1 authority and is superseded for future general
+non-sexual cohorts by ADR-030 below; childlike presentation and schoolgirl framing remain rejected.
+This is an operator-reviewed presentation scope, not age estimation.
 
 The change creates new private PromptTemplate/policy versions and must not modify V01. It does not
 change schema, public API, the Vision port, M3 lifecycle or P2-M6 release authority. Codex native

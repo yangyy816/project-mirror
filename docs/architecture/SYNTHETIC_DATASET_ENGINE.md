@@ -59,8 +59,9 @@ provenance、QA、isolation、release/revoke 与 no-sensitive-routing 规则。�
 
 ADR-028 为首包增加版本化年龄呈现控制：18–25 是 clearly-adult primary presentation target，
 26–30 仅在 coverage 需要时作为 secondary，31–34 de-emphasized，明显 35+ 从首包 selection 排除。
-未成年/疑似未成年、childlike 与 schoolgirl framing 是 hard reject。该轴由 Prompt 与人工 review
-约束，不是年龄估计；不得通过幼态化、单一模板脸或损失 morphology/identity diversity 实现年轻化。
+其 v1 universal `minor ambiguity` hard reject 已由 ADR-030 对未来一般非性感 cohort 前向取代；
+childlike 与 schoolgirl framing 仍拒绝。该轴由 Prompt 与人工 review 约束，不是年龄估计；不得通过
+幼态化、单一模板脸或损失 morphology/identity diversity 实现年轻化。
 
 ADR-029 为独立的 style-aware cohort 增加多峰、非打分式视觉方向。Style context 只描述可替换的
 presentation、styling、lighting 与女性向问卷 product fit；它不拥有 identity、morphology、QA 或

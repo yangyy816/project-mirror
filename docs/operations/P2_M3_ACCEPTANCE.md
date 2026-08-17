@@ -212,12 +212,14 @@ release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts rem
 
 ## Approved age-presentation change control
 
-- ADR-028 and `P2_AGE_PRESENTATION_CONTROL_V1.md` were accepted by the Principal as a forward-only
-  control. V01 remains immutable.
+- ADR-028 and `P2_AGE_PRESENTATION_CONTROL_V1.md` were accepted by the Principal as the original
+  forward-only v1 control. V01 remains immutable, while ADR-030 supersedes its universal
+  `minor ambiguity` rule only for future general non-sexual cohorts.
 - V-next primary presentation is clearly-adult 18–25; 26–30 is secondary only for coverage, 31–34
   is de-emphasized, and visibly 35+ is a first-pack selection exclusion.
-- Minor ambiguity, childlike presentation and schoolgirl framing are hard rejects. No age-estimation
-  model or real-person reference is authorized.
+- Under the current v2 authority, a youthful or babyface appearance alone is allowed; general
+  rejection requires `CLEAR_PRE16_PRESENTATION` or `CHILD_OR_STUDENT_MINOR_CONTEXT`. No
+  age-estimation model or real-person reference is authorized.
 - New images may be generated only with new private Prompt/policy versions and must pass adult
   clarity plus morphology/identity-diversity review before any admission claim.
 
