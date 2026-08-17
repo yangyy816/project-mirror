@@ -209,8 +209,30 @@ itself. These findings do not convert the source build into a runtime, model or 
 
 ## Next Gate
 
-Replay the R17 hardened closure in two fresh no-network Linux roots, then finish sourced vulnerability,
-license and SBOM dispositions. Windows clean reproduction is complete, but
+The R17 hardened closure was replayed in fresh no-network Linux output roots
+`pm-p2-m3-v03-r17-clean-output-3` and `pm-p2-m3-v03-r17-clean-output-4`. The earlier
+`clean-output-1` root is retained only as failed-attempt evidence because the container started
+outside `/workspace`; it is not acceptance evidence. Both accepted roots completed 4,597 actions
+with exit code zero.
+
+The accepted Linux artifacts are byte-identical across both roots:
+
+- Face Landmarker C ABI shared library SHA-256:
+  `19e90273dc9d370563ba48b2b9a0752a677c429f80b971dd3a6c814c223c1f29`.
+- OpenCV core SHA-256:
+  `116c2db3b7e149390631af309f910eabeb73bd18281e4174f131ced2a8de4408`.
+- OpenCV imgproc SHA-256:
+  `765ebf6c659e523d9d7e9557e63f004a041a9327fcba95e6d4ac0670485241f5`.
+
+The main artifact is ELF64 x86-64 and exports the required versioned create, image/video/async
+detection, result-free and close functions. Dynamic dependencies are limited to the two frozen
+OpenCV libraries and Linux runtime libraries; RUNPATH is relative to `$ORIGIN`. Scans across the
+main/core/imgproc closure found zero actual private-host paths, Ooura strings, Clearcut/certifi/CA
+bundle strings or known HTTP/Windows network API strings.
+
+This closes hardened Linux build reproducibility and the prior Ooura distribution blocker for this
+exact closure. Updated SBOM/license/vulnerability dispositions and both-platform Stage C zero-egress
+runtime qualification remain mandatory. Windows and Linux clean reproduction are complete, but
 `SOURCE_BUILD_APPROVED_FOR_POC` remains `NO` until the whole Stage B contract and both-platform Stage C
 runtime qualification pass. No model execution, calibration, holdout or identity registration is
 authorized by this report.

@@ -95,3 +95,19 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Six-artifact scans found zero actual private path, PDB/RSDS, Ooura, Clearcut, certifi/CA-bundle or
   Windows network API. PE debug records are deterministic `coffgrp`/`repro`, not PDB references.
   Windows static reproduction passes; hardened Linux reproduction, audit and Stage C remain next.
+
+## 2026-08-18T08:35:00+08:00 — P2-M3-R17 hardened Linux clean reproduction
+
+- The initial `clean-output-1` attempt failed before workspace analysis because Docker started in
+  `/`; the root is retained as failed-attempt evidence and was not reused.
+- Fresh `clean-output-3` and `clean-output-4` each completed the exact 4,597-action build with
+  `--workdir /workspace`, read-only repository cache, four-job limit and `--network none`.
+- Main/core/imgproc pairs are byte-identical. SHA-256 values are
+  `19e90273dc9d370563ba48b2b9a0752a677c429f80b971dd3a6c814c223c1f29`,
+  `116c2db3b7e149390631af309f910eabeb73bd18281e4174f131ced2a8de4408` and
+  `765ebf6c659e523d9d7e9557e63f004a041a9327fcba95e6d4ac0670485241f5`.
+- ELF inspection confirms relative `$ORIGIN` RUNPATH and the required versioned Face Landmarker C
+  lifecycle/detection exports. Private-path, Ooura, Clearcut/certifi/CA-bundle and known network
+  surface scans are zero.
+- Cross-platform build reproducibility is now evidence-complete. Updated SBOM/license/vulnerability
+  disposition, exact model disposition and Stage C remain the next Gate; P2-M3 stays `EXECUTING`.

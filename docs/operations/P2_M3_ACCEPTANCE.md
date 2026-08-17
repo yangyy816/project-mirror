@@ -406,3 +406,21 @@ release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts rem
 `P2_M3_STATE: EXECUTING`
 
 `P2_M4_ENTRY: CLOSED`
+
+## R17 hardened Linux clean reproduction checkpoint
+
+- The first Linux retry root is retained as failed-attempt evidence because Docker started outside
+  the Bazel workspace; it is not reused or counted as acceptance evidence.
+- Fresh `clean-output-3` and `clean-output-4` roots each completed all 4,597 R17 actions under
+  `--network none` with exit code zero.
+- Main/core/imgproc artifacts are byte-identical across the two roots with SHA-256 values
+  `19e90273dc9d370563ba48b2b9a0752a677c429f80b971dd3a6c814c223c1f29`,
+  `116c2db3b7e149390631af309f910eabeb73bd18281e4174f131ced2a8de4408` and
+  `765ebf6c659e523d9d7e9557e63f004a041a9327fcba95e6d4ac0670485241f5`.
+- ELF imports/exports and relative RUNPATH are bounded as designed. Private host paths, Ooura,
+  Clearcut/certifi/CA-bundle and known network-surface strings are absent from the three-artifact
+  closure.
+- Cross-platform build reproducibility is accepted as evidence only. Updated SBOM/license/
+  vulnerability disposition, exact model disposition, Stage C, V02, T07 and T08 remain mandatory.
+
+`P2_M3_R17_LINUX_REPRODUCIBILITY: PASS`
