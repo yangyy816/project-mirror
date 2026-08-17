@@ -7,7 +7,7 @@
 - Candidate family: `MEDIAPIPE_SOURCE_BUILD_ZERO_TELEMETRY_V1`.
 - Source: MediaPipe tag `v0.10.35`, commit
   `f8ef212d5c962c0e853db7e59d217056b187084b`.
-- Initial state: `PREREGISTERED_SOURCE_FEASIBILITY_ONLY`.
+- Current state: `STAGE_A_PASS_BUILD_FREEZE_PENDING`.
 - Upstream `mediapipe==0.10.35` wheels remain rejected and are the telemetry negative control.
 - Only the Principal may advance stages or record `PASS | FAIL | FURTHER_RESEARCH`.
 
@@ -25,14 +25,14 @@ The replacement must preserve the first-party `SyntheticVisionRequest` and
 
 ## Frozen artifacts and evidence separation
 
-| Item                            | Frozen authority                                                                                              | Current state                              |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| Source                          | Git commit `f8ef212d5c962c0e853db7e59d217056b187084b`                                                         | acquisition authorized for Stage A         |
-| Upstream wheel negative control | PyPI `mediapipe==0.10.35` exact Windows/Linux hashes from V02                                                 | rejected; no reinstall required            |
-| Face Landmarker bundle          | GCS generation `1683136941468629`; SHA-256 `64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff` | private research artifact only             |
-| Patch                           | telemetry/network-removal-only patch                                                                          | must be frozen after Stage A, before build |
-| Toolchain                       | exact Bazel/compiler/Python 3.13 inputs                                                                       | must be frozen after Stage A, before build |
-| Output artifacts                | Windows AMD64 and Linux x86-64 private wheels/packages                                                        | hashes pending authorized build            |
+| Item                            | Frozen authority                                                                                                         | Current state                              |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| Source                          | Git commit `f8ef212d5c962c0e853db7e59d217056b187084b`                                                                    | acquisition authorized for Stage A         |
+| Upstream wheel negative control | PyPI `mediapipe==0.10.35` exact Windows/Linux hashes from V02                                                            | rejected; no reinstall required            |
+| Face Landmarker bundle          | GCS generation `1683136941468629`; SHA-256 `64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff`            | private research artifact only             |
+| Patch                           | `mediapipe-v0.10.35-zero-telemetry-v1.patch`; SHA-256 `cdde123e56bcd637726d7162171a75bed10de415cd323aa95952b1cba7e942eb` | frozen and Stage A approved                |
+| Toolchain                       | exact Bazel/compiler/Python 3.13 inputs                                                                                  | must be frozen after Stage A, before build |
+| Output artifacts                | minimal Windows AMD64 and Linux x86-64 C ABI shared libraries                                                            | hashes pending authorized build            |
 
 An expected fact may be `PENDING_STAGE_A`, but no pending fact may be silently guessed or carried
 past the stage that requires it.
@@ -106,9 +106,15 @@ that policy version.
 - `FURTHER_RESEARCH`: the source patch is sound but reproducible build, platform parity or landmark
   repeatability remains insufficient.
 
-`P2_M3_V03_EXECUTED: NOT_YET`
+Stage A completed without build, install, import or model execution. The exact public source uses a
+no-op `TasksDummyLogger` and contains none of the Clearcut implementation found in the rejected
+upstream wheel. The approved patch adds a Face-Landmarker-only C shared-library target and removes
+the unused CA-bundle field from that closure. Evidence is recorded in
+`P2_M3_V03_SOURCE_FEASIBILITY_REPORT.md`.
 
-`SOURCE_PATCH_APPROVED: NO`
+`P2_M3_V03_EXECUTED: STOPPED_AFTER_STAGE_A_PASS`
+
+`SOURCE_PATCH_APPROVED: YES`
 
 `SOURCE_BUILD_APPROVED_FOR_POC: NO`
 

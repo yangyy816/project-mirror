@@ -215,7 +215,13 @@ and must reconcile all eight private checksums before use.
 - Both Windows and Linux must prove the runtime closure has no Clearcut, telemetry, HTTP/network or
   CA-bundle path and makes zero egress attempts. Calibration and holdout remain closed.
 
-`P2_M3_V03_STATUS: PREREGISTERED_SOURCE_FEASIBILITY_ONLY`
+Stage A verified the exact source commit and public dummy-logger closure, froze patch SHA-256
+`cdde123e56bcd637726d7162171a75bed10de415cd323aa95952b1cba7e942eb`, and selected a minimal C ABI
+shared-library target instead of the upstream Python wheel/full task library. No build, install,
+model execution or calibration occurred. Stage B must freeze target-specific Bazel downloads,
+toolchains, licenses, native inventory and output hashes before execution.
+
+`P2_M3_V03_STATUS: STAGE_A_PASS_BUILD_FREEZE_PENDING`
 
 ## Deferred production boundary
 

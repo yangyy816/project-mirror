@@ -1,0 +1,128 @@
+diff --git a/mediapipe/tasks/c/BUILD b/mediapipe/tasks/c/BUILD
+index ace719c..67878b1 100644
+--- a/mediapipe/tasks/c/BUILD
++++ b/mediapipe/tasks/c/BUILD
+@@ -69,6 +69,32 @@ cc_binary(
+     }),
+ )
+ 
++# Project Mirror V03 isolated PoC target. This intentionally excludes audio,
++# text, GenAI, and unrelated vision task entry points from the shared library.
++cc_binary(
++    name = "mirror_face_landmarker_source",
++    linkopts = select({
++        "@platforms//os:linux": [
++            "-Wl,-soname=libmirror_face_landmarker.so",
++            "-Wl,--version-script=$(location :mediapipe_tasks_c_version_script.lds)",
++        ],
++        "//conditions:default": [],
++    }),
++    linkshared = True,
++    linkstatic = True,
++    tags = [
++        "manual",
++        "nobuilder",
++        "notap",
++    ],
++    deps = [
++        ":mediapipe_tasks_c_version_script.lds",
++        "//mediapipe/tasks/c/core:common",
++        "//mediapipe/tasks/c/vision/core:image_c_lib",
++        "//mediapipe/tasks/c/vision/face_landmarker:face_landmarker_c_lib",
++    ],
++)
++
+ # Genrule to provide a consistent libmediapipe.so output in bazel-bin.
+ # buildifier: disable=constant-glob
+ genrule(
+diff --git a/mediapipe/tasks/c/core/base_options.h b/mediapipe/tasks/c/core/base_options.h
+index 30b980a..78354f8 100644
+--- a/mediapipe/tasks/c/core/base_options.h
++++ b/mediapipe/tasks/c/core/base_options.h
+@@ -69,8 +69,6 @@ struct BaseOptions {
+   // The host version, e.g., python version.
+   const char* host_version;
+ 
+-  // The path to CA bundle to use for usage logging.
+-  const char* ca_bundle_path;
+ };
+ 
+ #ifdef __cplusplus
+diff --git a/mediapipe/tasks/c/core/base_options_converter.cc b/mediapipe/tasks/c/core/base_options_converter.cc
+index 0c02783..ca5ec5e 100644
+--- a/mediapipe/tasks/c/core/base_options_converter.cc
++++ b/mediapipe/tasks/c/core/base_options_converter.cc
+@@ -87,7 +87,6 @@ void CppConvertToBaseOptions(const BaseOptions& in,
+   out->host_environment = CppConvertToHostEnvironment(in.host_environment);
+   out->host_system = CppConvertToHostSystem(in.host_system);
+   out->host_version = in.host_version ? std::string(in.host_version) : "";
+-  out->ca_bundle_path = in.ca_bundle_path ? std::string(in.ca_bundle_path) : "";
+ }
+ 
+ }  // namespace mediapipe::tasks::c::core
+diff --git a/mediapipe/tasks/cc/core/base_options.h b/mediapipe/tasks/cc/core/base_options.h
+index d09ffd0..2dd19af 100644
+--- a/mediapipe/tasks/cc/core/base_options.h
++++ b/mediapipe/tasks/cc/core/base_options.h
+@@ -119,8 +119,6 @@ struct BaseOptions {
+   // Can be left empty string if unknown.
+   std::string host_version;
+ 
+-  // The path to the CA bundle file.
+-  std::string ca_bundle_path;
+ };
+ 
+ // Converts a BaseOptions to a BaseOptionsProto.
+diff --git a/mediapipe/tasks/cc/core/logging/tasks_logger.h b/mediapipe/tasks/cc/core/logging/tasks_logger.h
+index af1e0c8..a17bf62 100644
+--- a/mediapipe/tasks/cc/core/logging/tasks_logger.h
++++ b/mediapipe/tasks/cc/core/logging/tasks_logger.h
+@@ -34,7 +34,6 @@ struct LoggingOptions {
+   std::string host_version;
+   std::string app_id;
+   std::string app_version;
+-  std::string ca_bundle_path;
+ };
+ 
+ // The stats logger interface that defines what MediaPipe Tasks events to log
+diff --git a/mediapipe/tasks/cc/core/task_runner.cc b/mediapipe/tasks/cc/core/task_runner.cc
+index b639b37..5242976 100644
+--- a/mediapipe/tasks/cc/core/task_runner.cc
++++ b/mediapipe/tasks/cc/core/task_runner.cc
+@@ -107,8 +107,7 @@ absl::StatusOr<std::unique_ptr<TaskRunner>> TaskRunner::Create(
+            .host_system = options.host_system,
+            .host_version = options.host_version,
+            .app_id = options.app_id,
+-           .app_version = options.app_version,
+-           .ca_bundle_path = options.ca_bundle_path});
++           .app_version = options.app_version});
+   auto task_runner = absl::WrapUnique(
+       new TaskRunner(options.packets_callback, std::move(tasks_logger)));
+   MP_RETURN_IF_ERROR(task_runner->Initialize(
+diff --git a/mediapipe/tasks/cc/core/task_runner.h b/mediapipe/tasks/cc/core/task_runner.h
+index 1fb11e7..ca58309 100644
+--- a/mediapipe/tasks/cc/core/task_runner.h
++++ b/mediapipe/tasks/cc/core/task_runner.h
+@@ -77,7 +77,6 @@ struct TaskRunnerOptions {
+   std::string host_version = "";
+   std::string app_id = "";
+   std::string app_version = "";
+-  std::string ca_bundle_path = "";
+ };
+ 
+ // The mediapipe task runner class.
+diff --git a/mediapipe/tasks/cc/vision/face_landmarker/face_landmarker.cc b/mediapipe/tasks/cc/vision/face_landmarker/face_landmarker.cc
+index 03bd4ad..e40a772 100644
+--- a/mediapipe/tasks/cc/vision/face_landmarker/face_landmarker.cc
++++ b/mediapipe/tasks/cc/vision/face_landmarker/face_landmarker.cc
+@@ -197,8 +197,7 @@ absl::StatusOr<std::unique_ptr<FaceLandmarker>> FaceLandmarker::Create(
+        .disable_default_service = options->base_options.disable_default_service,
+        .host_environment = options->base_options.host_environment,
+        .host_system = options->base_options.host_system,
+-       .host_version = options->base_options.host_version,
+-       .ca_bundle_path = options->base_options.ca_bundle_path});
++       .host_version = options->base_options.host_version});
+ }
+ 
+ absl::StatusOr<FaceLandmarkerResult> FaceLandmarker::Detect(
+
