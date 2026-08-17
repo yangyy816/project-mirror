@@ -31,6 +31,11 @@ research only. It pins OpenCV 3.4.11 by SHA-256, limits it to `core,imgproc`, di
 download/video/UI/codec surfaces and requires an offline Linux build. This is not project/runtime
 OpenCV adoption; complete evidence is in `P2_M3_V03_BUILD_CLOSURE_REPORT.md`.
 
+The Linux offline build completed after bounded `P2-M3-R04` removed a Windows CR from the upstream
+metadata version stamp. Initial binary hashes, exports and dependency/string scans are frozen;
+license/SBOM/vulnerability closure, clean reproduction, Windows build and runtime qualification
+remain mandatory before any source-built candidate approval.
+
 ## Frozen boundary
 
 M3 implements this chain only:

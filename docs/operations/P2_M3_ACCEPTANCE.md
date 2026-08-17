@@ -219,11 +219,13 @@ Stage A verified the exact source commit and public dummy-logger closure, froze 
 `cdde123e56bcd637726d7162171a75bed10de415cd323aa95952b1cba7e942eb`, and selected a minimal C ABI
 shared-library target instead of the upstream Python wheel/full task library. No build, install,
 model execution or calibration occurred. ADR-033 then froze the Linux toolchain, 39-repository
-configured closure and OpenCV 3.4.11 `core,imgproc` build-lock overlay. An offline Linux build is now
-authorized, but Windows toolchain, artifact/native/license/SBOM audit and all runtime/model stages
-remain pending.
+configured closure and OpenCV 3.4.11 `core,imgproc` build-lock overlay. The offline Linux build
+completed after `P2-M3-R04` stripped a Windows CR from the upstream metadata version stamp. The
+minimal C ABI library and two OpenCV libraries have frozen hashes, bounded exports and no dynamic
+network imports or Clearcut/CA-bundle strings. Linux license/SBOM/vulnerability closure, clean
+reproduction, Windows toolchain/build and all runtime/model stages remain pending.
 
-`P2_M3_V03_STATUS: STAGE_B_LINUX_OFFLINE_BUILD_AUTHORIZED`
+`P2_M3_V03_STATUS: STAGE_B_LINUX_ARTIFACT_AUDIT_IN_PROGRESS`
 
 ## Deferred production boundary
 

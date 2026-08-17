@@ -1,0 +1,13 @@
+diff --git a/mediapipe/tasks/metadata/build_defs.bzl b/mediapipe/tasks/metadata/build_defs.bzl
+--- a/mediapipe/tasks/metadata/build_defs.bzl
++++ b/mediapipe/tasks/metadata/build_defs.bzl
+@@ -33,7 +33,8 @@ def stamp_metadata_parser_version(
+             tools = [METADATA_SCHEMA_FILE],
+             # Gets the metadata schema version from the file, and stamps it
+             # into the srcs file.
+-            cmd = "version=$$(sed -n -e '/Schema Semantic version/ s/.*\\: *//p' $(location %s));" %
++            # Strip CR so a Windows CRLF checkout cannot corrupt the C++ string.
++            cmd = "version=$$(sed -n -e '/Schema Semantic version/ s/.*\\: *//p' $(location %s) | tr -d '\\r');" %
+                   METADATA_SCHEMA_FILE +
+                   'sed "s/{LATEST_METADATA_PARSER_VERSION}/$$version/" $< > $@',
+         )
