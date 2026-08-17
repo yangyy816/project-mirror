@@ -15,13 +15,18 @@ from mirror_api.providers.base import SyntheticOutputSpecification
 from mirror_api.providers.synthetic_local import LocalSyntheticRawStorageProvider
 from mirror_api.synthetic_dataset.codex_native_source import (
     CodexNativeAdmissionEvidence,
+    CodexNativeAdmissionEvidenceV2,
     CodexNativeAdmissionRejected,
     CodexNativeGenerationSpecification,
+    CodexNativeGenerationSpecificationV2,
+    CodexNativeOutputConstraints,
     CodexNativeSourceAdmissionService,
 )
 
-_MANIFEST_SCHEMA = "mirror.synthetic-dataset/CodexNativeAdmissionManifest/v1"
-_EVIDENCE_SCHEMA = "mirror.synthetic-dataset/CodexNativeValidationEvidence/v1"
+_MANIFEST_SCHEMA_V1 = "mirror.synthetic-dataset/CodexNativeAdmissionManifest/v1"
+_MANIFEST_SCHEMA_V2 = "mirror.synthetic-dataset/CodexNativeAdmissionManifest/v2"
+_EVIDENCE_SCHEMA_V1 = "mirror.synthetic-dataset/CodexNativeValidationEvidence/v1"
+_EVIDENCE_SCHEMA_V2 = "mirror.synthetic-dataset/CodexNativeValidationEvidence/v2"
 _MAX_MANIFEST_BYTES = 128 * 1024
 _MAX_SOURCE_BYTES = 20 * 1024 * 1024
 
@@ -46,6 +51,12 @@ def _integer(value: object, *, label: str) -> int:
     if type(value) is not int:
         raise ManifestError(f"{label} must be an integer")
     return value
+
+
+def _optional_integer(value: object, *, label: str) -> int | None:
+    if value is None:
+        return None
+    return _integer(value, label=label)
 
 
 def _optional_text(value: object, *, label: str) -> str | None:
@@ -154,6 +165,109 @@ def _parse_specification(document: dict[str, object]) -> CodexNativeGenerationSp
     )
 
 
+def _parse_specification_v2(
+    document: dict[str, object],
+) -> CodexNativeGenerationSpecificationV2:
+    _exact_keys(
+        document,
+        {
+            "schema_version",
+            "specification_reference",
+            "specification_version",
+            "generation_policy_reference",
+            "prompt_template_reference",
+            "prompt_digest",
+            "requested_pose_reference",
+            "requested_expression_reference",
+            "styling_constraints_reference",
+            "output_constraints",
+            "requested_quantity",
+            "max_attempts",
+            "retry_ceiling",
+            "concurrency_ceiling",
+            "stop_condition_reference",
+            "coverage_pack_reference",
+            "coverage_cell_reference",
+            "synthetic_only",
+            "real_person_reference_used",
+        },
+        label="generation specification",
+    )
+    output = _object(document["output_constraints"], label="output constraints")
+    _exact_keys(
+        output,
+        {
+            "media_type",
+            "max_byte_size",
+            "max_width",
+            "max_height",
+            "max_pixels",
+            "requested_width",
+            "requested_height",
+        },
+        label="output constraints",
+    )
+    media_type = _text(output["media_type"], label="output media type")
+    if media_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise ManifestError("output media type is invalid")
+    return CodexNativeGenerationSpecificationV2(
+        schema_version=cast(
+            Literal["mirror.synthetic-dataset/CodexNativeGenerationSpecification/v2"],
+            _text(document["schema_version"], label="specification schema version"),
+        ),
+        specification_reference=_text(
+            document["specification_reference"], label="specification reference"
+        ),
+        specification_version=_text(
+            document["specification_version"], label="specification version"
+        ),
+        generation_policy_reference=_text(
+            document["generation_policy_reference"], label="generation policy reference"
+        ),
+        prompt_template_reference=_text(
+            document["prompt_template_reference"], label="prompt template reference"
+        ),
+        prompt_digest=_text(document["prompt_digest"], label="prompt digest"),
+        requested_pose_reference=_text(
+            document["requested_pose_reference"], label="requested pose reference"
+        ),
+        requested_expression_reference=_text(
+            document["requested_expression_reference"], label="requested expression reference"
+        ),
+        styling_constraints_reference=_text(
+            document["styling_constraints_reference"], label="styling constraints reference"
+        ),
+        output_constraints=CodexNativeOutputConstraints(
+            media_type=cast(Literal["image/jpeg", "image/png", "image/webp"], media_type),
+            max_byte_size=_integer(output["max_byte_size"], label="output maximum bytes"),
+            max_width=_integer(output["max_width"], label="output maximum width"),
+            max_height=_integer(output["max_height"], label="output maximum height"),
+            max_pixels=_integer(output["max_pixels"], label="output maximum pixels"),
+            requested_width=_optional_integer(
+                output["requested_width"], label="requested output width"
+            ),
+            requested_height=_optional_integer(
+                output["requested_height"], label="requested output height"
+            ),
+        ),
+        requested_quantity=_integer(document["requested_quantity"], label="requested quantity"),
+        max_attempts=_integer(document["max_attempts"], label="maximum attempts"),
+        retry_ceiling=_integer(document["retry_ceiling"], label="retry ceiling"),
+        concurrency_ceiling=_integer(document["concurrency_ceiling"], label="concurrency ceiling"),
+        stop_condition_reference=_text(
+            document["stop_condition_reference"], label="stop condition reference"
+        ),
+        coverage_pack_reference=_optional_text(
+            document["coverage_pack_reference"], label="coverage pack reference"
+        ),
+        coverage_cell_reference=_optional_text(
+            document["coverage_cell_reference"], label="coverage cell reference"
+        ),
+        synthetic_only=cast(Literal[True], document["synthetic_only"]),
+        real_person_reference_used=cast(Literal[False], document["real_person_reference_used"]),
+    )
+
+
 def _read_source(path: Path, *, expected_sha256: str) -> bytes:
     if len(expected_sha256) != 64 or any(
         character not in "0123456789abcdef" for character in expected_sha256
@@ -213,22 +327,74 @@ async def admit_manifest(
     *, manifest_path: Path, source_root: Path, storage_root: Path, evidence_output: Path
 ) -> dict[str, object]:
     manifest = _read_manifest(manifest_path)
-    _exact_keys(
-        manifest,
-        {"schema_version", "validation_reference", "specifications"},
-        label="admission manifest",
-    )
-    if manifest["schema_version"] != _MANIFEST_SCHEMA:
+    manifest_schema = manifest.get("schema_version")
+    if manifest_schema not in {_MANIFEST_SCHEMA_V1, _MANIFEST_SCHEMA_V2}:
         raise ManifestError("admission manifest schema version is not supported")
+    cohort_requested_count: int | None = None
+    cohort_attempt_budget: int | None = None
+    cohort_retry_ceiling: int | None = None
+    cohort_concurrency_ceiling: int | None = None
+    if manifest_schema == _MANIFEST_SCHEMA_V2:
+        _exact_keys(
+            manifest,
+            {"schema_version", "validation_reference", "cohort_constraints", "specifications"},
+            label="admission manifest",
+        )
+        cohort = _object(manifest["cohort_constraints"], label="cohort constraints")
+        _exact_keys(
+            cohort,
+            {
+                "requested_quantity",
+                "max_attempts",
+                "retry_ceiling_per_item",
+                "concurrency_ceiling",
+            },
+            label="cohort constraints",
+        )
+        cohort_requested_count = _integer(
+            cohort["requested_quantity"], label="cohort requested quantity"
+        )
+        cohort_attempt_budget = _integer(cohort["max_attempts"], label="cohort maximum attempts")
+        cohort_retry_ceiling = _integer(
+            cohort["retry_ceiling_per_item"], label="cohort retry ceiling"
+        )
+        cohort_concurrency_ceiling = _integer(
+            cohort["concurrency_ceiling"], label="cohort concurrency ceiling"
+        )
+        if not 1 <= cohort_requested_count <= 24:
+            raise ManifestError("native generation cohort exceeds the Principal-approved boundary")
+        if cohort_retry_ceiling not in {0, 1}:
+            raise ManifestError("cohort retry ceiling is invalid")
+        if not (
+            cohort_requested_count
+            <= cohort_attempt_budget
+            <= cohort_requested_count * (1 + cohort_retry_ceiling)
+            <= 48
+        ):
+            raise ManifestError("cohort attempt budget is invalid")
+        if cohort_concurrency_ceiling != 1:
+            raise ManifestError("native generation must remain serial")
+    else:
+        _exact_keys(
+            manifest,
+            {"schema_version", "validation_reference", "specifications"},
+            label="admission manifest",
+        )
     validation_reference = _text(manifest["validation_reference"], label="validation reference")
     specifications = manifest["specifications"]
     if not isinstance(specifications, list) or not specifications:
         raise ManifestError("admission manifest specifications are invalid")
-    service = CodexNativeSourceAdmissionService(
-        storage=LocalSyntheticRawStorageProvider(root=storage_root),
-        now=lambda: datetime.now().astimezone(),
-    )
-    evidence: list[CodexNativeAdmissionEvidence] = []
+    evidence: list[CodexNativeAdmissionEvidence | CodexNativeAdmissionEvidenceV2] = []
+    prepared_items: list[
+        tuple[
+            CodexNativeGenerationSpecification | CodexNativeGenerationSpecificationV2,
+            str,
+            int,
+            datetime,
+            str,
+            str,
+        ]
+    ] = []
     requested_count = 0
     attempt_budget = 0
     attempts_used = 0
@@ -236,9 +402,17 @@ async def admit_manifest(
     for raw_entry in specifications:
         entry = _object(raw_entry, label="specification entry")
         _exact_keys(entry, {"specification", "items"}, label="specification entry")
-        specification = _parse_specification(
-            _object(entry["specification"], label="generation specification")
-        )
+        specification_document = _object(entry["specification"], label="generation specification")
+        specification: CodexNativeGenerationSpecification | CodexNativeGenerationSpecificationV2
+        if manifest_schema == _MANIFEST_SCHEMA_V2:
+            specification = _parse_specification_v2(specification_document)
+            if (
+                specification.retry_ceiling != cohort_retry_ceiling
+                or specification.concurrency_ceiling != cohort_concurrency_ceiling
+            ):
+                raise ManifestError("generation specification conflicts with cohort constraints")
+        else:
+            specification = _parse_specification(specification_document)
         items = entry["items"]
         if not isinstance(items, list) or len(items) != specification.requested_quantity:
             raise ManifestError("specification item count does not match requested quantity")
@@ -276,32 +450,72 @@ async def admit_manifest(
                 )
             except ValueError as exc:
                 raise ManifestError("generation timestamp is invalid") from exc
+            prepared_items.append(
+                (
+                    specification,
+                    item_reference,
+                    attempt,
+                    generated_at,
+                    _text(item["source_path"], label="generated source path"),
+                    _text(item["expected_sha256"], label="generated source checksum"),
+                )
+            )
+        attempts_used += sum(item_attempts)
+    if manifest_schema == _MANIFEST_SCHEMA_V2:
+        if requested_count != cohort_requested_count:
+            raise ManifestError("cohort requested quantity does not match specifications")
+        if cohort_attempt_budget is None or attempts_used > cohort_attempt_budget:
+            raise ManifestError("cohort attempt budget was exceeded")
+        attempt_budget = cohort_attempt_budget
+    if validation_reference == "p2-m2-v01":
+        if manifest_schema != _MANIFEST_SCHEMA_V1:
+            raise ManifestError("P2-M2-V01 must remain on the frozen v1 manifest")
+        if requested_count != 8 or attempt_budget != 12:
+            raise ManifestError("P2-M2-V01 must use the approved 8-image and 12-attempt budget")
+    elif requested_count > 24:
+        raise ManifestError("native generation cohort exceeds the Principal-approved boundary")
+    service = CodexNativeSourceAdmissionService(
+        storage=LocalSyntheticRawStorageProvider(root=storage_root),
+        now=lambda: datetime.now().astimezone(),
+    )
+    for (
+        specification,
+        item_reference,
+        attempt,
+        generated_at,
+        source_path,
+        expected_sha256,
+    ) in prepared_items:
+        source_content = _read_source(
+            _source_within_root(source_root=source_root, manifest_path=source_path),
+            expected_sha256=expected_sha256,
+        )
+        if isinstance(specification, CodexNativeGenerationSpecificationV2):
+            evidence.append(
+                await service.admit_v2(
+                    specification=specification,
+                    item_reference=item_reference,
+                    attempt=attempt,
+                    generated_at=generated_at,
+                    content=source_content,
+                    media_type=specification.output_constraints.media_type,
+                )
+            )
+        else:
             evidence.append(
                 await service.admit(
                     specification=specification,
                     item_reference=item_reference,
                     attempt=attempt,
                     generated_at=generated_at,
-                    content=_read_source(
-                        _source_within_root(
-                            source_root=source_root,
-                            manifest_path=_text(item["source_path"], label="generated source path"),
-                        ),
-                        expected_sha256=_text(
-                            item["expected_sha256"], label="generated source checksum"
-                        ),
-                    ),
+                    content=source_content,
                     media_type=specification.output_specification.media_type,
                 )
             )
-        attempts_used += sum(item_attempts)
-    if validation_reference == "p2-m2-v01":
-        if requested_count != 8 or attempt_budget != 12:
-            raise ManifestError("P2-M2-V01 must use the approved 8-image and 12-attempt budget")
-    elif requested_count > 24:
-        raise ManifestError("native generation cohort exceeds the Principal-approved boundary")
     document: dict[str, object] = {
-        "schema_version": _EVIDENCE_SCHEMA,
+        "schema_version": (
+            _EVIDENCE_SCHEMA_V2 if manifest_schema == _MANIFEST_SCHEMA_V2 else _EVIDENCE_SCHEMA_V1
+        ),
         "validation_reference": validation_reference,
         "status": "passed",
         "images_requested": requested_count,
@@ -315,6 +529,9 @@ async def admit_manifest(
         "production_generation_enabled": False,
         "items": [item.to_document() for item in evidence],
     }
+    if manifest_schema == _MANIFEST_SCHEMA_V2:
+        document["retry_ceiling_per_item"] = cohort_retry_ceiling
+        document["concurrency_ceiling"] = cohort_concurrency_ceiling
     evidence_output.parent.mkdir(parents=True, exist_ok=True)
     evidence_output.write_text(
         json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8"

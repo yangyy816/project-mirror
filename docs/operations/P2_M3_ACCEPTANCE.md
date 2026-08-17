@@ -50,6 +50,12 @@ The M3 validation sequence is:
 These eight assets validate the pipeline; they are not final coverage, diversity, transform,
 QuestionBank or questionnaire evidence.
 
+Future Codex-native cohorts whose built-in tool exposes no requested dimensions use the ADR-031 v2
+admission contract. Their evidence must preserve observed dimensions while requested width/height and
+the match fact remain `NULL`. This is not a dimensions-compliance claim and does not permit raw
+resampling. All v1 evidence remains immutable; all image, source-root and resource-limit gates remain
+mandatory.
+
 ## T03 deterministic normalization evidence
 
 - `SyntheticNormalizationService` preserves M2 raw authority, verifies inspect metadata plus the
@@ -241,6 +247,31 @@ release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts rem
   beauty score, percentile or ranking is permitted.
 - New generation/admission evidence must bind v2 policy/Prompt/rubric references and cannot be used
   to rewrite or reinterpret V01, age-v1 or style-v1 evidence.
+
+## Approved native admission schema v2
+
+- ADR-031 is a forward-only representation change for native tools without auditable requested
+  dimensions; it does not rewrite ADR-026 v1 evidence.
+- Unknown requested width/height and `dimensions_match_requested` must remain `NULL`; observed
+  width/height are mandatory.
+- Cohort requested quantity, global attempt ceiling, per-item retry ceiling and serial concurrency
+  must be enforced independently of per-Prompt specifications.
+- MIME/magic, checksum, bytes, edge, pixels, frame count, decode, private source-root and attempt
+  ceilings remain hard gates. Known requested dimensions still require a matching aspect ratio.
+- No public API, runtime Provider, production generation, dependency, model, weight or real-person
+  processing is authorized.
+
+## Style-v2 native cohort evidence
+
+- `P2_M3_STYLE_V2_REDACTED_EVIDENCE.json` binds the v2 policy, plan, admission manifest, admission
+  evidence and categorical review digests without Prompt text, private paths, object keys, storage
+  references or image bytes.
+- Eight source candidates were requested and admitted with 10 of 12 allowed attempts. Two rejected
+  attempts remain immutable private evidence; neither was silently replaced or deleted.
+- All eight passed the ADR-030 general/adult-only categorical hard gates and were recorded as
+  questionnaire-suitable without age estimation, beauty/attractiveness scoring or ranking.
+- Candidate selection is still soft and provisional. Vision QA, morphology measurement, identity
+  registration and QuestionBank release remain blocked and are not implied by this evidence.
 
 `P2_M3_LOCAL_GATE: PENDING`
 

@@ -83,6 +83,24 @@ unambiguous 18+ presentation and reject 16–17 ambiguity. All v1 evidence remai
 generation must bind v2 policy/Prompt/rubric references; no schema, API, Vision, release or production
 Provider authority changes.
 
+## Approved native uncontrolled-dimensions admission v2
+
+ADR-031 adds a forward-only native admission schema for future cohorts where the built-in generation
+tool exposes no auditable requested width, height or aspect-ratio control. Existing ADR-026 v1
+manifests and evidence remain immutable. The v2 specification records bounded output constraints and
+uses `NULL` for unknown requested width/height; evidence records observed dimensions and keeps
+`dimensions_match_requested=NULL`. It must not infer requested dimensions from the output or alter raw
+bytes before admission.
+
+The v2 manifest also records requested quantity, global attempt ceiling, per-item retry ceiling and
+serial concurrency at cohort level. Per-Prompt specifications cannot be summed or redistributed after
+generation to fabricate the approved global budget.
+
+Checksum, MIME/magic, byte, edge, pixel, single-frame, decode, source-root, reparse/symlink,
+attempt/retry and serial-concurrency gates remain fail closed. If requested dimensions are known, both
+must be present and aspect-ratio validation still applies. This change does not alter OpenAPI,
+production Provider/runtime configuration, M3 normalization authority or M2 frozen evidence.
+
 ## Data and migration contract
 
 The sole planned migration is `0010_synthetic_asset_qa` and must not modify `0001`–`0009`.

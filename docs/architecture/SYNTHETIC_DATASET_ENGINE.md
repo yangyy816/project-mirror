@@ -77,6 +77,11 @@ soft features 或其他 youthful adult traits 本身不再触发拒绝；只有�
 adult。`ADULT_SAFE_SEXY`、`CHARMING_ALLURING` 与任何 intimate/sexualized context 保留严格的
 unambiguous 18+ overlay，不能使用可能呈现为 16–17 岁的主体。所有 v1 evidence 保持不可变。
 
+ADR-031 为 Codex native tool 未暴露 requested dimensions 的未来 cohort 增加前向 admission v2。
+未知 requested width/height 与 match fact 必须保持 `NULL`，observed dimensions 单独记录；不得把
+实际输出冒充请求参数或在 raw admission 前裁切。MIME、checksum、byte、edge、pixel、single-frame、
+private source-root 与 decode gates 不变，v1 manifest/evidence 继续冻结。
+
 ## Reference research boundary
 
 网络、文献和获授权市场研究默认只提取人工复核的 abstract non-identifying descriptors，再进入

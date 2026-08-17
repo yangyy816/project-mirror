@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from mirror_api.providers.base import (
     OfflineSyntheticSourceProvenanceFact,
@@ -19,6 +21,8 @@ from mirror_api.scripts.codex_native_source_admission import ManifestError, admi
 from mirror_api.synthetic_dataset.codex_native_source import (
     CodexNativeAdmissionRejected,
     CodexNativeGenerationSpecification,
+    CodexNativeGenerationSpecificationV2,
+    CodexNativeOutputConstraints,
     CodexNativeSourceAdmissionService,
 )
 
@@ -56,6 +60,54 @@ def _specification(**overrides: object) -> CodexNativeGenerationSpecification:
     return CodexNativeGenerationSpecification(**values)  # type: ignore[arg-type]
 
 
+def _specification_v2(**overrides: object) -> CodexNativeGenerationSpecificationV2:
+    values: dict[str, object] = {
+        "schema_version": "mirror.synthetic-dataset/CodexNativeGenerationSpecification/v2",
+        "specification_reference": "style-v2-a-01",
+        "specification_version": "style-v2-spec-v2",
+        "generation_policy_reference": "cn-female-style-presentation-v2",
+        "prompt_template_reference": "style-v2-a-01-pure-clean-natural-v1",
+        "prompt_digest": "2" * 64,
+        "requested_pose_reference": "frontal-v1",
+        "requested_expression_reference": "neutral-v1",
+        "styling_constraints_reference": "style-product-curation-v2",
+        "output_constraints": CodexNativeOutputConstraints(
+            media_type="image/png",
+            max_byte_size=1024,
+            max_width=8,
+            max_height=8,
+            max_pixels=64,
+            requested_width=None,
+            requested_height=None,
+        ),
+        "requested_quantity": 1,
+        "max_attempts": 2,
+        "retry_ceiling": 1,
+        "concurrency_ceiling": 1,
+        "stop_condition_reference": "style-v2-bounded-completion-v1",
+        "coverage_pack_reference": "china-first-style-v2",
+        "coverage_cell_reference": "canonical-frontal-v1",
+        "synthetic_only": True,
+        "real_person_reference_used": False,
+    }
+    values.update(overrides)
+    return CodexNativeGenerationSpecificationV2(**values)  # type: ignore[arg-type]
+
+
+def _non_square_png_bytes() -> bytes:
+    output = io.BytesIO()
+    Image.new("RGB", (2, 1), (32, 64, 96)).save(output, format="PNG")
+    return output.getvalue()
+
+
+def _multiframe_png_bytes() -> bytes:
+    output = io.BytesIO()
+    first = Image.new("RGB", (2, 1), (32, 64, 96))
+    second = Image.new("RGB", (2, 1), (96, 64, 32))
+    first.save(output, format="PNG", save_all=True, append_images=[second])
+    return output.getvalue()
+
+
 @pytest.mark.asyncio
 async def test_codex_native_source_admits_only_known_facts_to_private_raw_storage(
     tmp_path: Path,
@@ -91,6 +143,204 @@ async def test_codex_native_source_admits_only_known_facts_to_private_raw_storag
     assert "source_path" not in serialized
     assert "prompt_text" not in serialized
     assert "internal-synthetic" not in serialized
+
+
+@pytest.mark.asyncio
+async def test_codex_native_source_v2_preserves_unknown_requested_dimensions(
+    tmp_path: Path,
+) -> None:
+    storage = LocalSyntheticRawStorageProvider(root=tmp_path / "private")
+    evidence = await CodexNativeSourceAdmissionService(storage=storage, now=lambda: NOW).admit_v2(
+        specification=_specification_v2(),
+        item_reference="style-v2-a-01",
+        attempt=1,
+        generated_at=NOW,
+        content=_non_square_png_bytes(),
+        media_type="image/png",
+    )
+
+    assert (evidence.width, evidence.height) == (2, 1)
+    assert evidence.requested_width is None
+    assert evidence.requested_height is None
+    assert evidence.dimensions_match_requested is None
+    assert evidence.schema_version == "mirror.synthetic-dataset/CodexNativeAdmissionEvidence/v2"
+
+
+@pytest.mark.asyncio
+async def test_codex_native_source_v2_keeps_known_dimension_and_resource_gates(
+    tmp_path: Path,
+) -> None:
+    service = CodexNativeSourceAdmissionService(
+        storage=LocalSyntheticRawStorageProvider(root=tmp_path / "private"),
+        now=lambda: NOW,
+    )
+    known_square = CodexNativeOutputConstraints(
+        media_type="image/png",
+        max_byte_size=1024,
+        max_width=8,
+        max_height=8,
+        max_pixels=64,
+        requested_width=1,
+        requested_height=1,
+    )
+    with pytest.raises(CodexNativeAdmissionRejected) as aspect_rejected:
+        await service.admit_v2(
+            specification=_specification_v2(output_constraints=known_square),
+            item_reference="style-v2-a-01",
+            attempt=1,
+            generated_at=NOW,
+            content=_non_square_png_bytes(),
+            media_type="image/png",
+        )
+    assert aspect_rejected.value.code == "source_aspect_ratio_mismatch"
+
+    narrow_boundary = CodexNativeOutputConstraints(
+        media_type="image/png",
+        max_byte_size=1024,
+        max_width=1,
+        max_height=8,
+        max_pixels=8,
+    )
+    with pytest.raises(CodexNativeAdmissionRejected) as edge_rejected:
+        await service.admit_v2(
+            specification=_specification_v2(output_constraints=narrow_boundary),
+            item_reference="style-v2-a-01",
+            attempt=1,
+            generated_at=NOW,
+            content=_non_square_png_bytes(),
+            media_type="image/png",
+        )
+    assert edge_rejected.value.code == "source_edge_limit_exceeded"
+
+    pixel_boundary = CodexNativeOutputConstraints(
+        media_type="image/png",
+        max_byte_size=1024,
+        max_width=8,
+        max_height=8,
+        max_pixels=1,
+    )
+    with pytest.raises(CodexNativeAdmissionRejected) as pixel_rejected:
+        await service.admit_v2(
+            specification=_specification_v2(output_constraints=pixel_boundary),
+            item_reference="style-v2-a-01",
+            attempt=1,
+            generated_at=NOW,
+            content=_non_square_png_bytes(),
+            media_type="image/png",
+        )
+    assert pixel_rejected.value.code == "source_pixel_limit_exceeded"
+
+    content = _non_square_png_bytes()
+    byte_boundary = CodexNativeOutputConstraints(
+        media_type="image/png",
+        max_byte_size=len(content) - 1,
+        max_width=8,
+        max_height=8,
+        max_pixels=64,
+    )
+    with pytest.raises(CodexNativeAdmissionRejected) as byte_rejected:
+        await service.admit_v2(
+            specification=_specification_v2(output_constraints=byte_boundary),
+            item_reference="style-v2-a-01",
+            attempt=1,
+            generated_at=NOW,
+            content=content,
+            media_type="image/png",
+        )
+    assert byte_rejected.value.code == "source_output_mismatch"
+
+    with pytest.raises(CodexNativeAdmissionRejected) as multiframe_rejected:
+        await service.admit_v2(
+            specification=_specification_v2(),
+            item_reference="style-v2-a-01",
+            attempt=1,
+            generated_at=NOW,
+            content=_multiframe_png_bytes(),
+            media_type="image/png",
+        )
+    assert multiframe_rejected.value.code == "source_multiframe_rejected"
+
+    with pytest.raises(ValueError, match="both known or both null"):
+        CodexNativeOutputConstraints(
+            media_type="image/png",
+            max_byte_size=1024,
+            max_width=8,
+            max_height=8,
+            max_pixels=64,
+            requested_width=1,
+            requested_height=None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_codex_native_manifest_v2_admits_non_square_source_without_fabrication(
+    tmp_path: Path,
+) -> None:
+    content = _non_square_png_bytes()
+    source = tmp_path / "source.png"
+    source.write_bytes(content)
+    manifest = {
+        "schema_version": "mirror.synthetic-dataset/CodexNativeAdmissionManifest/v2",
+        "validation_reference": "style-v2-manifest-test",
+        "cohort_constraints": {
+            "requested_quantity": 1,
+            "max_attempts": 2,
+            "retry_ceiling_per_item": 1,
+            "concurrency_ceiling": 1,
+        },
+        "specifications": [
+            {
+                "specification": asdict(_specification_v2()),
+                "items": [
+                    {
+                        "item_reference": "style-v2-a-01",
+                        "attempt": 1,
+                        "generated_at": NOW.isoformat(),
+                        "source_path": source.name,
+                        "expected_sha256": hashlib.sha256(content).hexdigest(),
+                    }
+                ],
+            }
+        ],
+    }
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    evidence = await admit_manifest(
+        manifest_path=manifest_path,
+        source_root=tmp_path,
+        storage_root=tmp_path / "private",
+        evidence_output=tmp_path / "evidence.json",
+    )
+
+    assert evidence["schema_version"] == (
+        "mirror.synthetic-dataset/CodexNativeValidationEvidence/v2"
+    )
+    assert evidence["attempt_budget"] == 2
+    assert evidence["attempts_used"] == 1
+    assert evidence["retry_ceiling_per_item"] == 1
+    assert evidence["concurrency_ceiling"] == 1
+    items = evidence["items"]
+    assert isinstance(items, list)
+    item = items[0]
+    assert isinstance(item, dict)
+    assert item["requested_width"] is None
+    assert item["requested_height"] is None
+    assert item["dimensions_match_requested"] is None
+
+    over_budget = json.loads(json.dumps(manifest))
+    over_budget["cohort_constraints"]["max_attempts"] = 1
+    over_budget["specifications"][0]["items"][0]["attempt"] = 2
+    manifest_path.write_text(json.dumps(over_budget), encoding="utf-8")
+    with pytest.raises(ManifestError, match="cohort attempt budget"):
+        await admit_manifest(
+            manifest_path=manifest_path,
+            source_root=tmp_path,
+            storage_root=tmp_path / "must-remain-empty",
+            evidence_output=tmp_path / "must-not-exist.json",
+        )
+    assert not (tmp_path / "must-remain-empty").exists()
+    assert not (tmp_path / "must-not-exist.json").exists()
 
 
 @pytest.mark.asyncio
@@ -284,3 +534,41 @@ def test_codex_native_source_is_not_a_runtime_provider_or_production_option() ->
     assert "CODEX_NATIVE_IMAGEGEN" not in config
     assert "CODEX_NATIVE_IMAGEGEN" not in runtime
     assert "CodexImageGenerationProvider" not in providers
+
+
+def test_style_v2_redacted_evidence_contains_no_private_source_authority() -> None:
+    repo = Path(__file__).resolve().parents[3]
+    evidence_path = repo / "docs/operations/P2_M3_STYLE_V2_REDACTED_EVIDENCE.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    serialized = json.dumps(evidence, sort_keys=True)
+
+    assert evidence["schema_version"] == "mirror.p2-m3/StyleV2RedactedEvidence/v1"
+    assert evidence["cohort"] == {
+        "images_requested": 8,
+        "images_admitted": 8,
+        "attempt_budget": 12,
+        "attempts_used": 10,
+        "retry_ceiling_per_item": 1,
+        "concurrency_ceiling": 1,
+        "synthetic_only": True,
+        "real_person_reference_used": False,
+        "real_user_runtime_generation_calls": 0,
+        "automatic_age_estimation_used": False,
+        "numeric_attractiveness_used": False,
+        "ranking_used": False,
+    }
+    assert len(evidence["items"]) == 8
+    assert all(item["requested_width"] is None for item in evidence["items"])
+    assert all(item["requested_height"] is None for item in evidence["items"])
+    assert all(item["dimensions_match_requested"] is None for item in evidence["items"])
+    assert evidence["limitations"]["identity_registration"] == "BLOCKED"
+    assert evidence["limitations"]["question_bank_release"] == "NOT_AUTHORIZED"
+    for forbidden in (
+        "source_path",
+        "storage_reference",
+        "object_key",
+        "prompt_text",
+        ".local-storage",
+        "D:\\\\p",
+    ):
+        assert forbidden not in serialized
