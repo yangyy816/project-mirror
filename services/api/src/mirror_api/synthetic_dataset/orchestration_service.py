@@ -163,6 +163,7 @@ class CanonicalIdentityRegistrationService:
             if (
                 record.status != "QA_PASSED"
                 or run.status != "PASSED"
+                or run.subject_kind != "CANONICAL_BASE"
                 or run.synthetic_asset_record_id != record.id
                 or run.normalized_asset_id != asset.id
             ):
@@ -628,6 +629,8 @@ class SyntheticM3OrchestrationService:
             )
             if run is None:
                 raise M3OperationRejected("qa_run_not_found")
+            if run.subject_kind != "CANONICAL_BASE" or run.synthetic_asset_record_id is None:
+                raise M3OperationRejected("qa_subject_not_canonical_base")
             return run.synthetic_asset_record_id
 
     def _lease_guard(

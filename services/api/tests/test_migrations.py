@@ -82,7 +82,7 @@ def test_ci_evidence_tracks_current_migration_head() -> None:
     workflow = (Path(__file__).resolve().parents[3] / ".github" / "workflows" / "ci.yml").read_text(
         encoding="utf-8"
     )
-    expected_argument = "--expected-migration-head 0011_offline_synth_source"
+    expected_argument = "--expected-migration-head 0012_geometry_variant_authority"
     assert workflow.count(expected_argument) == 4
     assert "--expected-migration-head 0009_generation_batch_pipeline" not in workflow
 

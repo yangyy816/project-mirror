@@ -20,6 +20,7 @@ from sqlalchemy import (
     UniqueConstraint,
     event,
     inspect,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.orm.state import InstanceState
@@ -1419,14 +1420,173 @@ class SyntheticAssetRecord(IdMixin, TimestampMixin, Base):
     )
 
 
+class VariantSpecification(IdMixin, TimestampMixin, Base):
+    __tablename__ = "variant_specifications"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(96), default="mirror.synthetic-dataset/VariantSpecification/v1", nullable=False
+    )
+    source_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    source_identity_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_identities.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    source_qa_run_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_qa_runs.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    geometry_ontology_version_id: Mapped[str] = mapped_column(
+        ForeignKey("geometry_ontology_versions.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    target_dimension: Mapped[str] = mapped_column(String(64), nullable=False)
+    direction: Mapped[str] = mapped_column(String(16), nullable=False)
+    relative_magnitude_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
+    control_dimensions: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    runtime_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    tolerance_policy_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_qa_policies.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    output_width: Mapped[int] = mapped_column(Integer, nullable=False)
+    output_height: Mapped[int] = mapped_column(Integer, nullable=False)
+    output_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    determinism_level: Mapped[str] = mapped_column(String(32), nullable=False)
+    content_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    __table_args__ = (
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/VariantSpecification/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("target_dimension ~ '^[a-z][a-z0-9_]{0,63}$'", name="target_dimension"),
+        CheckConstraint("direction IN ('INCREASE','DECREASE')", name="direction"),
+        CheckConstraint(
+            "relative_magnitude_ppm BETWEEN 1 AND 1000000", name="relative_magnitude_ppm"
+        ),
+        CheckConstraint(
+            "json_typeof(control_dimensions) = 'array' AND "
+            "json_array_length(control_dimensions) > 0",
+            name="control_dimensions",
+        ),
+        CheckConstraint(
+            "algorithm_version ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-v[1-9][0-9]*$'",
+            name="algorithm_version",
+        ),
+        CheckConstraint("runtime_manifest_digest ~ '^[0-9a-f]{64}$'", name="runtime_digest"),
+        CheckConstraint(
+            "output_width BETWEEN 1 AND 16384 AND output_height BETWEEN 1 AND 16384 "
+            "AND output_width::bigint * output_height::bigint <= 64000000",
+            name="output_bounds",
+        ),
+        CheckConstraint(
+            "output_policy_version ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-v[1-9][0-9]*$'",
+            name="output_policy_version",
+        ),
+        CheckConstraint(
+            "determinism_level IN ('BIT_EXACT_CROSS_PLATFORM','BIT_EXACT_SAME_PLATFORM',"
+            "'MEASUREMENT_EQUIVALENT')",
+            name="determinism_level",
+        ),
+        CheckConstraint("content_digest ~ '^[0-9a-f]{64}$'", name="content_digest"),
+    )
+
+
+class TransformRun(IdMixin, TimestampMixin, Base):
+    __tablename__ = "transform_runs"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(96), default="mirror.synthetic-dataset/TransformRun/v1", nullable=False
+    )
+    variant_specification_id: Mapped[str] = mapped_column(
+        ForeignKey("variant_specifications.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="SPECIFIED", nullable=False)
+    result_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), unique=True
+    )
+    result_code: Mapped[str | None] = mapped_column(String(64))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    output_stored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    measurement_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        UniqueConstraint(
+            "variant_specification_id",
+            "attempt",
+            name="uq_transform_runs_unique_specification_attempt",
+        ),
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/TransformRun/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("attempt > 0", name="attempt"),
+        CheckConstraint(
+            "status IN ('SPECIFIED','RUNNING','OUTPUT_STORED','MEASURING','COMPLETED',"
+            "'REJECTED','FAILED','CANCELLED')",
+            name="status",
+        ),
+        CheckConstraint(
+            "result_code IS NULL OR result_code ~ '^[a-z][a-z0-9_]{2,63}$'",
+            name="result_code",
+        ),
+        CheckConstraint(
+            "(status IN ('SPECIFIED','RUNNING','OUTPUT_STORED','MEASURING','COMPLETED') "
+            "AND result_code IS NULL) OR "
+            "(status IN ('REJECTED','FAILED','CANCELLED') AND result_code IS NOT NULL)",
+            name="result_shape",
+        ),
+        CheckConstraint(
+            "(status = 'SPECIFIED' AND started_at IS NULL AND output_stored_at IS NULL "
+            "AND measurement_started_at IS NULL AND finalized_at IS NULL "
+            "AND result_asset_id IS NULL) OR "
+            "(status = 'RUNNING' AND started_at IS NOT NULL AND output_stored_at IS NULL "
+            "AND measurement_started_at IS NULL AND finalized_at IS NULL "
+            "AND result_asset_id IS NULL) OR "
+            "(status = 'OUTPUT_STORED' AND started_at IS NOT NULL AND output_stored_at IS NOT NULL "
+            "AND measurement_started_at IS NULL AND finalized_at IS NULL "
+            "AND result_asset_id IS NOT NULL) OR "
+            "(status = 'MEASURING' AND started_at IS NOT NULL AND output_stored_at IS NOT NULL "
+            "AND measurement_started_at IS NOT NULL AND finalized_at IS NULL "
+            "AND result_asset_id IS NOT NULL) OR "
+            "(status = 'COMPLETED' AND started_at IS NOT NULL AND output_stored_at IS NOT NULL "
+            "AND measurement_started_at IS NOT NULL AND finalized_at IS NOT NULL "
+            "AND result_asset_id IS NOT NULL) OR "
+            "(status IN ('REJECTED','FAILED') AND started_at IS NOT NULL "
+            "AND finalized_at IS NOT NULL) OR "
+            "(status = 'CANCELLED' AND finalized_at IS NOT NULL)",
+            name="status_shape",
+        ),
+        CheckConstraint(
+            "(output_stored_at IS NULL OR output_stored_at >= started_at) AND "
+            "(measurement_started_at IS NULL OR measurement_started_at >= output_stored_at) AND "
+            "(finalized_at IS NULL OR started_at IS NULL OR finalized_at >= started_at) AND "
+            "(finalized_at IS NULL OR measurement_started_at IS NULL "
+            "OR finalized_at >= measurement_started_at)",
+            name="timestamp_order",
+        ),
+        Index(
+            "uq_transform_runs_completed_specification",
+            "variant_specification_id",
+            unique=True,
+            postgresql_where=text("status = 'COMPLETED'"),
+        ),
+    )
+
+
 class SyntheticQARun(IdMixin, TimestampMixin, Base):
     __tablename__ = "synthetic_qa_runs"
 
     schema_version: Mapped[str] = mapped_column(
         String(96), default="mirror.synthetic-dataset/SyntheticQARun/v1", nullable=False
     )
-    synthetic_asset_record_id: Mapped[str] = mapped_column(
-        ForeignKey("synthetic_asset_records.id", ondelete="RESTRICT"), index=True, nullable=False
+    subject_kind: Mapped[str] = mapped_column(String(24), default="CANONICAL_BASE", nullable=False)
+    synthetic_asset_record_id: Mapped[str | None] = mapped_column(
+        ForeignKey("synthetic_asset_records.id", ondelete="RESTRICT"), index=True
+    )
+    transform_run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("transform_runs.id", ondelete="RESTRICT", use_alter=True), unique=True
     )
     normalized_asset_id: Mapped[str] = mapped_column(
         ForeignKey("assets.id", ondelete="RESTRICT"), index=True, nullable=False
@@ -1447,8 +1607,20 @@ class SyntheticQARun(IdMixin, TimestampMixin, Base):
             name="uq_synthetic_qa_runs_unique_asset_policy",
         ),
         CheckConstraint(
-            "schema_version = 'mirror.synthetic-dataset/SyntheticQARun/v1'",
+            "schema_version IN ('mirror.synthetic-dataset/SyntheticQARun/v1',"
+            "'mirror.synthetic-dataset/SyntheticQARun/v2')",
             name="schema_version",
+        ),
+        CheckConstraint(
+            "subject_kind IN ('CANONICAL_BASE','GEOMETRY_VARIANT')", name="subject_kind"
+        ),
+        CheckConstraint(
+            "(subject_kind = 'CANONICAL_BASE' AND synthetic_asset_record_id IS NOT NULL "
+            "AND transform_run_id IS NULL) OR "
+            "(subject_kind = 'GEOMETRY_VARIANT' AND synthetic_asset_record_id IS NULL "
+            "AND transform_run_id IS NOT NULL "
+            "AND schema_version = 'mirror.synthetic-dataset/SyntheticQARun/v2')",
+            name="subject_shape",
         ),
         CheckConstraint(
             "status IN ('PENDING','RUNNING','PASSED','REJECTED','FAILED')", name="status"
@@ -2482,6 +2654,32 @@ event.listen(SyntheticAssetRecord, "before_update", _protect_synthetic_asset_rec
 event.listen(SyntheticAssetRecord, "before_delete", _reject_immutable_change)
 event.listen(SyntheticQARun, "before_update", _protect_synthetic_qa_run)
 event.listen(SyntheticQARun, "before_delete", _reject_immutable_change)
+
+
+def _protect_transform_run(mapper: object, connection: object, target: TransformRun) -> None:
+    del mapper, connection
+    state = inspect(target)
+    mutable_fields = {
+        "updated_at",
+        "status",
+        "result_asset_id",
+        "result_code",
+        "started_at",
+        "output_stored_at",
+        "measurement_started_at",
+        "finalized_at",
+    }
+    if any(
+        attribute.key not in mutable_fields and attribute.history.has_changes()
+        for attribute in state.attrs
+    ):
+        raise ValueError("transform run authority is immutable")
+
+
+event.listen(VariantSpecification, "before_update", _reject_immutable_change)
+event.listen(VariantSpecification, "before_delete", _reject_immutable_change)
+event.listen(TransformRun, "before_update", _protect_transform_run)
+event.listen(TransformRun, "before_delete", _reject_immutable_change)
 
 
 def _protect_versioned_state(
