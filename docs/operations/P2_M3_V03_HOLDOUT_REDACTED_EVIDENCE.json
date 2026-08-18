@@ -4,8 +4,9 @@
   "candidate_reference": "mediapipe-v0.10.35-source-built-r21",
   "policy_version": "p2-m3-v03-source-built-vision-qa-v1",
   "policy_commit": "f7b76b23e1de7f9c76ba65ff09ec174528fd83de",
-  "policy_document_digest": "5929f44a8383838e51b9b4e34eb4045748dd68c1f579f3ab5ffaa64eadb9fad6",
-  "qa_policy_content_digest": "6256f8a74af063726bf22c0d4724db5f8ee10bde659455410c75bcec0e888ae5",
+  "policy_document_digest": "ce753081409931177f722ec2222b8b27f8a1c62cf299c52b96a894bb97171062",
+  "qa_policy_payload_sha256": "6256f8a74af063726bf22c0d4724db5f8ee10bde659455410c75bcec0e888ae5",
+  "qa_policy_content_digest": "8305cfaa25d084138fb67e93043a1e37842543a645085d19d3ef52ac8a6ce15f",
   "policy_freeze_ci_run": 32091490211,
   "model_sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
   "windows_runtime_sha256": "5a904100bf197e8b4755f503aa4d1d8a8892107a9940e2f848eeb302ff24dd8d",
@@ -34,6 +35,17 @@
     "windows_analysis": "971cb31fb000e81c04f3e6aa113249d2f64276e457a05eae008367dd37ba96bb",
     "linux_analysis": "d021366a3b4ee03aea02a31af6b929572c23486b39935bea759200e94f2e2c1d",
     "platform_comparison": "46e233a7bea42cc9640bc6895c2de3180bf61373c62aa2375bddc93576671199"
+  },
+  "digest_repair": {
+    "repair_id": "P2-M3-R22",
+    "detected_by": "canonical_policy_database_admission",
+    "database_rows_written_before_detection": 0,
+    "executed_input_manifest_policy_document_digest": "5929f44a8383838e51b9b4e34eb4045748dd68c1f579f3ab5ffaa64eadb9fad6",
+    "executed_input_manifest_qa_policy_digest": "6256f8a74af063726bf22c0d4724db5f8ee10bde659455410c75bcec0e888ae5",
+    "policy_content_changed": false,
+    "thresholds_changed": false,
+    "runtime_or_model_changed": false,
+    "measurements_changed": false
   },
   "items": [
     {
@@ -158,5 +170,5 @@
     "json": "allow_nan=false;ensure_ascii=true;separators=(',',':');sort_keys=true",
     "document_scope": "complete_document_with_document_digest_omitted"
   },
-  "document_digest": "83d273f6f6b595e0ab3112ac5752bbdb68693ad5703b02468dbf6eac6e8de5e3"
+  "document_digest": "759f651662068997933f900007b31ad0265255ee4b2654fb4e682f8059baa31c"
 }

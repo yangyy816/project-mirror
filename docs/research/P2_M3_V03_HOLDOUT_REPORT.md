@@ -31,9 +31,11 @@ Cross-platform maxima across the holdout were:
 - landmark bounding-box area absolute difference: `0.000007002890750729129`;
 - matrix-derived rotation absolute difference: `0.001456678673668499` degrees.
 
-All values are within policy digest
-`5929f44a8383838e51b9b4e34eb4045748dd68c1f579f3ab5ffaa64eadb9fad6`; no threshold was changed
-after holdout execution.
+All values are within the unchanged frozen thresholds. The executed private manifest binds the
+pre-repair document digest `5929f44a...`; `P2-M3-R22` subsequently corrected only the derived policy
+digest from a raw-content SHA-256 to the repository `CanonicalPolicy` envelope. PostgreSQL rejected
+the wrong digest before any policy or evidence row was written. Policy content, thresholds, runtime,
+model, inputs and measurements did not change after holdout execution.
 
 ## Operator hard-gate review
 
@@ -52,6 +54,10 @@ asset distribution, production Vision and real-user facial processing remain blo
 The source-built V03 candidate satisfies the preregistered synthetic-only Stage D holdout gates.
 This closes calibration/holdout qualification but does not itself persist QA rows, register base
 identities, complete T07/T08 or decide the P2-M3 Milestone Gate.
+
+`P2_M3_R22_POLICY_CONTENT_CHANGED: NO`
+
+`P2_M3_R22_THRESHOLDS_CHANGED: NO`
 
 `P2_M3_V03_STAGE_D_HOLDOUT: PASS_PRIVATE_SYNTHETIC_ONLY`
 

@@ -51,11 +51,17 @@ The immutable policy envelope is `P2_M3_V03_QA_POLICY_V1.json`. Thresholds were 
 holdout runtime execution, with explicit margins around calibration distributions and the intended
 negative-control separations. Automatic hard failures cannot be overridden by human review.
 
-Both SHA-256 digests use UTF-8 canonical JSON with non-finite numbers rejected, ASCII escaping,
-lexicographically sorted keys and compact separators. `qa_policy_content_digest` covers only the
-`qa_policy_content` object. `document_digest` covers the complete policy envelope after omitting the
-`document_digest` member itself, so it binds the policy content digest, thresholds, runtime/model
-references, calibration evidence and the canonicalization rule without becoming self-referential.
+All SHA-256 values use UTF-8 canonical JSON with non-finite numbers rejected, ASCII escaping,
+lexicographically sorted keys and compact separators. `qa_policy_payload_sha256` covers only the
+`qa_policy_content` object. The authoritative `qa_policy_content_digest` follows the repository
+`CanonicalPolicy` contract and hashes the synthetic QA policy schema version, a newline, the policy
+version, a newline and the canonical policy content. `document_digest` covers the complete policy
+envelope after omitting the `document_digest` member itself.
+
+`P2-M3-R22` corrected the initially published content digest from a raw-payload SHA-256 to the
+repository authority envelope before any policy, QA run, measurement, review or identity row was
+written. Policy content, thresholds, runtime/model references and all calibration or holdout
+measurements remained byte-for-byte unchanged.
 
 Adult presentation, likeness risk, license scope, text/watermark and background suitability remain
 explicit hard-gate operator reviews. The Vision model does not estimate age or sensitive traits.

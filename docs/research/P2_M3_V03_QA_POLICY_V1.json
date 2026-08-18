@@ -161,9 +161,10 @@
     "algorithm": "sha256",
     "encoding": "utf-8",
     "json": "allow_nan=false;ensure_ascii=true;separators=(',',':');sort_keys=true",
-    "qa_policy_content_scope": "qa_policy_content",
+    "qa_policy_content_scope": "synthetic_qa_policy_schema_version+'\\n'+policy_version+'\\n'+canonical_qa_policy_content",
     "document_scope": "complete_document_with_document_digest_omitted"
   },
-  "qa_policy_content_digest": "6256f8a74af063726bf22c0d4724db5f8ee10bde659455410c75bcec0e888ae5",
-  "document_digest": "5929f44a8383838e51b9b4e34eb4045748dd68c1f579f3ab5ffaa64eadb9fad6"
+  "qa_policy_payload_sha256": "6256f8a74af063726bf22c0d4724db5f8ee10bde659455410c75bcec0e888ae5",
+  "qa_policy_content_digest": "8305cfaa25d084138fb67e93043a1e37842543a645085d19d3ef52ac8a6ce15f",
+  "document_digest": "ce753081409931177f722ec2222b8b27f8a1c62cf299c52b96a894bb97171062"
 }
