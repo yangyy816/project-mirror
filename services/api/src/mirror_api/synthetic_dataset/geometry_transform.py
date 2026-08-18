@@ -10,7 +10,7 @@ import sys
 from array import array
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Literal, Protocol, cast
 
 from .domain import DomainValidationError, ReasonCode
 from .geometry_variant import VariantSpecification
@@ -146,6 +146,62 @@ class LandmarkWarpPlan:
             triangles=canonical_triangles,
             content_digest=_digest(facts),
         )
+
+    def to_canonical_payload(self) -> str:
+        """Return the only persisted representation accepted by ADR-038."""
+        return json.dumps(
+            _plan_facts(
+                specification_digest=self.specification_digest,
+                control_points=self.control_points,
+                triangles=self.triangles,
+            ),
+            allow_nan=False,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+    @classmethod
+    def from_canonical_payload(cls, canonical_payload: str) -> LandmarkWarpPlan:
+        """Parse only the compact ASCII payload emitted by ``to_canonical_payload``."""
+        if (
+            type(canonical_payload) is not str
+            or len(canonical_payload.encode("utf-8")) > 262_144
+            or not canonical_payload.isascii()
+        ):
+            raise DomainValidationError(ReasonCode.INVALID_WARP_PLAN)
+        try:
+            decoded = json.loads(canonical_payload, object_pairs_hook=_reject_duplicate_json_keys)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            raise DomainValidationError(ReasonCode.INVALID_WARP_PLAN) from None
+        if not isinstance(decoded, dict) or set(decoded) != {
+            "control_points",
+            "specification_digest",
+            "triangles",
+        }:
+            raise DomainValidationError(ReasonCode.INVALID_WARP_PLAN)
+        specification_digest = decoded["specification_digest"]
+        points_value = decoded["control_points"]
+        triangles_value = decoded["triangles"]
+        if (
+            type(specification_digest) is not str
+            or not isinstance(points_value, list)
+            or not isinstance(triangles_value, list)
+        ):
+            raise DomainValidationError(ReasonCode.INVALID_WARP_PLAN)
+        try:
+            points = tuple(_control_point(point) for point in points_value)
+            triangles = tuple(WarpTriangle(_triangle_codes(value)) for value in triangles_value)
+            plan = cls.create(
+                specification_digest=specification_digest,
+                control_points=points,
+                triangles=triangles,
+            )
+        except (DomainValidationError, TypeError, ValueError):
+            raise DomainValidationError(ReasonCode.INVALID_WARP_PLAN) from None
+        if canonical_payload != plan.to_canonical_payload():
+            raise DomainValidationError(ReasonCode.INVALID_WARP_PLAN)
+        return plan
 
 
 @dataclass(frozen=True)
@@ -364,6 +420,63 @@ def _plan_facts(
         "specification_digest": specification_digest,
         "triangles": [list(triangle.landmark_codes) for triangle in triangles],
     }
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def _control_point(value: object) -> WarpControlPoint:
+    if not isinstance(value, dict) or set(value) != {
+        "confidence_ppm",
+        "destination_x",
+        "destination_y",
+        "landmark_code",
+        "source_x",
+        "source_y",
+    }:
+        raise ValueError("invalid control point")
+    return WarpControlPoint(
+        landmark_code=_required_string(value, "landmark_code"),
+        source_x=_required_float(value, "source_x"),
+        source_y=_required_float(value, "source_y"),
+        destination_x=_required_float(value, "destination_x"),
+        destination_y=_required_float(value, "destination_y"),
+        confidence_ppm=_required_int(value, "confidence_ppm"),
+    )
+
+
+def _required_string(value: object, key: str) -> str:
+    if not isinstance(value, dict) or type(value.get(key)) is not str:
+        raise ValueError("invalid string")
+    return cast(str, value[key])
+
+
+def _required_float(value: object, key: str) -> float:
+    if not isinstance(value, dict) or type(value.get(key)) is not float:
+        raise ValueError("invalid float")
+    return cast(float, value[key])
+
+
+def _required_int(value: object, key: str) -> int:
+    if not isinstance(value, dict) or type(value.get(key)) is not int:
+        raise ValueError("invalid integer")
+    return cast(int, value[key])
+
+
+def _triangle_codes(value: object) -> tuple[str, str, str]:
+    if (
+        not isinstance(value, list)
+        or len(value) != 3
+        or any(type(code) is not str for code in value)
+    ):
+        raise ValueError("invalid triangle")
+    return value[0], value[1], value[2]
 
 
 def _digest(facts: Mapping[str, object]) -> str:

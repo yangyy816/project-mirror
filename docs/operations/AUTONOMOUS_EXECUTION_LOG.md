@@ -396,3 +396,19 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - ADR-038 accepts one immutable plan per VariantSpecification, with origin restricted to
   `PREREGISTERED_M4_RESEARCH_PLAN`, and a forward `0013` migration. This is change control, not Rxx.
 - T06 remains blocked until `CC-P2-M4-03-A` domain/ORM/migration/PostgreSQL evidence is accepted.
+
+## 2026-08-18T21:05:00+08:00 — CC-P2-M4-03-A local candidate
+
+- Implemented typed canonical plan serialization, immutable ORM authority and forward migration
+  file `0013_landmark_warp_plan_authority.py`; the actual Alembic revision/head is
+  `0013_warp_plan_authority`.
+- Principal adversarial review demonstrated that recomputed digests could bypass the initial
+  PostgreSQL canonical-text check with duplicate keys or integerized coordinates. The uncommitted
+  trigger was corrected to inspect raw JSON ordering/duplicates, escapes and canonical float text;
+  four direct-SQL negative cases now reject.
+- Ruff format/lint, strict mypy (116 sources), 22 focused domain/PostgreSQL tests, contracts drift,
+  fresh `→0013→0012→0013`, zero-drift Alembic check and the complete Linux API/Worker suite all
+  pass. The full suite has seven existing optional skips and no executed failure; the complete pnpm
+  format/lint/typecheck/test/contracts/build gate also passes.
+- Candidate commit, same-SHA Actions and artifact inspection remain pending. T06 stays blocked until
+  Principal accepts CC03-A; T07/T08 and the P2-M4 Gate remain closed.

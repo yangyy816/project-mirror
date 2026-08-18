@@ -52,7 +52,8 @@ result Asset → SyntheticQARun → Job → JobAttempt`。外部 transform/stora
 
 ## Migration and Compatibility
 
-- 新增前向 `0013_landmark_warp_plan_authority`。Upgrade 若发现已有任何 `TransformRun` 必须 fail closed，
+- 新增前向 migration file `0013_landmark_warp_plan_authority.py`；其真实 Alembic revision/head 是
+  `0013_warp_plan_authority`。Upgrade 若发现已有任何 `TransformRun` 必须 fail closed，
   因为不能猜测 backfill plan；已有无 run 的 specification 可保留。
 - 无 plan/M4 execution data 时支持 `0012 → 0013 → 0012 → 0013`。存在 plan 或依赖 execution evidence
   时 downgrade 拒绝；有数据环境只允许 forward repair 或关闭功能。

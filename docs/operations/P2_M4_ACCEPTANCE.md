@@ -181,6 +181,27 @@ T06 entry review stopped before implementation because `0012` cannot reconstruct
 serialization, ORM, forward `0013` migration and PostgreSQL invariants before T06 resumes. This is a
 forward architecture correction, not an Rxx repair, and does not approve a general plan generator.
 
+## CC-P2-M4-03-A local candidate evidence
+
+- The migration file is `0013_landmark_warp_plan_authority.py`; the actual Alembic revision/head is
+  `0013_warp_plan_authority`. Governance and runtime evidence must use the revision value when they
+  report `migration_head`.
+- The implementation adds one immutable ORM/PostgreSQL plan authority per specification, typed
+  canonical serialization and parsing, closed origin/builder grammars, unique plan/authority
+  digests, and a TransformRun insert guard that locks and requires the plan.
+- Principal negative review found that the first trigger version rejected stale digests but could
+  accept duplicate JSON keys or integerized coordinates when both digests were recomputed. Before
+  commit, the trigger was strengthened to validate the original JSON key order and duplicates,
+  reject escapes, and require Python-compatible canonical float text. Four direct-SQL adversarial
+  cases now fail closed.
+- Local validation passes Ruff format/lint across 159 API files, strict mypy across 116 API/Worker
+  sources, 22 domain/PostgreSQL authority tests, OpenAPI contract drift, fresh PostgreSQL upgrade,
+  `0013→0012→0013`, and `alembic check` with zero drift. The full Linux API/Worker suite completed
+  with every executed test passing and seven existing optional skips; the full pnpm format/lint/
+  typecheck/test/contracts/build gate also passes.
+- This is local candidate evidence only. `CC-P2-M4-03-A` remains pending tracked commit and same-SHA
+  GitHub Actions/artifact inspection; T06 remains blocked, and T07/T08/Milestone Gate remain closed.
+
 ## Exit rule
 
 P2-M4 can pass only when every mandatory row has actual evidence, all candidate claims are bounded to

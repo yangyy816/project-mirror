@@ -17,6 +17,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Text,
     UniqueConstraint,
     event,
     inspect,
@@ -1492,6 +1493,64 @@ class VariantSpecification(IdMixin, TimestampMixin, Base):
     )
 
 
+class LandmarkWarpPlanAuthority(IdMixin, Base):
+    """The immutable 1:1 ADR-038 plan authority for a variant specification."""
+
+    __tablename__ = "landmark_warp_plans"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(96),
+        default="mirror.synthetic-dataset/LandmarkWarpPlanAuthority/v1",
+        nullable=False,
+    )
+    plan_schema_version: Mapped[str] = mapped_column(
+        String(96), default="mirror.synthetic-dataset/LandmarkWarpPlan/v1", nullable=False
+    )
+    variant_specification_id: Mapped[str] = mapped_column(
+        ForeignKey("variant_specifications.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    canonical_payload: Mapped[str] = mapped_column(Text, nullable=False)
+    warp_plan_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    authority_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    origin_kind: Mapped[str] = mapped_column(String(48), nullable=False)
+    origin_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    origin_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    builder_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    builder_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/LandmarkWarpPlanAuthority/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint(
+            "plan_schema_version = 'mirror.synthetic-dataset/LandmarkWarpPlan/v1'",
+            name="plan_schema_version",
+        ),
+        CheckConstraint("origin_kind = 'PREREGISTERED_M4_RESEARCH_PLAN'", name="origin_kind"),
+        CheckConstraint(
+            "origin_reference ~ '^[A-Za-z0-9][A-Za-z0-9._@-]{2,127}$'",
+            name="origin_reference",
+        ),
+        CheckConstraint(
+            "builder_version = 'canonical-warp-plan-builder-v1'",
+            name="builder_version",
+        ),
+        CheckConstraint(
+            "octet_length(canonical_payload) BETWEEN 1 AND 262144", name="payload_size"
+        ),
+        CheckConstraint("canonical_payload !~ '[^\\x20-\\x7e]'", name="payload_ascii"),
+        CheckConstraint("warp_plan_digest ~ '^[0-9a-f]{64}$'", name="warp_plan_digest"),
+        CheckConstraint("authority_digest ~ '^[0-9a-f]{64}$'", name="authority_digest"),
+        CheckConstraint("origin_digest ~ '^[0-9a-f]{64}$'", name="origin_digest"),
+        CheckConstraint(
+            "builder_manifest_digest ~ '^[0-9a-f]{64}$'", name="builder_manifest_digest"
+        ),
+    )
+
+
 class TransformRun(IdMixin, TimestampMixin, Base):
     __tablename__ = "transform_runs"
 
@@ -2678,6 +2737,8 @@ def _protect_transform_run(mapper: object, connection: object, target: Transform
 
 event.listen(VariantSpecification, "before_update", _reject_immutable_change)
 event.listen(VariantSpecification, "before_delete", _reject_immutable_change)
+event.listen(LandmarkWarpPlanAuthority, "before_update", _reject_immutable_change)
+event.listen(LandmarkWarpPlanAuthority, "before_delete", _reject_immutable_change)
 event.listen(TransformRun, "before_update", _protect_transform_run)
 event.listen(TransformRun, "before_delete", _reject_immutable_change)
 

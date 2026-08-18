@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Barrier
@@ -18,6 +20,7 @@ from mirror_api.config import get_settings
 from mirror_api.models import (
     Asset,
     GeometryOntologyVersion,
+    LandmarkWarpPlanAuthority,
     SyntheticIdentity,
     SyntheticQAMeasurement,
     SyntheticQAPolicy,
@@ -28,6 +31,16 @@ from mirror_api.models import (
     new_id,
     utcnow,
 )
+from mirror_api.synthetic_dataset import (
+    LANDMARK_WARP_PLAN_BUILDER_VERSION,
+    LandmarkWarpPlanAdmissionService,
+    WarpControlPoint,
+    WarpTriangle,
+)
+from mirror_api.synthetic_dataset import (
+    LandmarkWarpPlanAuthority as LandmarkWarpPlanDocument,
+)
+from mirror_api.synthetic_dataset.geometry_transform import LandmarkWarpPlan
 
 pytestmark = pytest.mark.integration
 
@@ -41,7 +54,8 @@ def session() -> Generator[Session]:
     with engine.begin() as connection:
         connection.execute(
             text(
-                "TRUNCATE TABLE transform_runs, variant_specifications, synthetic_identities, "
+                "TRUNCATE TABLE transform_runs, landmark_warp_plans, variant_specifications, "
+                "synthetic_identities, "
                 "synthetic_qa_review_decisions, synthetic_qa_measurements, synthetic_qa_runs, "
                 "synthetic_asset_records, synthetic_source_object_deletion_evidence, "
                 "provider_cost_events, synthetic_generation_evidence, synthetic_source_objects, "
@@ -207,9 +221,54 @@ def _result_asset(session: Session, source_asset: Asset, *, sha: str = "8" * 64)
     return result
 
 
+def _admit_plan(session: Session, specification: VariantSpecification) -> LandmarkWarpPlanAuthority:
+    existing = session.scalar(
+        select(LandmarkWarpPlanAuthority).where(
+            LandmarkWarpPlanAuthority.variant_specification_id == specification.id
+        )
+    )
+    if existing is not None:
+        return existing
+    plan = LandmarkWarpPlan.create(
+        specification_digest=specification.content_digest,
+        control_points=(
+            WarpControlPoint("a", 0.0, 0.0, 0.05, 0.0, 900_000),
+            WarpControlPoint("b", 1.0, 0.0, 1.0, 0.0, 900_000),
+            WarpControlPoint("c", 0.0, 1.0, 0.05, 1.0, 900_000),
+        ),
+        triangles=(WarpTriangle(("a", "b", "c")),),
+    )
+    authority = LandmarkWarpPlanAdmissionService.prepare(
+        specification_digest=specification.content_digest,
+        plan=plan,
+        origin_reference="m4-plan-fixture-01",
+        origin_digest="a" * 64,
+        builder_version=LANDMARK_WARP_PLAN_BUILDER_VERSION,
+        builder_manifest_digest="b" * 64,
+    )
+    row = LandmarkWarpPlanAuthority(
+        id=new_id(),
+        variant_specification_id=specification.id,
+        schema_version=authority.schema_version,
+        plan_schema_version=authority.plan_schema_version,
+        canonical_payload=authority.canonical_payload,
+        warp_plan_digest=authority.warp_plan_digest,
+        authority_digest=authority.authority_digest,
+        origin_kind=authority.origin_kind.value,
+        origin_reference=authority.origin_reference,
+        origin_digest=authority.origin_digest,
+        builder_version=authority.builder_version,
+        builder_manifest_digest=authority.builder_manifest_digest,
+    )
+    session.add(row)
+    session.commit()
+    return row
+
+
 def _output_stored_run(
     session: Session, specification: VariantSpecification, result_asset: Asset, *, attempt: int = 1
 ) -> TransformRun:
+    _admit_plan(session, specification)
     run = TransformRun(id=new_id(), variant_specification_id=specification.id, attempt=attempt)
     session.add(run)
     session.commit()
@@ -398,6 +457,7 @@ def test_variant_authority_rejects_forged_mixed_and_mutated_lineage(session: Ses
     session.rollback()
 
     failed_attempt = TransformRun(id=new_id(), variant_specification_id=specification.id, attempt=2)
+    _admit_plan(session, specification)
     session.add(failed_attempt)
     session.commit()
     session.execute(
@@ -428,6 +488,7 @@ def test_duplicate_successful_lineage_is_rejected(session: Session) -> None:
     specification = _specification(
         session, source_asset, identity, source_qa, policy, _approved_ontology(session)
     )
+    _admit_plan(session, specification)
     first = _passed_variant_run(
         session, specification, policy, source_asset, attempt=1, sha="d" * 64
     )
@@ -457,6 +518,7 @@ def test_concurrent_duplicate_attempt_has_one_authority(session: Session) -> Non
     specification = _specification(
         session, source_asset, identity, source_qa, policy, _approved_ontology(session)
     )
+    _admit_plan(session, specification)
     specification_id = specification.id
     database_url = os.environ["TEST_DATABASE_URL"]
     barrier = Barrier(2)
@@ -493,6 +555,168 @@ def test_concurrent_duplicate_attempt_has_one_authority(session: Session) -> Non
         )
         == 1
     )
+
+
+def test_landmark_warp_plan_is_required_and_immutable(session: Session) -> None:
+    source_asset, identity, source_qa, policy = _canonical_source(session)
+    specification = _specification(
+        session, source_asset, identity, source_qa, policy, _approved_ontology(session)
+    )
+    with pytest.raises(DBAPIError, match="requires immutable landmark warp plan"):
+        session.add(TransformRun(id=new_id(), variant_specification_id=specification.id, attempt=1))
+        session.commit()
+    session.rollback()
+
+    authority = _admit_plan(session, specification)
+    with pytest.raises(DBAPIError, match="landmark warp plan authority is immutable"):
+        session.execute(
+            update(LandmarkWarpPlanAuthority)
+            .where(LandmarkWarpPlanAuthority.id == authority.id)
+            .values(origin_reference="m4-plan-fixture-02")
+        )
+        session.commit()
+    session.rollback()
+    with pytest.raises(DBAPIError, match="landmark warp plan authority is immutable"):
+        session.execute(
+            delete(LandmarkWarpPlanAuthority).where(LandmarkWarpPlanAuthority.id == authority.id)
+        )
+        session.commit()
+    session.rollback()
+
+    run = TransformRun(id=new_id(), variant_specification_id=specification.id, attempt=1)
+    session.add(run)
+    session.commit()
+
+
+def _rebind_payload_digests(
+    authority: LandmarkWarpPlanDocument, canonical_payload: str
+) -> tuple[str, str]:
+    warp_plan_digest = hashlib.sha256(
+        f"{authority.plan_schema_version}\n{canonical_payload}".encode()
+    ).hexdigest()
+    facts = {
+        "builder_manifest_digest": authority.builder_manifest_digest,
+        "builder_version": authority.builder_version,
+        "origin_digest": authority.origin_digest,
+        "origin_kind": authority.origin_kind.value,
+        "origin_reference": authority.origin_reference,
+        "specification_digest": authority.specification_digest,
+        "warp_plan_digest": warp_plan_digest,
+    }
+    canonical_authority = json.dumps(
+        facts, allow_nan=False, ensure_ascii=True, separators=(",", ":"), sort_keys=True
+    )
+    authority_digest = hashlib.sha256(
+        f"{authority.schema_version}\n{canonical_authority}".encode()
+    ).hexdigest()
+    return warp_plan_digest, authority_digest
+
+
+@pytest.mark.parametrize(
+    ("payload_mutator", "origin_reference", "rebind_digests"),
+    (
+        (
+            lambda value: value.replace('"control_points":[', '"control_points": [', 1),
+            None,
+            False,
+        ),
+        (
+            lambda value: value.replace(
+                '"landmark_code":"a"', '"landmark_code":"a","landmark_code":"a"', 1
+            ),
+            None,
+            True,
+        ),
+        (lambda value: value.replace('"source_x":0.0', '"source_x":0', 1), None, True),
+        (lambda value: value, "https://example.invalid/private-plan", False),
+    ),
+)
+def test_landmark_warp_plan_direct_sql_rejects_noncanonical_or_unsafe_authority(
+    session: Session,
+    payload_mutator: Callable[[str], str],
+    origin_reference: str | None,
+    rebind_digests: bool,
+) -> None:
+    source_asset, identity, source_qa, policy = _canonical_source(session)
+    specification = _specification(
+        session, source_asset, identity, source_qa, policy, _approved_ontology(session)
+    )
+    plan = LandmarkWarpPlan.create(
+        specification_digest=specification.content_digest,
+        control_points=(
+            WarpControlPoint("a", 0.0, 0.0, 0.05, 0.0, 900_000),
+            WarpControlPoint("b", 1.0, 0.0, 1.0, 0.0, 900_000),
+            WarpControlPoint("c", 0.0, 1.0, 0.05, 1.0, 900_000),
+        ),
+        triangles=(WarpTriangle(("a", "b", "c")),),
+    )
+    authority = LandmarkWarpPlanAdmissionService.prepare(
+        specification_digest=specification.content_digest,
+        plan=plan,
+        origin_reference="m4-plan-fixture-01",
+        origin_digest="a" * 64,
+        builder_version=LANDMARK_WARP_PLAN_BUILDER_VERSION,
+        builder_manifest_digest="b" * 64,
+    )
+    canonical_payload = payload_mutator(authority.canonical_payload)
+    warp_plan_digest = authority.warp_plan_digest
+    authority_digest = authority.authority_digest
+    if rebind_digests:
+        warp_plan_digest, authority_digest = _rebind_payload_digests(authority, canonical_payload)
+    with pytest.raises(DBAPIError):
+        session.execute(
+            text(
+                """
+                INSERT INTO landmark_warp_plans (
+                    id, schema_version, plan_schema_version, variant_specification_id,
+                    canonical_payload, warp_plan_digest, authority_digest, origin_kind,
+                    origin_reference, origin_digest, builder_version,
+                    builder_manifest_digest, created_at
+                ) VALUES (
+                    :id, :schema_version, :plan_schema_version, :variant_specification_id,
+                    :canonical_payload, :warp_plan_digest, :authority_digest, :origin_kind,
+                    :origin_reference, :origin_digest, :builder_version,
+                    :builder_manifest_digest, :created_at
+                )
+                """
+            ),
+            {
+                "id": new_id(),
+                "schema_version": authority.schema_version,
+                "plan_schema_version": authority.plan_schema_version,
+                "variant_specification_id": specification.id,
+                "canonical_payload": canonical_payload,
+                "warp_plan_digest": warp_plan_digest,
+                "authority_digest": authority_digest,
+                "origin_kind": authority.origin_kind.value,
+                "origin_reference": origin_reference or authority.origin_reference,
+                "origin_digest": authority.origin_digest,
+                "builder_version": authority.builder_version,
+                "builder_manifest_digest": authority.builder_manifest_digest,
+                "created_at": utcnow(),
+            },
+        )
+        session.commit()
+    session.rollback()
+
+
+def test_0013_empty_lifecycle_downgrades_and_reupgrades(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    session.close()
+    database_url = os.environ["TEST_DATABASE_URL"]
+    root = Path(__file__).resolve().parents[3]
+    config = Config(root / "services" / "api" / "alembic.ini")
+    config.set_main_option("script_location", str(root / "services" / "api" / "migrations"))
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    command.downgrade(config, "0012_geometry_variant_authority")
+    command.upgrade(config, "head")
+    with create_engine(database_url).connect() as connection:
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
+            "0013_warp_plan_authority"
+        )
+    get_settings.cache_clear()
 
 
 def test_existing_base_qa_row_survives_0012_downgrade_and_reupgrade(
@@ -549,6 +773,41 @@ def test_0012_downgrade_fails_closed_when_m4_authority_exists(
         command.downgrade(config, "0011_offline_synth_source")
     with create_engine(database_url).connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
+            "0013_warp_plan_authority"
+        )
+    get_settings.cache_clear()
+
+
+def test_0013_upgrade_rejects_legacy_transform_run(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_asset, identity, source_qa, policy = _canonical_source(session)
+    specification = _specification(
+        session, source_asset, identity, source_qa, policy, _approved_ontology(session)
+    )
+    specification_id = specification.id
+    session.close()
+
+    database_url = os.environ["TEST_DATABASE_URL"]
+    root = Path(__file__).resolve().parents[3]
+    config = Config(root / "services" / "api" / "alembic.ini")
+    config.set_main_option("script_location", str(root / "services" / "api" / "migrations"))
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    command.downgrade(config, "0012_geometry_variant_authority")
+    engine = create_engine(database_url)
+    with Session(engine) as legacy_session:
+        legacy_session.add(
+            TransformRun(id=new_id(), variant_specification_id=specification_id, attempt=1)
+        )
+        legacy_session.commit()
+    with pytest.raises(DBAPIError, match="cannot infer landmark warp plan authority"):
+        command.upgrade(config, "head")
+    with engine.begin() as connection:
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
             "0012_geometry_variant_authority"
         )
+        connection.execute(text("TRUNCATE TABLE transform_runs CASCADE"))
+    command.upgrade(config, "head")
+    engine.dispose()
     get_settings.cache_clear()

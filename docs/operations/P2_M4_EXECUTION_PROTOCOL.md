@@ -208,7 +208,8 @@ opens T06 only; P2-M4 remains `EXECUTING` and T07/T08 remain dependency-gated.
 `CC-P2-M4-03` records a blocking authority defect found during T06 entry review: frozen `0012` does
 not persist the immutable `LandmarkWarpPlan` required by `GeometryTransformRequest`. ADR-038
 forward-adds a 1:1 preregistered research-plan authority through
-`0013_landmark_warp_plan_authority`. T06 remains blocked until the domain/ORM/migration change and
+the `0013_landmark_warp_plan_authority.py` migration file, whose actual Alembic revision/head is
+`0013_warp_plan_authority`. T06 remains blocked until the domain/ORM/migration change and
 real PostgreSQL lifecycle/invariant tests are accepted. Job/task payloads remain reference-only and
 must not be used as a plan-authority workaround.
 
