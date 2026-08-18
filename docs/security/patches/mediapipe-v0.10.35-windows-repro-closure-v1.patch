@@ -25,20 +25,21 @@ diff --git a/third_party/BUILD b/third_party/BUILD
 index dbe82e5..69376f5 100644
 --- a/third_party/BUILD
 +++ b/third_party/BUILD
-@@ -280,7 +280,11 @@ OPENCV_CMAKE_CACHE_ENTRIES = select({
+@@ -280,7 +280,12 @@ OPENCV_CMAKE_CACHE_ENTRIES = select({
          # so try_compile and shared-library manifest steps fail closed instead
          # of emitting CMAKE_MT-NOTFOUND.
          "CMAKE_MT": "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/mt.exe",
 -        "CMAKE_SHARED_LINKER_FLAGS": "/Brepro",
 +        "CMAKE_RC_COMPILER": "C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/rc.exe",
 +        # Native CMake cannot resolve nmake.exe through rules_foreign_cc's
-+        # BusyBox/POSIX-form PATH. Pin the matching frozen MSVC tool directly.
-+        "CMAKE_MAKE_PROGRAM": "D:/p/.local-storage/p2-m3-vision-v03/toolchain/vs2022-buildtools/VC/Tools/MSVC/14.44.35207/bin/HostX64/x64/nmake.exe",
++        # BusyBox/POSIX-form PATH. The private build harness supplies the exact,
++        # checksum-locked tool through Bazel's fail-closed action environment.
++        "CMAKE_MAKE_PROGRAM": "$$MIRROR_NMAKE_EXE$$",
 +        "CMAKE_SHARED_LINKER_FLAGS": "/Brepro /DEBUG:NONE",
          "CMAKE_SYSTEM_PROCESSOR": "AMD64",
          "WITH_PROTOBUF": "OFF",
          "WITH_PTHREADS": "OFF",
-@@ -296,6 +300,13 @@ cmake(
+@@ -296,6 +301,13 @@ cmake(
      name = "opencv_cmake",
      # Values to be passed as -Dkey=value on the CMake command line.
      cache_entries = OPENCV_CMAKE_CACHE_ENTRIES,

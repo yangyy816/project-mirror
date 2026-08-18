@@ -323,3 +323,63 @@ points; failed roots are evidence, not cleanup targets.
 This closes Stage C for the exact source-built candidate only. The official `0.10.35` wheels remain
 rejected, the model remains `PRIVATE_RESEARCH_ONLY`, and distribution, production Vision and
 real-user facial processing remain blocked. Stage D calibration/holdout is the next Gate.
+
+## R25 portable NMake injection and clean reproduction
+
+The R21 Windows patch accidentally committed the private absolute path used to invoke the frozen
+NMake binary. R25 replaces that host-specific value with `$$MIRROR_NMAKE_EXE$$`; the private build
+harness must inject the exact checksum-locked executable through Bazel's action environment. The
+tracked patch SHA-256 is
+`02264c696b85af0637724afc880604c6a3e8bee846d298d39595c2ec0a410cb3`. Exact-preimage apply/reverse
+replay passed, and a fresh missing-variable build stopped at OpenCV configuration with no PATH
+fallback.
+
+Fresh Windows roots `bw37` and `bw38` each completed all 4,549 actions. Their byte-identical artifact
+pairs are:
+
+- Face Landmarker DLL: size `30476288`, SHA-256
+  `1c67ae02b90a5b00b58018c3c04db411134d781c6f53b195e68a6ce6136615ef`.
+- OpenCV core DLL: size `2302464`, SHA-256
+  `e0415de8bd7dd97f1c2bcccfba627fe6efe4da9441c9b4c9772f3f4faa8f4343`.
+- OpenCV imgproc DLL: size `2385408`, SHA-256
+  `1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4`.
+
+The required Face Landmarker/image lifecycle exports remain present. Private-path, PDB/RSDS,
+Ooura, Clearcut/certifi/CA-bundle, fixed telemetry endpoint and Windows network-import scans remain
+zero. Three Windows Stage C runs again returned one face and clean close with zero Filtering Platform
+outbound events.
+
+Two independent Linux output volumes completed all 4,597 actions with exact Bazel 7.4.1, the frozen
+read-only repository cache and `--network none`. Both produced byte-identical artifacts:
+
+- Face Landmarker shared library: size `68658408`, SHA-256
+  `6a5fb35175efc2f014fb61f7f4abb2c78c38156bd6abf2186d1549cbf3f006a7`.
+- OpenCV core: size `4707408`, SHA-256
+  `116c2db3b7e149390631af309f910eabeb73bd18281e4174f131ced2a8de4408`.
+- OpenCV imgproc: size `7297752`, SHA-256
+  `765ebf6c659e523d9d7e9557e63f004a041a9327fcba95e6d4ac0670485241f5`.
+
+The Linux exports, relative `$ORIGIN` RUNPATH, dependency allowlist and all private-path,
+Ooura/Clearcut/CA/network scans passed. A fresh three-run Stage C capture produced
+`RUN_OK_COUNT=3`, `DETECT_OK_COUNT=3`, `FACE_ONE_COUNT=3`, `CLOSE_OK_COUNT=3` and
+`NETWORK_CALL_COUNT=0`.
+
+The R25 effective build-input manifest covers 4,737 files and has SHA-256
+`5c4f74bc4dd661582d397e5d1c66d22548d103e70d75cd7a2062cc6f0958a224`. A full source-volume
+comparison shows only `third_party/BUILD` differs from R17; `third_party/BUILD.orig` is retained
+private replay evidence and is excluded from the effective build inputs. No dependency label,
+repository or version changes. Therefore the existing 51-component CycloneDX closure
+(`902088a0e70d3ce005885c01f7ee472fba19458ae803e09700df52949d152dda`), 38-repository/124-file
+license inventory (`e1e77546b0a2a8148cc2f6ef6b3dc700305edad16311b09d9a836caa3c2742d3`) and vulnerability
+dispositions remain applicable.
+
+R17's historical main-library SHA-256 `19e90273...` remains intact as its checkpoint result. Image
+ABI retention introduced later made `6a5fb351...` the R19/R21 and frozen Stage D Linux runtime; R25
+reproduces that current qualified runtime exactly. The immutable R21 policy and holdout documents
+remain unchanged.
+
+`P2_M3_R25_REPRODUCTION: PASS`
+
+`PROJECT_DEPENDENCIES_ADDED: NONE`
+
+`MODEL_ARTIFACTS_ADDED: NONE`

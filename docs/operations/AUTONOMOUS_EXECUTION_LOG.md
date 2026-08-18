@@ -175,3 +175,34 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Official wheels remain rejected; the model remains `PRIVATE_RESEARCH_ONLY`; project dependency,
   distribution, production Vision and real-user facial processing remain blocked. Next action is
   V02 Stage D calibration, policy freeze and unchanged holdout.
+
+## 2026-08-18T18:10:00+08:00 — P2-M3-R25 portable NMake injection closure
+
+- R25 removes the committed private absolute `nmake.exe` path from the Windows reproduction patch.
+  The tracked patch now requires `MIRROR_NMAKE_EXE` through Bazel's fail-closed action environment;
+  its SHA-256 is `02264c696b85af0637724afc880604c6a3e8bee846d298d39595c2ec0a410cb3`.
+- Exact-preimage apply/reverse replay passed. A fresh negative-control root failed before OpenCV
+  configuration with `MIRROR_NMAKE_EXE: parameter not set`, proving that no PATH fallback occurs.
+- Fresh Windows roots `bw37` and `bw38` each completed 4,549 actions. Main/core/imgproc pairs are
+  byte-identical with SHA-256 values
+  `1c67ae02b90a5b00b58018c3c04db411134d781c6f53b195e68a6ce6136615ef`,
+  `e0415de8bd7dd97f1c2bcccfba627fe6efe4da9441c9b4c9772f3f4faa8f4343` and
+  `1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4`. Private-path,
+  PDB/RSDS, Ooura, Clearcut/CA, telemetry-endpoint and Windows network-import scans remained zero;
+  three Stage C lifecycle runs returned one face and zero outbound events.
+- Fresh Linux output volumes each completed 4,597 actions under `--network none`. Their
+  main/core/imgproc pairs are byte-identical with SHA-256 values
+  `6a5fb35175efc2f014fb61f7f4abb2c78c38156bd6abf2186d1549cbf3f006a7`,
+  `116c2db3b7e149390631af309f910eabeb73bd18281e4174f131ced2a8de4408` and
+  `765ebf6c659e523d9d7e9557e63f004a041a9327fcba95e6d4ac0670485241f5`. A fresh compact Stage C
+  capture recorded `RUN_OK_COUNT=3`, `DETECT_OK_COUNT=3`, `FACE_ONE_COUNT=3`,
+  `CLOSE_OK_COUNT=3` and `NETWORK_CALL_COUNT=0`.
+- The R25 effective build-input manifest contains 4,737 files and has SHA-256
+  `5c4f74bc4dd661582d397e5d1c66d22548d103e70d75cd7a2062cc6f0958a224`. Relative to R17 only
+  `third_party/BUILD` changes; the extra private `BUILD.orig` is replay evidence and is not a build
+  input. Dependency labels, repositories and versions are unchanged, so the existing 51-component
+  SBOM, 38-repository/124-file license inventory and vulnerability dispositions remain applicable.
+- Historical R17 SHA-256 `19e90273...` remains checkpoint evidence. R19/R21 retained the image ABI,
+  and `6a5fb351...` is the later frozen and currently reproduced Linux runtime. R25 does not rewrite
+  the R21 policy/holdout evidence or approve official wheels, distribution, production Vision or
+  real-user facial processing.

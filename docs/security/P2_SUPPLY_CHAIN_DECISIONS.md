@@ -193,3 +193,29 @@ the official-wheel rejection, `PRIVATE_RESEARCH_ONLY` model status, project depe
 distribution, production Vision or real-user facial-processing gates.
 
 `V03_STAGE_C: PASS_PRIVATE_SYNTHETIC_ONLY`
+
+## V03 R25 portable build-input disposition
+
+R25 removes the private absolute NMake path from the tracked Windows reproduction patch and replaces
+it with a fail-closed `MIRROR_NMAKE_EXE` action-environment requirement. Patch replay/reverse replay,
+a missing-variable negative control, two clean Windows builds, two clean Linux `--network none`
+builds and both-platform Stage C regression all passed. The tracked patch SHA-256 is
+`02264c696b85af0637724afc880604c6a3e8bee846d298d39595c2ec0a410cb3`.
+
+The R25 effective build-input manifest has 4,737 files and SHA-256
+`5c4f74bc4dd661582d397e5d1c66d22548d103e70d75cd7a2062cc6f0958a224`. Comparison with R17 shows
+only the `third_party/BUILD` tool-path expression changed; the private `BUILD.orig` replay copy is not
+a build input. Configured dependency labels, external repositories and versions remain unchanged.
+The existing 51-component SBOM SHA-256
+`902088a0e70d3ce005885c01f7ee472fba19458ae803e09700df52949d152dda`, 38-repository/124-file
+license inventory SHA-256
+`e1e77546b0a2a8148cc2f6ef6b3dc700305edad16311b09d9a836caa3c2742d3` and recorded vulnerability
+dispositions therefore remain applicable.
+
+R25 reproduces the later qualified Linux runtime SHA-256
+`6a5fb35175efc2f014fb61f7f4abb2c78c38156bd6abf2186d1549cbf3f006a7`; the R17
+`19e90273...` value remains historical checkpoint evidence. This repair neither changes the frozen
+Stage D policy nor approves the official wheels, model redistribution, a project dependency,
+production Vision or real-user facial processing.
+
+`V03_R25_SUPPLY_CHAIN_REUSE: APPROVED_FOR_EXISTING_PRIVATE_RESEARCH_SCOPE`

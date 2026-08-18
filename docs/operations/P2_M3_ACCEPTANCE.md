@@ -545,3 +545,41 @@ Vision, distribution and real-user processing remain closed.
 `P2_M3_T07_FULL_LOCAL: PASS`
 
 `P2_M3_T07_SAME_SHA_CI: PENDING`
+
+## P2-M3-R25 portable Windows toolchain path closure
+
+The committed Windows reproduction patch no longer contains a private absolute `nmake.exe` path.
+It requires the exact checksum-locked tool through `MIRROR_NMAKE_EXE`; the patch SHA-256 is
+`02264c696b85af0637724afc880604c6a3e8bee846d298d39595c2ec0a410cb3`. Exact-preimage replay and
+reverse replay passed, while a fresh missing-variable negative control failed closed before OpenCV
+configuration and did not fall back to PATH.
+
+Fresh Windows roots `bw37`/`bw38` each completed 4,549 actions. Their byte-identical
+main/core/imgproc SHA-256 values are
+`1c67ae02b90a5b00b58018c3c04db411134d781c6f53b195e68a6ce6136615ef`,
+`e0415de8bd7dd97f1c2bcccfba627fe6efe4da9441c9b4c9772f3f4faa8f4343` and
+`1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4`. All prior private-path,
+debug-record, Ooura, telemetry/CA and network-import scans passed. Windows Stage C again completed
+three one-face runs with zero outbound events.
+
+Two fresh Linux output volumes each completed 4,597 actions under `--network none`; their three
+artifact pairs are byte-identical at
+`6a5fb35175efc2f014fb61f7f4abb2c78c38156bd6abf2186d1549cbf3f006a7`,
+`116c2db3b7e149390631af309f910eabeb73bd18281e4174f131ced2a8de4408` and
+`765ebf6c659e523d9d7e9557e63f004a041a9327fcba95e6d4ac0670485241f5`. Fresh R25 Stage C counts
+are three successful runs, three successful detects, three one-face results, three clean closes and
+zero intercepted network calls.
+
+The effective 4,737-file build-input manifest SHA-256 is
+`5c4f74bc4dd661582d397e5d1c66d22548d103e70d75cd7a2062cc6f0958a224`. Only the tool-path
+injection expression changes relative to the R17 source volume, so the 51-component SBOM,
+38-repository/124-file license inventory and existing vulnerability dispositions remain valid.
+R17's historical `19e90273...` main-library hash is retained as checkpoint history;
+`6a5fb351...` is the later R19/R21/current qualified Linux runtime reproduced by R25.
+
+`P2_M3_R25_LOCAL_REPRODUCTION: PASS`
+
+`P2_M3_R25_SAME_SHA_CI: PENDING`
+
+R25 does not mutate the frozen Stage D policy/evidence and does not advance the M3 Gate. T08 and a
+new same-SHA three-job CI run remain mandatory.
