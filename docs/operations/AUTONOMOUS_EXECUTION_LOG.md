@@ -278,3 +278,12 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   metadata exposed the Python 3.13 requirement `numpy>=2`; the resolution was frozen to
   `numpy==2.5.2` with exact official Windows/Linux wheel names and PyPI SHA-256 values. Runtime
   execution remains pending this dependency-lock checkpoint.
+
+## 2026-08-18T16:20:00+08:00 — P2-M4-R02 PoC harness NumPy 2.5 compatibility
+
+- The first two independent Windows roots installed the exact locked wheels, then both stopped in the
+  harness negative-control helper before producing a candidate report. NumPy 2.5 rejects two-element
+  vectors in `np.cross`; the OpenCV remap result itself did not determine candidate disposition.
+- R02 replaces only that helper with the equivalent explicit two-dimensional determinant. It changes
+  no candidate, fixture, interpolation, threshold, runtime setting or domain behavior. Both failed
+  roots remain private attempt evidence; qualification restarts in new roots.

@@ -56,7 +56,10 @@ def _remap(source: np.ndarray, map_x: np.ndarray, map_y: np.ndarray) -> np.ndarr
 
 def _signed_area(points: np.ndarray) -> float:
     first, second, third = points
-    return float(np.cross(second - first, third - first) / 2.0)
+    first_edge = second - first
+    second_edge = third - first
+    determinant = first_edge[0] * second_edge[1] - first_edge[1] * second_edge[0]
+    return float(determinant / 2.0)
 
 
 def _negative_controls() -> dict[str, bool]:
