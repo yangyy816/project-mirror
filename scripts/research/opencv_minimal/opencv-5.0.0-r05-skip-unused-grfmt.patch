@@ -1,0 +1,13 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -766,7 +766,9 @@
+ 
+ include(cmake/OpenCVFindFrameworks.cmake)
+ 
+-include(cmake/OpenCVFindLibsGrfmt.cmake)
++# Project Mirror's private remap-only closure has no image-codec or zlib consumer.
++# R04 removes the remaining core/imgproc zlib edges, so do not create unused global targets here.
++# include(cmake/OpenCVFindLibsGrfmt.cmake)
+ include(cmake/OpenCVFindLibsGUI.cmake)
+ include(cmake/OpenCVFindLibsVideo.cmake)
+ include(cmake/OpenCVFindLibsPerf.cmake)
