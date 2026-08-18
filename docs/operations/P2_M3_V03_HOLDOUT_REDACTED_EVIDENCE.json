@@ -1,0 +1,162 @@
+{
+  "schema_version": "mirror.p2-m3.v03-holdout-redacted-evidence/v1",
+  "execution_date": "2026-08-18",
+  "candidate_reference": "mediapipe-v0.10.35-source-built-r21",
+  "policy_version": "p2-m3-v03-source-built-vision-qa-v1",
+  "policy_commit": "f7b76b23e1de7f9c76ba65ff09ec174528fd83de",
+  "policy_document_digest": "5929f44a8383838e51b9b4e34eb4045748dd68c1f579f3ab5ffaa64eadb9fad6",
+  "qa_policy_content_digest": "6256f8a74af063726bf22c0d4724db5f8ee10bde659455410c75bcec0e888ae5",
+  "policy_freeze_ci_run": 32091490211,
+  "model_sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+  "windows_runtime_sha256": "5a904100bf197e8b4755f503aa4d1d8a8892107a9940e2f848eeb302ff24dd8d",
+  "linux_runtime_sha256": "6a5fb35175efc2f014fb61f7f4abb2c78c38156bd6abf2186d1549cbf3f006a7",
+  "execution": {
+    "holdout_items": 4,
+    "runs_per_item_per_platform": 10,
+    "windows_runs": 40,
+    "linux_runs": 40,
+    "total_inference_runs": 80,
+    "windows_outbound_block_event_count": 0,
+    "linux_network_mode": "docker-network-none",
+    "pre_inference_harness_attempts": [
+      {
+        "platform": "linux",
+        "outcome": "FAILED_BEFORE_MODEL_EXECUTION",
+        "reason_code": "dynamic_library_search_path_missing",
+        "repair": "set_frozen_runtime_library_path"
+      }
+    ]
+  },
+  "private_evidence_sha256": {
+    "input_manifest": "82dce3f63005141da40d2a78b1c35d3fb81b780d5f54a7a176b4ce42287d1636",
+    "windows_summary": "68833a4020d9a3f98c78c0cf37819a2f76a67359a8f265cf30bfd804b25b53fd",
+    "linux_summary": "b2558dc09561564f89381446da5df4d6d19a37f3d887a0ae826f719d0fde92ce",
+    "windows_analysis": "971cb31fb000e81c04f3e6aa113249d2f64276e457a05eae008367dd37ba96bb",
+    "linux_analysis": "d021366a3b4ee03aea02a31af6b929572c23486b39935bea759200e94f2e2c1d",
+    "platform_comparison": "46e233a7bea42cc9640bc6895c2de3180bf61373c62aa2375bddc93576671199"
+  },
+  "items": [
+    {
+      "item_reference": "v01-category-a-02",
+      "normalized_sha256": "71fc0fadc69841664664cd912132edb2d64adc227a78755be38dedf5113add1e",
+      "face_counts": [1],
+      "landmark_counts": [478],
+      "bbox_area_minimum": 0.21878305644273255,
+      "pose_absolute_maximum_degrees": {
+        "x": 6.0101964053391645,
+        "y": 1.315105538239572,
+        "z": 0.8106586814881674
+      },
+      "same_platform_landmark_span_maximum": 0.0,
+      "same_platform_matrix_span_maximum": 0.0,
+      "cross_platform_landmark_difference_maximum": 0.0000093318,
+      "cross_platform_matrix_difference_maximum": 0.0000878,
+      "cross_platform_bbox_area_difference": 0.000001166161035931479,
+      "cross_platform_rotation_difference_maximum_degrees": 0.001456678673668499,
+      "automatic_hard_gate_outcome": "PASSED",
+      "operator_review_outcome": "PASSED"
+    },
+    {
+      "item_reference": "v01-category-b-02",
+      "normalized_sha256": "3532d0f7e30d64916a81059c24e6e0ea33f3c9fa5fff66600f7131a6728c9a05",
+      "face_counts": [1],
+      "landmark_counts": [478],
+      "bbox_area_minimum": 0.27314288440135254,
+      "pose_absolute_maximum_degrees": {
+        "x": 0.10316596656101923,
+        "y": 0.4561238366740874,
+        "z": 0.23941162357646148
+      },
+      "same_platform_landmark_span_maximum": 0.0,
+      "same_platform_matrix_span_maximum": 0.0,
+      "cross_platform_landmark_difference_maximum": 0.00002999092,
+      "cross_platform_matrix_difference_maximum": 0.0003167,
+      "cross_platform_bbox_area_difference": 0.000007002890750729129,
+      "cross_platform_rotation_difference_maximum_degrees": 0.0013919618577151738,
+      "automatic_hard_gate_outcome": "PASSED",
+      "operator_review_outcome": "PASSED"
+    },
+    {
+      "item_reference": "v01-category-c-02",
+      "normalized_sha256": "a84f6a0316a665f311b42bf4c88d51caab1e0327109529d72f1a05d45940c3c5",
+      "face_counts": [1],
+      "landmark_counts": [478],
+      "bbox_area_minimum": 0.2478901475284188,
+      "pose_absolute_maximum_degrees": {
+        "x": 2.8606934649267264,
+        "y": 0.5239158942203168,
+        "z": 0.3548135719376994
+      },
+      "same_platform_landmark_span_maximum": 0.0,
+      "same_platform_matrix_span_maximum": 0.0,
+      "cross_platform_landmark_difference_maximum": 0.00001581799,
+      "cross_platform_matrix_difference_maximum": 0.000103,
+      "cross_platform_bbox_area_difference": 0.0000005146923588161822,
+      "cross_platform_rotation_difference_maximum_degrees": 0.000773225862704674,
+      "automatic_hard_gate_outcome": "PASSED",
+      "operator_review_outcome": "PASSED"
+    },
+    {
+      "item_reference": "v01-category-d-02",
+      "normalized_sha256": "c225320284eceec77dbdf24d9a806ce77f030f40f17237487719411bcc8255c5",
+      "face_counts": [1],
+      "landmark_counts": [478],
+      "bbox_area_minimum": 0.24199932056260906,
+      "pose_absolute_maximum_degrees": {
+        "x": 6.239839688185628,
+        "y": 0.09586447134451011,
+        "z": 0.1311868709643845
+      },
+      "same_platform_landmark_span_maximum": 0.0,
+      "same_platform_matrix_span_maximum": 0.0,
+      "cross_platform_landmark_difference_maximum": 0.000007774099,
+      "cross_platform_matrix_difference_maximum": 0.000018984,
+      "cross_platform_bbox_area_difference": 0.0000019576142028521204,
+      "cross_platform_rotation_difference_maximum_degrees": 0.0001933998581198637,
+      "automatic_hard_gate_outcome": "PASSED",
+      "operator_review_outcome": "PASSED"
+    }
+  ],
+  "operator_review": {
+    "actor_reference": "principal/manual-review-2026-08-18",
+    "rule_references": {
+      "adult_presentation": "adult-presentation-v2",
+      "likeness_risk": "synthetic-likeness-review-v1",
+      "license_scope": "private-research-license-review-v1",
+      "text_watermark": "text-watermark-review-v1",
+      "background_suitability": "background-suitability-review-v1"
+    },
+    "decisions": {
+      "adult_presentation": "PASSED",
+      "likeness_risk": "PASSED",
+      "license_scope": "PASSED_PRIVATE_RESEARCH_ONLY",
+      "text_watermark": "PASSED",
+      "background_suitability": "PASSED"
+    },
+    "reason_codes": [
+      "adult_presentation_v2_no_child_or_student_context",
+      "no_deliberate_reference_or_obvious_public_figure_likeness",
+      "private_research_scope_only",
+      "no_visible_text_or_watermark",
+      "neutral_background_suitable"
+    ]
+  },
+  "outcome": "PASS_PRIVATE_SYNTHETIC_ONLY",
+  "official_mediapipe_wheels_status": "REJECTED_FOR_P2_M3_RUNTIME",
+  "model_disposition": "PRIVATE_RESEARCH_ONLY",
+  "distribution_approved": false,
+  "production_vision_enabled": false,
+  "real_user_facial_processing_enabled": false,
+  "limitations": [
+    "No biometric or external identity search was performed; likeness review is bounded visual and provenance review.",
+    "This evidence does not approve model distribution, production Vision or real-user facial processing.",
+    "QuestionBank release remains out of scope for P2-M3."
+  ],
+  "digest_canonicalization": {
+    "algorithm": "sha256",
+    "encoding": "utf-8",
+    "json": "allow_nan=false;ensure_ascii=true;separators=(',',':');sort_keys=true",
+    "document_scope": "complete_document_with_document_digest_omitted"
+  },
+  "document_digest": "83d273f6f6b595e0ab3112ac5752bbdb68693ad5703b02468dbf6eac6e8de5e3"
+}
