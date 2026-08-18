@@ -631,3 +631,12 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   dimensions, three frozen region groups or calibration distributions exist.
 - T06–T08, MVR execution, production geometry, real-user facial processing, M6 and QuestionBank release remain
   closed. The next viable action requires forward research change control, not a Repair Task.
+
+## 2026-08-19T22:15:00+08:00 — CC-P2-M5-01 Stage A local governance candidate
+
+- ADR-042 preserves the accepted T05 `FURTHER_RESEARCH` decision and opens only a forward research change-control
+  path; it does not create a Repair or T09/T10.
+- The new expansion protocol serializes governance, a 12-identity calibration-only cohort, complete candidate
+  screening, a Principal preregistration checkpoint and a later sealed 24-identity holdout.
+- Stage A adds no image, dependency, model, schema or API. Stage B remains closed pending same-SHA Stage A evidence;
+  T06–T08, MVR execution, production geometry, real-user processing, M6 and QuestionBank release remain closed.

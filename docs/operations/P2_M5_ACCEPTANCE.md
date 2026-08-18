@@ -273,3 +273,23 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `P2_MVR_V1_RESULT: NOT_EVALUATED`
 
 `P2_M5_T06_ENTRY: CLOSED`
+
+## CC-P2-M5-01 Stage A local candidate
+
+- ADR-042 preserves the accepted T05 `FURTHER_RESEARCH` result and defines a forward change-control path rather than
+  a Repair or new numbered implementation task.
+- `P2_M5_EVIDENCE_EXPANSION_PROTOCOL.md` serializes governance, calibration-only acquisition, complete candidate
+  screening, preregistration and sealed holdout. Stage A generates no image and opens only Stage B after exact-SHA CI.
+- The first calibration envelope is 12 accepted identities, 18 attempts maximum, one retry per item and concurrency
+  1. The future holdout remains separately closed at 24 effective identities and 36 attempts maximum.
+- Candidate dimensions and region groups are explicitly non-sensitive research hypotheses. All candidate failures
+  must be retained; no threshold, READY promotion, MVR result, production geometry, real-user processing, M6 or
+  QuestionBank release is approved.
+- Existing rejected MediaPipe wheels remain rejected. Download authorization does not change adoption, license,
+  distribution, production or real-user-processing status.
+
+`CC_P2_M5_01_A: READY_FOR_TRACKED_EVIDENCE`
+
+`CC_P2_M5_01_B: CLOSED_PENDING_STAGE_A_TRACKED_ACCEPTANCE`
+
+`P2_M5_T06_ENTRY: CLOSED`

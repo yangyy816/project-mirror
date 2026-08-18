@@ -194,6 +194,34 @@ T02 owns new domain modules, T04 owns similarity core, and their tests must be d
 models and database tests. T05–T08 are sequential. No two write tasks may own the same protocol, migration, CI workflow,
 acceptance state or evidence generator.
 
+## CC-P2-M5-01 — Forward research evidence expansion
+
+T05 candidate `e46d7a9d19eee536c2f57cac6de224cccf27f2be` and run `32187946640` were accepted as an honest
+`FURTHER_RESEARCH` stop decision. That decision remains immutable. ADR-042 defines a new serial change-control path:
+
+```text
+01-A governance/resource/candidate contract
+→ 01-B 12-identity calibration-only cohort
+→ 01-C candidate measurement/transform/threshold calibration
+→ 01-D ontology/policy/split preregistration checkpoint
+→ 01-E 24-identity sealed holdout
+→ T06/T07 only after every prerequisite passes
+```
+
+- This is not a Repair Task and does not create T09/T10.
+- Stage A changes governance only and does not generate images, install dependencies or change schema/OpenAPI.
+- Stage B is bounded to 12 accepted identities, 18 total attempts, one retry per item and concurrency 1.
+- Stage C must report the complete candidate family, including failures; no dimension is READY by construction.
+- Stage D must freeze at least four bidirectional candidates across three non-sensitive region groups and every
+  threshold/algorithm/runtime/model/split digest before holdout.
+- Stage E remains closed until a tracked Stage D acceptance. Its first envelope is 24 effective identities and at most
+  36 generation attempts.
+- The official MediaPipe wheels remain rejected; only exact-manifest private synthetic runtimes may be used.
+- Current age/style authority is ADR-028–030 and `P2_AGE_PRESENTATION_CONTROL_V2.md`.
+
+Complete acquisition, candidate, blindness, negative-control and stop rules are in
+`P2_M5_EVIDENCE_EXPANSION_PROTOCOL.md`.
+
 ## Repair, closure and stop protocol
 
 Implementation defects use `P2-M5-R01...`. Architecture, privacy, schema ownership, dependency adoption, research
@@ -216,6 +244,10 @@ engine, but M6 entry remains closed and the missing research evidence stays dura
 
 `P2_M5_STATE: EXECUTING`
 
-`P2_M5_IMPLEMENTATION: T05_ACCEPTED_FURTHER_RESEARCH`
+`P2_M5_IMPLEMENTATION: CC_P2_M5_01_A_TRACKED_EVIDENCE_PENDING`
+
+`P2_M5_T05_DISPOSITION: ACCEPTED_FURTHER_RESEARCH`
+
+`CC_P2_M5_01_B_ENTRY: CLOSED_PENDING_STAGE_A_TRACKED_ACCEPTANCE`
 
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`

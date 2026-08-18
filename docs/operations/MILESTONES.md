@@ -2,21 +2,21 @@
 
 ## 当前执行状态
 
-| Scope   | State     | Evidence / Boundary                                                          |
-| ------- | --------- | ---------------------------------------------------------------------------- |
-| Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`               |
-| Phase 1 | FROZEN    | P1-M1–M6 全部冻结；P1-M6 closure run `31924651458` 全绿                      |
-| P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿             |
-| P1-M2   | FROZEN    | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿             |
-| P1-M3   | FROZEN    | closure `05c9f00`；run `31897780247` 三 jobs 与 artifacts 全绿               |
-| P1-M4   | FROZEN    | closure `fd910f2`；run `31903994976` 三 jobs 与 artifacts 全绿               |
-| P1-M5   | FROZEN    | closure `ccbd136`；run `31921591091` 三 jobs 与 artifacts 全绿               |
-| P1-M6   | FROZEN    | closure `cc926ce`；run `31924651458` 三 jobs 与 artifacts 全绿               |
-| Phase 2 | COMMITTED | Synthetic Dataset Engine；P2-M1–M4 已冻结，P2-M5 T05 接受为 FURTHER_RESEARCH |
-| P2-M1   | FROZEN    | closure `27cede8`；run `31932349425` 三 jobs 与 artifacts 全绿               |
-| P2-M2   | FROZEN    | closure `e211adb`；run `31958454155` 三 jobs 与 artifacts 全绿               |
-| P2-M3   | FROZEN    | closure `abbf6c9`；run `32107844716` 三 jobs 与 exact-SHA artifacts 全绿     |
-| P2-M4   | FROZEN    | repaired closure `11bda0a`；run `32169725374` 三 jobs 与七项 artifacts 全绿  |
+| Scope   | State     | Evidence / Boundary                                                         |
+| ------- | --------- | --------------------------------------------------------------------------- |
+| Phase 0 | FROZEN    | `phase0-baseline` → `f9398304b1a313540d80db701806d845f046bbb8`              |
+| Phase 1 | FROZEN    | P1-M1–M6 全部冻结；P1-M6 closure run `31924651458` 全绿                     |
+| P1-M1   | FROZEN    | closure `1276a74`；run `31886590832` 三个 jobs 与 artifacts 全绿            |
+| P1-M2   | FROZEN    | closure `0614ccf`；run `31892788852` 三个 jobs 与 artifacts 全绿            |
+| P1-M3   | FROZEN    | closure `05c9f00`；run `31897780247` 三 jobs 与 artifacts 全绿              |
+| P1-M4   | FROZEN    | closure `fd910f2`；run `31903994976` 三 jobs 与 artifacts 全绿              |
+| P1-M5   | FROZEN    | closure `ccbd136`；run `31921591091` 三 jobs 与 artifacts 全绿              |
+| P1-M6   | FROZEN    | closure `cc926ce`；run `31924651458` 三 jobs 与 artifacts 全绿              |
+| Phase 2 | COMMITTED | P2-M1–M4 已冻结；P2-M5 通过 CC-01 前向补充 research evidence                |
+| P2-M1   | FROZEN    | closure `27cede8`；run `31932349425` 三 jobs 与 artifacts 全绿              |
+| P2-M2   | FROZEN    | closure `e211adb`；run `31958454155` 三 jobs 与 artifacts 全绿              |
+| P2-M3   | FROZEN    | closure `abbf6c9`；run `32107844716` 三 jobs 与 exact-SHA artifacts 全绿    |
+| P2-M4   | FROZEN    | repaired closure `11bda0a`；run `32169725374` 三 jobs 与七项 artifacts 全绿 |
 
 状态机与 Repair Task 规则见 `P1_M1_EXECUTION_PROTOCOL.md`。
 
@@ -48,7 +48,7 @@ Phase 2 仅处理可追溯的成年合成人物刺激资产；真实用户数据
 | P2-M2     | FROZEN    | closure `e211adb`；run `31958454155` 三 jobs 与 exact-SHA artifacts 全绿         |
 | P2-M3     | FROZEN    | closure `abbf6c9`；run `32107844716` 三 jobs 与 exact-SHA artifacts 全绿         |
 | P2-M4     | FROZEN    | repaired closure `11bda0a`；run `32169725374`、七项 artifacts 与双重独立审查全绿 |
-| P2-M5     | EXECUTING | T05 accepted `FURTHER_RESEARCH`；MVR `NOT_EVALUATED`，T06/M6 保持关闭            |
+| P2-M5     | EXECUTING | T05=`FURTHER_RESEARCH`；CC-01A 待 tracked Gate，T06/M6 关闭                      |
 | P2-M6     | COMMITTED | QuestionBank draft, immutable release and revocation；须待 M5 Gate 后 refinement |
 | P2-M7     | COMMITTED | Internal operations, cost and observability；须待 M2 contracts 后 refinement     |
 | P2-M8     | COMMITTED | Golden dataset and integrated evaluation；须待 M5–M7 Gate 后 refinement          |
