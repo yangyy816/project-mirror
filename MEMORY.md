@@ -331,3 +331,13 @@
   Milestone Gate 仍关闭。用户前向授权按需下载 MediaPipe 0.10.35 精确 Windows/Linux wheels、
   Face Landmarker 精确模型包及必要依赖，但下载授权不等于依赖采用、许可证批准、分发、生产启用
   或真实用户 facial processing 授权。
+
+- 2026-08-18：P2-M4-T07/R12 candidate `9d6984435ad29a4a17635194aeba10783e22bbe7`
+  的 run `32155084991` 三 jobs 全绿；七项 artifacts 绑定 exact SHA、真实 head
+  `0013_warp_plan_authority` 与 unchanged OpenAPI，Gitleaks 为零 results。固定两 identity、双向、
+  Windows/Linux、三次 transform/Vision holdout 的同平台与跨平台输出 bytes 全部一致，target 方向全部
+  正确，最大跨平台 measurement 差为 `0.000011863707220088893`；最大 control relative drift
+  `0.011420225249709091` 继续作为 M5 研究证据。Principal 接受 T07/R12 为
+  `PASS_EVALUATION_COMPLETE`，但结论保持 `FURTHER_RESEARCH_FOR_M5_ISOLATION`：N=2 不满足 M5
+  MVR，`jaw_width` 仍为 `EXPERIMENTAL`，未批准 M5 tolerance、production geometry、真人处理或
+  QuestionBank release。T08 已开放，P2-M4 Milestone Gate 尚未决定。

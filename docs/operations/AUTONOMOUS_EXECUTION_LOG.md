@@ -460,3 +460,22 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   98/52/46 tests with zero failures, errors or skips, and Gitleaks reports zero results.
 - Principal accepts T06 after reviewing the actual diff, local 481-test zero-skip matrix, safety and
   recovery boundaries, and remote evidence. T07 opens; T08 and the P2-M4 Gate remain closed.
+
+## 2026-08-18T23:48:00+08:00 — P2-M4-T07 tracked acceptance
+
+- ADR-040 and preregistration commit `1d2a2732a7ad3d0898663b542dd6f0fa308a59e0` froze the
+  `jaw_width` formula, controls, identity-disjoint split, exact 852-triangle topology, runtimes,
+  repeats and failure interpretation before final holdout execution. R12 added split-digest binding
+  and overlap rejection; it did not change the holdout or thresholds.
+- Two identities × two directions × three repeats completed on Windows and Linux. Same-platform and
+  cross-platform output bytes are identical; target direction is correct; maximum cross-platform
+  measurement difference is `0.000011863707220088893`. Maximum control drift
+  `0.011420225249709091` is retained as evidence, not declared an isolation PASS.
+- Candidate `9d6984435ad29a4a17635194aeba10783e22bbe7` completed run `32155084991` with
+  all three jobs successful. Seven exact-SHA audit/frozen-regression/Docker/Gitleaks artifacts are
+  present and readable; evidence binds `0013_warp_plan_authority` and unchanged OpenAPI, while
+  Gitleaks records zero results.
+- Principal accepts T07/R12 as `PASS_EVALUATION_COMPLETE` with
+  `FURTHER_RESEARCH_FOR_M5_ISOLATION`. `jaw_width` remains `EXPERIMENTAL`; no M5 tolerance,
+  production geometry, real-user facial processing or QuestionBank release is approved. T08 opens;
+  the P2-M4 Milestone Gate remains undecided.

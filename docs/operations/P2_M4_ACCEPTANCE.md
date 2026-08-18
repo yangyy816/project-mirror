@@ -14,24 +14,24 @@ PASS.
 
 ## Mandatory evidence matrix
 
-| Gate             | Required evidence                                                   | Status         |
-| ---------------- | ------------------------------------------------------------------- | -------------- |
-| Architecture     | ADR-036 and rolling-wave contracts accepted                         | T01 PASS       |
-| QA subject union | ADR-037 preserves M3 base authority and binds variant result QA     | ACCEPTED       |
-| Domain           | immutable source-relative spec and fail-closed state machine        | T02 PASS       |
-| Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | T03 PASS       |
-| Source authority | only QA-passed canonical synthetic Asset/identity/run               | T03 PASS       |
-| Lineage          | source/spec/run/result/measurement chain immutable                  | T03 PASS       |
-| Candidate        | exact source/version/license/SBOM/vulnerability/zero-network review | T04 PASS       |
-| Transform        | bounded adapter, no absolute/global target, new Asset only          | T05 PASS       |
-| Determinism      | preregistered same-platform and Windows/Linux evidence              | T05 PASS       |
-| Safety           | bounds/foldover/malformed/second-decode and artifact negatives      | T05 PASS       |
-| Measurement      | requested and actual target/control evidence retained               | PENDING        |
-| Recovery         | retry/cancel/duplicate/reconcile and lock-order evidence            | T06 LOCAL PASS |
-| Synthetic-only   | no User relation, real-person fixture or sensitive classifier       | T06 LOCAL PASS |
-| Contracts        | public OpenAPI/generated TypeScript unchanged                       | T06 LOCAL PASS |
-| Full Gate        | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA CI          | T06 PASS       |
-| Review           | independent security and final review                               | PENDING        |
+| Gate             | Required evidence                                                   | Status   |
+| ---------------- | ------------------------------------------------------------------- | -------- |
+| Architecture     | ADR-036 and rolling-wave contracts accepted                         | T01 PASS |
+| QA subject union | ADR-037 preserves M3 base authority and binds variant result QA     | ACCEPTED |
+| Domain           | immutable source-relative spec and fail-closed state machine        | T02 PASS |
+| Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | T03 PASS |
+| Source authority | only QA-passed canonical synthetic Asset/identity/run               | T03 PASS |
+| Lineage          | source/spec/run/result/measurement chain immutable                  | T03 PASS |
+| Candidate        | exact source/version/license/SBOM/vulnerability/zero-network review | T04 PASS |
+| Transform        | bounded adapter, no absolute/global target, new Asset only          | T05 PASS |
+| Determinism      | preregistered same-platform and Windows/Linux evidence              | T05 PASS |
+| Safety           | bounds/foldover/malformed/second-decode and artifact negatives      | T05 PASS |
+| Measurement      | requested and actual target/control evidence retained               | T07 PASS |
+| Recovery         | retry/cancel/duplicate/reconcile and lock-order evidence            | T06 PASS |
+| Synthetic-only   | no User relation, real-person fixture or sensitive classifier       | T07 PASS |
+| Contracts        | public OpenAPI/generated TypeScript unchanged                       | T07 PASS |
+| Full Gate        | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA CI          | T07 PASS |
+| Review           | independent security and final review                               | PENDING  |
 
 ## Entry evidence
 
@@ -335,6 +335,40 @@ LandmarkWarpPlanAuthority → passed canonical source QA/record/identity/Asset`,
   T06 is accepted. T07 may start; T08 and the P2-M4 Milestone Gate remain closed.
 
 `P2_M4_T06: TASK_ACCEPTED`
+
+## T07 tracked acceptance
+
+- ADR-040 preregistered one experimental `jaw_width` measurement, two explicit controls, an
+  identity-disjoint calibration/holdout split, exact 852-triangle topology, fixed private runtimes,
+  three repeats and unchanged failure interpretation before the final holdout. `P2-M4-R12` added
+  checksum-bound split manifests and fail-closed overlap rejection without changing the holdout or
+  thresholds.
+- Two holdout identities in both directions completed three transform/Vision repeats on Windows and
+  Linux. Same-platform outputs were byte-identical, all four Windows outputs matched Linux bytes,
+  Vision repeats were exact within platform, and measured jaw-width direction matched the request.
+  Maximum cross-platform measurement difference was `0.000011863707220088893`; maximum absolute
+  control relative delta was `0.011420225249709091` and remains explicit evidence for M5 rather than
+  an isolation PASS.
+- Local candidate validation passed Ruff format/lint, strict mypy across 123 sources, 41 focused
+  geometry/T07 tests with zero skip, full pnpm/contracts checks, fresh PostgreSQL `→0013`, Alembic
+  zero drift, and the complete container API/Worker matrix. Linux holdout execution used
+  `--network none`; no image, raw landmark, private path, object key, model or native log entered Git.
+- Candidate `9d6984435ad29a4a17635194aeba10783e22bbe7` completed GitHub Actions run
+  `32155084991`; `quality-and-integration`, `secret-scan` and `docker-validation` all passed. CI
+  executed 487 Python tests with one existing optional infrastructure skip, 54 TypeScript tests,
+  five browser tests, migration lifecycle, dependency/license audits and SBOM generation.
+- Seven artifacts are present, readable and unexpired: project audit `9331534304`, P2-M3
+  `9331525843`, P2-M2 `9331525115`, P2-M1 `9331524331`, Phase 1 `9331523438`, Docker
+  `9331401053` and Gitleaks `9331325086`. All four JSON evidence files bind the exact SHA,
+  `0013_warp_plan_authority` and unchanged OpenAPI digest `a9ee1e0a...`; Gitleaks has zero results.
+- Principal accepts T07 and R12 as `PASS_EVALUATION_COMPLETE`. The research handoff remains
+  `FURTHER_RESEARCH_FOR_M5_ISOLATION`: cohort N=2 is not the M5 MVR, `jaw_width` remains
+  `EXPERIMENTAL`, no tolerance was relaxed or inferred, and no production, real-user or
+  QuestionBank authority is enabled. T08 may now begin; the P2-M4 Milestone Gate remains open.
+
+`P2_M4_T07: TASK_ACCEPTED`
+
+`P2_M4_R12: REPAIR_ACCEPTED`
 
 ## Exit rule
 
