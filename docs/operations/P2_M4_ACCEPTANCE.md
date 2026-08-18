@@ -17,6 +17,7 @@ PASS.
 | Gate             | Required evidence                                                   | Status   |
 | ---------------- | ------------------------------------------------------------------- | -------- |
 | Architecture     | ADR-036 and rolling-wave contracts accepted                         | T01 PASS |
+| QA subject union | ADR-037 preserves M3 base authority and binds variant result QA     | ACCEPTED |
 | Domain           | immutable source-relative spec and fail-closed state machine        | T02 PASS |
 | Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | PENDING  |
 | Source authority | only QA-passed canonical synthetic Asset/identity/run               | PENDING  |

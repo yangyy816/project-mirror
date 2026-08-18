@@ -121,6 +121,8 @@
 
 ## 工作记录
 
+- 2026-08-18：P2-M4-T03 schema review 发现 M3 `SyntheticQARun` 强制绑定 raw-normalized `SyntheticAssetRecord`，不能合法表示无 raw source 的 geometry variant result。ADR-037 前向批准 `CANONICAL_BASE | GEOMETRY_VARIANT` QA subject union：既有 M3 row/语义不变；variant QARun 不伪造 raw record，而唯一反向绑定 output-stored `TransformRun` 并复用同一 QAPolicy/measurement/review/hard-gate authority。保留 `normalized_asset_id` 冻结列名作为共同 subject Asset reference，不建立第二套 measurement 表；仅限 private synthetic M4，不扩大真人、生产或 release 权限。
+
 - 2026-08-18：P2-M4-T02 经 Principal 验收。新增纯领域 `VariantSpecification`、`TransformRunState`、source-relative ppm magnitude、determinism level 与 `require_researchable_dimension`；只允许 READY/EXPERIMENTAL 进入 M4 研究，unknown/UNSUPPORTED/REQUIRES_3D/STYLE_ONLY fail closed，且 M4 不提升 dimension READY。60 个 targeted tests、全 API Ruff（153 files）、strict mypy（100 sources）与 contracts drift 通过；无 ORM/migration、算法/图片依赖、模型、网络、public API 或真人 fixture。Candidate `c173a46e43312c93b73c11462ee1adb115328fb2` 的 run `32110263179` 三 jobs 全绿。P2-M4 进入 EXECUTING，T03/T04 ready。
 
 - 2026-08-18：P2-M4 rolling-wave refinement 已由 Principal 接受。ADR-036 冻结 source-relative `VariantSpecification`、append-only `TransformRun`、新 immutable variant Asset、第一方 `GeometryTransform` port、determinism 分级和 M5 isolation 分界；M4 研究只允许 `EXPERIMENTAL`/`READY` dimension，且 M4 不能单独把 dimension 提升为 READY。M3 的 OpenCV 3.4.11 closure 不构成 M4 采用；M4 candidate 必须重新完成 exact-version、license/SBOM/vulnerability、Windows/Linux/Docker、zero-network、determinism 与 replacement-cost Gate。P2-M4 状态为 EXECUTION_READY，M5 entry 继续关闭。

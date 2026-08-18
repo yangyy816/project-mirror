@@ -8,7 +8,7 @@
 - Branch: `codex/phase2-m4-geometry-variants`
 - State: `EXECUTING`
 - Migration head at entry: `0011_offline_synth_source`
-- Architecture authority: ADR-021–036
+- Architecture authority: ADR-021–037
 - Public API impact: none
 - Real-user facial processing: prohibited
 - QuestionBank release: not authorized
@@ -52,6 +52,11 @@ dimensions may enter research execution; M4 alone cannot promote a dimension to 
 `TransformRun` distinguishes infrastructure failure, deterministic content rejection and completed
 measurement. Cancellation stops new work but preserves attempts and produced evidence. A successful
 run never overwrites source or result bytes and never aliases the source checksum.
+
+ADR-037 forward-extends the M3 QA source shape without creating a second measurement authority.
+Existing runs remain `CANONICAL_BASE`; a variant run uses `GEOMETRY_VARIANT`, has no fabricated
+`SyntheticAssetRecord`, and uniquely references the output-stored `TransformRun`. The existing
+`normalized_asset_id` column remains the common subject Asset reference to avoid a destructive rename.
 
 ## Supply-chain and candidate Gate
 
