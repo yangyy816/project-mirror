@@ -16,6 +16,7 @@ ProviderVerificationStatus = Literal["unverified", "verified"]
 GateStatus = Literal["required", "approved"]
 RateLimiterBackend = Literal["fake", "redis"]
 ConsentOperation = Literal["private_upload", "security_validation"]
+GeometryTransformProvider = Literal["disabled", "private_opencv"]
 
 DEFAULT_AUTH_JWT_KEYRING = {"dev-v1": "development-only-not-for-production"}
 DEFAULT_AUTH_HMAC_KEYRING = {"dev-v1": "development-only-hmac-not-for-production"}
@@ -134,6 +135,8 @@ class Settings(BaseSettings):
         "mock", "disabled", "verified_external", "tencent_candidate"
     ] = "mock"
     synthetic_storage_provider: Literal["mock", "local", "disabled", "tencent_candidate"] = "mock"
+    geometry_transform_provider: GeometryTransformProvider = "disabled"
+    geometry_runtime_root: Path | None = None
     agent_provider: Literal["mock", "disabled", "verified_external", "tencent_candidate"] = "mock"
     task_runner: Literal["local", "celery"] = "local"
 
@@ -190,6 +193,13 @@ class Settings(BaseSettings):
             < self.image_sanitizer_min_edge_pixels * self.image_sanitizer_min_edge_pixels
         ):
             raise ValueError("image sanitizer pixel limit is below its minimum dimensions")
+        if self.geometry_transform_provider == "private_opencv":
+            if self.geometry_runtime_root is None:
+                raise ValueError("private geometry runtime root is required")
+            if not self.geometry_runtime_root.is_absolute():
+                raise ValueError("private geometry runtime root must be absolute")
+        elif self.geometry_runtime_root is not None:
+            raise ValueError("geometry runtime root requires an enabled private provider")
 
         if self.app_env in {"test", "ci"}:
             if any(
@@ -236,6 +246,8 @@ class Settings(BaseSettings):
             failures.append("Phase 0 production AI providers must remain disabled")
         if self.synthetic_storage_provider != "disabled":
             failures.append("P2 production synthetic storage provider must remain disabled")
+        if self.geometry_transform_provider != "disabled" or self.geometry_runtime_root is not None:
+            failures.append("P2 production geometry transform must remain disabled")
         if self.sensitive_processing_enabled:
             failures.append("Phase 0 forbids production sensitive processing")
         if not self.registration_enabled and (

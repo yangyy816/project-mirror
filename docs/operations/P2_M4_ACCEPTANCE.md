@@ -227,6 +227,41 @@ forward architecture correction, not an Rxx repair, and does not approve a gener
 
 `P2_M4_R11: REPAIR_ACCEPTED`
 
+## CC-P2-M4-04 runtime composition change control
+
+After CC03-A acceptance, T06 read-only integration review found no typed composition path from Worker
+settings to the exact-hash private OpenCV loader. Hardcoded paths, raw environment reads or task
+payload paths would violate the accepted adapter and reference-only boundaries. ADR-039 accepts the
+minimal forward correction: `disabled | private_opencv` typed configuration, an absolute private
+runtime root, one manifest-verifying factory, and production fail-closed. No schema, dependency,
+binary, public API, production geometry or real-user authority is added. Implementation and local/
+same-SHA validation are pending; T06 remains blocked until Principal acceptance.
+
+`CC_P2_M4_04: IMPLEMENTING`
+
+## CC-P2-M4-04 local candidate evidence
+
+- ADR-039, typed settings and `create_geometry_transform_provider` implement one composition path:
+  `private_opencv` requires an absolute root and always enters the T05 exact-hash loader; disabled,
+  missing, relative, mismatched and production configurations fail closed without fallback.
+- The implementation adds no migration, dependency, binary, public API, network path, User Asset or
+  production/real-user geometry authority. M3 runtime behavior remains unchanged.
+- Windows targeted config/factory/adapter regression passed 40 tests. Full Ruff format/lint covered
+  196 files, strict mypy covered 117 sources, and the no-infrastructure suite passed 332 tests; its
+  136 infrastructure skips were not used as final evidence.
+- A fresh isolated Linux harness used a task-owned PostgreSQL database, Redis DB, four-queue Celery
+  Worker and writable ignored synthetic storage. Fresh `→0013` migration and all API/Worker tests
+  passed: 468 passed, zero skipped. `alembic check` reported no upgrade operations.
+- `pnpm.cmd check` passed formatting, lint, strict typecheck, 56 TypeScript tests, contract drift and
+  production build. Compose config, API/Worker image build, health and targeted Linux tests passed.
+- Two earlier harness attempts are not product failures: one reused durable P2 data and omitted
+  repository-only source-scan files; another omitted the frozen four-queue Celery routing and
+  `LOCAL_STORAGE_ROOT`. The corrected isolated full run closed both conditions without code changes.
+- Status is `READY_FOR_TRACKED_EVIDENCE`. T06 remains paused until the exact candidate SHA completes
+  all three GitHub Actions jobs and Principal inspects the artifacts.
+
+`CC_P2_M4_04: READY_FOR_TRACKED_EVIDENCE`
+
 ## Exit rule
 
 P2-M4 can pass only when every mandatory row has actual evidence, all candidate claims are bounded to

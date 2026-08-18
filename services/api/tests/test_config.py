@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -33,6 +35,7 @@ def production_settings(**overrides: object) -> dict[str, object]:
         "vision_provider": "disabled",
         "image_generation_provider": "disabled",
         "synthetic_storage_provider": "disabled",
+        "geometry_transform_provider": "disabled",
         "agent_provider": "disabled",
         "tencent_secret_id": "from-secret-manager",
         "tencent_secret_key": "from-secret-manager",
@@ -109,6 +112,13 @@ def test_purpose_consent_operations_are_non_empty_and_unique(operations: list[st
             {"synthetic_storage_provider": "local"},
             "production synthetic storage provider must remain disabled",
         ),
+        (
+            {
+                "geometry_transform_provider": "private_opencv",
+                "geometry_runtime_root": str(Path(Path.cwd().anchor) / "private" / "mirror-opencv"),
+            },
+            "production geometry transform must remain disabled",
+        ),
         ({"auth_token_secret": "change-me"}, "secure non-default auth token secret"),
         (
             {"facial_data_purpose": {"policy_digest": "0" * 64}},
@@ -128,6 +138,29 @@ def test_safe_phase_zero_production_shell_can_start_with_ai_disabled() -> None:
     settings = Settings(**production_settings())
     assert settings.vision_provider == "disabled"
     assert settings.sensitive_processing_enabled is False
+    assert settings.geometry_transform_provider == "disabled"
+    assert settings.geometry_runtime_root is None
+
+
+def test_private_geometry_runtime_configuration_is_typed_and_fail_closed() -> None:
+    absolute_root = Path(Path.cwd().anchor) / "private" / "mirror-opencv"
+    with pytest.raises(ValidationError, match="runtime root is required"):
+        Settings(geometry_transform_provider="private_opencv")
+    with pytest.raises(ValidationError, match="runtime root must be absolute"):
+        Settings(
+            geometry_transform_provider="private_opencv",
+            geometry_runtime_root="relative/runtime",
+        )
+    with pytest.raises(ValidationError, match="requires an enabled private provider"):
+        Settings(geometry_runtime_root=absolute_root)
+
+    settings = Settings(
+        app_env="test",
+        geometry_transform_provider="private_opencv",
+        geometry_runtime_root=absolute_root,
+    )
+    assert settings.geometry_runtime_root is not None
+    assert settings.geometry_runtime_root.is_absolute()
 
 
 def test_production_registration_requires_every_approved_dependency() -> None:

@@ -8,7 +8,7 @@
 - Branch: `codex/phase2-m4-geometry-variants`
 - State: `EXECUTING`
 - Migration head at entry: `0011_offline_synth_source`
-- Architecture authority: ADR-021–037
+- Architecture authority: ADR-021–039
 - Public API impact: none
 - Real-user facial processing: prohibited
 - QuestionBank release: not authorized
@@ -212,6 +212,12 @@ the `0013_landmark_warp_plan_authority.py` migration file, whose actual Alembic 
 `0013_warp_plan_authority`. T06 remains blocked until the domain/ORM/migration change and
 real PostgreSQL lifecycle/invariant tests are accepted. Job/task payloads remain reference-only and
 must not be used as a plan-authority workaround.
+
+`CC-P2-M4-04` records the runtime-composition defect found after CC03-A acceptance. ADR-039 adds only
+typed `disabled | private_opencv` configuration, an absolute private runtime root and a single
+manifest-verifying factory. Production remains disabled; paths cannot enter Job/task/log/API evidence.
+CC04 must pass config/factory/fail-closed validation before T06 resumes. It adds no migration,
+dependency, binary, public API or production authority.
 
 ### P2-M4-T07 — Integrated deterministic evaluation
 
