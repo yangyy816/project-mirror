@@ -521,3 +521,16 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - `jaw_width` remains `EXPERIMENTAL`, the conclusion remains `FURTHER_RESEARCH_FOR_M5_ISOLATION`, N=2 remains below
   the M5 MVR, and production geometry, real-user facial processing and QuestionBank release remain unauthorized.
   P2-M5 opens only for rolling-wave refinement after the freeze-state exact-SHA run passes.
+
+## 2026-08-19T19:25:00+08:00 — P2-M4 freeze verification and P2-M5 T01 refinement
+
+- P2-M4 freeze-state `5f2680e4d0724b409e13ac9cbe318b144cb0375f` run `32171351357`, attempt 2,
+  passed `quality-and-integration`, `secret-scan` and `docker-validation`. Seven downloaded artifacts bind the exact
+  SHA and `0013_warp_plan_authority`; M1/M2/M3 summaries have zero failures/errors/skips and Gitleaks has zero results.
+- Attempt 1 was cancelled after a bounded 35-minute Playwright download stall. Attempt 2 completed that step in
+  68 seconds on the same SHA; no product repair was needed.
+- Created `codex/phase2-m5-variable-isolation` from the freeze-state. ADR-041 and M5 research/execution/acceptance
+  documents freeze separate technical/MVR results, per-dimension cluster-adjusted holdout N, immutable evaluation
+  policy, region-group ontology versioning, first-party SHA/pHash/Hamming and append-only evidence.
+- M5 is `EXECUTION_READY`; T02 is next. P2-MVR-v1 remains `NOT_EVALUATED`, M6 entry remains closed, and no code,
+  migration, dependency, image/model artifact, production or real-user capability was added.

@@ -2,7 +2,14 @@
 
 ## 状态与边界
 
-Phase 2 是 `COMMITTED`，P2-M1 至 P2-M4 已 `FROZEN`，P2-M5 仅开放 rolling-wave refinement、尚未获得 implementation authorization。该阶段仅处理可追溯的成年合成人物资产；真人、用户资料、SelfState、问卷运行、DesiredDelta、编辑、支付、部署和公开 API 都不在范围。P2-M5 及以后仍须逐 Milestone refinement 与 Principal 授权。
+Phase 2 是 `COMMITTED`，P2-M1 至 P2-M4 已 `FROZEN`，P2-M5 已完成 rolling-wave T01 refinement 并进入 `EXECUTION_READY`。该阶段仅处理可追溯的成年合成人物资产；真人、用户资料、SelfState、问卷运行、DesiredDelta、编辑、支付、部署和公开 API 都不在范围。P2-M6 及以后仍须逐 Milestone refinement 与 Principal 授权。
+
+P2-M5 使用独立、不可变的 `SyntheticEvaluationPolicy`，把 engineering technical Gate 与
+`P2-MVR-v1` research result 分开。每个 dimension 的 holdout N 必须 identity-disjoint、按 duplicate
+cluster 调整，且不能包含 calibration 或 M4-seen identities；`24 → 48 → 96` 后仍不稳定就重新分类。
+exact duplicate 使用 normalized SHA-256，near-duplicate 只使用第一方版本化 pHash/Hamming 与预注册
+threshold。continuous morphology、region-group coverage、style/age distribution 与 anti-homogenization
+evidence 不得演变为 beauty score、敏感群体分类或隐藏标准脸。完整 authority 见 ADR-041。
 
 ## 权威链
 

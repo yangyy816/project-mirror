@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 2 — Synthetic Dataset Engine（COMMITTED）
-- 当前 Milestone：P2-M4 — Deterministic Geometry Variant Research and Engine（FROZEN）
+- 当前 Milestone：P2-M5 — Variable Isolation, Duplicate and Diversity QA（EXECUTION_READY）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -366,3 +366,13 @@
   QuestionBank release 继续关闭。Project Owner 前向授权按任务需要下载依赖（含 MediaPipe 0.10.35
   exact Windows/Linux wheels 与 Face Landmarker exact bundle）到私有缓存；下载授权不等于 adoption、
   license、distribution、production 或 real-user processing 批准。
+
+- 2026-08-19：P2-M4 freeze-state `5f2680e4d0724b409e13ac9cbe318b144cb0375f` 的 run
+  `32171351357` attempt 2 三 jobs 全绿，七项 artifacts 精确绑定该 SHA 和
+  `0013_warp_plan_authority`；M1/M2/M3 evidence 零 failure/error/skip，Gitleaks SARIF 零结果。
+  attempt 1 的 Playwright 下载停滞是外部下载证据，不产生产品 Repair。Principal 从该冻结提交建立
+  `codex/phase2-m5-variable-isolation` 并接受 ADR-041 与 M5 T01 rolling-wave protocol，M5 进入
+  `EXECUTION_READY`。M5 technical Gate 与 P2-MVR-v1 result 必须分开；N 按每 dimension 的
+  identity-disjoint、duplicate-cluster-adjusted holdout identity 计算，calibration/M4-seen 不计入，
+  按 `24 → 48 → 96` 后仍不稳定就重新分类。当前只有 4 个 canonical identities、一个 experimental
+  `jaw_width` 和 N=2 evidence，因此 MVR 仍 `NOT_EVALUATED`，M6 release 保持关闭。
