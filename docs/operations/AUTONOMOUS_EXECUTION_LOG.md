@@ -379,3 +379,11 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   the existing non-blocking Node 20 action-runtime deprecation annotations remain.
 - Principal accepts T05 plus R09/R10 and opens T06 only. P2-M4 remains `EXECUTING`; T07/T08 and the
   Milestone Gate are not complete.
+
+## 2026-08-18T19:36:00+08:00 — P2-M4-T05 acceptance closure
+
+- Forward checkpoint `2afc084d8dade07d28da3c3d68d87006d4a94f49` completed run `32131954633`;
+  `quality-and-integration`, `secret-scan`, and `docker-validation` all passed.
+- Seven exact-SHA audit/frozen-regression/Docker/Gitleaks artifacts are present and unexpired.
+- T05 remains accepted and T06 is now executing. This closure does not advance T07/T08 or the
+  P2-M4 Milestone Gate.

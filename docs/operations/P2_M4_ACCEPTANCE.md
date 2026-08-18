@@ -165,6 +165,13 @@ PASS.
 
 `P2_M4_T05: TASK_ACCEPTED`
 
+The forward acceptance checkpoint `2afc084d8dade07d28da3c3d68d87006d4a94f49` completed GitHub
+Actions run `32131954633` with all three jobs successful. Its seven unexpired artifacts are bound to
+the exact checkpoint SHA: project audit `9322654356`, P2-M3 `9322647301`, P2-M2 `9322646550`,
+P2-M1 `9322645828`, Phase 1 `9322645021`, Docker evidence `9322570536`, and Gitleaks SARIF
+`9322513368`. This closure confirms the accepted T05 governance checkpoint; it does not complete
+T06, T07, T08, or the P2-M4 Milestone Gate.
+
 ## Exit rule
 
 P2-M4 can pass only when every mandatory row has actual evidence, all candidate claims are bounded to

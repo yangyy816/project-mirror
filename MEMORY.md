@@ -147,6 +147,11 @@
   与远端结果后接受 T05 及 R09/R10，并只开放 T06。P2-M4 仍为 EXECUTING；T07/T08 与 Milestone
   Gate 未完成。
 
+- 2026-08-18：P2-M4-T05 acceptance checkpoint `2afc084d8dade07d28da3c3d68d87006d4a94f49`
+  的 run `32131954633` 三 jobs 全绿；七项 exact-SHA audit/frozen-regression/Docker/Gitleaks
+  artifacts 均存在且未过期。该 closure 只确认 T05 治理 checkpoint，T06 已开始执行，T07/T08 与
+  P2-M4 Gate 仍未完成。
+
 - 2026-08-18：P2-M4-T04 tracked evidence `28e5ae8ab9350fe44fa1e14aa1ae9c15436717fa` 的 run
   `32125987000` 三 jobs 全绿；下载 artifact `9320466783` 精确绑定该 SHA、migration head `0012`、
   46 M3 tests/0 skip 与既有 private-synthetic boundaries。Principal 接受 T04 并只开放 T05；
