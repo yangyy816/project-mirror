@@ -190,6 +190,25 @@ This approves only the exact closure for private synthetic M4 adapter work after
 evidence checkpoint. It adds no binary or package to Git, does not approve distribution or production,
 and does not authorize real-user facial processing or QuestionBank release.
 
+### Debian 12-compatible Linux identity
+
+`CC-P2-M4-02` replaces only the private Linux binary identity after the first accepted Linux build
+proved incompatible with the repository's Debian 12 API image. Two R10 clean roots built from the
+same OpenCV source, R08 patch, module/zlib closure and first-party ABI are byte-identical. The runtime
+requires at most `GLIBC_2.35`, `GLIBCXX_3.4.30` and `CXXABI_1.3.13`; private-path/network-symbol scans
+are zero, and the standard API image runs the adapter under `--network none` with the frozen
+cross-platform output.
+
+The updated deterministic CycloneDX 1.6 runtime SBOM SHA-256 is
+`641a93add13ba87dcc61480a3756ef9f6d2c0605f8c5ee02c29e96329bbd0390`. Offline Grype `0.117.0`
+with valid database v6.1.9 reports zero matches; result SHA-256 is
+`1c28957b3aa6cc18287b20c35f043d1a56f07008191f36718c8145d699b67057`. OpenCV and zlib license
+digests remain unchanged. Builder tools are not shipped in the private runtime; their exact Debian
+versions and copyright-file hashes are recorded in the CC02 evidence.
+
+This forward qualification does not add a project package/binary, distribution or production
+approval, User Asset processing, real-user facial processing or QuestionBank release authority.
+
 ## V03 R21 and Stage C disposition
 
 R21 retained the image create/free ABI without changing the configured dependency graph. Fresh

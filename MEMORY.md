@@ -133,6 +133,14 @@
   的 run `32126635267` 三 jobs 全绿；该 run 只确认 T04 acceptance 文档与既有冻结回归，不替代
   T05 adapter 或标准 Docker runtime compatibility Gate。
 
+- 2026-08-18：`CC-P2-M4-02` 与 `P2-M4-R10` 关闭 T05 的 Debian 12 ABI 兼容缺口。首两个 V3
+  root 虽位级一致但 OpenCV build-info 泄露 `/work/...`，已保留为 attempt evidence；R10 只改为
+  固定 `/usr/src/...` 构建根。两个新 root 的五项 runtime 逐字节一致、private-path/network-symbol
+  扫描为零，最高要求为 `GLIBC_2.35`/`GLIBCXX_3.4.30`/`CXXABI_1.3.13`。标准 API 镜像在
+  `--network none` 下得到与 Windows 相同的 T05 输出 `5f7868d5...`；private SBOM `641a93ad...` 与
+  Grype 0.117.0/database v6.1.9 零 matches。该结论只关闭 Linux runtime identity；T05 仍待完整
+  tracked validation 和 Principal acceptance，T06 继续关闭。
+
 - 2026-08-18：P2-M4-T04 tracked evidence `28e5ae8ab9350fe44fa1e14aa1ae9c15436717fa` 的 run
   `32125987000` 三 jobs 全绿；下载 artifact `9320466783` 精确绑定该 SHA、migration head `0012`、
   46 M3 tests/0 skip 与既有 private-synthetic boundaries。Principal 接受 T04 并只开放 T05；

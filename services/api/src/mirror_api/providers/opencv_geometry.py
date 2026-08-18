@@ -40,14 +40,14 @@ _WINDOWS_FILES: Mapping[str, str] = {
     "opencv_imgproc500.dll": "6baf90843b20fa07b8e9b95c38ccbcc4c0f83d44191de1cc29febd27c17dc2d3",
 }
 _LINUX_FILES: Mapping[str, str] = {
-    "libmirror_opencv_remap.so": "9ce503f8e5e1186269c8ef37d00a26ab04c40c9681d4a043d2ea94e2e4a861dd",
-    "libopencv_core.so.5.0.0": "1984bb9695ffb5b628809f23d0026fd49c30a8e3ed6093040e6fc7c54e5bd9ab",
-    "libopencv_flann.so.5.0.0": "b3afa2bc31b96fec8bcab48e8f47ff9a9618a236e9fcf3a5298ee8124f8f3fff",
+    "libmirror_opencv_remap.so": "1fca403721b0ea2adb5a7529aa41d3a8f65813635378ea1a7c69973764f99e49",
+    "libopencv_core.so.5.0.0": "00f6f16794afeafd06fe6ed596c75e6173199a344242b0eb1d5bdb3197eda8eb",
+    "libopencv_flann.so.5.0.0": "50f7b0d5883b49b6d114f58d1c74560f780603dedc7c876039db3991bb788f79",
     "libopencv_geometry.so.5.0.0": (
-        "31095c77a09445c2a876dc2ea17db87c1edca051213261f3a6443274b3198e39"
+        "e021428b8080794899bb36c7be7d8bc3ea4187cda47c3cd8d989d5b3768f9d36"
     ),
     "libopencv_imgproc.so.5.0.0": (
-        "5eb430711d7883602d694c8cfbd021edb9ce345ad311e65531aa13d1e31cbb89"
+        "d8ee4b5211369ffbe5f27b68587ae34c5bb75979c41b08b83495dd8869efd6c9"
     ),
 }
 _LINUX_LINKS: Mapping[str, str] = {

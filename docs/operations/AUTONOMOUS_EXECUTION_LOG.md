@@ -343,3 +343,30 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   Gitleaks artifacts are present and readable.
 - Principal accepts T04 and opens T05. P2-M4 remains `EXECUTING`; T05–T08 and the Milestone Gate are
   not complete.
+
+## 2026-08-18T19:10:00+08:00 — P2-M4 CC02 Debian 12 compatibility qualification
+
+- R09 commit `8332d9341ac06776008755f282fb0814c3cdca9f` completed same-SHA run `32128839492`; all three
+  GitHub Actions jobs passed, closing the Linux-mypy portability defect only.
+- The first two Debian 12 V3 roots were byte-identical and behaviorally correct but retained
+  `/work/...` inside OpenCV build-info. R10 preserved those roots as attempt evidence and rebuilt in
+  fixed `/usr/src/...` roots without changing source, R08, modules, zlib, ABI, algorithm or fixtures.
+- The two R10 roots are byte-identical for all five runtime files. Private-path and network-symbol
+  scans are zero; maximum requirements are glibc 2.35, GLIBCXX 3.4.30 and CXXABI 1.3.13.
+- The standard Debian 12 API image ran the real adapter under `--network none` and produced the same
+  canonical result SHA-256 `5f7868d5...` as Windows. Updated private SBOM SHA-256 is `641a93ad...`;
+  offline Grype 0.117.0/database v6.1.9 reports zero matches.
+- `CC-P2-M4-02` is PASS. T05 still requires its complete tracked regression and same-SHA candidate
+  evidence before Principal acceptance; T06 remains closed.
+
+## 2026-08-18T19:21:00+08:00 — P2-M4-T05 local candidate validation
+
+- Ruff, dual-platform strict mypy, focused transform tests, full Linux API/Worker tests on a fresh
+  PostgreSQL `0012` schema, pnpm check/build/contracts and Compose health/behavior all pass.
+- Final Linux repository run is 444 passed with four existing optional skips. Earlier container
+  attempts honestly preserve missing runtime-image repo files, read-only test storage and missing
+  mirrored `DATABASE_URL` as harness failures; none required a production-code workaround.
+- All five Compose services remain healthy. Temporary PostgreSQL test databases were removed;
+  task-owned runtime/build/SBOM volumes remain preserved for evidence.
+- Candidate is ready for tracked commit and same-SHA Actions evidence. T05 is not yet accepted and
+  T06 remains closed.

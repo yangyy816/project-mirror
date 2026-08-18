@@ -128,6 +128,26 @@ PASS.
   Windows-only `os.add_dll_directory` attribute even though Windows mypy correctly platform-pruned
   that path. The repair uses a fail-closed runtime capability lookup and does not change accepted
   file hashes, DLL search scope or native execution behavior.
+- R09 commit `8332d9341ac06776008755f282fb0814c3cdca9f` completed same-SHA GitHub Actions run
+  `32128839492`; `quality-and-integration`, `secret-scan` and `docker-validation` all passed.
+- `CC-P2-M4-02` and R10 qualified the deployment-compatible Linux runtime in two byte-identical
+  Debian 12 roots. Private-path and network-symbol scans are zero, maximum required glibc is 2.35,
+  the updated private SBOM/Grype result has zero matches, and the standard API image produced the
+  same canonical T05 output SHA-256 `5f7868d5...` as Windows under `--network none`.
+- The exact Linux file hashes and runtime manifest digest `5d0e9ee3...` are frozen in the loader and
+  `docs/research/P2_M4_CC02_DEBIAN12_RUNTIME_COMPATIBILITY.md`. T05 remains pending complete local
+  regression and a tracked same-SHA candidate checkpoint; T06 is still closed.
+- T05 local candidate validation passes Ruff format/lint across 192 files, strict mypy for 115
+  API/Worker sources on both Linux and Windows targets, six focused transform tests, all 444 Linux
+  API/Worker tests that ran against a fresh PostgreSQL `0012` schema with four existing optional
+  skips, the complete pnpm check/build/contract matrix, and the Compose build/health/API/Web/Celery/
+  Worker/Alembic behavior matrix. The temporary test databases were dropped after each attempt.
+- Two intermediate container-test attempts are preserved as execution evidence: the first lacked
+  repository-only files from the runtime image, and the second/third exposed the intentionally
+  read-only storage mount and a missing `DATABASE_URL` mirror. No production code or Docker image
+  scope was changed to conceal those harness conditions; the corrected full-repository run passed.
+- Local candidate status is `READY_FOR_TRACKED_EVIDENCE`. Principal acceptance and T06 remain
+  blocked on same-SHA GitHub Actions and artifact inspection.
 
 ## Exit rule
 

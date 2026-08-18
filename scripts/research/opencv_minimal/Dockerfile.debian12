@@ -1,0 +1,12 @@
+FROM python:3.13.1-slim@sha256:031ebf3cde9f3719d2db385233bcb18df5162038e9cda20e64e08f49f4b47a2f
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        binutils=2.40-2 \
+        build-essential=12.9 \
+        cmake=3.25.1-1 \
+        ninja-build=1.11.1-2~deb12u1 \
+        patch=2.7.6-7 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV SOURCE_DATE_EPOCH=1780743154

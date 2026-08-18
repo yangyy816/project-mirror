@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from mirror_api.image_sanitizer import canonicalize_rgb_image, decode_canonical_rgb_image
+from mirror_api.providers import opencv_geometry
 from mirror_api.providers.opencv_geometry import (
     ALGORITHM_VERSION,
     CANDIDATE_ID,
@@ -220,3 +221,23 @@ def test_native_loader_rejects_untrusted_runtime_location(tmp_path: Path) -> Non
     with pytest.raises(DomainValidationError) as shape:
         load_private_opencv_runtime(extra)
     assert shape.value.reason_code is ReasonCode.TRANSFORM_RUNTIME_MISMATCH
+
+
+def test_linux_runtime_manifest_is_frozen_to_debian12_v3() -> None:
+    assert opencv_geometry._LINUX_FILES == {
+        "libmirror_opencv_remap.so": (
+            "1fca403721b0ea2adb5a7529aa41d3a8f65813635378ea1a7c69973764f99e49"
+        ),
+        "libopencv_core.so.5.0.0": (
+            "00f6f16794afeafd06fe6ed596c75e6173199a344242b0eb1d5bdb3197eda8eb"
+        ),
+        "libopencv_flann.so.5.0.0": (
+            "50f7b0d5883b49b6d114f58d1c74560f780603dedc7c876039db3991bb788f79"
+        ),
+        "libopencv_geometry.so.5.0.0": (
+            "e021428b8080794899bb36c7be7d8bc3ea4187cda47c3cd8d989d5b3768f9d36"
+        ),
+        "libopencv_imgproc.so.5.0.0": (
+            "d8ee4b5211369ffbe5f27b68587ae34c5bb75979c41b08b83495dd8869efd6c9"
+        ),
+    }
