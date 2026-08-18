@@ -217,3 +217,37 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `P2_M5_R01: PASS`
 
 `P2_M5_NEXT_TASK: T05_AUTHORIZED`
+
+## T03 acceptance checkpoint
+
+- Acceptance checkpoint `6efd2dce4f4205d76af156c65b78f36f6910f52b` run `32186910142` passed all
+  three jobs. Seven artifacts are present, readable and exact-SHA bound; Phase 1/M1/M2/M3 evidence reports
+  `0014_m5_eval_authority`, unchanged OpenAPI and 1/98/52/46 tests with zero failures/errors/skips. Gitleaks reports
+  zero results.
+- This checkpoint confirms the forward T03/R01 acceptance state and opens only T05.
+
+`P2_M5_T03_ACCEPTANCE_CHECKPOINT: PASS`
+
+## T05 local preregistration decision
+
+- `P2_M5_T05_READINESS_EVIDENCE.json` binds the accepted M3 authority and M4 preregistration, calibration,
+  evaluation and corrected split authority by SHA-256.
+- All four canonical identities were already used in M4 and are classified `M4_SEEN`; M5 calibration and holdout
+  counts are both zero. Current evidence has one `EXPERIMENTAL` `jaw_width`, zero READY dimensions and no frozen
+  M5 region-group ontology version.
+- T05 therefore selects no target/control tolerance, pHash threshold, new ontology/policy version or final cohort
+  digest. It does not access or execute holdout and keeps T06 closed.
+- Two deterministic tests verify source digests, exact M4 split reconstruction, M4-seen classification, zero holdout,
+  canonical document digest, fail-closed booleans and absence of private/false authority fields. Ruff, Prettier and
+  `git diff --check` pass.
+- The honest T05 outcome is `FURTHER_RESEARCH`, while the global P2-MVR-v1 result remains `NOT_EVALUATED`. A forward
+  research change control is required to acquire identity-disjoint calibration/holdout cohorts and candidate
+  dimensions; this cannot be packaged as a Repair or silently expanded inside T05.
+
+`P2_M5_T05: READY_FOR_TRACKED_EVIDENCE`
+
+`P2_M5_T05_OUTCOME: FURTHER_RESEARCH`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M5_T06_ENTRY: CLOSED`

@@ -1,0 +1,112 @@
+{
+  "schema_version": "mirror.p2-m5.t05-readiness-evidence/v1",
+  "assessment_date": "2026-08-19",
+  "source_evidence": {
+    "p2_m3_authority": {
+      "path": "docs/operations/P2_M3_V03_AUTHORITY_REDACTED_EVIDENCE.json",
+      "sha256": "3b5374ace77e776e67ce79d76cd634ea1d145fd6fbafda35b37229c0fa5a258e"
+    },
+    "p2_m4_preregistration": {
+      "path": "docs/research/P2_M4_T07_PREREGISTRATION.md",
+      "sha256": "1b1c3d2ad913af093f7679024c8b6a07e430c08aa1376f8040a9990a63d92857"
+    },
+    "p2_m4_calibration": {
+      "path": "docs/research/P2_M4_T07_CALIBRATION_REPORT.md",
+      "sha256": "8b47d0963d724cca293b3cbc7b71b4b7e29d3399a0854ff4a0b0770c19fb2b02"
+    },
+    "p2_m4_evaluation": {
+      "path": "docs/research/P2_M4_T07_EVALUATION_EVIDENCE.json",
+      "sha256": "07fcf011b48fbd05bed6922204af356ce4dc037ece28aee4cf8b8ef2ec98428d"
+    },
+    "p2_m4_split_authority": {
+      "path": "docs/research/P2_M4_T08_REPAIR_EVIDENCE.json",
+      "sha256": "f370a3312b0c28683c0ab3557adb9f33193e938af3a06b2fa173b536bab25f67"
+    }
+  },
+  "current_authority": {
+    "canonical_identities": 4,
+    "assignments": [
+      {
+        "identity_reference": "1dd1786221d34bae9863df77c9d531e6",
+        "asset_reference": "7c14195846924ad19d762080a626ab54",
+        "normalized_sha256": "71fc0fadc69841664664cd912132edb2d64adc227a78755be38dedf5113add1e",
+        "m4_source_group": "CALIBRATION",
+        "m5_split": "M4_SEEN"
+      },
+      {
+        "identity_reference": "a959c8c392bb44f6a9120385ef16949c",
+        "asset_reference": "d714a022dc2249edadef524ebb25f623",
+        "normalized_sha256": "3532d0f7e30d64916a81059c24e6e0ea33f3c9fa5fff66600f7131a6728c9a05",
+        "m4_source_group": "CALIBRATION",
+        "m5_split": "M4_SEEN"
+      },
+      {
+        "identity_reference": "4d4586cd398b496ba67c0f1601626706",
+        "asset_reference": "27105c9647ad483c946f781570da06fe",
+        "normalized_sha256": "a84f6a0316a665f311b42bf4c88d51caab1e0327109529d72f1a05d45940c3c5",
+        "m4_source_group": "HOLDOUT",
+        "m5_split": "M4_SEEN"
+      },
+      {
+        "identity_reference": "58d63ba8b1854713a27fff66624994a7",
+        "asset_reference": "6a034f419c3f4b3c895fc062c54d3833",
+        "normalized_sha256": "c225320284eceec77dbdf24d9a806ce77f030f40f17237487719411bcc8255c5",
+        "m4_source_group": "HOLDOUT",
+        "m5_split": "M4_SEEN"
+      }
+    ],
+    "assignment_counts": {
+      "CALIBRATION": 0,
+      "M4_SEEN": 4,
+      "HOLDOUT": 0
+    },
+    "dimensions": [
+      {
+        "dimension_key": "jaw_width",
+        "classification": "EXPERIMENTAL",
+        "region_group": null,
+        "bidirectional_m4_evidence_identities": 4,
+        "m5_holdout_effective_n": 0
+      }
+    ],
+    "ready_dimension_count": 0,
+    "ready_region_group_count": 0
+  },
+  "mvr_target": {
+    "minimum_bidirectional_dimensions": 4,
+    "minimum_region_groups": 3,
+    "minimum_effective_holdout_identities_per_dimension": 24,
+    "cohort_progression": [24, 48, 96]
+  },
+  "preregistration_decision": {
+    "t05_outcome": "FURTHER_RESEARCH",
+    "p2_mvr_v1_result": "NOT_EVALUATED",
+    "evaluation_policy_created": false,
+    "geometry_ontology_version_created": false,
+    "thresholds_selected": false,
+    "final_cohort_manifest_created": false,
+    "holdout_accessed": false,
+    "holdout_execution_authorized": false,
+    "t06_entry_authorized": false
+  },
+  "missing_evidence": [
+    "identity_disjoint_calibration_cohort",
+    "at_least_24_identity_disjoint_holdout_identities_per_dimension",
+    "at_least_4_bidirectional_ready_dimensions",
+    "at_least_3_non_sensitive_region_groups",
+    "calibration_distribution_for_target_and_control_tolerances",
+    "manually_reviewed_similarity_distance_distribution",
+    "frozen_duplicate_candidate_threshold",
+    "frozen_geometry_ontology_version_with_region_groups"
+  ],
+  "boundaries": {
+    "synthetic_only": true,
+    "new_images_generated": false,
+    "new_dependencies_or_models": false,
+    "downloads_performed": false,
+    "production_geometry_enabled": false,
+    "real_user_facial_processing_enabled": false,
+    "question_bank_release_authorized": false
+  },
+  "document_digest": "35c1a36f3941cc7c92effbd7a912376e54163a2e5e508e01b70e47ed13c6b94f"
+}

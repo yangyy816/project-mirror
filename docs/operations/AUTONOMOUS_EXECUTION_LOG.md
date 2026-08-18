@@ -607,3 +607,15 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Principal accepts T03/R01 and opens only T05 calibration/cohort/preregistration. T06–T08, thresholds not supported
   by evidence, holdout/MVR execution, production geometry, real-user processing, M6 and QuestionBank release remain
   closed.
+
+## 2026-08-19T21:45:00+08:00 — T03 checkpoint and T05 fail-closed preregistration decision
+
+- T03 acceptance checkpoint `6efd2dce4f4205d76af156c65b78f36f6910f52b` run `32186910142` passed all
+  three jobs; seven artifacts bind that SHA and `0014_m5_eval_authority`, with frozen regression zero failures/skips
+  and Gitleaks zero results.
+- T05 reconstructs all four accepted canonical identities from the corrected M4 split authority. Because all four
+  were used in M4, they are `M4_SEEN`; M5 calibration/holdout effective N is zero. Only experimental `jaw_width`
+  exists, so no MVR policy, threshold, region-group ontology version or final cohort is supportable.
+- Added canonical readiness evidence, a fail-closed preregistration decision and two deterministic source/digest/
+  boundary tests. T05 is `READY_FOR_TRACKED_EVIDENCE` with outcome `FURTHER_RESEARCH`; MVR remains `NOT_EVALUATED`
+  and T06 remains closed.

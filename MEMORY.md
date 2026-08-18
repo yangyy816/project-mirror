@@ -420,3 +420,11 @@
   results，Docker/Celery 无真实 error，license/SBOM 可读。Principal 接受 T03/R01 并只开放 T05
   calibration/cohort/preregistration；T06–T08、technical Gate、MVR、production geometry、真人处理、M6
   与 QuestionBank release 继续关闭。
+
+- 2026-08-19：T03 acceptance checkpoint `6efd2dce4f4205d76af156c65b78f36f6910f52b` 的 run
+  `32186910142` 三 jobs 与七 artifacts 全绿。T05 随后重建现有四项 canonical identity split：它们全部
+  已被 M4 使用，因此在 M5 只能归入 `M4_SEEN`，M5 calibration/holdout effective N 均为 0；当前仅有
+  一个 `EXPERIMENTAL jaw_width`，没有 READY dimensions、三 region groups、阈值分布或新 ontology/policy
+  authority。T05 本地结论为 `FURTHER_RESEARCH`，全局 MVR 保持 `NOT_EVALUATED`；不得用 M4 N=2 重标
+  M5 holdout，不创建阈值/最终 cohort，不开放 T06。补足数据与维度必须走前向 research change control，
+  不能包装成 Repair。
