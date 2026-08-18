@@ -3,7 +3,7 @@
 ## Status
 
 - Milestone: `P2-M4 — Deterministic Geometry Variant Research and Engine`
-- State: `EXECUTION_READY`
+- State: `EXECUTING`
 - Entry baseline: `6b86a665e845e113bbfa2820f906d3b78506b753`
 - Entry migration head: `0011_offline_synth_source`
 - Public API change: none
@@ -17,7 +17,7 @@ PASS.
 | Gate             | Required evidence                                                   | Status   |
 | ---------------- | ------------------------------------------------------------------- | -------- |
 | Architecture     | ADR-036 and rolling-wave contracts accepted                         | T01 PASS |
-| Domain           | immutable source-relative spec and fail-closed state machine        | PENDING  |
+| Domain           | immutable source-relative spec and fail-closed state machine        | T02 PASS |
 | Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | PENDING  |
 | Source authority | only QA-passed canonical synthetic Asset/identity/run               | PENDING  |
 | Lineage          | source/spec/run/result/measurement chain immutable                  | PENDING  |
@@ -41,6 +41,23 @@ PASS.
 - Tracked worktree was clean at branch creation; protected untracked `.tmp/` remains outside M4 scope.
 - M3 official MediaPipe wheels remain rejected, its model remains private-research-only, and its
   OpenCV 3.4.11 closure is not M4 adoption.
+
+## T02 domain contract evidence
+
+- `VariantSpecification` is an immutable canonical contract bound to source Asset, identity, QA run,
+  ontology/version digest, one target, explicit controls, source-relative integer ppm magnitude,
+  algorithm/runtime digest, output bounds and a declared determinism level. Direct construction and
+  digest tampering fail closed without echoing references.
+- M4 research admits only ontology dimensions classified `READY` or `EXPERIMENTAL`; unknown,
+  `UNSUPPORTED`, `REQUIRES_3D` and `STYLE_ONLY` dimensions stop before any result-storage path. The
+  contract does not promote an experimental dimension to READY.
+- `TransformRunState` preserves monotonic execution with separate `REJECTED`, `FAILED` and
+  `CANCELLED` terminals. Skipped states and terminal re-entry are rejected.
+- Targeted domain regression passed 60 tests. Full API source Ruff format/lint covered 153 files and
+  strict mypy covered 100 source files. OpenAPI/generated TypeScript drift remained zero through
+  `pnpm.cmd contracts:check`.
+- T02 added no ORM, migration, image/AI dependency, provider/storage/task-runner import, model/image
+  artifact, public endpoint or real-person fixture.
 
 ## Exit rule
 

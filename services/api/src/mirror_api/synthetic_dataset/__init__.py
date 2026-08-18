@@ -20,10 +20,19 @@ from .domain import (
     require_ready_dimension,
     transition,
 )
+from .geometry_variant import (
+    DeterminismLevel,
+    TransformDirection,
+    TransformRunState,
+    VariantSpecification,
+    require_researchable_dimension,
+    transition_transform_run,
+)
 
 __all__ = [
     "AuthorityApprovalState",
     "CanonicalPolicy",
+    "DeterminismLevel",
     "DomainValidationError",
     "GenerationBatchState",
     "GenerationItemState",
@@ -33,8 +42,13 @@ __all__ = [
     "PolicyKind",
     "ReasonCode",
     "ReleaseState",
+    "TransformDirection",
+    "TransformRunState",
+    "VariantSpecification",
     "VariantState",
     "canonicalize_policy_content",
     "require_ready_dimension",
+    "require_researchable_dimension",
     "transition",
+    "transition_transform_run",
 ]

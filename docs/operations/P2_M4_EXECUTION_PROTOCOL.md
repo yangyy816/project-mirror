@@ -6,7 +6,7 @@
 - Entry baseline: P2-M3 freeze-state `6b86a665e845e113bbfa2820f906d3b78506b753`
 - Entry run: `32108427849`; all three jobs passed on the exact SHA
 - Branch: `codex/phase2-m4-geometry-variants`
-- State: `EXECUTION_READY`
+- State: `EXECUTING`
 - Migration head at entry: `0011_offline_synth_source`
 - Architecture authority: ADR-021–036
 - Public API impact: none

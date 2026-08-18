@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 2 — Synthetic Dataset Engine（COMMITTED）
-- 当前 Milestone：P2-M4 — Deterministic Geometry Variant Research and Engine（EXECUTION_READY）
+- 当前 Milestone：P2-M4 — Deterministic Geometry Variant Research and Engine（EXECUTING）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -120,6 +120,8 @@
 - CI/生产凭据只记录在对应平台 Secret Manager；本文件永不保存凭据值。
 
 ## 工作记录
+
+- 2026-08-18：P2-M4-T02 经 Principal 验收。新增纯领域 `VariantSpecification`、`TransformRunState`、source-relative ppm magnitude、determinism level 与 `require_researchable_dimension`；只允许 READY/EXPERIMENTAL 进入 M4 研究，unknown/UNSUPPORTED/REQUIRES_3D/STYLE_ONLY fail closed，且 M4 不提升 dimension READY。60 个 targeted tests、全 API Ruff（153 files）、strict mypy（100 sources）与 contracts drift 通过；无 ORM/migration、算法/图片依赖、模型、网络、public API 或真人 fixture。P2-M4 进入 EXECUTING，T03/T04 ready。
 
 - 2026-08-18：P2-M4 rolling-wave refinement 已由 Principal 接受。ADR-036 冻结 source-relative `VariantSpecification`、append-only `TransformRun`、新 immutable variant Asset、第一方 `GeometryTransform` port、determinism 分级和 M5 isolation 分界；M4 研究只允许 `EXPERIMENTAL`/`READY` dimension，且 M4 不能单独把 dimension 提升为 READY。M3 的 OpenCV 3.4.11 closure 不构成 M4 采用；M4 candidate 必须重新完成 exact-version、license/SBOM/vulnerability、Windows/Linux/Docker、zero-network、determinism 与 replacement-cost Gate。P2-M4 状态为 EXECUTION_READY，M5 entry 继续关闭。
 
