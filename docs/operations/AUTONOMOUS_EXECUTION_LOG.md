@@ -230,3 +230,18 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   every official-wheel, model, distribution, production, real-user and QuestionBank boundary.
 - P2-M3 advances to FROZEN through a separate freeze-state commit. P2-M4 only opens for rolling-wave
   refinement; implementation remains unauthorized until that refinement is accepted.
+
+## 2026-08-18T15:06:00+08:00 — P2-M4 refinement and T02 domain contracts
+
+- Repository truth: P2-M3 freeze-state `6b86a665e845e113bbfa2820f906d3b78506b753` and run
+  `32108427849` were verified before M4 work. Branch `codex/phase2-m4-geometry-variants` was created
+  from that exact SHA; protected `.tmp/` remained untouched.
+- Refinement checkpoint `6c566c78e30bd0269a2691950c9107e84a6ddaa9` added ADR-036, the execution and
+  research protocols, acceptance skeleton and Principal review. Run `32109417346` passed all three
+  jobs on the exact SHA.
+- T02 candidate `c173a46e43312c93b73c11462ee1adb115328fb2` added pure source-relative variant
+  contracts and monotonic transform state. Local evidence: 60 targeted tests, Ruff across 153 files,
+  strict mypy across 100 sources and contract drift PASS. Run `32110263179` passed all three jobs.
+- No migration, dependency, model/image artifact, external download, public API or real-person data was
+  added. M3 OpenCV 3.4.11 remains unavailable as the M4 runtime. Next ready work is T03 PostgreSQL
+  authority or T04 isolated candidate PoC.

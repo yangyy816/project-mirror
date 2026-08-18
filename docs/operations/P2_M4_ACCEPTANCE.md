@@ -58,6 +58,9 @@ PASS.
   `pnpm.cmd contracts:check`.
 - T02 added no ORM, migration, image/AI dependency, provider/storage/task-runner import, model/image
   artifact, public endpoint or real-person fixture.
+- Candidate `c173a46e43312c93b73c11462ee1adb115328fb2` was pushed normally. Same-SHA
+  GitHub Actions run `32110263179` passed `quality-and-integration`, `secret-scan` and
+  `docker-validation`; the non-blocking Node 20 action-runtime deprecation annotations remain visible.
 
 ## Exit rule
 
