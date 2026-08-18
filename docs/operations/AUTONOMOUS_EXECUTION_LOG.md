@@ -450,3 +450,13 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   were isolated harness failures; each was corrected without a product-code bypass or weakened Gate.
 - T06 is `READY_FOR_TRACKED_EVIDENCE`, not accepted. Same-SHA Actions/artifacts remain mandatory;
   T07/T08 and the P2-M4 Milestone Gate remain closed.
+
+## 2026-08-18T22:44:00+08:00 — P2-M4-T06 tracked acceptance
+
+- Candidate `0ac4269399fdf45b486a7be4bce93f01292e0572` run `32149168567` passed
+  `quality-and-integration`, `secret-scan` and `docker-validation`.
+- Seven expected artifacts are present, readable and unexpired. Frozen regression evidence binds
+  the exact SHA, `0013_warp_plan_authority` and the unchanged OpenAPI digest; M1/M2/M3 report
+  98/52/46 tests with zero failures, errors or skips, and Gitleaks reports zero results.
+- Principal accepts T06 after reviewing the actual diff, local 481-test zero-skip matrix, safety and
+  recovery boundaries, and remote evidence. T07 opens; T08 and the P2-M4 Gate remain closed.

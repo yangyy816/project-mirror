@@ -322,3 +322,12 @@
 - 2026-08-18：CC-P2-M4-04 本地候选完成。Windows targeted config/factory/adapter 40 tests、全量 Ruff、117-source strict mypy、332 个无基础设施测试与完整 `pnpm check` 全绿；独立 fresh Linux PostgreSQL/Redis/四队列 Celery/可写 ignored storage harness 的 API+Worker 468 tests 零 skip，`alembic check` 零漂移。前两个 Linux full-run failure 均由 harness 复用 durable DB、缺 repository-only files、Celery 队列和 `LOCAL_STORAGE_ROOT` 造成，纠正 harness 后无需产品代码修补。候选状态为 `READY_FOR_TRACKED_EVIDENCE`；T06 仍待 exact-SHA 三 jobs 与 artifacts 后恢复。
 - 2026-08-18：CC04 candidate `38e4755e87718ccddc5be81d45177fc37c5caae6` 的 run `32142005006` 三 jobs 全绿；project audit `9326412825`、P2-M3 `9326404299`、P2-M2 `9326403612`、P2-M1 `9326402997`、Phase 1 `9326402268`、Docker `9326312899` 与 Gitleaks `9326243254` 均存在、可读、未过期。四份 evidence 绑定 exact SHA、`0013_warp_plan_authority` 与 unchanged OpenAPI digest；M1 98、M2 52、M3 46 tests 零 skip，Gitleaks 0 results。Principal 接受 `CC-P2-M4-04`；acceptance checkpoint CI 后恢复 T06，T07/T08 与 M4 Gate 继续关闭。
 - 2026-08-18：P2-M4-T06 本地候选建立 reference-only transform task、空 Job payload、private variant create-if-absent receipt、权威 transform service、M3 variant-QA handoff 与 Local/Celery composition。真实 Linux Redis/Celery 使用 accepted exact-hash Debian 12 OpenCV runtime 完成一项 reference-only `variant_qa_pending` round trip；fresh `→0013` PostgreSQL、独立 Redis 与 private storage 下 481 项 API/Worker tests 零 skip，Ruff、122-source strict mypy、Alembic zero drift、完整 pnpm/contracts 全绿。T06 仅为 `READY_FOR_TRACKED_EVIDENCE`，须待 candidate same-SHA 三 jobs/artifacts 后 Principal 才能接受；T07/T08 与 M4 Gate 继续关闭，且无新 migration、dependency、模型、公开 API、production geometry 或真人处理授权。
+
+- 2026-08-18：P2-M4-T06 candidate `0ac4269399fdf45b486a7be4bce93f01292e0572` 的 run
+  `32149168567` 三 jobs 全绿；project audit、P2-M1–M3、Phase 1、Docker 与 Gitleaks 七项
+  artifacts 均存在、可读、未过期并绑定 exact SHA。四份 JSON evidence 记录真实 head
+  `0013_warp_plan_authority` 与 unchanged OpenAPI digest，M1/M2/M3 为 98/52/46 tests 且零
+  failure/error/skip，Gitleaks 为零 results。Principal 接受 T06 并只开放 T07；T08 与 P2-M4
+  Milestone Gate 仍关闭。用户前向授权按需下载 MediaPipe 0.10.35 精确 Windows/Linux wheels、
+  Face Landmarker 精确模型包及必要依赖，但下载授权不等于依赖采用、许可证批准、分发、生产启用
+  或真实用户 facial processing 授权。

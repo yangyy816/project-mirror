@@ -30,7 +30,7 @@ PASS.
 | Recovery         | retry/cancel/duplicate/reconcile and lock-order evidence            | T06 LOCAL PASS |
 | Synthetic-only   | no User relation, real-person fixture or sensitive classifier       | T06 LOCAL PASS |
 | Contracts        | public OpenAPI/generated TypeScript unchanged                       | T06 LOCAL PASS |
-| Full Gate        | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA CI          | PENDING        |
+| Full Gate        | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA CI          | T06 PASS       |
 | Review           | independent security and final review                               | PENDING        |
 
 ## Entry evidence
@@ -316,6 +316,25 @@ LandmarkWarpPlanAuthority → passed canonical source QA/record/identity/Asset`,
   and artifact inspection remain mandatory before Principal task acceptance; T07/T08 stay closed.
 
 `P2_M4_T06: READY_FOR_TRACKED_EVIDENCE`
+
+## T06 tracked acceptance
+
+- Candidate `0ac4269399fdf45b486a7be4bce93f01292e0572` completed GitHub Actions run
+  `32149168567`; `quality-and-integration`, `secret-scan` and `docker-validation` all passed.
+- All seven expected artifacts are present, readable and unexpired: project audit `9329172207`,
+  P2-M3 `9329163248`, P2-M2 `9329162430`, P2-M1 `9329161649`, Phase 1 `9329160868`, Docker
+  `9329093797` and Gitleaks `9329008814`.
+- The four JSON evidence files bind the exact candidate SHA, migration head
+  `0013_warp_plan_authority` and unchanged OpenAPI digest
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`. M1, M2 and M3 report
+  98, 52 and 46 tests respectively with zero failures, errors or skips; Gitleaks reports zero
+  results. Docker evidence registers the four frozen queues and the synthetic transform task.
+- Principal reviewed the actual 19-file candidate diff, the local 481-test zero-skip matrix,
+  reference-only message and empty Job payload, exactly-once Asset/QA authority, private storage
+  receipt, retry/cancel/reconcile paths, production fail-closed composition and same-SHA evidence.
+  T06 is accepted. T07 may start; T08 and the P2-M4 Milestone Gate remain closed.
+
+`P2_M4_T06: TASK_ACCEPTED`
 
 ## Exit rule
 
