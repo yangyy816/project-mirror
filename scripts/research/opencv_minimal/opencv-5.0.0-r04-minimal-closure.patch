@@ -1,0 +1,96 @@
+--- a/modules/core/CMakeLists.txt
++++ b/modules/core/CMakeLists.txt
+@@ -100,7 +100,7 @@
+ ocv_glob_module_sources(SOURCES "${OPENCV_MODULE_opencv_core_BINARY_DIR}/version_string.inc"
+                         HEADERS ${core_parallel_hdrs} ${module_opencl_hdrs} ${lib_cuda_hdrs} ${lib_cuda_hdrs_detail})
+ 
+-ocv_module_include_directories(${the_module} ${ZLIB_INCLUDE_DIRS} ${OPENCL_INCLUDE_DIRS})
++ocv_module_include_directories(${the_module} ${OPENCL_INCLUDE_DIRS})
+ if(ANDROID AND HAVE_CPUFEATURES)
+   ocv_append_source_file_compile_definitions(${CMAKE_CURRENT_SOURCE_DIR}/src/system.cpp "HAVE_CPUFEATURES=1")
+   ocv_module_include_directories(${CPUFEATURES_INCLUDE_DIRS})
+@@ -177,7 +177,7 @@
+ ocv_create_module(${extra_libs})
+ 
+ ocv_target_link_libraries(${the_module} PRIVATE
+-    "${ZLIB_LIBRARIES}" "${OPENCL_LIBRARIES}" "${VA_LIBRARIES}"
++    "${OPENCL_LIBRARIES}" "${VA_LIBRARIES}"
+     "${OPENGL_LIBRARIES}"
+     "${GLX_LIBRARIES}"
+     "${LAPACK_LIBRARIES}" "${CPUFEATURES_LIBRARIES}"
+--- a/modules/core/src/persistence.hpp
++++ b/modules/core/src/persistence.hpp
+@@ -11,7 +11,7 @@
+ #include <string>
+ #include <iterator>
+ 
+-#define USE_ZLIB 1
++#define USE_ZLIB 0
+ #if USE_ZLIB
+ #  ifndef _LFS64_LARGEFILE
+ #    define _LFS64_LARGEFILE 0
+--- a/modules/imgproc/CMakeLists.txt
++++ b/modules/imgproc/CMakeLists.txt
+@@ -14,9 +14,16 @@
+ ocv_add_dispatched_file(warp_kernels SSE2 SSE4_1 AVX2 NEON NEON_FP16 RVV LASX)
+ ocv_add_dispatched_file(undistort SSE2 AVX2)
+ 
+-ocv_define_module(imgproc opencv_core opencv_geometry WRAP java objc python js)
+-
+-ocv_module_include_directories(opencv_imgproc ${ZLIB_INCLUDE_DIRS})
++ocv_add_module(imgproc opencv_core WRAP java objc python js)
++ocv_glob_module_sources()
++list(REMOVE_ITEM OPENCV_MODULE_opencv_imgproc_SOURCES
++  "${CMAKE_CURRENT_LIST_DIR}/src/drawing_text.cpp"
++)
++ocv_module_include_directories()
++ocv_create_module()
++ocv_add_accuracy_tests()
++ocv_add_perf_tests()
++ocv_add_samples()
+ 
+ if(HAVE_IPP)
+   # OPENCV_IPP_ENABLE_ALL is defined in modules/core/CMakeList.txt
+@@ -25,42 +32,4 @@
+     ocv_append_source_file_compile_definitions(${CMAKE_CURRENT_SOURCE_DIR}/src/smooth.dispatch.cpp "ENABLE_IPP_GAUSSIAN_BLUR=1")
+   endif()
+ endif()
+-
+-set(UNIFONT_MD5 "fb79cf5b4f4c89414f1233f14c2eb273")
+-set(UNIFONT_NAME "WenQuanYiMicroHei.ttf.gz")
+-set(UNIFONT_COMMIT "cc7d85179d69a704bee209aa37ce8a657f2f8b34")
+-set(UNIFONT_URL "https://raw.githubusercontent.com/vpisarev/opencv_3rdparty/${UNIFONT_COMMIT}/")
+-
+-unset(HAVE_UNIFONT)
+-unset(HAVE_UNIFONT CACHE)
+-
+-if (WITH_UNIFONT)
+-    ocv_download(FILENAME ${UNIFONT_NAME}
+-                 HASH ${UNIFONT_MD5}
+-                 URL
+-                   "${OPENCV_UNIFONT_URL}"
+-                   "${UNIFONT_URL}"
+-                 DESTINATION_DIR "${CMAKE_CURRENT_BINARY_DIR}"
+-                 ID UNIFONT
+-                 STATUS res
+-                 RELATIVE_URL)
+-
+-    if (res)
+-        message(STATUS "Unicode font has been downloaded successfully.")
+-        set(HAVE_UNIFONT ON CACHE INTERNAL "")
+-    else()
+-        message(STATUS "Unicode font download failed. Turning it off.")
+-        set(HAVE_UNIFONT OFF CACHE INTERNAL "")
+-    endif()
+-else()
+-    set(HAVE_UNIFONT OFF CACHE INTERNAL "")
+-endif()
+-
+-ocv_blob2hdr("${CMAKE_CURRENT_SOURCE_DIR}/fonts/Rubik.ttf.gz" "${CMAKE_CURRENT_BINARY_DIR}/builtin_font_sans.h" OcvBuiltinFontSans)
+-ocv_blob2hdr("${CMAKE_CURRENT_SOURCE_DIR}/fonts/Rubik-Italic.ttf.gz" "${CMAKE_CURRENT_BINARY_DIR}/builtin_font_italic.h" OcvBuiltinFontItalic)
+-if (HAVE_UNIFONT)
+-    ocv_blob2hdr("${CMAKE_CURRENT_BINARY_DIR}/${UNIFONT_NAME}" "${CMAKE_CURRENT_BINARY_DIR}/builtin_font_uni.h" OcvBuiltinFontUni)
+-endif()
+-include_directories("${CMAKE_CURRENT_BINARY_DIR}")
+-ocv_target_link_libraries(${the_module} LINK_PRIVATE ${ZLIB_LIBRARIES})
+ ocv_install_3rdparty_licenses(fonts fonts/Rubik_OFL.txt)
