@@ -98,6 +98,13 @@ one thread and disables optimized dispatch before execution. It exposes no file,
 video, GUI, detector or allocator ownership API. The wrapper source and build contract must be
 committed and hashed before the first build.
 
+The frozen pre-build source digests are:
+
+- `scripts/research/opencv_minimal/CMakeLists.txt`:
+  `1ba75ad062f1c62ecc906e8b6a46c6e79bc1c19f76736a6a0a695f40d56ac63c`.
+- `scripts/research/opencv_minimal/mirror_opencv_remap.cpp`:
+  `2bfe68ce626a0b2fc8f3d720a37f069cd0b9d03f4d53c5a6e7853e0aa18c1dfd`.
+
 ## Evaluation order and immutable gates
 
 1. Commit and hash the wrapper and build contract.

@@ -310,3 +310,6 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   supply-chain gates and the existing pixel/numeric/performance thresholds before any build.
 - T05 remains closed. The next action is to commit and hash the wrapper/build contract, then configure
   four new task-owned roots and inspect the actual dependency graph before compilation.
+- The frozen CMake and C++ wrapper digests are `1ba75ad0...` and `2bfe68ce...`. The wrapper accepts
+  only bounded in-memory RGB bytes and float32 maps, exports version/remap functions, fixes one thread
+  and disables optimized dispatch. No configure or build was run before these digests were recorded.
