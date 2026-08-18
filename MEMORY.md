@@ -390,3 +390,11 @@
   evidence 和 technical/MVR 分离契约。T04 仍需 tracked acceptance，T03 在两者 contract integration 前
   保持 dependency-gated；threshold、holdout、dimension promotion、MVR、production geometry、真人处理与
   QuestionBank release 均未获批准。
+
+- 2026-08-19：P2-M5-T04 candidate `c80f32f6adb0c1ed17ac14e97b5552739abec57c` 的 run
+  `32179065826` 三 jobs 全绿；七项 artifacts 精确绑定 candidate 与 `0013_warp_plan_authority`，既有
+  Phase 1/M1/M2/M3 回归为 1/98/52/46 tests 且零 failure/error/skip，Gitleaks 为零 results。Principal
+  接受第一方 exact SHA + `phash-dct-nearest-v1` 64-bit signature/Hamming core；它没有 near-duplicate
+  threshold，threshold 预注册前不得自动拒绝候选。T02/T04 contract 已集成并只开放 T03 的冻结
+  `0014_m5_eval_authority` PostgreSQL authority；T05–T08、MVR、production geometry、真人处理、M6 与
+  QuestionBank release 继续关闭。

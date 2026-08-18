@@ -566,3 +566,12 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   124 adjacent tests, Ruff, strict mypy, contracts drift and diff checks passed.
 - T04 is `READY_FOR_TRACKED_EVIDENCE`; no new dependency, model, network, ORM/migration, public API, tracked image
   fixture or automatic near-duplicate rejection was added.
+
+## 2026-08-19T03:58:00+08:00 — P2-M5-T04 tracked acceptance
+
+- Candidate `c80f32f6adb0c1ed17ac14e97b5552739abec57c` run `32179065826` passed all three jobs. Seven
+  downloaded artifacts bind the exact candidate and `0013_warp_plan_authority`; Phase 1/M1/M2/M3 evidence reports
+  1/98/52/46 tests with zero failures/errors/skips, and Gitleaks reports zero results.
+- Principal accepts T04. T02/T04 contract names are integrated and T03 is authorized only for the frozen
+  `0014_m5_eval_authority` PostgreSQL authority. No threshold, holdout, MVR result, production geometry, real-user
+  processing or QuestionBank release was approved; T05–T08 and M6 remain closed.

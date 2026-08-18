@@ -16,8 +16,9 @@
 This rolling-wave refinement authorizes only the bounded tasks below. It does not claim that the repository already
 has four dimensions, three region groups, 24 holdout identities per dimension or frozen isolation/duplicate
 thresholds. Principal accepted T01 after candidate `a39d9763f3a907bc7824994cd92fbe5c319b3acc` completed
-same-SHA run `32176583182` with three successful jobs and seven verified artifacts. T02 and T04 are open; T03 waits
-for their integrated names and contracts.
+same-SHA run `32176583182` with three successful jobs and seven verified artifacts. T02 candidate `9fb09fbc...` run
+`32178257563` and T04 candidate `c80f32f6...` run `32179065826` subsequently passed the same three jobs with seven
+verified exact-SHA artifacts each. Principal accepts both frozen contract surfaces and authorizes T03 only.
 
 ## Objective and non-goals
 
@@ -215,6 +216,6 @@ engine, but M6 entry remains closed and the missing research evidence stays dura
 
 `P2_M5_STATE: EXECUTING`
 
-`P2_M5_IMPLEMENTATION: T02_AND_T04_AUTHORIZED`
+`P2_M5_IMPLEMENTATION: T03_AUTHORIZED`
 
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`

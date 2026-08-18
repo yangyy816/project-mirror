@@ -34,7 +34,7 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 | Ontology            | new immutable version binds non-sensitive region groups            | PENDING  |
 | Database            | forward `0014`, lifecycle, invariants, concurrency, zero drift     | PENDING  |
 | Isolation           | actual target error and every non-target delta retained            | T02 PASS |
-| Similarity          | exact SHA and first-party pHash/Hamming golden evidence            | PENDING  |
+| Similarity          | exact SHA and first-party pHash/Hamming golden evidence            | T04 PASS |
 | Threshold           | calibration distribution and pre-holdout version freeze            | PENDING  |
 | Split               | calibration/M4-seen/holdout/cluster leakage rejected               | T02 PASS |
 | Duplicate           | append-only cluster membership and review decision                 | PENDING  |
@@ -142,3 +142,19 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
   was added. `imagededup` remains rejected.
 
 `P2_M5_T04: READY_FOR_TRACKED_EVIDENCE`
+
+## T04 tracked acceptance
+
+- Candidate `c80f32f6adb0c1ed17ac14e97b5552739abec57c` run `32179065826` passed
+  `quality-and-integration`, `secret-scan` and `docker-validation` on the exact candidate SHA.
+- Seven downloaded artifacts are present and readable. Phase 1/M1/M2/M3 evidence binds the exact candidate,
+  migration head `0013_warp_plan_authority` and unchanged OpenAPI digest; the suites report 1/98/52/46 tests with
+  zero failures, errors or skips. Gitleaks SARIF contains zero results.
+- Principal accepts T04. The similarity contract contains no selected threshold and cannot automatically reject a
+  near-duplicate before a future evaluation-policy version is preregistered.
+- T02 and T04 names/contracts are now integrated. T03 is authorized to implement only the frozen forward
+  `0014_m5_eval_authority` PostgreSQL authority; T05–T08, MVR evaluation and M6 release remain closed.
+
+`P2_M5_T04_TRACKED_ACCEPTANCE: PASS`
+
+`P2_M5_NEXT_TASK: T03_AUTHORIZED`
