@@ -7,11 +7,11 @@
 - Entry run: `31958786882`; all three jobs passed with exact-SHA artifacts
 - Branch: `codex/phase2-m3-normalization-base-qa`
 - State: `EXECUTING`
-- Architecture authority: ADR-021–033
+- Architecture authority: ADR-021–035
 - Scope: synthetic-only normalization, base QA evidence and canonical identity registration
 - Public API impact: none
 - Production image-generation Provider: `NOT_CONFIGURED`; generation remains `FAIL_CLOSED`
-- Vision candidate: `CANDIDATE_FAILED_REPLACEMENT_REQUIRED`
+- Vision candidate: `APPROVED_FOR_PRIVATE_SYNTHETIC_M3`; production/distribution/real-user use blocked
 
 Project Owner change control explicitly opens M3 for synthetic research and permits the bounded
 P2-M2-V01 Codex-native raw assets to be used for Pillow normalization, metadata sanitation, image
@@ -21,9 +21,10 @@ approval.
 
 ADR-032 preregisters a new source-feasibility path for an exact MediaPipe `v0.10.35` source build
 whose Face Landmarker closure must remove Clearcut, telemetry, HTTP/network and CA-bundle plumbing.
-The rejected upstream wheels remain prohibited. Stage A may inspect only the frozen Git commit in
-private ignored storage; build, install, model execution and calibration remain closed until their
-preceding evidence and Principal approvals exist. Complete rules are in
+The rejected upstream wheels remain prohibited. The source-built candidate completed its staged
+private synthetic build, supply-chain, zero-egress, calibration and holdout qualification under the
+frozen protocol; this does not approve a project wheel, production runtime, distribution or real-user
+facial processing. Complete rules and evidence are in
 `docs/research/P2_M3_V03_SOURCE_BUILT_VISION_PROTOCOL.md`.
 
 ADR-033 freezes the source candidate's otherwise-uncontrolled OpenCV build input for isolated V03

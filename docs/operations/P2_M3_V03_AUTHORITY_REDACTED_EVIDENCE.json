@@ -1,0 +1,121 @@
+{
+  "schema_version": "mirror.p2-m3.v03-authority-redacted-evidence/v1",
+  "execution_date": "2026-08-18",
+  "database_scope": "private-synthetic-research-authority",
+  "migration_head": "0011_offline_synth_source",
+  "policy_version": "p2-m3-v03-source-built-vision-qa-v1",
+  "qa_policy_content_digest": "8305cfaa25d084138fb67e93043a1e37842543a645085d19d3ef52ac8a6ce15f",
+  "holdout_evidence_digest": "759f651662068997933f900007b31ad0265255ee4b2654fb4e682f8059baa31c",
+  "authority_counts": {
+    "approved_qa_policies": 1,
+    "passed_qa_runs": 4,
+    "measurements": 36,
+    "review_decisions": 24,
+    "canonical_identities": 4,
+    "identity_registered_records": 4,
+    "unchanged_calibration_records": 4
+  },
+  "review_taxonomy": {
+    "policy_required": [
+      "adult_presentation",
+      "background_suitability",
+      "license_scope",
+      "likeness_risk",
+      "text_watermark"
+    ],
+    "postgresql_compatibility_bridge": "license_rights",
+    "license_scope": "PRIVATE_RESEARCH_ONLY",
+    "review_count_per_run": 6
+  },
+  "items": [
+    {
+      "item_reference": "v01-category-a-02",
+      "normalized_sha256": "71fc0fadc69841664664cd912132edb2d64adc227a78755be38dedf5113add1e",
+      "record_status": "IDENTITY_REGISTERED",
+      "qa_run_status": "PASSED",
+      "measurement_count": 9,
+      "review_count": 6,
+      "authority_binding_digest": "6d78181b718d62aa30342e1d33fee720f9f295ade99c58c0956b982d80ce7d64"
+    },
+    {
+      "item_reference": "v01-category-b-02",
+      "normalized_sha256": "3532d0f7e30d64916a81059c24e6e0ea33f3c9fa5fff66600f7131a6728c9a05",
+      "record_status": "IDENTITY_REGISTERED",
+      "qa_run_status": "PASSED",
+      "measurement_count": 9,
+      "review_count": 6,
+      "authority_binding_digest": "84f3d036afc1417df97a90bd90b54574bb2600c3ab39d91c2a25a360dbea9eeb"
+    },
+    {
+      "item_reference": "v01-category-c-02",
+      "normalized_sha256": "a84f6a0316a665f311b42bf4c88d51caab1e0327109529d72f1a05d45940c3c5",
+      "record_status": "IDENTITY_REGISTERED",
+      "qa_run_status": "PASSED",
+      "measurement_count": 9,
+      "review_count": 6,
+      "authority_binding_digest": "5aae1c69487eb5c0d634ab64300d20542aab6eb0510c53dba6a0777b67f33801"
+    },
+    {
+      "item_reference": "v01-category-d-02",
+      "normalized_sha256": "c225320284eceec77dbdf24d9a806ce77f030f40f17237487719411bcc8255c5",
+      "record_status": "IDENTITY_REGISTERED",
+      "qa_run_status": "PASSED",
+      "measurement_count": 9,
+      "review_count": 6,
+      "authority_binding_digest": "d116a9d4488e4b38492341da81ba08a7a8af19fc691c60d8ebbbe9af7d9aadea"
+    }
+  ],
+  "authority_binding_digest": "16b1ed61ebd8b2d0f8c2b8ef1fa1133f22a2120cdc01c95e2c61c9c02729a14f",
+  "idempotency": {
+    "successful_initial_execution": true,
+    "successful_replay": true,
+    "replay_created_new_identity": false,
+    "stable_policy_run_record_identity_bindings": true,
+    "additional_rows_after_replay": 0
+  },
+  "repair_evidence": [
+    {
+      "repair_id": "P2-M3-R22",
+      "failure": "raw_payload_digest_did_not_match_canonical_policy_authority",
+      "effect_before_failure": "NO_POLICY_OR_QA_AUTHORITY_ROWS_WRITTEN",
+      "policy_content_or_threshold_changed": false
+    },
+    {
+      "repair_id": "P2-M3-R23",
+      "failure": "operator_updated_record_before_postgresql_qa_run_insert_trigger",
+      "effect_before_failure": "APPROVED_POLICY_ONLY",
+      "repair": "leave_normalized_to_qa_pending_transition_to_postgresql_trigger"
+    },
+    {
+      "repair_id": "P2-M3-R24",
+      "failure": "frozen_policy_license_scope_name_differed_from_postgresql_license_rights_gate",
+      "effect_before_failure": "ONE_PENDING_RUN_WITH_ZERO_MEASUREMENTS_AND_ZERO_REVIEWS",
+      "repair": "append_both_policy_scope_and_database_rights_reviews_without_expanding_rights"
+    }
+  ],
+  "recovery_properties": {
+    "rows_deleted_or_reset": false,
+    "terminal_evidence_rewritten": false,
+    "policy_content_changed": false,
+    "thresholds_changed": false,
+    "runtime_or_model_changed": false,
+    "holdout_measurements_changed": false
+  },
+  "redaction": {
+    "database_name_committed": false,
+    "database_row_ids_committed": false,
+    "private_paths_committed": false,
+    "object_keys_committed": false,
+    "image_bytes_committed": false,
+    "prompt_text_committed": false
+  },
+  "limitations": {
+    "official_mediapipe_wheels_status": "REJECTED_FOR_P2_M3_RUNTIME",
+    "model_disposition": "PRIVATE_RESEARCH_ONLY",
+    "distribution_approved": false,
+    "production_vision_enabled": false,
+    "real_user_facial_processing_enabled": false,
+    "question_bank_release_authorized": false
+  },
+  "document_digest": "69dc51045487ba65299785e4a1ee7780f8ae00c08684a033596f6ec7bd7b79e6"
+}

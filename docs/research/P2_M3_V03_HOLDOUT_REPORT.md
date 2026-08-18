@@ -55,11 +55,29 @@ The source-built V03 candidate satisfies the preregistered synthetic-only Stage 
 This closes calibration/holdout qualification but does not itself persist QA rows, register base
 identities, complete T07/T08 or decide the P2-M3 Milestone Gate.
 
+## PostgreSQL authority follow-through
+
+After R22 completed same-SHA GitHub Actions run `32092697747` with all three jobs successful, the
+frozen policy and holdout evidence were persisted to the isolated P2-M3 research authority at
+migration `0011_offline_synth_source`. Four holdout records reached `IDENTITY_REGISTERED` through
+four `PASSED` QA runs, 36 automatic measurements, 24 append-only reviews and four canonical
+identities. The four calibration records remained `NORMALIZED`.
+
+Two operator-only recovery defects failed closed before terminal evidence was written. R23 stopped
+the operator from pre-empting the PostgreSQL `NORMALIZED → QA_PENDING` trigger transition. R24
+preserved the frozen `license_scope` policy review and added the existing database invariant's
+`license_rights` compatibility review for the same private-research-only decision. No policy,
+threshold, runtime, model, input or measurement changed. Replaying the corrected operator produced
+the same policy/run/record/identity bindings and zero additional rows. Aggregate, redacted evidence
+is recorded in `docs/operations/P2_M3_V03_AUTHORITY_REDACTED_EVIDENCE.json`.
+
 `P2_M3_R22_POLICY_CONTENT_CHANGED: NO`
 
 `P2_M3_R22_THRESHOLDS_CHANGED: NO`
 
 `P2_M3_V03_STAGE_D_HOLDOUT: PASS_PRIVATE_SYNTHETIC_ONLY`
+
+`P2_M3_V03_POSTGRESQL_AUTHORITY: PASS`
 
 `OFFICIAL_MEDIAPIPE_WHEELS: REJECTED_FOR_P2_M3_RUNTIME`
 

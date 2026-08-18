@@ -115,6 +115,19 @@ jobs:
           services/worker/tests/test_synthetic_generation_worker.py
           services/api/tests/test_p2_m2_ci_evidence.py
           --junitxml=p2-m2-results.xml
+      - name: P2-M3 deterministic integration and boundary evidence tests
+        run: >-
+          python -m pytest
+          services/api/tests/test_synthetic_asset_qa_invariants.py
+          services/api/tests/test_offline_synthetic_source_authority_invariants.py
+          services/api/tests/test_synthetic_normalization.py
+          services/api/tests/test_synthetic_normalized_storage.py
+          services/api/tests/test_synthetic_qa_domain.py
+          services/api/tests/test_synthetic_qa_service_integration.py
+          services/api/tests/test_synthetic_m3_orchestration.py
+          services/worker/tests/test_synthetic_m3_worker.py
+          services/api/tests/test_p2_m3_ci_evidence.py
+          --junitxml=p2-m3-results.xml
       - name: TypeScript quality and build
         run: pnpm check
       - name: Install Playwright Chromium
@@ -175,6 +188,22 @@ jobs:
         with:
           name: p2-m2-ci-evidence
           path: p2-m2-ci-evidence.json
+      - name: Generate P2-M3 CI evidence
+        run: |
+          python -m alembic -c services/api/alembic.ini heads > p2-m3-migration-head.txt
+          python -m mirror_api.scripts.p2_m3_ci_evidence \
+            --commit-sha "$GITHUB_SHA" \
+            --migration-head-file p2-m3-migration-head.txt \
+            --expected-migration-head 0011_offline_synth_source \
+            --openapi packages/contracts/openapi.json \
+            --test-results p2-m3-results.xml \
+            --holdout-evidence docs/operations/P2_M3_V03_HOLDOUT_REDACTED_EVIDENCE.json \
+            --authority-evidence docs/operations/P2_M3_V03_AUTHORITY_REDACTED_EVIDENCE.json \
+            --output p2-m3-ci-evidence.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p2-m3-ci-evidence
+          path: p2-m3-ci-evidence.json
       - name: Dependency and license audits
         run: |
           pip-audit --local

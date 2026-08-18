@@ -83,7 +83,7 @@ def test_ci_evidence_tracks_current_migration_head() -> None:
         encoding="utf-8"
     )
     expected_argument = "--expected-migration-head 0011_offline_synth_source"
-    assert workflow.count(expected_argument) == 3
+    assert workflow.count(expected_argument) == 4
     assert "--expected-migration-head 0009_generation_batch_pipeline" not in workflow
 
 

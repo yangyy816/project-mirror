@@ -5,30 +5,33 @@
 - Milestone: `P2-M3 — Synthetic Normalization and Base Identity QA`
 - State: `EXECUTING`
 - Frozen entry: `0b579ebdb1c2a63936225bc59a4b0ca780544df2`
-- Migration head: `0011_offline_synthetic_source_authority` after ADR-035 change control
+- Migration head: `0011_offline_synth_source` after ADR-035 change control
 - Public API change: none
-- Vision candidate Gate: `CANDIDATE_FAILED_REPLACEMENT_REQUIRED`
+- Vision candidate Gate: `PASS_PRIVATE_SYNTHETIC_ONLY`
 - Real-user facial processing: prohibited
 
 ## Mandatory evidence matrix
 
-| Gate                      | Required evidence                                                          | Status      |
-| ------------------------- | -------------------------------------------------------------------------- | ----------- |
-| M2 authority preservation | no GenerationItem/raw/generation evidence rewrite                          | T02 PASS    |
-| Migration                 | `0010` evidence plus fresh and `0010→0011→0010→0011`, drift zero           | PASS        |
-| Normalization             | bounded decode, sanitation, canonical encode, second decode, checksum      | T03 PASS    |
-| Namespace                 | normalized private namespace separate from raw/user assets                 | T03 PASS    |
-| Immutability              | Asset/record/measurement/review/identity lineage cannot mutate/delete      | T02 PASS    |
-| QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | T04 PASS    |
-| Adult policy              | reject clear pre-16 or child/student-minor context; no age estimate        | T04 PARTIAL |
-| Vision                    | approved exact package/model/data/license + controlled benchmark           | PENDING     |
-| Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | T05 PASS    |
-| Synthetic-only            | no User relation, real-person fixture, scraping or sensitive classifier    | T02 PASS    |
-| Recovery                  | duplicate delivery, lease expiry, blob-before-commit and cleanup race      | T05 PASS    |
-| Contracts                 | OpenAPI/generated TypeScript unchanged                                     | T02 PASS    |
-| Supply chain              | Pillow unchanged; every new package/model separately approved              | T02 PASS    |
-| Full Gate                 | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA Actions            | PENDING     |
-| Final review              | independent security and final reviewer acceptance                         | PENDING     |
+| Gate                      | Required evidence                                                          | Status     |
+| ------------------------- | -------------------------------------------------------------------------- | ---------- |
+| M2 authority preservation | no GenerationItem/raw/generation evidence rewrite                          | T02 PASS   |
+| Migration                 | `0010` evidence plus fresh and `0010→0011→0010→0011`, drift zero           | PASS       |
+| Normalization             | bounded decode, sanitation, canonical encode, second decode, checksum      | T03 PASS   |
+| Namespace                 | normalized private namespace separate from raw/user assets                 | T03 PASS   |
+| Immutability              | Asset/record/measurement/review/identity lineage cannot mutate/delete      | T02 PASS   |
+| QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | T04 PASS   |
+| Adult policy              | reject clear pre-16 or child/student-minor context; no age estimate        | T06 PASS   |
+| Vision                    | approved exact package/model/data/license + controlled benchmark           | T06 PASS\* |
+| Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | T05 PASS   |
+| Synthetic-only            | no User relation, real-person fixture, scraping or sensitive classifier    | T02 PASS   |
+| Recovery                  | duplicate delivery, lease expiry, blob-before-commit and cleanup race      | T05 PASS   |
+| Contracts                 | OpenAPI/generated TypeScript unchanged                                     | T02 PASS   |
+| Supply chain              | Pillow unchanged; every new package/model separately approved              | T06 PASS\* |
+| Full Gate                 | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA Actions            | T07 LOCAL  |
+| Final review              | independent security and final reviewer acceptance                         | PENDING    |
+
+`T06 PASS*` is limited to the source-built private synthetic M3 candidate. Official wheels,
+distribution, production Vision and real-user facial processing remain blocked.
 
 ## Bounded native validation
 
@@ -397,7 +400,7 @@ release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts rem
 - Candidate selection is still soft and provisional. Vision QA, morphology measurement, identity
   registration and QuestionBank release remain blocked and are not implied by this evidence.
 
-`P2_M3_LOCAL_GATE: PENDING`
+`P2_M3_LOCAL_GATE: PASS`
 
 `P2_M3_T03_REMOTE_CI: PASS`
 
@@ -491,3 +494,54 @@ three successful lifecycle runs under `--network none` with zero network calls.
 
 This acceptance opens Stage D V02 calibration/holdout only. T07, T08, M3 PASS/FROZEN, production
 Vision, distribution and real-user processing remain closed.
+
+## V03 Stage D holdout and PostgreSQL authority
+
+- The frozen policy commit `f7b76b2` passed same-SHA run `32091490211` before holdout execution.
+- Four private holdout assets completed 80 source-built Face Landmarker runs across Windows and
+  Linux. All frozen automatic thresholds and five policy reviews passed; no holdout threshold,
+  runtime, model or input changed after freeze.
+- R22 corrected the policy digest envelope before any database row was admitted. Its same-SHA run
+  `32092697747` passed all three jobs.
+- The isolated PostgreSQL research authority now contains one approved policy, four passed QA runs,
+  36 measurements, 24 reviews and four canonical identities. Four calibration records remain
+  `NORMALIZED`.
+- R23 restored trigger-owned `NORMALIZED → QA_PENDING` ordering. R24 appends both the frozen policy's
+  `license_scope` and the existing database invariant's `license_rights` decision for the same
+  private-research-only rights conclusion. No row was deleted/reset and no terminal evidence was
+  rewritten.
+- A second execution produced the same policy/run/record/identity bindings, zero new identities and
+  zero additional rows. The allowlisted evidence digest is
+  `69dc51045487ba65299785e4a1ee7780f8ae00c08684a033596f6ec7bd7b79e6`.
+
+`P2_M3_V03_STAGE_D_HOLDOUT: PASS_PRIVATE_SYNTHETIC_ONLY`
+
+`P2_M3_V03_POSTGRESQL_AUTHORITY: PASS`
+
+`P2_M3_R23_STATUS: PASS`
+
+`P2_M3_R24_STATUS: PASS`
+
+## T07 machine-readable evidence checkpoint
+
+- `mirror.p2-m3.ci-evidence/v1` validates the single migration head, committed OpenAPI digest,
+  zero-skip M3 JUnit results and the two digest-bound redacted V03 documents.
+- It keeps the official MediaPipe wheels rejected, the model private-research-only, and distribution,
+  production Vision, real-user facial processing and QuestionBank release false.
+- Docker/Linux targeted validation passed 41 tests with zero skip, covering real PostgreSQL,
+  normalization, storage tamper, hard-gate evaluation, zero-network Mock Vision, identity
+  concurrency, reference-only Worker messages and reconciliation. A first local attempt on shared
+  Redis DB 0 was retained as failed environment evidence after an existing worker consumed the
+  message with a different task registry; isolated task-owned Redis DB 15 passed the exact test and
+  the complete suite without restarting existing services.
+- The full Docker/Linux regression passed 401 API/Worker tests with zero skip after mounting a
+  task-owned shared raw-storage directory for the isolated Redis DB 14 Worker. Fresh migration,
+  downgrade/re-upgrade and `alembic check`, Ruff, strict mypy, `pnpm check`, Compose validation and
+  API/Worker/Web image builds all passed. The shared-container mount is only local topology evidence;
+  it does not alter application storage configuration.
+
+`P2_M3_T07_TARGETED_LOCAL: PASS`
+
+`P2_M3_T07_FULL_LOCAL: PASS`
+
+`P2_M3_T07_SAME_SHA_CI: PENDING`
