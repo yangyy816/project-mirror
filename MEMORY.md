@@ -382,3 +382,11 @@
   OpenAPI digest；Phase 1/M1/M2/M3 evidence 为 1/98/52/46 tests 且零 failure/skip，Gitleaks 为零
   results。Principal 接受 T01，M5 前向进入 `EXECUTING` 并只开放 T02/T04 的无冲突实现；T03 仍等待
   两者 contract names 集成。technical Gate、MVR result 与 M6 entry 均未通过。
+
+- 2026-08-19：P2-M5-T02 candidate `9fb09fbc922406d5881950f355629c3108656a24` 的 run
+  `32178257563` 三 jobs 全绿；七项 artifacts 精确绑定 candidate、`0013_warp_plan_authority` 与既有
+  OpenAPI digest，Phase 1/M1/M2/M3 为 1/98/52/46 tests 且零 failure/error/skip，Gitleaks 为零 results。
+  Principal 接受 immutable evaluation policy、split authority、per-dimension cluster-adjusted N、isolation
+  evidence 和 technical/MVR 分离契约。T04 仍需 tracked acceptance，T03 在两者 contract integration 前
+  保持 dependency-gated；threshold、holdout、dimension promotion、MVR、production geometry、真人处理与
+  QuestionBank release 均未获批准。

@@ -552,3 +552,17 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   and diff checks passed.
 - Candidate is `READY_FOR_TRACKED_EVIDENCE`; no ORM/migration, dependency, selected threshold, holdout execution,
   image/model artifact, public API, production geometry or real-user processing was added.
+
+## 2026-08-19T03:50:00+08:00 — P2-M5-T02 tracked acceptance and T04 local candidate
+
+- T02 candidate `9fb09fbc922406d5881950f355629c3108656a24` run `32178257563` passed all three jobs. Seven
+  downloaded artifacts bind the exact candidate and `0013_warp_plan_authority`; Phase 1/M1/M2/M3 evidence reports
+  1/98/52/46 tests with zero failures/errors/skips, and Gitleaks reports zero results.
+- Principal accepts T02. T04 remains independently open and T03 remains dependency-gated until T04 tracked
+  acceptance and contract integration. No threshold, holdout, dimension promotion, MVR result, production geometry,
+  real-user processing or QuestionBank release was approved.
+- T04 locally implements exact normalized SHA-256 plus first-party deterministic 64-bit pHash/Hamming without a
+  near-duplicate threshold. Eleven Windows and eleven Linux Docker tests share golden pHash `a00d812ea37eff0b`;
+  124 adjacent tests, Ruff, strict mypy, contracts drift and diff checks passed.
+- T04 is `READY_FOR_TRACKED_EVIDENCE`; no new dependency, model, network, ORM/migration, public API, tracked image
+  fixture or automatic near-duplicate rejection was added.

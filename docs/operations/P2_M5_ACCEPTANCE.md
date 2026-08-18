@@ -30,13 +30,13 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 | Gate                | Required evidence                                                  | Status   |
 | ------------------- | ------------------------------------------------------------------ | -------- |
 | Architecture        | ADR-041 and rolling-wave contracts accepted                        | T01 PASS |
-| Domain              | policy/isolation/cohort/result types deterministic and fail closed | PENDING  |
+| Domain              | policy/isolation/cohort/result types deterministic and fail closed | T02 PASS |
 | Ontology            | new immutable version binds non-sensitive region groups            | PENDING  |
 | Database            | forward `0014`, lifecycle, invariants, concurrency, zero drift     | PENDING  |
-| Isolation           | actual target error and every non-target delta retained            | PENDING  |
+| Isolation           | actual target error and every non-target delta retained            | T02 PASS |
 | Similarity          | exact SHA and first-party pHash/Hamming golden evidence            | PENDING  |
 | Threshold           | calibration distribution and pre-holdout version freeze            | PENDING  |
-| Split               | calibration/M4-seen/holdout/cluster leakage rejected               | PENDING  |
+| Split               | calibration/M4-seen/holdout/cluster leakage rejected               | T02 PASS |
 | Duplicate           | append-only cluster membership and review decision                 | PENDING  |
 | Diversity           | continuous coverage, occupancy, NN/yield/mode-collapse evidence    | PENDING  |
 | Anti-homogenization | no single-template, beauty or sensitive-trait optimization         | PENDING  |
@@ -111,3 +111,34 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
   image/model artifact, public API or production/real-user capability was added.
 
 `P2_M5_T02: READY_FOR_TRACKED_EVIDENCE`
+
+## T02 tracked acceptance
+
+- Candidate `9fb09fbc922406d5881950f355629c3108656a24` run `32178257563` passed
+  `quality-and-integration`, `secret-scan` and `docker-validation` on the exact candidate SHA.
+- Seven downloaded artifacts are present and readable. Phase 1/M1/M2/M3 evidence binds the exact candidate,
+  migration head `0013_warp_plan_authority` and unchanged OpenAPI digest; the suites report 1/98/52/46 tests with
+  zero failures, errors or skips. Gitleaks SARIF contains zero results.
+- Principal accepts T02 domain, isolation and split contracts. This acceptance does not select a tolerance,
+  near-duplicate threshold, holdout cohort, dimension promotion or MVR result, and it does not authorize production
+  geometry, real-user facial processing or QuestionBank release.
+- T04 remains independently open. T03 stays dependency-gated until the T04 signature contract receives tracked
+  acceptance and Principal integrates both contract surfaces.
+
+`P2_M5_T02_TRACKED_ACCEPTANCE: PASS`
+
+## T04 local candidate
+
+- Added a first-party, versioned `SimilaritySignature` over checksum-bound canonical synthetic JPEG bytes with exact
+  normalized SHA-256, a deterministic 64-bit `phash-dct-nearest-v1` value and threshold-free Hamming distance.
+- Exact SHA equality is the only automatic duplicate hard gate. The implementation contains no near-duplicate
+  threshold, clustering decision or automatic near-duplicate rejection.
+- Malformed, checksum-mismatched, wrong-shape, oversized and tampered inputs fail closed without echoing image bytes,
+  paths or caller content. The existing bounded canonical JPEG decode boundary is reused.
+- Eleven focused tests passed on Windows and Linux Docker. Both platforms produced golden pHash
+  `a00d812ea37eff0b`; 124 combined adjacent tests, Ruff over 209 service files, strict mypy over 124 sources,
+  contract drift and `git diff --check` passed.
+- No dependency, model, network path, ORM/migration, public API, tracked image fixture or automatic policy threshold
+  was added. `imagededup` remains rejected.
+
+`P2_M5_T04: READY_FOR_TRACKED_EVIDENCE`
