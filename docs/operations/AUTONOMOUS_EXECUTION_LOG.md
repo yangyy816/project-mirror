@@ -137,4 +137,19 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - R20 changes only the fixture session expiry to one day after the test's live clock. It does not
   weaken token verification, revocation reason checks, deletion-status scope or product code.
 - On a fresh PostgreSQL database at migration head `0011_offline_synth_source`, the exact test passed
-  five consecutive runs and the complete API suite passed. Same-SHA remote CI remains mandatory.
+  five consecutive runs and the complete API suite passed.
+- Same-SHA GitHub Actions run `32081539232` passed `quality-and-integration`, `secret-scan` and
+  `docker-validation`. This closes R20 only; it does not advance Stage C, V02, T07, T08 or the M3
+  Gate.
+
+## 2026-08-18T10:20:00+08:00 — P2-M3-R21 Windows Stage C image ABI retention
+
+- R19's fresh Windows roots `bw30` and `bw31` each completed all 4,549 actions, but static export
+  inspection proved that both DLLs omitted `MpImageCreateFromUint8Data` and `MpImageFree`.
+- The Face Landmarker lifecycle API alone cannot execute the preregistered create-image, detect and
+  free sequence. Windows Stage C therefore remains fail closed.
+- R21 adds only the two MSVC `/INCLUDE:` linker-retention directives analogous to R19's Linux `-u`
+  directives. It does not change algorithms, model inputs, dependency versions, public product API or
+  production approval.
+- Two new clean roots, byte comparison, export/import/private-path scans and Windows zero-egress Stage
+  C remain mandatory before acceptance.

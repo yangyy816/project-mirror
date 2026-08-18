@@ -450,9 +450,24 @@ release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts rem
 - R20 derives only the fixture session expiry from the live test clock. Product authentication and
   deletion-status authorization remain unchanged and fail closed for expired sessions.
 - Fresh PostgreSQL at `0011_offline_synth_source`: exact test 5/5 PASS; complete API suite PASS.
-- R20 acceptance remains pending the repair commit's same-SHA GitHub Actions result and does not
-  advance Stage C, V02, T07, T08 or the M3 Gate.
+- Same-SHA GitHub Actions run `32081539232` passed `quality-and-integration`, `secret-scan` and
+  `docker-validation`. R20 is accepted, but this does not advance Stage C, V02, T07, T08 or the M3
+  Gate.
 
 `P2_M3_R20_LOCAL: PASS`
 
-`P2_M3_R20_REMOTE_CI: PENDING`
+`P2_M3_R20_REMOTE_CI: PASS`
+
+## P2-M3-R21 Windows Stage C image ABI retention
+
+- Fresh R19 Windows roots `bw30` and `bw31` both completed 4,549 actions, but neither DLL exported
+  `MpImageCreateFromUint8Data` or `MpImageFree`. The preregistered Windows Stage C lifecycle therefore
+  cannot run and remains fail closed.
+- R21 adds only `/INCLUDE:MpImageCreateFromUint8Data` and `/INCLUDE:MpImageFree` to the existing
+  Windows linker options. Linux options, algorithms, model inputs, dependency versions and product
+  contracts are unchanged.
+- Acceptance requires two new clean roots with byte-identical main/core/imgproc outputs, the required
+  exports, bounded imports, no private/PDB/Ooura/Clearcut/CA/network surface, and three successful
+  zero-egress synthetic runs.
+
+`P2_M3_R21_STATUS: EXECUTING`

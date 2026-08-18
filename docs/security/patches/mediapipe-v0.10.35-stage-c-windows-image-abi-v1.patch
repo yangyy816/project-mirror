@@ -1,0 +1,13 @@
+diff --git a/mediapipe/tasks/c/BUILD b/mediapipe/tasks/c/BUILD
+index 8a3b9d72..a694815d 100644
+--- a/mediapipe/tasks/c/BUILD
++++ b/mediapipe/tasks/c/BUILD
+@@ -86,6 +86,8 @@ cc_binary(
+         ],
+         "@platforms//os:windows": [
+             "/DEBUG:NONE",
++            "/INCLUDE:MpImageCreateFromUint8Data",
++            "/INCLUDE:MpImageFree",
+         ],
+         "//conditions:default": [],
+     }),

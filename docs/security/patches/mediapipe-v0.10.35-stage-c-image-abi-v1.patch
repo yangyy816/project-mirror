@@ -1,0 +1,13 @@
+diff --git a/mediapipe/tasks/c/BUILD b/mediapipe/tasks/c/BUILD
+index 04268bc9..8a3b9d72 100644
+--- a/mediapipe/tasks/c/BUILD
++++ b/mediapipe/tasks/c/BUILD
+@@ -80,6 +80,8 @@ cc_binary(
+         "@platforms//os:linux": [
+             "-Wl,-soname=libmirror_face_landmarker.so",
+             "-Wl,--version-script=$(location :mediapipe_tasks_c_version_script.lds)",
++            "-Wl,-u,MpImageCreateFromUint8Data",
++            "-Wl,-u,MpImageFree",
+         ],
+         "@platforms//os:windows": [
+             "/DEBUG:NONE",
