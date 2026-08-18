@@ -597,3 +597,13 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   pnpm/contracts/build and diff checks passed.
 - T03/R01 are `READY_FOR_TRACKED_EVIDENCE`, not accepted. Exact-SHA three-job Actions and seven artifact inspection
   remain mandatory; T05–T08, thresholds, holdout, MVR, production geometry, real-user processing and M6 stay closed.
+
+## 2026-08-19T21:20:00+08:00 — P2-M5-T03/R01 tracked acceptance
+
+- Candidate `277c69aad491e31241142990d94b843fd7b18700` run `32186155269` passed all three jobs in about five minutes.
+- Seven artifacts are readable, unexpired and exact-SHA bound. Phase 1/M1/M2/M3 evidence reports migration head
+  `0014_m5_eval_authority`, unchanged OpenAPI and 1/98/52/46 tests with zero failures/errors/skips; Gitleaks SARIF has
+  zero results. Docker/Celery logs contain no execution error, and license/SBOM artifacts are readable.
+- Principal accepts T03/R01 and opens only T05 calibration/cohort/preregistration. T06–T08, thresholds not supported
+  by evidence, holdout/MVR execution, production geometry, real-user processing, M6 and QuestionBank release remain
+  closed.

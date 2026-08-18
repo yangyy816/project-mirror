@@ -216,6 +216,6 @@ engine, but M6 entry remains closed and the missing research evidence stays dura
 
 `P2_M5_STATE: EXECUTING`
 
-`P2_M5_IMPLEMENTATION: T03_AUTHORIZED`
+`P2_M5_IMPLEMENTATION: T05_AUTHORIZED`
 
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`

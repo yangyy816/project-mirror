@@ -32,7 +32,7 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 | Architecture        | ADR-041 and rolling-wave contracts accepted                        | T01 PASS |
 | Domain              | policy/isolation/cohort/result types deterministic and fail closed | T02 PASS |
 | Ontology            | new immutable version binds non-sensitive region groups            | PENDING  |
-| Database            | forward `0014`, lifecycle, invariants, concurrency, zero drift     | PENDING  |
+| Database            | forward `0014`, lifecycle, invariants, concurrency, zero drift     | T03 PASS |
 | Isolation           | actual target error and every non-target delta retained            | T02 PASS |
 | Similarity          | exact SHA and first-party pHash/Hamming golden evidence            | T04 PASS |
 | Threshold           | calibration distribution and pre-holdout version freeze            | PENDING  |
@@ -196,3 +196,24 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `P2_M5_R01: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
 
 `P2_M5_NEXT_TASK: T03_TRACKED_EVIDENCE`
+
+## T03 tracked acceptance
+
+- Candidate `277c69aad491e31241142990d94b843fd7b18700` run `32186155269` passed
+  `quality-and-integration`, `secret-scan` and `docker-validation` on the exact candidate SHA.
+- Seven artifacts are present, readable and unexpired. Phase 1/M1/M2/M3 evidence binds the exact SHA, migration head
+  `0014_m5_eval_authority` and unchanged OpenAPI digest; the suites report 1/98/52/46 tests with zero failures,
+  errors or skips. Gitleaks SARIF contains zero results.
+- Docker and Celery logs contain no execution error; the only case-insensitive `error` match is Redis module
+  configuration field `bf-error-rate`. License inventories and the 105-component Python SBOM are readable.
+- Principal accepts T03 and R01. This acceptance establishes database authority only; it does not preregister a
+  threshold or cohort, execute holdout/MVR, approve a new dependency/model, enable production geometry or real-user
+  processing, or authorize QuestionBank release.
+- T05 opens only for calibration/cohort/preregistration. T06–T08, the technical Gate, MVR result and M6 remain
+  closed/pending.
+
+`P2_M5_T03_TRACKED_ACCEPTANCE: PASS`
+
+`P2_M5_R01: PASS`
+
+`P2_M5_NEXT_TASK: T05_AUTHORIZED`

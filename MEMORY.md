@@ -413,3 +413,10 @@
   `0013→0014→0013→0014`、Alembic zero drift、Ruff、124-source strict mypy、pnpm/contracts/build 均通过。
   当前仅为 `READY_FOR_TRACKED_EVIDENCE`；same-SHA 三 jobs/七 artifacts 未核验前不得接受 T03 或开放 T05，
   threshold、holdout、MVR、production geometry、真人处理、M6 与 QuestionBank release 继续关闭。
+
+- 2026-08-19：P2-M5-T03/R01 candidate `277c69aad491e31241142990d94b843fd7b18700` 的 run
+  `32186155269` 三 jobs 全绿；七项 artifacts 可读、未过期并绑定 exact SHA、`0014_m5_eval_authority`
+  与 unchanged OpenAPI。Phase 1/M1/M2/M3 为 1/98/52/46 tests 且零 failure/error/skip，Gitleaks 零
+  results，Docker/Celery 无真实 error，license/SBOM 可读。Principal 接受 T03/R01 并只开放 T05
+  calibration/cohort/preregistration；T06–T08、technical Gate、MVR、production geometry、真人处理、M6
+  与 QuestionBank release 继续关闭。
