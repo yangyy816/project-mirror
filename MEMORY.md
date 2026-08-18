@@ -152,6 +152,12 @@
   artifacts 均存在且未过期。该 closure 只确认 T05 治理 checkpoint，T06 已开始执行，T07/T08 与
   P2-M4 Gate 仍未完成。
 
+- 2026-08-18：T06 入口只读核验发现 `0012` 无法持久化并重建 `GeometryTransformRequest` 所需的
+  immutable LandmarkWarpPlan；继续把 plan 放入 Job/message 或从任意 QA JSON 临时推导会破坏
+  reference-only 与 provenance。Principal 通过 ADR-038 / `CC-P2-M4-03` 接受前向 1:1
+  `landmark_warp_plans` authority，origin 仅为 `PREREGISTERED_M4_RESEARCH_PLAN`，不批准通用 facial
+  plan generator。T06 在 `CC-P2-M4-03-A` 的 domain/ORM/`0013`/PostgreSQL Gate 被接受前保持 blocked。
+
 - 2026-08-18：P2-M4-T04 tracked evidence `28e5ae8ab9350fe44fa1e14aa1ae9c15436717fa` 的 run
   `32125987000` 三 jobs 全绿；下载 artifact `9320466783` 精确绑定该 SHA、migration head `0012`、
   46 M3 tests/0 skip 与既有 private-synthetic boundaries。Principal 接受 T04 并只开放 T05；

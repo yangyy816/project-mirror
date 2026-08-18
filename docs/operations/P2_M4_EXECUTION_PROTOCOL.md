@@ -205,6 +205,13 @@ opens T06 only; P2-M4 remains `EXECUTING` and T07/T08 remain dependency-gated.
 - Validation: PostgreSQL, Redis/Celery, crash recovery, duplicate delivery, lock order, zero-network.
 - Agent: Terra High.
 
+`CC-P2-M4-03` records a blocking authority defect found during T06 entry review: frozen `0012` does
+not persist the immutable `LandmarkWarpPlan` required by `GeometryTransformRequest`. ADR-038
+forward-adds a 1:1 preregistered research-plan authority through
+`0013_landmark_warp_plan_authority`. T06 remains blocked until the domain/ORM/migration change and
+real PostgreSQL lifecycle/invariant tests are accepted. Job/task payloads remain reference-only and
+must not be used as a plan-authority workaround.
+
 ### P2-M4-T07 — Integrated deterministic evaluation
 
 - Objective/why: independently test the assembled engine against the preregistered protocol;

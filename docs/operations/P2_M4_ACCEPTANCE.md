@@ -172,6 +172,15 @@ P2-M1 `9322645828`, Phase 1 `9322645021`, Docker evidence `9322570536`, and Gitl
 `9322513368`. This closure confirms the accepted T05 governance checkpoint; it does not complete
 T06, T07, T08, or the P2-M4 Milestone Gate.
 
+## T06 authority change control
+
+T06 entry review stopped before implementation because `0012` cannot reconstruct the immutable
+`LandmarkWarpPlan` required by the accepted transform port. ADR-038 / `CC-P2-M4-03` accepts a minimal
+1:1 `landmark_warp_plans` PostgreSQL authority with the only origin
+`PREREGISTERED_M4_RESEARCH_PLAN`. `CC-P2-M4-03-A` must implement and verify the first-party canonical
+serialization, ORM, forward `0013` migration and PostgreSQL invariants before T06 resumes. This is a
+forward architecture correction, not an Rxx repair, and does not approve a general plan generator.
+
 ## Exit rule
 
 P2-M4 can pass only when every mandatory row has actual evidence, all candidate claims are bounded to

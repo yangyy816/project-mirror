@@ -46,7 +46,7 @@ Phase 2 仅处理可追溯的成年合成人物刺激资产；真实用户数据
 | P2-M1     | FROZEN    | closure `27cede8`；run `31932349425` 三 jobs 与 exact-SHA artifacts 全绿         |
 | P2-M2     | FROZEN    | closure `e211adb`；run `31958454155` 三 jobs 与 exact-SHA artifacts 全绿         |
 | P2-M3     | FROZEN    | closure `abbf6c9`；run `32107844716` 三 jobs 与 exact-SHA artifacts 全绿         |
-| P2-M4     | EXECUTING | T01–T05 已接受；closure `2afc084` / run `32131954633` 全绿，T06 executing        |
+| P2-M4     | EXECUTING | T01–T05 已接受；T06 因 CC-P2-M4-03 authority 缺口暂停，CC03-A ready              |
 | P2-M5     | COMMITTED | Variable isolation, duplicate and diversity QA；须待 M3/M4 Gate 后 refinement    |
 | P2-M6     | COMMITTED | QuestionBank draft, immutable release and revocation；须待 M5 Gate 后 refinement |
 | P2-M7     | COMMITTED | Internal operations, cost and observability；须待 M2 contracts 后 refinement     |

@@ -387,3 +387,12 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Seven exact-SHA audit/frozen-regression/Docker/Gitleaks artifacts are present and unexpired.
 - T05 remains accepted and T06 is now executing. This closure does not advance T07/T08 or the
   P2-M4 Milestone Gate.
+
+## 2026-08-18T19:44:00+08:00 — CC-P2-M4-03 warp-plan authority
+
+- T06 entry review stopped before writes: `0012` does not persist the immutable LandmarkWarpPlan
+  required to reconstruct `GeometryTransformRequest`; Job/message fallback would violate the
+  reference-only contract.
+- ADR-038 accepts one immutable plan per VariantSpecification, with origin restricted to
+  `PREREGISTERED_M4_RESEARCH_PLAN`, and a forward `0013` migration. This is change control, not Rxx.
+- T06 remains blocked until `CC-P2-M4-03-A` domain/ORM/migration/PostgreSQL evidence is accepted.
