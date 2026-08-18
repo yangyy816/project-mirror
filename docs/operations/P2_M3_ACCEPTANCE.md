@@ -3,7 +3,7 @@
 ## Status
 
 - Milestone: `P2-M3 — Synthetic Normalization and Base Identity QA`
-- State: `PASS`; acceptance closure same-SHA CI pending before `FROZEN`
+- State: `FROZEN`
 - Frozen entry: `0b579ebdb1c2a63936225bc59a4b0ca780544df2`
 - Migration head: `0011_offline_synth_source` after ADR-035 change control
 - Public API change: none
@@ -411,9 +411,9 @@ release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts rem
 
 `P2_M3_REMOTE_CI: PASS`
 
-`P2_M3_STATE: PASS`
+`P2_M3_STATE: FROZEN`
 
-`P2_M4_ENTRY: CLOSED_UNTIL_M3_FROZEN`
+`P2_M4_ENTRY: OPEN_FOR_REFINEMENT_ONLY`
 
 ## R17 hardened Linux clean reproduction checkpoint
 
@@ -631,8 +631,28 @@ the complete candidate evidence as the P2-M3 Milestone Gate.
 
 `P2_M3_MILESTONE_GATE: PASS`
 
-`P2_M3_ACCEPTANCE_CLOSURE_CI: PENDING`
+## Acceptance closure evidence
 
-`P2_M3_STATE: PASS`
+Acceptance closure `abbf6c95e33ed39c34674c881d30b6cb578d17b0` completed run
+`32107844716` with `quality-and-integration`, `secret-scan` and `docker-validation` all passing.
+Downloaded, unexpired artifacts were inspected:
 
-`P2_M4_REFINEMENT_ENTRY: CLOSED_UNTIL_M3_FROZEN`
+- `p2-m3-ci-evidence` `9313887640` binds the exact closure SHA, migration head
+  `0011_offline_synth_source`, unchanged OpenAPI digest, 46 M3 tests with zero
+  failures/errors/skips, all 12 deterministic checks and the R26 correction digest. Its downloaded
+  JSON SHA-256 is `eaf8e90f334c61cc3eb41c28b225e84833880fad4a5c2895352d5a287abd326d`;
+- `phase1-ci-evidence` `9313886480`, `p2-m1-ci-evidence` `9313886886` and
+  `p2-m2-ci-evidence` `9313887248` bind the same closure SHA and retain their regression evidence;
+- `project-docker-evidence` `9313830508` and `project-audit-evidence` `9313892519` are readable;
+- `gitleaks-results.sarif` `9313780235` contains zero results.
+
+The closure evidence continues to reject official wheels, keep the model private-research-only and
+keep distribution, production Vision, real-user facial processing and QuestionBank release false.
+
+`P2_M3_ACCEPTANCE_CLOSURE_CI: PASS`
+
+`P2_M3_STATE: FROZEN`
+
+`P2_M4_REFINEMENT_ENTRY: OPEN`
+
+`P2_M4_IMPLEMENTATION: NOT_AUTHORIZED_UNTIL_REFINEMENT_ACCEPTED`

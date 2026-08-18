@@ -46,3 +46,11 @@ bindings. Gitleaks SARIF contains zero results.
 `P2_M3_INDEPENDENT_FINAL_REVIEW: PASS`
 
 `P2_M3_GATE_RECOMMENDATION: PASS`
+
+## Acceptance closure
+
+Principal accepted the Gate and closure `abbf6c95e33ed39c34674c881d30b6cb578d17b0` completed
+same-SHA run `32107844716` with all three jobs passing. Artifact `9313887640` retained the exact
+migration, test, correction and private-synthetic-only bindings. P2-M3 may therefore advance to its
+separate freeze-state checkpoint; P2-M4 implementation remains unauthorized until rolling-wave
+refinement is accepted.

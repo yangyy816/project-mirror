@@ -219,3 +219,14 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Independent security and final reviews both returned PASS with no required repair. Principal
   accepts the P2-M3 Gate as PASS. Acceptance closure CI remains mandatory before FROZEN; P2-M4
   refinement remains closed until then.
+
+## 2026-08-18T14:45:00+08:00 — P2-M3 acceptance closure and freeze readiness
+
+- Acceptance closure `abbf6c95e33ed39c34674c881d30b6cb578d17b0` completed run `32107844716` with all three jobs
+  passing. Artifact `9313887640` binds the exact SHA, migration head, 46 zero-skip M3 tests and R26
+  correction digest; its downloaded JSON SHA-256 is
+  `eaf8e90f334c61cc3eb41c28b225e84833880fad4a5c2895352d5a287abd326d`.
+- Docker and audit artifacts are readable and Gitleaks SARIF has zero results. The evidence retains
+  every official-wheel, model, distribution, production, real-user and QuestionBank boundary.
+- P2-M3 advances to FROZEN through a separate freeze-state commit. P2-M4 only opens for rolling-wave
+  refinement; implementation remains unauthorized until that refinement is accepted.
