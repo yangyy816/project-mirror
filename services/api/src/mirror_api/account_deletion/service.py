@@ -357,17 +357,32 @@ class AccountDeletionService:
     async def _fail_unready_exports(
         self, session: AsyncSession, user_id: str, now: datetime
     ) -> None:
+        export_jobs = list(
+            await session.scalars(
+                select(Job)
+                .join(DataExportRequest, DataExportRequest.job_id == Job.id)
+                .where(
+                    DataExportRequest.owner_user_id == user_id,
+                    DataExportRequest.status.in_(("requested", "processing")),
+                )
+                .order_by(Job.id)
+                .with_for_update(of=Job)
+            )
+        )
+        jobs_by_id = {job.id: job for job in export_jobs}
         exports = list(
             await session.scalars(
                 select(DataExportRequest)
-                .where(DataExportRequest.owner_user_id == user_id)
+                .where(
+                    DataExportRequest.owner_user_id == user_id,
+                    DataExportRequest.status.in_(("requested", "processing")),
+                )
+                .order_by(DataExportRequest.id)
                 .with_for_update()
             )
         )
         for export in exports:
-            if export.status not in ("requested", "processing"):
-                continue
-            job = await session.get(Job, export.job_id, with_for_update=True)
+            job = jobs_by_id.get(export.job_id)
             if export.status == "requested":
                 export.status = "processing"
                 session.add(
@@ -560,6 +575,18 @@ class AccountDeletionService:
 
     async def _record_export_evidence(self, request_id: str, export_id: str, outcome: str) -> None:
         async with self._sessions() as session:
+            await self._lock_request_authority(session, request_id)
+            job = cast(
+                Job | None,
+                await session.scalar(
+                    select(Job)
+                    .join(DataExportRequest, DataExportRequest.job_id == Job.id)
+                    .where(DataExportRequest.id == export_id)
+                    .with_for_update(of=Job)
+                ),
+            )
+            if job is None or job.job_type != "data_export":
+                raise RetryableAccountDeletionFailure("export job authority disappeared")
             export = cast(
                 DataExportRequest | None,
                 await session.scalar(
@@ -629,6 +656,7 @@ class AccountDeletionService:
             "completed_at": self._now(),
         }
         async with self._sessions() as session:
+            await self._lock_request_authority(session, request_id)
             await session.execute(
                 insert(ObjectDeletionEvidence)
                 .values(**values)
@@ -637,6 +665,22 @@ class AccountDeletionService:
                 )
             )
             await session.commit()
+
+    @staticmethod
+    async def _lock_request_authority(
+        session: AsyncSession, request_id: str
+    ) -> AccountDeletionRequest:
+        request = cast(
+            AccountDeletionRequest | None,
+            await session.scalar(
+                select(AccountDeletionRequest)
+                .where(AccountDeletionRequest.id == request_id)
+                .with_for_update()
+            ),
+        )
+        if request is None:
+            raise RetryableAccountDeletionFailure("account deletion authority disappeared")
+        return request
 
     async def _has_asset_evidence(self, request_id: str, target_id: str) -> bool:
         return await self._has_evidence(request_id, "target_asset_id", target_id)

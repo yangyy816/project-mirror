@@ -349,3 +349,10 @@
   P2-M4 technical Gate 更新为 PASS；仍须 acceptance closure 与独立 freeze-state CI 后才能 FROZEN。
   `jaw_width` 保持 `EXPERIMENTAL`，结论仍为 `FURTHER_RESEARCH_FOR_M5_ISOLATION`，P2-M5、production
   geometry、真人处理与 QuestionBank release 继续关闭。
+
+- 2026-08-19：P2-M4 acceptance closure `75c59ed39be34102d2e6e042a248801c17861cfb` 的 run
+  `32166922750` 暴露 Phase 1 data-rights 潜在死锁；Docker 与 secret scan 通过，但 quality job 不得按
+  flaky 重跑掩盖。`P2-M4-R17` 前向统一 account-deletion request、data-export Job/request 与 evidence 的
+  锁序，不改 schema、trigger、授权、公开 API 或删除语义。修复前 live Compose/Celery 在有界第 2 次复现，
+  修复后 focused 9 项与同一 vertical flow 20/20 通过，fresh PostgreSQL/isolated Redis/Celery 全套、质量、
+  migration 和 Docker Gate 通过；当前仅 `READY_FOR_TRACKED_EVIDENCE`，P2-M4 仍未 FROZEN，P2-M5 关闭。

@@ -492,3 +492,16 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   no mandatory finding.
 - Principal accepts R13–R16 and T08 and records P2-M4 technical `PASS`. P2-M4 is not yet `FROZEN`; acceptance closure
   and freeze-state exact-SHA CI checkpoints remain mandatory, and P2-M5 stays closed.
+
+## 2026-08-19T14:30:00+08:00 — P2-M4-R17 acceptance closure lock-order repair
+
+- Acceptance closure run `32166922750` failed only in `quality-and-integration` with a real PostgreSQL deadlock;
+  Docker and secret scan passed. The failure was reproduced against the live Compose PostgreSQL/Celery topology on
+  bounded replay 2, so no flaky-test classification or blind rerun was used.
+- R17 establishes one forward order across account-deletion request authority, data-export Job authority,
+  data-export request rows and evidence insertion. It does not change schema, triggers, authorization, public API,
+  deletion semantics or P2-M4 research evidence.
+- The focused PostgreSQL suite passed 9 tests; the live vertical flow passed 20/20 after repair. Full fresh-database
+  API/Worker, Ruff, strict mypy, pnpm/contracts, migration lifecycle/check, Docker build/health and smoke passed.
+- R17 is `READY_FOR_TRACKED_EVIDENCE`. Exact-SHA Actions/artifacts and independent reviews remain required before
+  repairing the closure; P2-M4 is not `FROZEN` and P2-M5 remains closed.

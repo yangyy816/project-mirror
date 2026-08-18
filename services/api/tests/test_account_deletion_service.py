@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -339,6 +340,20 @@ class FaultOnceAccountStorage(LocalObjectStorageProvider):
         return await super().delete_sanitized_object(object_key=object_key)
 
 
+class ConcurrentAccountStorage(LocalObjectStorageProvider):
+    def __init__(self, **kwargs):  # type: ignore[no-untyped-def]
+        super().__init__(**kwargs)
+        self._asset_delete_calls = 0
+        self.both_asset_deletes_started = asyncio.Event()
+
+    async def delete_sanitized_object(self, *, object_key: str):  # type: ignore[no-untyped-def]
+        self._asset_delete_calls += 1
+        if self._asset_delete_calls == 2:
+            self.both_asset_deletes_started.set()
+        await self.both_asset_deletes_started.wait()
+        return await super().delete_sanitized_object(object_key=object_key)
+
+
 @pytest.mark.asyncio
 async def test_account_storage_failure_does_not_report_false_completion(tmp_path: Path) -> None:
     async with _database() as sessions:
@@ -358,3 +373,32 @@ async def test_account_storage_failure_does_not_report_false_completion(tmp_path
             assert request is not None and request.status == "processing"
         completed = await service.process(job_id=admitted.job_id)
         assert completed is not None and completed.status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_concurrent_duplicate_account_deletion_serializes_authority_before_evidence(
+    tmp_path: Path,
+) -> None:
+    async with _database() as sessions:
+        clock = [NOW]
+        storage = ConcurrentAccountStorage(
+            root=tmp_path, clock=lambda: NOW - timedelta(minutes=10)
+        )
+        user, _, _, _, _, _ = await _full_fixture(sessions, storage)
+        service = _service(sessions, storage, clock)
+        admitted = await service.request_deletion(
+            user_id=user.id,
+            idempotency_key="delete-account-concurrently",
+            request_id="account-delete-concurrent-request",
+        )
+
+        first = asyncio.create_task(service.process(job_id=admitted.job_id))
+        second = asyncio.create_task(service.process(job_id=admitted.job_id))
+        await asyncio.wait_for(storage.both_asset_deletes_started.wait(), timeout=5)
+        results = await asyncio.wait_for(asyncio.gather(first, second), timeout=10)
+
+        assert all(result is not None and result.status == "completed" for result in results)
+        async with sessions() as session:
+            assert await session.scalar(
+                select(func.count()).select_from(ObjectDeletionEvidence)
+            ) == 3

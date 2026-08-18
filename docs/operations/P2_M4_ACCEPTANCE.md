@@ -409,6 +409,22 @@ LandmarkWarpPlanAuthority → passed canonical source QA/record/identity/Asset`,
 
 `P2_M4_GATE: PASS`
 
+## Acceptance closure concurrency repair
+
+- Acceptance closure commit `75c59ed39be34102d2e6e042a248801c17861cfb` triggered run `32166922750`.
+  `docker-validation` and `secret-scan` passed, while `quality-and-integration` exposed a latent Phase 1
+  data-rights deadlock between duplicate account-deletion delivery, append-only evidence and data-export job/request
+  authority. The prior candidate success did not justify treating this as flaky.
+- `P2-M4-R17` freezes one forward order: account deletion request, data-export job, data-export request, then
+  evidence. Existing PostgreSQL triggers, authorization, idempotency, schema and public contracts remain unchanged.
+- Before repair, the live Compose/Celery vertical flow reproduced on bounded run 2. After repair, 9 focused
+  PostgreSQL tests and 20 consecutive live vertical runs passed. The full fresh-database API/Worker suite, Ruff,
+  strict mypy, pnpm/contracts, migration lifecycle/check, Docker build/health and API/Web smoke also passed.
+- R17 remains `READY_FOR_TRACKED_EVIDENCE`. P2-M4 remains technical `PASS` but not `FROZEN`; the repaired
+  exact-SHA closure, artifact inspection, independent review and freeze-state CI are still mandatory.
+
+`P2_M4_R17: READY_FOR_TRACKED_EVIDENCE`
+
 ## Exit rule
 
 P2-M4 has passed the technical Gate. It may become `FROZEN` only after this acceptance closure and a separate
