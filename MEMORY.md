@@ -437,3 +437,11 @@
   dimensions、三个冻结 region groups 或 threshold calibration distributions。T06–T08、M6、production
   geometry、真人处理与 QuestionBank release 保持关闭；补足 evidence 必须走前向 research change
   control，不能包装成 Repair。
+
+- 2026-08-19：ADR-042 / `CC-P2-M5-01` 为 T05 `FURTHER_RESEARCH` 建立唯一前向 evidence-expansion
+  path，不修改旧 evidence、不包装为 Repair 或 T09/T10。Stage A candidate
+  `9993e019ad4267dd2521c2988b881bfdf0ec1558` 的 run `32189725291` 三 jobs 与七 artifacts 全绿；
+  Principal 只开放 Stage B 的 12 个 calibration-only accepted identities、18 次总 attempt、单项最多一次
+  retry、concurrency 1。Stage C–E、final holdout、T06–T08、MVR、production geometry、真人处理、M6 与
+  QuestionBank release 继续关闭。官方 MediaPipe wheels 仍 rejected；下载授权不改变 adoption、license、
+  distribution、production 或 real-user-processing status。

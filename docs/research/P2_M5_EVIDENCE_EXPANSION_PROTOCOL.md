@@ -119,9 +119,9 @@ Otherwise Stage D records `FURTHER_RESEARCH`, retains all candidate failures and
 9. automatic age estimation, beauty scoring or sensitive classification;
 10. production Provider, public API, real-user facial processing or QuestionBank release enablement.
 
-`CC_P2_M5_01_A: EXECUTION_READY`
+`CC_P2_M5_01_A: PASS_AT_9993e01_RUN_32189725291`
 
-`CC_P2_M5_01_B: CLOSED_PENDING_STAGE_A_TRACKED_ACCEPTANCE`
+`CC_P2_M5_01_B: EXECUTION_READY`
 
 `CC_P2_M5_01_C_TO_E: CLOSED`
 

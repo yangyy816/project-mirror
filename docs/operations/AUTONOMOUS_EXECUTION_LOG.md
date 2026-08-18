@@ -640,3 +640,13 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   screening, a Principal preregistration checkpoint and a later sealed 24-identity holdout.
 - Stage A adds no image, dependency, model, schema or API. Stage B remains closed pending same-SHA Stage A evidence;
   T06–T08, MVR execution, production geometry, real-user processing, M6 and QuestionBank release remain closed.
+
+## 2026-08-19T22:30:00+08:00 — CC-P2-M5-01 Stage A tracked acceptance
+
+- Candidate `9993e019ad4267dd2521c2988b881bfdf0ec1558` run `32189725291` passed all three jobs.
+- Seven artifacts bind the exact SHA, `0014_m5_eval_authority` and unchanged OpenAPI. Phase 1/M1/M2/M3 reports
+  1/98/52/46 tests with zero failure/error/skip; Gitleaks reports zero results and Docker evidence has no execution
+  failure.
+- Principal accepts Stage A and opens only the bounded 12-identity, 18-attempt, concurrency-1 calibration Stage B.
+  Stage C–E, holdout, T06–T08, MVR execution, production geometry, real-user processing, M6 and QuestionBank release
+  remain closed.

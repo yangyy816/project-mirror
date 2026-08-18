@@ -293,3 +293,21 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `CC_P2_M5_01_B: CLOSED_PENDING_STAGE_A_TRACKED_ACCEPTANCE`
 
 `P2_M5_T06_ENTRY: CLOSED`
+
+## CC-P2-M5-01 Stage A tracked acceptance
+
+- Candidate `9993e019ad4267dd2521c2988b881bfdf0ec1558` run `32189725291` passed all three jobs.
+- Seven artifacts are present, readable and unexpired. Phase 1/M1/M2/M3 evidence binds the exact SHA,
+  `0014_m5_eval_authority` and unchanged OpenAPI; the suites report 1/98/52/46 tests with zero failures, errors or
+  skips. Gitleaks SARIF contains zero results. Docker evidence has no execution failure.
+- Principal accepts ADR-042 and the expansion protocol. This opens only Stage B's 12-identity calibration envelope;
+  Stage C–E, holdout access, T06–T08, MVR execution, production geometry, real-user processing, M6 and QuestionBank
+  release remain closed.
+
+`CC_P2_M5_01_A: PASS`
+
+`CC_P2_M5_01_B: EXECUTION_READY`
+
+`CC_P2_M5_01_C_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
