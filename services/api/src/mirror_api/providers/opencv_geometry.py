@@ -258,7 +258,10 @@ def _manifest(
 @contextlib.contextmanager
 def _dll_directory(root: Path) -> Iterator[None]:
     if os.name == "nt":
-        with os.add_dll_directory(str(root)):
+        add_dll_directory = getattr(os, "add_dll_directory", None)
+        if add_dll_directory is None:
+            raise DomainValidationError(ReasonCode.TRANSFORM_RUNTIME_MISMATCH)
+        with add_dll_directory(str(root)):
             yield
     else:
         yield

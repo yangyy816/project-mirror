@@ -124,6 +124,10 @@ PASS.
   Determinism and Full Gate remain `PENDING`.
 - `CC-P2-M4-02` reopens only the Linux deployment-compatible candidate identity. T05/T06 cannot use
   a base-image upgrade or an unverified fallback to bypass this Gate.
+- Candidate checkpoint `cd25013` exposed `P2-M4-R09`: Linux strict mypy does not expose the
+  Windows-only `os.add_dll_directory` attribute even though Windows mypy correctly platform-pruned
+  that path. The repair uses a fail-closed runtime capability lookup and does not change accepted
+  file hashes, DLL search scope or native execution behavior.
 
 ## Exit rule
 
