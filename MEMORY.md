@@ -454,3 +454,15 @@
   全绿，Python 为 567 PASS/1 个既有 optional skip，Gitleaks 零结果。Principal 接受 R02 并恢复 Stage B 为
   `EXECUTION_READY`；12 identities、18 attempts、单项一次 retry、concurrency 1 边界不变，Stage C–E、MVR、
   production geometry、真人处理、M6 与 QuestionBank release 继续关闭。
+
+- 2026-08-19：Project Owner 前向授权后续任务按需下载依赖，包括 MediaPipe 0.10.35 exact Windows/Linux
+  wheels 与 exact Face Landmarker bundle；下载必须进入 Git 忽略的 private cache/research namespace，且不等于
+  adoption、license approval、distribution、production 或 real-user facial processing approval。当前 Stage B
+  已有 accepted source-built Vision runtime，不因授权而无目的重复下载官方 wheels。
+- 2026-08-19：`CC-P2-M5-01-B` 本地 calibration wave 在冻结的 12 identities / 18 attempts / 单项一次 retry /
+  concurrency-one envelope 内，以 12 attempts、零 retry 获得 12 项 admitted、normalized、exactly-one-face、
+  478-landmark、human categorical hard-gate PASS 的 synthetic-only identities；真实 PostgreSQL 幂等重放后仍为
+  12 admissions / sources / passed QA runs / bank-independent identities。Exact duplicate 为 0；第一方 pHash 66
+  pairs 的观测最小 Hamming distance 为 12，但未选择 near-duplicate threshold。`cal-b-06` 保留
+  `REQUESTED_CELL_VISUAL_MATCH_WEAK` 诚实 evidence。当前只到 `LOCAL_PASS_PENDING_TRACKED_EVIDENCE`；Stage C–E、
+  T06–T08、MVR、production geometry、真人处理、M6 与 QuestionBank release 继续关闭。

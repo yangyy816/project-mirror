@@ -1,0 +1,192 @@
+{
+  "schema_version": "mirror.p2-m5/CC01BCalibrationEvidence/v1",
+  "validation_reference": "p2-m5-cc01b-calibration-v1",
+  "status": "LOCAL_PASS_PENDING_TRACKED_EVIDENCE",
+  "authority_checkpoint_sha": "64f0d2c974dc7b62ad8a4719c34d6b725252cbf2",
+  "authority_checkpoint_run": 32193059681,
+  "migration_head": "0014_m5_eval_authority",
+  "source_kind": "CODEX_NATIVE_IMAGEGEN",
+  "provenance_level": "PROVENANCE_ONLY",
+  "runtime_provider": false,
+  "generation_policy_digest": "5239a291fb21baa539de8657ee03013ef498209c3a2af25401429d999583c69a",
+  "generation_plan_digest": "1d8c670cb5589d44ef2e86c7679948382b1af7d9694227897c1c1b94ea29ea1b",
+  "private_evidence_digests": {
+    "admission_manifest": "1d1f2177f01dc8608f267910bf69f3d3bff35ac982d3d25923528b291b5a5f3d",
+    "admission_evidence": "72555b44593d0e15191433ed3838ee42736666a3ac97b30ee3a054e2b13fd7f3",
+    "categorical_review": "04e16bea84c7053fb1a6d63496ab953ffe3110f325893c40f5f43e089151d16c",
+    "database_authority": "867f72cb35c6451926276081e76187b501b0add34287e990e46755cf505bcab9",
+    "normalization_similarity": "112219e336d34837ee0d8559a0fdba9f4f5a8d11d4fee2188cd49bd8b4d508f2",
+    "vision_hard_qa": "0fda79b9ec3992cd6737ea2f04e8f780dae8bbf6e431abe62d0199cf498d3d77"
+  },
+  "resource_envelope": {
+    "requested_identities": 12,
+    "accepted_identities": 12,
+    "maximum_attempts": 18,
+    "attempts_used": 12,
+    "retry_ceiling_per_item": 1,
+    "retries_used": 0,
+    "concurrency": 1
+  },
+  "qa": {
+    "admitted": 12,
+    "normalized": 12,
+    "exactly_one_face_passed": 12,
+    "landmark_count_478": 12,
+    "categorical_hard_gate_passed": 12,
+    "qa_runs_passed": 12,
+    "identities_registered": 12,
+    "vision_runtime_reference": "p2-m3-vision-v03-stage-c-r25-private",
+    "face_landmarker_model_sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
+  },
+  "duplicate_evidence": {
+    "exact_duplicate_count": 0,
+    "phash_algorithm_version": "phash-dct-nearest-v1",
+    "pair_count": 66,
+    "minimum_observed_hamming_distance": 12,
+    "minimum_pair": ["cal-b-11", "cal-b-12"],
+    "near_duplicate_threshold_selected": false,
+    "automatic_near_duplicate_rejection_used": false
+  },
+  "review_boundaries": {
+    "synthetic_only": true,
+    "real_person_reference_used": false,
+    "real_user_runtime_generation_calls": 0,
+    "automatic_age_estimation_used": false,
+    "numeric_attractiveness_used": false,
+    "ranking_used": false,
+    "clear_pre16_presentation_rejected": 0,
+    "child_or_student_minor_context_rejected": 0,
+    "primary_18_25_presentation": 7,
+    "secondary_26_30_presentation": 5,
+    "deemphasized_31_34_presentation": 0,
+    "first_pack_35_plus_excluded": 0
+  },
+  "items": [
+    {
+      "item_reference": "cal-b-01",
+      "identity_id": "1fd30812fc0147a4bbc9a3fbf7b27e62",
+      "normalized_asset_id": "7a9f210c3d8a4c119ca23f9a051a2fab",
+      "qa_run_id": "541c5414c81d416f90f5f0175a270b40",
+      "source_sha256": "81fb5cf2d08a2d222bb223bc4930adb4ddf67888d209870c672f944716363f83",
+      "normalized_sha256": "99324a7d48d9920f213deb211c4b91dea09d66308fea6bcd2ba7195cab975308",
+      "age_presentation": "SECONDARY_26_30_PRESENTATION"
+    },
+    {
+      "item_reference": "cal-b-02",
+      "identity_id": "f63543f263154a0d8c16df85b6754108",
+      "normalized_asset_id": "78af5a5766c9432dbc47a270bd3f9888",
+      "qa_run_id": "c5f9a630af014a989806ecb768dcfab6",
+      "source_sha256": "7002188a49d0f89fc81e7eea51457098b7f4f12b8b16085b2a5324c1f440bbc5",
+      "normalized_sha256": "f3449a08c8dfb020311bac82aee109cc04be3b9c2d5c4820fd34febcb0d1feea",
+      "age_presentation": "PRIMARY_18_25_PRESENTATION"
+    },
+    {
+      "item_reference": "cal-b-03",
+      "identity_id": "a1a2c503051f40c9be9144eaffbd02ff",
+      "normalized_asset_id": "7f648a720f184a3f8262478c56b40739",
+      "qa_run_id": "bc0f5c562e794fdb8ecd0eef40d4b45f",
+      "source_sha256": "53388e4092aa0ebf9fa05508817d1f070f889cd5a4779846be32bf0a8cf95181",
+      "normalized_sha256": "cfd7ceb51ffcc54278e64fa8e8772508f0605d890964b5ddf8a6b15c14033495",
+      "age_presentation": "PRIMARY_18_25_PRESENTATION"
+    },
+    {
+      "item_reference": "cal-b-04",
+      "identity_id": "5b43b659669b4ecdbce840363636b51c",
+      "normalized_asset_id": "5ea8d4d158de415f8c4892e5b2f0b057",
+      "qa_run_id": "1c65e815a70e419d93f4672bd1942a80",
+      "source_sha256": "593fb89b0d571e6f3a62b71f518079c081f4851441c043323a3655e483947da3",
+      "normalized_sha256": "becc2f5e95487134e0347a0de2ed63b5f1cd7191cbc5139e7d2a24ea52610985",
+      "age_presentation": "PRIMARY_18_25_PRESENTATION"
+    },
+    {
+      "item_reference": "cal-b-05",
+      "identity_id": "8e297c8afa1343f49d2a37806b9afa0b",
+      "normalized_asset_id": "8fa0fd6781a14efa9134fdd03cdcd292",
+      "qa_run_id": "701781c5842940228cb6d46d3e0f177f",
+      "source_sha256": "3b83b63aae50bf3a2668864f2bffffc2c9236326f184150b760dbb2410ecf424",
+      "normalized_sha256": "b20891d8950545c09306eac04f736ca656224c9ed5f045876600b3d60f0197e2",
+      "age_presentation": "PRIMARY_18_25_PRESENTATION"
+    },
+    {
+      "item_reference": "cal-b-06",
+      "identity_id": "37268dc05a7543f2819a4c9adc068a80",
+      "normalized_asset_id": "eb8acbd6a2c84d5da47ad54cb47b1785",
+      "qa_run_id": "6f978fc4afad4eff8bd7d2c5a8616035",
+      "source_sha256": "8c170c908bf6ede4f19e652df5306f4148f7d444fbb5396f0db0256ee8065f7b",
+      "normalized_sha256": "35b5be963010ccb98f1fbdd1524fd78d44c8865adc0dbeed623812e65bbc6401",
+      "age_presentation": "SECONDARY_26_30_PRESENTATION",
+      "coverage_note": "REQUESTED_CELL_VISUAL_MATCH_WEAK"
+    },
+    {
+      "item_reference": "cal-b-07",
+      "identity_id": "ba03e9e7f0cf48fea022df591dbd9db9",
+      "normalized_asset_id": "452fe1326bb343e1b3f35b4df72cc79d",
+      "qa_run_id": "c01960894f19404fb969982658068166",
+      "source_sha256": "e964e0f0e166e5b882ae3e872837fbe8f40709e2d1431692815ce4d420352b19",
+      "normalized_sha256": "08dc834f765f950d8733bf3df1ffa6e48e036b4dc1a95d64ca51765f2cc054ba",
+      "age_presentation": "PRIMARY_18_25_PRESENTATION"
+    },
+    {
+      "item_reference": "cal-b-08",
+      "identity_id": "df1747164a304f8e849056904b634a62",
+      "normalized_asset_id": "e519dce77a1d46d081c1ed737d728561",
+      "qa_run_id": "7e10d0dcfafd45dba88225bc7045fe0f",
+      "source_sha256": "ec3337ca72054d8a6d2132ec3255c4fdf9d2b7d16209faf15f5bc29b1cb3b552",
+      "normalized_sha256": "fb789e57632c3c791ea39f5dfcf059657c02b8cec4eab853c557335959fd3647",
+      "age_presentation": "SECONDARY_26_30_PRESENTATION"
+    },
+    {
+      "item_reference": "cal-b-09",
+      "identity_id": "db0bbf7f8fff4e308a16fa45fabcdc95",
+      "normalized_asset_id": "3f6c926f7a4b45edbb403671e3437b23",
+      "qa_run_id": "5719b5072c7e4bb68a290700eced46d9",
+      "source_sha256": "e17994499eba2a8fea45da9c21ba98e5f27594c86a98a2d25751b8396ca8d473",
+      "normalized_sha256": "226d4e62939045e101c18a7ed7f78f7958182d5c7a318cb3bbf254bfbcfae5d2",
+      "age_presentation": "PRIMARY_18_25_PRESENTATION"
+    },
+    {
+      "item_reference": "cal-b-10",
+      "identity_id": "c9677b459c9e4b0c9b640d83835fa777",
+      "normalized_asset_id": "622bd580621e4efb8b77a3a24857404a",
+      "qa_run_id": "8be4145a85404e2aa7208df9b5dd3385",
+      "source_sha256": "3b1f33abbeff1197525f56a77383bfc47de329db8af1c2978fcf954c93f83b0f",
+      "normalized_sha256": "a94ba7d848cffcb13bb1efbf846d664fbf69325cd0d6918167ea4ab2cbdd6941",
+      "age_presentation": "PRIMARY_18_25_PRESENTATION"
+    },
+    {
+      "item_reference": "cal-b-11",
+      "identity_id": "ab5062caf392417d8e0a6a9339baa037",
+      "normalized_asset_id": "4382c0648b544a089ae6d46810b7446c",
+      "qa_run_id": "733fbf6e32184de3979e913e2b73dae9",
+      "source_sha256": "43576f45e508447e2962a1be3233db550da17901176e6d8a3fcd67f5ca5717d1",
+      "normalized_sha256": "e874069eb7ae87e74a90f1199df20bd36ec3a2b2bbd879ca59639ad022b8783b",
+      "age_presentation": "SECONDARY_26_30_PRESENTATION"
+    },
+    {
+      "item_reference": "cal-b-12",
+      "identity_id": "806e423ec3a04580b0583214f6ba8a6c",
+      "normalized_asset_id": "fd151a5fca8a460dbe68d7d6dbfbe506",
+      "qa_run_id": "e17eec71bfb6452bb8616cf33d2c34b7",
+      "source_sha256": "532d64f014d9865bbfa6789b5cf5b6f13b0b2179b560dac61865a71da78b1d63",
+      "normalized_sha256": "d65dda5c29f288b52c322221815723b9f39f6a5b66d75fb70431d13eb56d8eb0",
+      "age_presentation": "SECONDARY_26_30_PRESENTATION"
+    }
+  ],
+  "unknown_provenance_facts": {
+    "model_reference": null,
+    "model_version_reference": null,
+    "provider_request_reference": null,
+    "provider_actual_seed": null,
+    "provider_usage": null,
+    "provider_cost": null
+  },
+  "limitations": {
+    "near_duplicate_threshold": "NOT_SELECTED",
+    "candidate_measurement_and_transform": "NOT_STARTED",
+    "stage_c_to_e": "CLOSED",
+    "p2_mvr_v1_result": "NOT_EVALUATED",
+    "production_geometry": "NOT_AUTHORIZED",
+    "real_user_facial_processing": "NOT_AUTHORIZED",
+    "question_bank_release": "NOT_AUTHORIZED"
+  }
+}

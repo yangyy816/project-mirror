@@ -352,3 +352,31 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `CC_P2_M5_01_B: EXECUTION_READY`
 
 `P2_M5_NEXT_ACTION: CC_P2_M5_01_B_CALIBRATION_ONLY_ACQUISITION`
+
+## CC-P2-M5-01 Stage B local candidate
+
+- The frozen 12-identity calibration wave used 12 of 18 allowed attempts, no retries and concurrency one. All source
+  outputs remain private and use `CODEX_NATIVE_IMAGEGEN` with `PROVENANCE_ONLY`; unavailable provider/model/request/
+  seed/usage/cost facts remain null.
+- All 12 sources passed bounded PNG admission and deterministic canonical JPEG normalization. Exact normalized SHA-256
+  duplicate count is zero. The first-party `phash-dct-nearest-v1` produced 66 pair candidates with an observed minimum
+  Hamming distance of 12; no near-duplicate threshold was selected and no automatic near-duplicate rejection occurred.
+- The accepted source-built private Vision runtime and exact model bundle SHA-256
+  `64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff` reported exactly one face and 478 landmarks
+  for every normalized asset. Human categorical review found no clear pre-16 presentation, child/student-minor context,
+  real-person likeness concern or nonsexual-context violation. It used no age estimator, attractiveness score or rank.
+- Real PostgreSQL contains 12 offline admissions, 12 source objects, 12 passed canonical QA runs and 12 bank-independent
+  identities. A second complete registration replay remained at exactly 12 identities, proving operator-path
+  idempotency. `cal-b-06` is retained with `REQUESTED_CELL_VISUAL_MATCH_WEAK`; this is honest calibration evidence and
+  not a hard-gate failure or fabricated coverage claim.
+- Redacted evidence is `docs/research/P2_M5_CC01B_CALIBRATION_EVIDENCE.json`; image bytes, Prompt text, private paths,
+  storage references, landmark arrays and raw Vision logs remain outside Git.
+- This is local evidence only. Stage B needs candidate same-SHA Actions and artifact inspection before Principal
+  acceptance can open Stage C. Stage C–E, T06–T08, MVR execution, production geometry, real-user processing, M6 and
+  QuestionBank release remain closed.
+
+`CC_P2_M5_01_B: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+
+`CC_P2_M5_01_C_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
