@@ -1,0 +1,80 @@
+{
+  "aggregate": {
+    "all_cross_platform_outputs_equal": true,
+    "all_new_measurements_equal_to_original": true,
+    "all_new_outputs_equal_to_original": true,
+    "all_same_platform_replays_equal": true,
+    "all_target_directions_correct": true,
+    "maximum_absolute_control_relative_delta": 0.011420225249709091,
+    "maximum_cross_platform_measurement_absolute_difference": 0.000011863707220088893,
+    "maximum_repeat_measurement_span": 0.0
+  },
+  "base_candidate_commit": "852a9777d8acec30170cc76554a97b51b3296228",
+  "interpretation": "FURTHER_RESEARCH_FOR_M5_ISOLATION",
+  "private_evidence": {
+    "linux_manifest_sha256": "477157cf5b7610d9b360079797ad19453b0f30a1d836a2b0c4a9d821a24d214b",
+    "linux_original_report_sha256": "c74839d773f5031adb54b6106e9b67eec0c55a1ca33c1e0d2a16a61550865f61",
+    "linux_repair_report_sha256": "8b762525d67b4d80631f25071571a6be2559f1645dfaa8b17af775587298df66",
+    "windows_manifest_sha256": "6da8d6d9fd36edd68f8d36df4ecf1a0fdddd5e05e81c05bc155d1cd75871faf1",
+    "windows_original_report_sha256": "45bf5d3ece045f4a711bee02f2a0b1e6a9616661bd12ecd26d61798d9be56222",
+    "windows_repair_report_sha256": "7a95bb188b92c3ec83771492d092a5a6cddcb3c95c53feb61afd3a993323c6be"
+  },
+  "repairs": {
+    "P2-M4-R13": "PASS_SPLIT_AUTHORITY_BOUND",
+    "P2-M4-R14": "PASS_EXACT_VISION_TOPOLOGY_BOUND",
+    "P2-M4-R15": "PASS_ACTIVE_STATE_CORRECTED",
+    "P2-M4-R16": "PASS_PERSISTED_ONTOLOGY_GATE"
+  },
+  "result_output_sha256": [
+    "519a961256b8a3caceb7edd472c9c5285c9bc35ce07461d674a05c1f10879f09",
+    "39eae092ebdae909a55963e412b0cc2789b72ca44dc64c7136d4789da47d4170",
+    "52f26526cd6713a1b7f9d48f3fa51fe511d68c09b4e08110b6d6f447174aee0e",
+    "173f82c5078ba9de2eff543466ada09b8e2cf1c7e928e792b8e5ba45593f2846"
+  ],
+  "schema": "mirror.p2-m4.t08-forward-repair-evidence/v1",
+  "split_authority": {
+    "calibration": [
+      {
+        "asset_reference": "7c14195846924ad19d762080a626ab54",
+        "identity_reference": "1dd1786221d34bae9863df77c9d531e6",
+        "normalized_sha256": "71fc0fadc69841664664cd912132edb2d64adc227a78755be38dedf5113add1e"
+      },
+      {
+        "asset_reference": "d714a022dc2249edadef524ebb25f623",
+        "identity_reference": "a959c8c392bb44f6a9120385ef16949c",
+        "normalized_sha256": "3532d0f7e30d64916a81059c24e6e0ea33f3c9fa5fff66600f7131a6728c9a05"
+      }
+    ],
+    "calibration_split_digest": "5f1f9c4b14e416d1a07360c2916d3b6b43536a3f5f963411264b74ddacd78d02",
+    "holdout": [
+      {
+        "asset_reference": "27105c9647ad483c946f781570da06fe",
+        "identity_reference": "4d4586cd398b496ba67c0f1601626706",
+        "normalized_sha256": "a84f6a0316a665f311b42bf4c88d51caab1e0327109529d72f1a05d45940c3c5"
+      },
+      {
+        "asset_reference": "6a034f419c3f4b3c895fc062c54d3833",
+        "identity_reference": "58d63ba8b1854713a27fff66624994a7",
+        "normalized_sha256": "c225320284eceec77dbdf24d9a806ce77f030f40f17237487719411bcc8255c5"
+      }
+    ],
+    "holdout_split_digest": "7dd1d08426e26c9788972a6bff7f21c4e8945d26deccd3564ea6363900bdbf22",
+    "schema": "mirror.p2-m4.t07-private-inputs/v2"
+  },
+  "vision_authority": {
+    "linux": {
+      "main_sha256": "6a5fb35175efc2f014fb61f7f4abb2c78c38156bd6abf2186d1549cbf3f006a7",
+      "opencv_core_sha256": "116c2db3b7e149390631af309f910eabeb73bd18281e4174f131ced2a8de4408",
+      "opencv_imgproc_sha256": "765ebf6c659e523d9d7e9557e63f004a041a9327fcba95e6d4ac0670485241f5",
+      "wrapper_sha256": "1cfbd3b219542262be424b2cdcff512cc16ce042f847c6d0fcf50eabb98782d3"
+    },
+    "model_sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+    "topology_sha256": "85eea84eef15dd963e06382d6e61f7357029d9901acc935731ecaa7eab856b63",
+    "windows": {
+      "main_sha256": "1c67ae02b90a5b00b58018c3c04db411134d781c6f53b195e68a6ce6136615ef",
+      "opencv_core_sha256": "e0415de8bd7dd97f1c2bcccfba627fe6efe4da9441c9b4c9772f3f4faa8f4343",
+      "opencv_imgproc_sha256": "1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4",
+      "wrapper_sha256": "d7d656252b4311fc617802340bd81f0350805f481092f28774f32f9496794e83"
+    }
+  }
+}

@@ -39,7 +39,7 @@ from mirror_api.synthetic_dataset import (
     WarpTriangle,
 )
 
-SCHEMA = "mirror.p2-m4.t07-private-evaluation/v1"
+SCHEMA = "mirror.p2-m4.t07-private-evaluation/v2"
 PLAN_BUILDER_VERSION = "p2-m4-t07-jaw-local-field-v1"
 MODEL_SHA256 = "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
 MAGNITUDE_PPM = 30_000
@@ -49,17 +49,65 @@ PLAN_ADMISSION_FLOOR_PPM = 500_000
 EXPECTED_TRIANGLE_COUNT = 852
 EXPECTED_LANDMARK_COUNT = 478
 PLAN_LANDMARK_COUNT = 468
-SPLIT_SCHEMA = "mirror.p2-m4.t07-identity-split/v1"
+SPLIT_SCHEMA = "mirror.p2-m4.t07-identity-split/v2"
+INPUT_SCHEMA = "mirror.p2-m4.t07-private-inputs/v2"
+TOPOLOGY_SHA256 = "85eea84eef15dd963e06382d6e61f7357029d9901acc935731ecaa7eab856b63"
+VISION_RUNTIME_ARTIFACT_SHA256_BY_PLATFORM = {
+    "windows-x86_64": {
+        "executable": "d7d656252b4311fc617802340bd81f0350805f481092f28774f32f9496794e83",
+        "mirror_face_landmarker_source.dll": (
+            "1c67ae02b90a5b00b58018c3c04db411134d781c6f53b195e68a6ce6136615ef"
+        ),
+        "opencv_core3411.dll": ("e0415de8bd7dd97f1c2bcccfba627fe6efe4da9441c9b4c9772f3f4faa8f4343"),
+        "opencv_imgproc3411.dll": (
+            "1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4"
+        ),
+    },
+    "linux-x86_64-network-none": {
+        "executable": "1cfbd3b219542262be424b2cdcff512cc16ce042f847c6d0fcf50eabb98782d3",
+        "libmirror_face_landmarker_source.so": (
+            "6a5fb35175efc2f014fb61f7f4abb2c78c38156bd6abf2186d1549cbf3f006a7"
+        ),
+        "libopencv_core.so.3.4.11": (
+            "116c2db3b7e149390631af309f910eabeb73bd18281e4174f131ced2a8de4408"
+        ),
+        "libopencv_imgproc.so.3.4.11": (
+            "765ebf6c659e523d9d7e9557e63f004a041a9327fcba95e6d4ac0670485241f5"
+        ),
+    },
+}
 
 
 def _sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def split_digest(*, cohort: str, asset_sha256: list[str]) -> str:
-    facts = {"asset_sha256": asset_sha256, "cohort": cohort}
+def split_digest(*, cohort: str, sources: list[dict[str, str]]) -> str:
+    facts = {"cohort": cohort, "sources": sources}
     canonical = json.dumps(facts, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     return _sha256(f"{SPLIT_SCHEMA}\n{canonical}".encode())
+
+
+def _split_sources(value: object, *, expected_count: int) -> list[dict[str, str]]:
+    if not isinstance(value, list) or len(value) != expected_count:
+        raise ValueError("private split shape is invalid")
+    sources: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, dict) or set(item) != {
+            "asset_reference",
+            "identity_reference",
+            "normalized_sha256",
+        }:
+            raise ValueError("private split source shape is invalid")
+        if any(type(item[key]) is not str or not item[key] for key in item):
+            raise ValueError("private split source value is invalid")
+        if len(item["normalized_sha256"]) != 64:
+            raise ValueError("private split checksum is invalid")
+        sources.append(dict(item))
+    for field in ("identity_reference", "asset_reference", "normalized_sha256"):
+        if len({item[field] for item in sources}) != len(sources):
+            raise ValueError(f"duplicate {field} within split")
+    return sources
 
 
 def parse_landmarks(text: str) -> list[tuple[float, float, float]]:
@@ -233,7 +281,7 @@ def _run_vision(
 def _manifest(path: Path) -> dict[str, Any]:
     document = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(document, dict) or set(document) != {
-        "calibration_asset_sha256",
+        "calibration_sources",
         "calibration_split_digest",
         "entries",
         "expected_runtime_manifest_digest",
@@ -242,43 +290,65 @@ def _manifest(path: Path) -> dict[str, Any]:
         "schema",
     }:
         raise ValueError("private evaluation manifest shape is invalid")
-    if document["schema"] != "mirror.p2-m4.t07-private-inputs/v1":
+    if document["schema"] != INPUT_SCHEMA:
         raise ValueError("private evaluation manifest schema is invalid")
     if not isinstance(document["entries"], list) or len(document["entries"]) != 2:
         raise ValueError("exactly two holdout entries are required")
-    calibration_sha256 = document["calibration_asset_sha256"]
+    calibration_sources = _split_sources(document["calibration_sources"], expected_count=2)
     if (
-        not isinstance(calibration_sha256, list)
-        or len(calibration_sha256) != 2
-        or any(type(value) is not str for value in calibration_sha256)
-        or len(set(calibration_sha256)) != 2
-    ):
-        raise ValueError("calibration split is invalid")
-    if (
-        split_digest(cohort="calibration", asset_sha256=calibration_sha256)
+        split_digest(cohort="calibration", sources=calibration_sources)
         != document["calibration_split_digest"]
     ):
         raise ValueError("calibration split digest mismatch")
-    holdout_sha256 = [entry.get("source_sha256") for entry in document["entries"]]
-    if any(type(value) is not str for value in holdout_sha256):
-        raise ValueError("holdout split is invalid")
-    if set(calibration_sha256) & set(holdout_sha256):
-        raise ValueError("calibration and holdout overlap")
-    if (
-        split_digest(cohort="holdout", asset_sha256=holdout_sha256)
-        != document["holdout_split_digest"]
+    holdout_sources = _split_sources(
+        [
+            {
+                "asset_reference": entry.get("source_asset_reference"),
+                "identity_reference": entry.get("source_identity_reference"),
+                "normalized_sha256": entry.get("source_sha256"),
+            }
+            if isinstance(entry, dict)
+            else entry
+            for entry in document["entries"]
+        ],
+        expected_count=2,
+    )
+    for field, label in (
+        ("identity_reference", "identity"),
+        ("asset_reference", "Asset"),
+        ("normalized_sha256", "normalized SHA-256"),
     ):
+        if {item[field] for item in calibration_sources} & {
+            item[field] for item in holdout_sources
+        }:
+            raise ValueError(f"calibration and holdout {label} overlap")
+    if split_digest(cohort="holdout", sources=holdout_sources) != document["holdout_split_digest"]:
         raise ValueError("holdout split digest mismatch")
     return document
 
 
+def _verify_frozen_inputs(args: argparse.Namespace, manifest: dict[str, Any]) -> None:
+    expected_vision_artifacts = VISION_RUNTIME_ARTIFACT_SHA256_BY_PLATFORM.get(manifest["platform"])
+    if expected_vision_artifacts is None:
+        raise RuntimeError("platform Vision runtime is not qualified")
+    for name, expected_sha256 in expected_vision_artifacts.items():
+        path = (
+            args.vision_executable if name == "executable" else args.vision_executable.parent / name
+        )
+        if _sha256(path.read_bytes()) != expected_sha256:
+            raise RuntimeError(f"Vision runtime artifact checksum mismatch: {name}")
+    if _sha256(args.model.read_bytes()) != MODEL_SHA256:
+        raise RuntimeError("model checksum mismatch")
+    if _sha256(args.topology.read_bytes()) != TOPOLOGY_SHA256:
+        raise RuntimeError("topology checksum mismatch")
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     manifest = _manifest(args.manifest)
+    _verify_frozen_inputs(args, manifest)
     runtime = load_private_opencv_runtime(args.runtime_root)
     if runtime.manifest_digest != manifest["expected_runtime_manifest_digest"]:
         raise RuntimeError("runtime manifest mismatch")
-    if _sha256(args.model.read_bytes()) != MODEL_SHA256:
-        raise RuntimeError("model checksum mismatch")
     triangles = load_triangles(args.topology)
     ontology = _ontology()
     transform = OpenCvGeometryTransform(runtime)
@@ -290,6 +360,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "height",
             "reference",
             "source_landmark_log",
+            "source_asset_reference",
+            "source_identity_reference",
             "source_path",
             "source_sha256",
             "width",
@@ -309,8 +381,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         for direction in (TransformDirection.INCREASE, TransformDirection.DECREASE):
             specification = VariantSpecification.create(
                 ontology=ontology,
-                source_asset_reference=entry["reference"],
-                source_identity_reference=f"identity-{entry['reference']}",
+                source_asset_reference=entry["source_asset_reference"],
+                source_identity_reference=entry["source_identity_reference"],
                 source_qa_run_reference=f"qa-{entry['reference']}",
                 target_dimension="jaw_width",
                 direction=direction,
@@ -330,7 +402,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 triangles=triangles,
             )
             source = CanonicalTransformSource(
-                asset_reference=entry["reference"],
+                asset_reference=entry["source_asset_reference"],
                 content=source_content,
                 sha256=entry["source_sha256"],
                 width=entry["width"],

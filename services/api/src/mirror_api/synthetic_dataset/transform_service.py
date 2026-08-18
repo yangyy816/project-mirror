@@ -41,7 +41,15 @@ from mirror_api.storage_keys import (
     synthetic_variant_storage_reference,
 )
 
-from .domain import DomainValidationError
+from .domain import (
+    CanonicalPolicy,
+    DomainValidationError,
+    GeometryDimension,
+    GeometryDimensionClassification,
+    GeometryOntology,
+    PolicyKind,
+    ReasonCode,
+)
 from .geometry_transform import (
     CanonicalTransformSource,
     GeometryTransform,
@@ -328,7 +336,10 @@ class SyntheticTransformService:
                 identity=identity,
                 policy=policy,
             )
-            domain_specification = self._domain_specification(specification, ontology)
+            try:
+                domain_specification = self._domain_specification(specification, ontology)
+            except (DomainValidationError, TypeError, ValueError):
+                raise TransformExecutionRejected("variant_specification_not_researchable") from None
             plan_authority = self._domain_plan(plan_model, domain_specification.content_digest)
             if run.status == "SPECIFIED":
                 run.status = "RUNNING"
@@ -582,12 +593,12 @@ class SyntheticTransformService:
     def _domain_specification(
         row: VariantSpecificationModel, ontology: GeometryOntologyVersion
     ) -> VariantSpecification:
-        return VariantSpecification(
+        domain_ontology = SyntheticTransformService._domain_ontology(ontology)
+        specification = VariantSpecification.create(
+            ontology=domain_ontology,
             source_asset_reference=row.source_asset_id,
             source_identity_reference=row.source_identity_id,
             source_qa_run_reference=row.source_qa_run_id,
-            ontology_version=ontology.version,
-            ontology_digest=ontology.content_digest,
             target_dimension=row.target_dimension,
             direction=TransformDirection(row.direction),
             relative_magnitude_ppm=row.relative_magnitude_ppm,
@@ -599,8 +610,47 @@ class SyntheticTransformService:
             output_height=row.output_height,
             output_policy_version=row.output_policy_version,
             determinism_level=DeterminismLevel(row.determinism_level),
-            content_digest=row.content_digest,
         )
+        if specification.content_digest != row.content_digest:
+            raise DomainValidationError(ReasonCode.INVALID_VARIANT_SPECIFICATION)
+        return specification
+
+    @staticmethod
+    def _domain_ontology(row: GeometryOntologyVersion) -> GeometryOntology:
+        authority = CanonicalPolicy.create(
+            kind=PolicyKind.GEOMETRY_ONTOLOGY_VERSION,
+            version=row.version,
+            content=row.content,
+        )
+        if authority.content_digest != row.content_digest:
+            raise DomainValidationError(ReasonCode.INVALID_POLICY_CONTENT)
+        dimensions_value = row.content.get("dimensions")
+        if not isinstance(dimensions_value, dict) or not dimensions_value:
+            raise DomainValidationError(ReasonCode.INVALID_POLICY_CONTENT)
+        dimensions: list[GeometryDimension] = []
+        for key in sorted(dimensions_value):
+            value = dimensions_value[key]
+            if (
+                type(key) is not str
+                or not isinstance(value, dict)
+                or set(value) != {"classification"}
+                or type(value["classification"]) is not str
+            ):
+                raise DomainValidationError(ReasonCode.INVALID_POLICY_CONTENT)
+            classification = GeometryDimensionClassification(value["classification"])
+            reason_codes: tuple[ReasonCode, ...]
+            if classification is GeometryDimensionClassification.READY:
+                reason_codes = ()
+            elif classification is GeometryDimensionClassification.EXPERIMENTAL:
+                reason_codes = (ReasonCode.FURTHER_RESEARCH,)
+            elif classification is GeometryDimensionClassification.UNSUPPORTED:
+                reason_codes = (ReasonCode.UNSUPPORTED_DIMENSION,)
+            elif classification is GeometryDimensionClassification.REQUIRES_3D:
+                reason_codes = (ReasonCode.REQUIRES_3D_RESEARCH,)
+            else:
+                reason_codes = (ReasonCode.STYLE_ONLY_DIMENSION,)
+            dimensions.append(GeometryDimension(key, classification, reason_codes))
+        return GeometryOntology(authority=authority, dimensions=tuple(dimensions))
 
     @staticmethod
     def _domain_plan(

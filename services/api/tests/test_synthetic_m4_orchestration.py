@@ -71,7 +71,10 @@ from mirror_api.synthetic_dataset.m4_orchestration_service import (
 from mirror_api.synthetic_dataset.normalization_service import SyntheticNormalizationService
 from mirror_api.synthetic_dataset.normalization_types import NormalizationResult
 from mirror_api.synthetic_dataset.orchestration_service import SyntheticM3OrchestrationService
-from mirror_api.synthetic_dataset.transform_service import SyntheticTransformService
+from mirror_api.synthetic_dataset.transform_service import (
+    SyntheticTransformService,
+    TransformExecutionRejected,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -135,6 +138,28 @@ class _UnavailableTransform:
         raise RuntimeError("injected private runtime outage")
 
 
+class _CountingTransform(_DeterministicTransform):
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def transform(self, *, request: GeometryTransformRequest) -> GeometryTransformResult:
+        self.calls += 1
+        return super().transform(request=request)
+
+
+class _ReadCountingNormalizedStorage:
+    def __init__(self, delegate: LocalSyntheticNormalizedStorageProvider) -> None:
+        self._delegate = delegate
+        self.reads = 0
+
+    async def stream_normalized_image(self, *, storage_reference: str) -> AsyncIterator[bytes]:
+        self.reads += 1
+        async for chunk in self._delegate.stream_normalized_image(
+            storage_reference=storage_reference
+        ):
+            yield chunk
+
+
 class _NoopNormalizer:
     async def normalize_record(self, **_: object) -> NormalizationResult:
         return NormalizationResult(
@@ -164,6 +189,10 @@ async def _authority(
     runtime_manifest_digest: str = "7" * 64,
     output_policy_version: str = "variant-output-v1",
     raw_bytes: bytes | None = None,
+    target_dimension: str = "jaw_width",
+    control_dimensions: tuple[str, ...] = ("nose_width",),
+    ontology_classifications: dict[str, str] | None = None,
+    bypass_domain_gate: bool = False,
 ) -> tuple[str, LocalSyntheticNormalizedStorageProvider]:
     raw_storage = LocalSyntheticRawStorageProvider(root=private_root)
     normalized_storage = LocalSyntheticNormalizedStorageProvider(root=private_root)
@@ -189,10 +218,14 @@ async def _authority(
         version="m4-transform-qa-v1",
         content=content,
     )
+    classifications = ontology_classifications or {
+        "jaw_width": "EXPERIMENTAL",
+        "nose_width": "READY",
+    }
     ontology_content = {
         "dimensions": {
-            "jaw_width": {"classification": "EXPERIMENTAL"},
-            "nose_width": {"classification": "READY"},
+            key: {"classification": classification}
+            for key, classification in classifications.items()
         }
     }
     ontology_document = CanonicalPolicy.create(
@@ -248,26 +281,33 @@ async def _authority(
         source_asset = await session.get(Asset, normalized.normalized_asset_id)
         assert record is not None and record.status == "IDENTITY_REGISTERED"
         assert source_asset is not None
-    ontology = GeometryOntology(
-        authority=ontology_document,
-        dimensions=(
-            GeometryDimension(
-                "jaw_width",
-                GeometryDimensionClassification.EXPERIMENTAL,
-                (ReasonCode.FURTHER_RESEARCH,),
-            ),
-            GeometryDimension("nose_width", GeometryDimensionClassification.READY),
-        ),
-    )
+    creation_keys = (target_dimension, *control_dimensions)
+    dimensions: list[GeometryDimension] = []
+    for key in dict.fromkeys(creation_keys):
+        classification = GeometryDimensionClassification(
+            "READY" if bypass_domain_gate else classifications[key]
+        )
+        if classification is GeometryDimensionClassification.READY:
+            reasons: tuple[ReasonCode, ...] = ()
+        elif classification is GeometryDimensionClassification.EXPERIMENTAL:
+            reasons = (ReasonCode.FURTHER_RESEARCH,)
+        elif classification is GeometryDimensionClassification.UNSUPPORTED:
+            reasons = (ReasonCode.UNSUPPORTED_DIMENSION,)
+        elif classification is GeometryDimensionClassification.REQUIRES_3D:
+            reasons = (ReasonCode.REQUIRES_3D_RESEARCH,)
+        else:
+            reasons = (ReasonCode.STYLE_ONLY_DIMENSION,)
+        dimensions.append(GeometryDimension(key, classification, reasons))
+    ontology = GeometryOntology(authority=ontology_document, dimensions=tuple(dimensions))
     specification_document = VariantSpecificationDocument.create(
         ontology=ontology,
         source_asset_reference=source_asset.id,
         source_identity_reference=identity.id,
         source_qa_run_reference=qa_run.id,
-        target_dimension="jaw_width",
+        target_dimension=target_dimension,
         direction=TransformDirection.INCREASE,
         relative_magnitude_ppm=100_000,
-        control_dimensions=("nose_width",),
+        control_dimensions=control_dimensions,
         algorithm_version=algorithm_version,
         runtime_manifest_digest=runtime_manifest_digest,
         tolerance_policy_reference=policy.id,
@@ -391,6 +431,76 @@ async def _pass_qa(
                 update(SyntheticQARun)
                 .where(SyntheticQARun.id == qa_run_id)
                 .values(status="PASSED", finalized_at=utcnow())
+            )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("target_dimension", "control_dimensions", "classifications"),
+    [
+        ("unknown_width", ("nose_width",), {"nose_width": "READY"}),
+        (
+            "unsupported_width",
+            ("nose_width",),
+            {"unsupported_width": "UNSUPPORTED", "nose_width": "READY"},
+        ),
+        (
+            "profile_depth",
+            ("nose_width",),
+            {"profile_depth": "REQUIRES_3D", "nose_width": "READY"},
+        ),
+        (
+            "hair_texture",
+            ("nose_width",),
+            {"hair_texture": "STYLE_ONLY", "nose_width": "READY"},
+        ),
+        (
+            "jaw_width",
+            ("unsupported_control",),
+            {"jaw_width": "EXPERIMENTAL", "unsupported_control": "UNSUPPORTED"},
+        ),
+    ],
+)
+async def test_persisted_nonresearchable_dimension_stops_before_any_io(
+    tmp_path: Path,
+    target_dimension: str,
+    control_dimensions: tuple[str, ...],
+    classifications: dict[str, str],
+) -> None:
+    async with _database() as sessions:
+        private_root = tmp_path / "private"
+        run_id, normalized_storage = await _authority(
+            sessions,
+            private_root,
+            target_dimension=target_dimension,
+            control_dimensions=control_dimensions,
+            ontology_classifications=classifications,
+            bypass_domain_gate=True,
+        )
+        read_counting_storage = _ReadCountingNormalizedStorage(normalized_storage)
+        transform = _CountingTransform()
+        service = SyntheticTransformService(
+            session_factory=sessions,
+            transform=transform,
+            normalized_storage=read_counting_storage,
+            variant_storage=LocalSyntheticVariantStorageProvider(root=private_root),
+            now=utcnow,
+        )
+
+        with pytest.raises(TransformExecutionRejected) as rejected:
+            await service.execute(transform_run_id=run_id)
+
+        assert rejected.value.code == "variant_specification_not_researchable"
+        assert read_counting_storage.reads == 0
+        assert transform.calls == 0
+        async with sessions() as session:
+            run = await session.get(TransformRun, run_id)
+            assert run is not None and run.status == "SPECIFIED"
+            assert (
+                await session.scalar(
+                    select(func.count()).select_from(Asset).where(Asset.is_ai_modified)
+                )
+                == 0
             )
 
 
