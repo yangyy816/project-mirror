@@ -121,6 +121,11 @@
 
 ## 工作记录
 
+- 2026-08-18：P2-M4-T04 tracked evidence `28e5ae8ab9350fe44fa1e14aa1ae9c15436717fa` 的 run
+  `32125987000` 三 jobs 全绿；下载 artifact `9320466783` 精确绑定该 SHA、migration head `0012`、
+  46 M3 tests/0 skip 与既有 private-synthetic boundaries。Principal 接受 T04 并只开放 T05；
+  P2-M4 仍为 EXECUTING，T05–T08 与 Milestone Gate 未完成。
+
 - 2026-08-18：P2-M4-T04 候选 `OPENCV_5_0_0_BOUNDED_TRANSITIVE_SOURCE_V2` 完成本地 Gate，Principal
   处置为 `APPROVED_FOR_PRIVATE_SYNTHETIC_M4`，但须待 tracked evidence 的 same-SHA CI 通过后才开放
   T05。exact OpenCV 5.0.0 source + R08 conditional no-PDB overlay 构建的实际闭包仅为

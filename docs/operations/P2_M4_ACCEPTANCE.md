@@ -14,24 +14,24 @@ PASS.
 
 ## Mandatory evidence matrix
 
-| Gate             | Required evidence                                                   | Status                             |
-| ---------------- | ------------------------------------------------------------------- | ---------------------------------- |
-| Architecture     | ADR-036 and rolling-wave contracts accepted                         | T01 PASS                           |
-| QA subject union | ADR-037 preserves M3 base authority and binds variant result QA     | ACCEPTED                           |
-| Domain           | immutable source-relative spec and fail-closed state machine        | T02 PASS                           |
-| Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | T03 PASS                           |
-| Source authority | only QA-passed canonical synthetic Asset/identity/run               | T03 PASS                           |
-| Lineage          | source/spec/run/result/measurement chain immutable                  | T03 PASS                           |
-| Candidate        | exact source/version/license/SBOM/vulnerability/zero-network review | T04 CANDIDATE APPROVED; CI PENDING |
-| Transform        | bounded adapter, no absolute/global target, new Asset only          | PENDING                            |
-| Determinism      | preregistered same-platform and Windows/Linux evidence              | PENDING                            |
-| Safety           | bounds/foldover/malformed/second-decode and artifact negatives      | PENDING                            |
-| Measurement      | requested and actual target/control evidence retained               | PENDING                            |
-| Recovery         | retry/cancel/duplicate/reconcile and lock-order evidence            | PENDING                            |
-| Synthetic-only   | no User relation, real-person fixture or sensitive classifier       | PENDING                            |
-| Contracts        | public OpenAPI/generated TypeScript unchanged                       | PENDING                            |
-| Full Gate        | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA CI          | PENDING                            |
-| Review           | independent security and final review                               | PENDING                            |
+| Gate             | Required evidence                                                   | Status   |
+| ---------------- | ------------------------------------------------------------------- | -------- |
+| Architecture     | ADR-036 and rolling-wave contracts accepted                         | T01 PASS |
+| QA subject union | ADR-037 preserves M3 base authority and binds variant result QA     | ACCEPTED |
+| Domain           | immutable source-relative spec and fail-closed state machine        | T02 PASS |
+| Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | T03 PASS |
+| Source authority | only QA-passed canonical synthetic Asset/identity/run               | T03 PASS |
+| Lineage          | source/spec/run/result/measurement chain immutable                  | T03 PASS |
+| Candidate        | exact source/version/license/SBOM/vulnerability/zero-network review | T04 PASS |
+| Transform        | bounded adapter, no absolute/global target, new Asset only          | PENDING  |
+| Determinism      | preregistered same-platform and Windows/Linux evidence              | PENDING  |
+| Safety           | bounds/foldover/malformed/second-decode and artifact negatives      | PENDING  |
+| Measurement      | requested and actual target/control evidence retained               | PENDING  |
+| Recovery         | retry/cancel/duplicate/reconcile and lock-order evidence            | PENDING  |
+| Synthetic-only   | no User relation, real-person fixture or sensitive classifier       | PENDING  |
+| Contracts        | public OpenAPI/generated TypeScript unchanged                       | PENDING  |
+| Full Gate        | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA CI          | PENDING  |
+| Review           | independent security and final review                               | PENDING  |
 
 ## Entry evidence
 
@@ -107,6 +107,11 @@ PASS.
 - Principal local disposition is `APPROVED_FOR_PRIVATE_SYNTHETIC_M4`. The complete redacted report is
   `docs/research/P2_M4_T04_OPENCV_5_BOUNDED_SOURCE_V2_REPORT.md`. T05 remains closed until this
   tracked evidence checkpoint passes same-SHA GitHub Actions.
+- Tracked evidence commit `28e5ae8ab9350fe44fa1e14aa1ae9c15436717fa` completed GitHub Actions run
+  `32125987000`; `quality-and-integration`, `secret-scan` and `docker-validation` all passed.
+  Downloaded artifact `9320466783` binds the exact SHA, current migration head `0012`, 46 M3 tests
+  with zero failures/errors/skips and unchanged private-synthetic boundaries. Project audit, Docker
+  and Gitleaks artifacts are present and readable. Principal accepts T04 and opens T05 only.
 
 ## Exit rule
 

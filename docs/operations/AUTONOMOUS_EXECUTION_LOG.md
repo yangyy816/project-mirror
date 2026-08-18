@@ -331,3 +331,15 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Principal local disposition is `APPROVED_FOR_PRIVATE_SYNTHETIC_M4`. T05 remains closed until this
   tracked evidence passes same-SHA GitHub Actions. No binary, project dependency, model, image,
   production, distribution, real-user or QuestionBank authority is added.
+
+## 2026-08-18T18:50:00+08:00 — P2-M4-T04 tracked evidence acceptance
+
+- Commit `28e5ae8ab9350fe44fa1e14aa1ae9c15436717fa` was pushed normally using the user's local proxy
+  only for the command; no persistent Git proxy configuration changed.
+- Same-SHA run `32125987000` passed `quality-and-integration`, `secret-scan` and
+  `docker-validation`. The existing Node 20 action-runtime deprecation annotations are non-blocking.
+- Downloaded artifact `9320466783` records migration head `0012`, 46 M3 tests with zero
+  failures/errors/skips and unchanged private-synthetic boundaries. Project audit, Docker and
+  Gitleaks artifacts are present and readable.
+- Principal accepts T04 and opens T05. P2-M4 remains `EXECUTING`; T05–T08 and the Milestone Gate are
+  not complete.
