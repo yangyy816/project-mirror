@@ -263,3 +263,14 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - The next bounded action is T04 candidate preregistration and isolated PoC. Download authorization
   remains distinct from dependency adoption, model distribution, production Vision and real-user
   facial-processing approval.
+
+## 2026-08-18T16:10:00+08:00 — P2-M4-T04 candidate preregistration
+
+- T03 governance checkpoint `75b95eb20ea47b8633c30ee6b72ce5191ce25094` completed run
+  `32114265582`; all three jobs passed before T04 execution began.
+- Candidate `OPENCV_PYTHON_HEADLESS_5_0_0_93_V1` freezes upstream OpenCV `5.0.0`, PyPI package
+  `opencv-python-headless==5.0.0.93`, exact Windows/Linux wheel names and PyPI SHA-256 values.
+- Determinism, numeric/pixel variance, bounds/foldover, zero-network, footprint, performance,
+  license/SBOM/vulnerability and replacement-cost gates were frozen before artifact acquisition.
+- No dependency, wheel, model or fixture was added to Git or project manifests. The next action is
+  exact artifact admission into ignored private storage followed by the ordered isolated PoC.
