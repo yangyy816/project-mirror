@@ -428,3 +428,12 @@
   authority。T05 本地结论为 `FURTHER_RESEARCH`，全局 MVR 保持 `NOT_EVALUATED`；不得用 M4 N=2 重标
   M5 holdout，不创建阈值/最终 cohort，不开放 T06。补足数据与维度必须走前向 research change control，
   不能包装成 Repair。
+
+- 2026-08-19：P2-M5-T05 candidate `e46d7a9d19eee536c2f57cac6de224cccf27f2be` 的 run
+  `32187946640` 三 jobs 全绿；七项 artifacts 精确绑定该 SHA、`0014_m5_eval_authority` 与 unchanged
+  OpenAPI，Phase 1/M1/M2/M3 为 1/98/52/46 tests 且零 failure/error/skip，Gitleaks 零 results。
+  Principal 接受 T05 的 `FURTHER_RESEARCH` stop decision；P2-MVR-v1 保持 `NOT_EVALUATED`。全部四项
+  canonical identities 均为 `M4_SEEN`，M5 calibration/holdout effective N 为 0，且不存在四个 READY
+  dimensions、三个冻结 region groups 或 threshold calibration distributions。T06–T08、M6、production
+  geometry、真人处理与 QuestionBank release 保持关闭；补足 evidence 必须走前向 research change
+  control，不能包装成 Repair。

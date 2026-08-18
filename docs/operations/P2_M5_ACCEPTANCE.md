@@ -251,3 +251,25 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `P2_MVR_V1_RESULT: NOT_EVALUATED`
 
 `P2_M5_T06_ENTRY: CLOSED`
+
+## T05 tracked disposition
+
+- Candidate `e46d7a9d19eee536c2f57cac6de224cccf27f2be` run `32187946640` passed
+  `quality-and-integration`, `secret-scan` and `docker-validation` on the exact candidate SHA.
+- Seven artifacts are present, readable and unexpired. Phase 1/M1/M2/M3 evidence binds the exact SHA, migration head
+  `0014_m5_eval_authority` and unchanged OpenAPI digest; the suites report 1/98/52/46 tests with zero failures,
+  errors or skips. Gitleaks SARIF contains zero results.
+- Docker evidence contains no execution failure; the only case-insensitive `error` match is the Redis module
+  configuration field `bf-error-rate`.
+- Principal accepts T05 as an evidence-backed stop decision. Its accepted outcome is `FURTHER_RESEARCH`; the global
+  P2-MVR-v1 result remains `NOT_EVALUATED`. This is not an MVR PASS and does not authorize a threshold, holdout run,
+  T06–T08, production geometry, real-user facial processing, M6 or QuestionBank release.
+- The next viable work is a forward research change control for identity-disjoint calibration/holdout cohorts,
+  at least four bidirectional candidate dimensions across three non-sensitive region groups, and calibration
+  distributions before any threshold freeze. It must not be represented as a Repair Task.
+
+`P2_M5_T05_TRACKED_DISPOSITION: ACCEPTED_FURTHER_RESEARCH`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M5_T06_ENTRY: CLOSED`

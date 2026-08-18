@@ -619,3 +619,15 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Added canonical readiness evidence, a fail-closed preregistration decision and two deterministic source/digest/
   boundary tests. T05 is `READY_FOR_TRACKED_EVIDENCE` with outcome `FURTHER_RESEARCH`; MVR remains `NOT_EVALUATED`
   and T06 remains closed.
+
+## 2026-08-19T21:55:00+08:00 — P2-M5-T05 tracked further-research disposition
+
+- Candidate `e46d7a9d19eee536c2f57cac6de224cccf27f2be` completed run `32187946640`; all three jobs passed.
+- Seven artifacts are readable, unexpired and exact-SHA bound. Phase 1/M1/M2/M3 evidence reports migration head
+  `0014_m5_eval_authority`, unchanged OpenAPI and 1/98/52/46 tests with zero failures/errors/skips; Gitleaks SARIF has
+  zero results. Docker evidence has no execution failure.
+- Principal accepts T05 only as the honest `FURTHER_RESEARCH` stop decision. P2-MVR-v1 remains `NOT_EVALUATED`
+  because all four canonical identities are `M4_SEEN`, M5 calibration/holdout effective N is zero, and no four READY
+  dimensions, three frozen region groups or calibration distributions exist.
+- T06–T08, MVR execution, production geometry, real-user facial processing, M6 and QuestionBank release remain
+  closed. The next viable action requires forward research change control, not a Repair Task.
