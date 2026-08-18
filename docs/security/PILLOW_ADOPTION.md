@@ -67,3 +67,17 @@ The Windows wheel exposes compiled `.pyd` modules and the Linux wheel exposes co
 `APPROVE_FOR_P2` — 2026-08-16
 
 The already pinned and reviewed Pillow 12.3.0 runtime may later be reused for P2 synthetic normalization without a version change. This expands purpose only; it does not authorize P2-M1 image processing or any new dependency. Future P2 normalization must explicitly enforce bounded decode, pixel/decompression-bomb defenses, orientation and colorspace normalization, format allowlisting, explicit ICC/EXIF/XMP/IPTC/comment sanitation, canonical re-encoding, a second decode and checksum verification. Re-saving alone is not evidence that all metadata was removed.
+
+### P2-M4-T05 bounded transform extension
+
+`APPROVED_FOR_PRIVATE_SYNTHETIC_M4` — 2026-08-18
+
+The same pinned Pillow 12.3.0 runtime may decode an already checksum-bound canonical synthetic JPEG
+to bounded RGB pixels and encode the bounded RGB result of the approved M4 geometry adapter with the
+unchanged `image-sanitizer-v1` JPEG policy. The adapter must verify declared dimensions, byte/pixel
+limits, single-frame JPEG shape, second decode and output checksum. Pillow does not perform the warp,
+select landmarks, infer age/identity, accept arbitrary formats or become transform authority.
+
+This is a purpose-only extension: no version, wheel, lockfile, native closure or distribution decision
+changes. It remains private synthetic M4 research and does not authorize User Assets, real-user facial
+processing, production editing, QuestionBank release or a general image-manipulation surface.

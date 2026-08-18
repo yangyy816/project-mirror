@@ -121,6 +121,18 @@
 
 ## 工作记录
 
+- 2026-08-18：P2-M4-T05 首版 first-party dense map、canonical JPEG/RGB boundary、exact-hash native
+  loader 与 OpenCV adapter 已通过 45 项 targeted tests、完整 API/Worker Ruff/mypy/pytest 和双平台
+  private smoke；Windows 与合格 Linux builder 的 canonical result SHA-256 同为 `5f7868d5...`。
+  但 accepted Linux runtime 需要 `GLIBC_2.38`/`CXXABI_1.3.15`，仓库实际 Debian 12 API 镜像只有
+  glibc 2.36，标准镜像在处理 bytes 前正确 fail closed。Principal 通过 `CC-P2-M4-02` 只重开
+  Debian 12-compatible Linux candidate identity；不得升级 base image 掩盖缺口，T05 尚未接受，
+  T06 保持关闭。
+
+- 2026-08-18：P2-M4 T04 acceptance checkpoint `c919e0b95cbea6cdfbe8fbcc47e1e58c1f2ec4c5`
+  的 run `32126635267` 三 jobs 全绿；该 run 只确认 T04 acceptance 文档与既有冻结回归，不替代
+  T05 adapter 或标准 Docker runtime compatibility Gate。
+
 - 2026-08-18：P2-M4-T04 tracked evidence `28e5ae8ab9350fe44fa1e14aa1ae9c15436717fa` 的 run
   `32125987000` 三 jobs 全绿；下载 artifact `9320466783` 精确绑定该 SHA、migration head `0012`、
   46 M3 tests/0 skip 与既有 private-synthetic boundaries。Principal 接受 T04 并只开放 T05；

@@ -11,6 +11,8 @@ from PIL import Image, PngImagePlugin  # type: ignore[import-not-found]
 from mirror_api.image_sanitizer import (
     ImageSanitizationError,
     ImageSanitizerConfig,
+    canonicalize_rgb_image,
+    decode_canonical_rgb_image,
     sanitize_async_image_stream,
     sanitize_image,
     sanitize_image_stream,
@@ -52,6 +54,34 @@ def test_sanitizer_canonicalizes_supported_synthetic_formats(
         assert output.size == (64, 80)
         assert not output.getexif()
         assert not {"exif", "icc_profile", "xmp", "comment"}.intersection(output.info)
+
+
+def test_canonical_rgb_round_trip_is_bounded_and_deterministic() -> None:
+    rgb = bytes((index * 17) % 256 for index in range(64 * 64 * 3))
+    first = canonicalize_rgb_image(rgb, width=64, height=64)
+    second = canonicalize_rgb_image(rgb, width=64, height=64)
+    decoded = decode_canonical_rgb_image(
+        first.bytes_value,
+        expected_width=64,
+        expected_height=64,
+    )
+
+    assert first == second
+    assert len(decoded.bytes_value) == 64 * 64 * 3
+    assert (decoded.width, decoded.height) == (64, 64)
+
+
+def test_canonical_rgb_helpers_reject_shape_and_container_mismatch() -> None:
+    with pytest.raises(ImageSanitizationError, match="sanitized_output_invalid"):
+        canonicalize_rgb_image(b"short", width=64, height=64)
+
+    canonical = canonicalize_rgb_image(bytes(64 * 64 * 3), width=64, height=64)
+    with pytest.raises(ImageSanitizationError, match="sanitized_output_invalid"):
+        decode_canonical_rgb_image(
+            canonical.bytes_value,
+            expected_width=65,
+            expected_height=64,
+        )
 
 
 def test_sanitizer_applies_exif_orientation_and_removes_metadata(tmp_path) -> None:

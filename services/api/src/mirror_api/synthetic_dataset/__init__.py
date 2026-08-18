@@ -20,6 +20,17 @@ from .domain import (
     require_ready_dimension,
     transition,
 )
+from .geometry_transform import (
+    CanonicalTransformSource,
+    DenseRemap,
+    GeometryTransform,
+    GeometryTransformRequest,
+    GeometryTransformResult,
+    LandmarkWarpPlan,
+    WarpControlPoint,
+    WarpTriangle,
+    build_dense_remap,
+)
 from .geometry_variant import (
     DeterminismLevel,
     TransformDirection,
@@ -32,6 +43,8 @@ from .geometry_variant import (
 __all__ = [
     "AuthorityApprovalState",
     "CanonicalPolicy",
+    "CanonicalTransformSource",
+    "DenseRemap",
     "DeterminismLevel",
     "DomainValidationError",
     "GenerationBatchState",
@@ -39,6 +52,10 @@ __all__ = [
     "GeometryDimension",
     "GeometryDimensionClassification",
     "GeometryOntology",
+    "GeometryTransform",
+    "GeometryTransformRequest",
+    "GeometryTransformResult",
+    "LandmarkWarpPlan",
     "PolicyKind",
     "ReasonCode",
     "ReleaseState",
@@ -46,6 +63,9 @@ __all__ = [
     "TransformRunState",
     "VariantSpecification",
     "VariantState",
+    "WarpControlPoint",
+    "WarpTriangle",
+    "build_dense_remap",
     "canonicalize_policy_content",
     "require_ready_dimension",
     "require_researchable_dimension",

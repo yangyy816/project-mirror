@@ -181,6 +181,11 @@ Common packet fields for T01–T08:
   Ruff/mypy/pytest.
 - Agent: Terra High because the contract is frozen and numeric failure paths are deep.
 
+`CC-P2-M4-02` forward-adds standard Docker ABI compatibility to the T04→T05 boundary after the exact
+accepted Linux artifact was proven incompatible with the repository's Debian 12 API image. T05 stays
+open but cannot be accepted until the bounded V3 Linux rebuild passes the unchanged T04 Gates and a
+real adapter smoke in that image. The base image must not be upgraded inside T05 to hide this result.
+
 ### P2-M4-T06 — Application, storage and Worker integration
 
 - Objective/why: make execution recoverable under at-least-once delivery without moving domain

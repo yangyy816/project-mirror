@@ -92,6 +92,15 @@ class SanitizedImage:
     height: int
 
 
+@dataclass(frozen=True)
+class CanonicalRgbImage:
+    """Bounded RGB pixels decoded from a canonical single-frame JPEG."""
+
+    bytes_value: bytes
+    width: int
+    height: int
+
+
 DEFAULT_IMAGE_SANITIZER_CONFIG = ImageSanitizerConfig()
 
 
@@ -108,6 +117,99 @@ def sanitize_image(
         declared_mime_type=declared_mime_type,
         config=config,
         spool_root=spool_root,
+    )
+
+
+def canonicalize_rgb_image(
+    rgb_bytes: bytes,
+    *,
+    width: int,
+    height: int,
+    config: ImageSanitizerConfig = DEFAULT_IMAGE_SANITIZER_CONFIG,
+) -> SanitizedImage:
+    """Encode already-bounded RGB pixels with the existing canonical JPEG policy."""
+    if type(rgb_bytes) is not bytes or type(width) is not int or type(height) is not int:
+        raise ImageSanitizationError("sanitized_output_invalid")
+    pixels = width * height
+    _validate_dimensions(width, height, pixels, config)
+    if len(rgb_bytes) != pixels * 3:
+        raise ImageSanitizationError("sanitized_output_invalid")
+    try:
+        image = Image.frombytes("RGB", (width, height), rgb_bytes)
+        try:
+            encoded = _encode_rgb(image, config)
+        finally:
+            image.close()
+        _validate_output(
+            encoded,
+            width=width,
+            height=height,
+            pixels=pixels,
+            config=config,
+        )
+    except ImageSanitizationError:
+        raise
+    except (OSError, ValueError):
+        raise ImageSanitizationError("sanitized_output_invalid") from None
+    return SanitizedImage(
+        version=config.version,
+        content_type=CANONICAL_MIME_TYPE,
+        bytes_value=encoded,
+        sha256=sha256(encoded).hexdigest(),
+        byte_size=len(encoded),
+        width=width,
+        height=height,
+    )
+
+
+def decode_canonical_rgb_image(
+    canonical_bytes: bytes,
+    *,
+    expected_width: int,
+    expected_height: int,
+    config: ImageSanitizerConfig = DEFAULT_IMAGE_SANITIZER_CONFIG,
+) -> CanonicalRgbImage:
+    """Decode an already-canonical JPEG to bounded in-memory RGB pixels."""
+    if type(canonical_bytes) is not bytes or not canonical_bytes:
+        raise ImageSanitizationError("sanitized_output_invalid")
+    if len(canonical_bytes) > config.max_input_bytes:
+        raise ImageSanitizationError("image_too_large")
+    _validate_dimensions(
+        expected_width,
+        expected_height,
+        expected_width * expected_height,
+        config,
+    )
+    try:
+        with BytesIO(canonical_bytes) as source:
+            if _expected_format(source, CANONICAL_MIME_TYPE) != "JPEG":
+                raise ImageSanitizationError("image_type_mismatch")
+            source.seek(0)
+            _decode_and_validate(source, "JPEG", config)
+            source.seek(0)
+            with Image.open(source, formats=("JPEG",)) as image:
+                if image.format != "JPEG" or getattr(image, "n_frames", 1) != 1:
+                    raise ImageSanitizationError("sanitized_output_invalid")
+                if image.size != (expected_width, expected_height):
+                    raise ImageSanitizationError("sanitized_output_invalid")
+                image.load()
+                rgb = image.convert("RGB")
+                try:
+                    pixels = rgb.tobytes()
+                finally:
+                    rgb.close()
+    except ImageSanitizationError:
+        raise
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+        raise ImageSanitizationError("image_decompression_bomb") from None
+    except (OSError, SyntaxError, UnidentifiedImageError, ValueError):
+        raise ImageSanitizationError("sanitized_output_invalid") from None
+    if len(pixels) != expected_width * expected_height * 3:
+        raise ImageSanitizationError("sanitized_output_invalid")
+    return CanonicalRgbImage(
+        bytes_value=pixels,
+        width=expected_width,
+        height=expected_height,
     )
 
 
@@ -287,24 +389,29 @@ def _canonical_encode(
                 rgb = _assumed_srgb_rgb(oriented)
                 try:
                     rgb.info.clear()
-                    for quality in config.jpeg_quality_ladder:
-                        output = BytesIO()
-                        rgb.save(
-                            output,
-                            format="JPEG",
-                            quality=quality,
-                            subsampling="4:2:0",
-                            optimize=False,
-                            progressive=False,
-                        )
-                        encoded = output.getvalue()
-                        if len(encoded) <= config.max_output_bytes:
-                            return encoded, rgb.width, rgb.height
+                    return _encode_rgb(rgb, config), rgb.width, rgb.height
                 finally:
                     rgb.close()
             finally:
                 if oriented is not image:
                     oriented.close()
+    raise ImageSanitizationError("sanitized_output_too_large")
+
+
+def _encode_rgb(image: Image.Image, config: ImageSanitizerConfig) -> bytes:
+    for quality in config.jpeg_quality_ladder:
+        output = BytesIO()
+        image.save(
+            output,
+            format="JPEG",
+            quality=quality,
+            subsampling="4:2:0",
+            optimize=False,
+            progressive=False,
+        )
+        encoded = output.getvalue()
+        if len(encoded) <= config.max_output_bytes:
+            return encoded
     raise ImageSanitizationError("sanitized_output_too_large")
 
 

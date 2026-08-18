@@ -113,6 +113,18 @@ PASS.
   with zero failures/errors/skips and unchanged private-synthetic boundaries. Project audit, Docker
   and Gitleaks artifacts are present and readable. Principal accepts T04 and opens T05 only.
 
+## T05 compatibility finding
+
+- The first-party port, dense source-relative map, canonical JPEG/RGB boundary, exact-hash loader and
+  deterministic fake/native tests are implemented locally but are not yet accepted.
+- Exact Windows R08 runtime smoke passed twice. The exact Linux runtime in its qualified builder
+  produced the same canonical result SHA-256 `5f7868d5...` with zero network.
+- The repository's real Debian 12 API image rejected that Linux binary because it requires
+  `GLIBC_2.38` and `CXXABI_1.3.15`, while the image provides glibc 2.36. Therefore Transform,
+  Determinism and Full Gate remain `PENDING`.
+- `CC-P2-M4-02` reopens only the Linux deployment-compatible candidate identity. T05/T06 cannot use
+  a base-image upgrade or an unverified fallback to bypass this Gate.
+
 ## Exit rule
 
 P2-M4 can pass only when every mandatory row has actual evidence, all candidate claims are bounded to
