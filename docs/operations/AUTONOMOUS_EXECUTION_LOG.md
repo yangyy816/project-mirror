@@ -689,3 +689,15 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Principal accepts the bounded 12-identity Stage B calibration acquisition. Stage C opens only for an exact
   candidate-manifest checkpoint; measurements, transforms, calibration thresholds, Stage D–E, T06–T08, MVR,
   production geometry, real-user processing, M6 and QuestionBank release remain closed.
+
+## 2026-08-19T08:00:00+08:00 — Stage B acceptance closure and Stage C manifest local candidate
+
+- Stage B acceptance checkpoint `0a46f0f6889b4fd0e05cec9b78f66a20c8c56ef1` run `32197913261` passed all three
+  jobs; seven artifacts are readable, exact-SHA bound and unexpired.
+- The premeasurement Stage C candidate manifest freezes six candidates, four non-sensitive region groups, exact
+  landmark/formula/plan versions, `15_000/30_000 ppm`, two platforms, three repeats, full controls, complete-case
+  missingness, artifact gates and negative controls. Content digest is
+  `eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4`.
+- Two deterministic manifest tests pass. No Stage C measurement or transform was read or executed; Stage C execution,
+  Stage D–E, T06–T08, MVR, production geometry, real-user processing, M6 and QuestionBank release remain closed until
+  tracked manifest acceptance.

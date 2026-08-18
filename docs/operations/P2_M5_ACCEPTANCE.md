@@ -277,6 +277,23 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `CC_P2_M5_01_D_TO_E: CLOSED`
 
+## CC-P2-M5-01 Stage C manifest local candidate
+
+- `docs/research/P2_M5_CC01C_CANDIDATE_MANIFEST.json` freezes the complete six-candidate family, four non-sensitive
+  region groups, exact normalized-X/Y formulas, source-relative plan builders, `15_000/30_000 ppm` grid, two
+  platforms, three repeats, all non-target controls, complete-case rules and failure interpretations. Its content
+  digest is `eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4`.
+- The manifest binds the accepted private Vision/model/topology and OpenCV runtime digests. It adds no dependency,
+  model, binary, schema, public API or production path.
+- The deterministic test verifies manifest content addressing, complete candidate/control coverage, redaction,
+  synthetic-only boundaries and the absence of any Stage C threshold or READY claim.
+- No Stage C measurement or transform was read or executed. Execution remains closed until this manifest candidate
+  passes exact-SHA Actions and artifact inspection.
+
+`CC_P2_M5_01_C_MANIFEST: LOCAL_CANDIDATE_PENDING_TRACKED_ACCEPTANCE`
+
+`CC_P2_M5_01_C_EXECUTION: CLOSED_PENDING_MANIFEST_TRACKED_ACCEPTANCE`
+
 ## T05 tracked disposition
 
 - Candidate `e46d7a9d19eee536c2f57cac6de224cccf27f2be` run `32187946640` passed

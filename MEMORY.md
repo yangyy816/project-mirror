@@ -473,3 +473,10 @@
   results。Principal 接受 Stage B，只开放 Stage C exact candidate-manifest 编写；在该 manifest tracked
   acceptance 前 measurement/transform/threshold calibration 仍关闭，Stage D–E、T06–T08、MVR、production
   geometry、真人处理、M6 与 QuestionBank release 继续关闭。
+
+- 2026-08-19：Stage B acceptance checkpoint `0a46f0f6889b4fd0e05cec9b78f66a20c8c56ef1` 的 run
+  `32197913261` 三 jobs 与七 artifacts 全绿，只开放 Stage C premeasurement candidate-manifest。本地
+  manifest candidate digest 为 `eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4`，
+  冻结 6 个 candidates、4 个 non-sensitive region groups、精确 landmark/formula、source-relative Gaussian
+  plan、`15k/30k ppm`、双平台三次 repeat、全 control/missingness/artifact/negative-control 规则。
+  尚未读取或执行 Stage C measurement/transform；tracked acceptance 前继续关闭。

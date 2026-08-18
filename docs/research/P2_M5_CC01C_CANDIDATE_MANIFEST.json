@@ -1,0 +1,256 @@
+{
+  "schema_version": "mirror.p2-m5/CC01CCandidateManifest/v1",
+  "status": "PREREGISTERED_NOT_EXECUTED",
+  "authority_checkpoint_sha": "0a46f0f6889b4fd0e05cec9b78f66a20c8c56ef1",
+  "authority_checkpoint_run": 32197913261,
+  "calibration_authority": {
+    "stage_b_candidate_sha": "7282094406b9754368709f543c4fda54b2e57490",
+    "stage_b_run": 32197326163,
+    "redacted_evidence_sha256": "a71206d99a08a1372694175ec537282bae1f662b6a77ac35dfe097ae8e8e3908",
+    "accepted_identity_count": 12,
+    "split": "CALIBRATION",
+    "m4_seen_allowed": false,
+    "future_holdout_allowed": false
+  },
+  "boundaries": {
+    "synthetic_only": true,
+    "real_user_processing": false,
+    "production_geometry": false,
+    "public_api_change": false,
+    "question_bank_release": false,
+    "network_during_execution": false,
+    "automatic_age_estimation": false,
+    "beauty_score_or_rank": false,
+    "sensitive_classification": false
+  },
+  "runtime_authority": {
+    "vision_candidate_reference": "p2-m3-vision-v03-stage-c-r25-private",
+    "vision_model_sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+    "topology_sha256": "85eea84eef15dd963e06382d6e61f7357029d9901acc935731ecaa7eab856b63",
+    "expected_landmarks": 478,
+    "plan_landmarks": 468,
+    "expected_triangles": 852,
+    "plan_admission_floor_ppm": 500000,
+    "plan_admission_floor_is_model_confidence": false,
+    "vision_artifacts": {
+      "windows_x86_64": {
+        "wrapper_sha256": "d7d656252b4311fc617802340bd81f0350805f481092f28774f32f9496794e83",
+        "main_sha256": "1c67ae02b90a5b00b58018c3c04db411134d781c6f53b195e68a6ce6136615ef",
+        "opencv_core_sha256": "e0415de8bd7dd97f1c2bcccfba627fe6efe4da9441c9b4c9772f3f4faa8f4343",
+        "opencv_imgproc_sha256": "1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4"
+      },
+      "linux_x86_64_network_none": {
+        "wrapper_sha256": "1cfbd3b219542262be424b2cdcff512cc16ce042f847c6d0fcf50eabb98782d3",
+        "main_sha256": "6a5fb35175efc2f014fb61f7f4abb2c78c38156bd6abf2186d1549cbf3f006a7",
+        "opencv_core_sha256": "116c2db3b7e149390631af309f910eabeb73bd18281e4174f131ced2a8de4408",
+        "opencv_imgproc_sha256": "765ebf6c659e523d9d7e9557e63f004a041a9327fcba95e6d4ac0670485241f5"
+      }
+    },
+    "transform_algorithm_version": "opencv-piecewise-affine-v1",
+    "transform_runtime_manifest_digest": {
+      "windows_x86_64": "27b33d646d8587f76d5ca317ac9d6aec95bc04fd87d413bb3dd6394f9694bb7a",
+      "linux_x86_64_network_none": "5d0e9ee323d7daea78e8baaeec63917c7a1867301ec5f7c71685fa9cbed311d8"
+    },
+    "output_policy_version": "image-sanitizer-v1"
+  },
+  "evaluation_contract": {
+    "coordinate_system": "normalized_image_xy_v1",
+    "face_height_normalizer_landmarks": [10, 152],
+    "directions": ["INCREASE", "DECREASE"],
+    "magnitude_grid_ppm": [15000, 30000],
+    "repeat_count_per_platform_direction_magnitude": 3,
+    "platforms": ["windows_x86_64", "linux_x86_64_network_none"],
+    "same_platform_output_rule": "ALL_THREE_OUTPUT_SHA256_EQUAL",
+    "cross_platform_output_rule": "COMPARE_BYTES_WITHOUT_REQUIRING_EQUALITY",
+    "cross_platform_measurement_rule": "RECORD_ABSOLUTE_DIFFERENCE_FOR_EVERY_DIMENSION",
+    "complete_case_rule": "NO_IMPUTATION_ALL_12_IDENTITIES_REQUIRED_PER_CANDIDATE",
+    "threshold_rule": "CALIBRATION_DISTRIBUTIONS_ONLY_STAGE_D_MUST_FREEZE_THRESHOLDS",
+    "all_candidate_outcomes_required": true
+  },
+  "resource_envelope": {
+    "identity_count": 12,
+    "candidate_count": 6,
+    "direction_count": 2,
+    "magnitude_count": 2,
+    "platform_count": 2,
+    "repeat_count": 3,
+    "maximum_transform_vision_rows": 1728,
+    "retry_attempts": 0,
+    "concurrency_per_platform": 1
+  },
+  "candidate_dimensions": [
+    {
+      "dimension_key": "jaw_width",
+      "region_group": "lower_face",
+      "measurement_formula": "distance_xy(234,454)/distance_xy(10,152)",
+      "measurement_version": "p2-m5-jaw-width-xy-face-height-v1",
+      "plan_builder_version": "p2-m4-t07-jaw-local-field-v1",
+      "plan_kind": "PAIRED_HORIZONTAL_GAUSSIAN",
+      "anchors": [234, 454],
+      "sigma_x_formula": "0.12*(source_x(454)-source_x(234))",
+      "sigma_y_formula": "0.18*distance_xy(10,152)",
+      "maximum_anchor_displacement_formula": "direction_sign*(source_x(454)-source_x(234))*magnitude_ppm/2000000",
+      "control_dimensions": [
+        "cheekbone_width",
+        "chin_height",
+        "eye_spacing",
+        "mouth_width",
+        "nose_width"
+      ]
+    },
+    {
+      "dimension_key": "eye_spacing",
+      "region_group": "periocular",
+      "measurement_formula": "distance_xy(133,362)/distance_xy(10,152)",
+      "measurement_version": "p2-m5-eye-spacing-xy-face-height-v1",
+      "plan_builder_version": "p2-m5-eye-spacing-local-field-v1",
+      "plan_kind": "PAIRED_HORIZONTAL_GAUSSIAN",
+      "anchors": [133, 362],
+      "sigma_x_formula": "0.50*(source_x(362)-source_x(133))",
+      "sigma_y_formula": "0.07*distance_xy(10,152)",
+      "maximum_anchor_displacement_formula": "direction_sign*(source_x(362)-source_x(133))*magnitude_ppm/2000000",
+      "control_dimensions": [
+        "cheekbone_width",
+        "chin_height",
+        "jaw_width",
+        "mouth_width",
+        "nose_width"
+      ]
+    },
+    {
+      "dimension_key": "nose_width",
+      "region_group": "central_face",
+      "measurement_formula": "distance_xy(98,327)/distance_xy(10,152)",
+      "measurement_version": "p2-m5-nose-width-xy-face-height-v1",
+      "plan_builder_version": "p2-m5-nose-width-local-field-v1",
+      "plan_kind": "PAIRED_HORIZONTAL_GAUSSIAN",
+      "anchors": [98, 327],
+      "sigma_x_formula": "0.75*(source_x(327)-source_x(98))",
+      "sigma_y_formula": "0.10*distance_xy(10,152)",
+      "maximum_anchor_displacement_formula": "direction_sign*(source_x(327)-source_x(98))*magnitude_ppm/2000000",
+      "control_dimensions": [
+        "cheekbone_width",
+        "chin_height",
+        "eye_spacing",
+        "jaw_width",
+        "mouth_width"
+      ]
+    },
+    {
+      "dimension_key": "mouth_width",
+      "region_group": "perioral",
+      "measurement_formula": "distance_xy(61,291)/distance_xy(10,152)",
+      "measurement_version": "p2-m5-mouth-width-xy-face-height-v1",
+      "plan_builder_version": "p2-m5-mouth-width-local-field-v1",
+      "plan_kind": "PAIRED_HORIZONTAL_GAUSSIAN",
+      "anchors": [61, 291],
+      "sigma_x_formula": "0.60*(source_x(291)-source_x(61))",
+      "sigma_y_formula": "0.10*distance_xy(10,152)",
+      "maximum_anchor_displacement_formula": "direction_sign*(source_x(291)-source_x(61))*magnitude_ppm/2000000",
+      "control_dimensions": [
+        "cheekbone_width",
+        "chin_height",
+        "eye_spacing",
+        "jaw_width",
+        "nose_width"
+      ]
+    },
+    {
+      "dimension_key": "chin_height",
+      "region_group": "lower_face",
+      "measurement_formula": "distance_xy(17,152)/distance_xy(10,152)",
+      "measurement_version": "p2-m5-chin-height-xy-face-height-v1",
+      "plan_builder_version": "p2-m5-chin-height-local-field-v1",
+      "plan_kind": "SINGLE_VERTICAL_GAUSSIAN",
+      "anchors": [17, 152],
+      "moving_anchor": 152,
+      "sigma_x_formula": "0.18*distance_xy(10,152)",
+      "sigma_y_formula": "0.35*distance_xy(17,152)",
+      "maximum_anchor_displacement_formula": "direction_sign*distance_xy(17,152)*magnitude_ppm/1000000",
+      "control_dimensions": [
+        "cheekbone_width",
+        "eye_spacing",
+        "jaw_width",
+        "mouth_width",
+        "nose_width"
+      ]
+    },
+    {
+      "dimension_key": "cheekbone_width",
+      "region_group": "central_face",
+      "measurement_formula": "distance_xy(123,352)/distance_xy(10,152)",
+      "measurement_version": "p2-m5-cheekbone-width-xy-face-height-v1",
+      "plan_builder_version": "p2-m5-cheekbone-width-local-field-v1",
+      "plan_kind": "PAIRED_HORIZONTAL_GAUSSIAN",
+      "anchors": [123, 352],
+      "sigma_x_formula": "0.20*(source_x(352)-source_x(123))",
+      "sigma_y_formula": "0.12*distance_xy(10,152)",
+      "maximum_anchor_displacement_formula": "direction_sign*(source_x(352)-source_x(123))*magnitude_ppm/2000000",
+      "control_dimensions": [
+        "chin_height",
+        "eye_spacing",
+        "jaw_width",
+        "mouth_width",
+        "nose_width"
+      ]
+    }
+  ],
+  "plan_rules": {
+    "paired_horizontal_gaussian": "assign each point to the left or right anchor by source_x relative to the anchor midpoint; apply side_sign times maximum displacement times exp(-(dx_squared+dy_squared)); destination_y equals source_y",
+    "single_vertical_gaussian": "center the field on moving anchor 152; apply the signed maximum displacement times exp(-(dx_squared+dy_squared)) to destination_y; destination_x equals source_x",
+    "direction_sign": { "INCREASE": 1, "DECREASE": -1 },
+    "normalized_image_y_increases_downward": true,
+    "anchor_order_must_be_left_to_right_for_paired_plans": true,
+    "source_relative_only": true,
+    "absolute_target_face": false
+  },
+  "admission_and_artifact_gates": [
+    "SOURCE_QA_PASSED",
+    "EXACT_RUNTIME_MODEL_TOPOLOGY_DIGEST_MATCH",
+    "EXACTLY_ONE_FACE",
+    "LANDMARK_COUNT_478",
+    "ALL_REQUIRED_XY_FINITE_AND_IN_BOUNDS",
+    "POSITIVE_FACE_HEIGHT_AND_TARGET_SPAN",
+    "NO_FOLDOVER_OR_OUT_OF_BOUNDS_REMAP",
+    "SOURCE_RESULT_SHA256_DIFFER",
+    "CANONICAL_RESULT_DECODES",
+    "RESULT_QA_PASSED",
+    "NO_VISIBLE_WARP_TEAR_OR_DUPLICATED_FEATURE",
+    "NO_BACKGROUND_SEAM_OR_DISCONNECTED_CONTOUR"
+  ],
+  "duplicate_calibration": {
+    "exact_algorithm": "normalized-sha256-v1",
+    "perceptual_algorithm": "phash-dct-nearest-v1",
+    "pair_count": 66,
+    "review_all_pairs": true,
+    "review_labels": [
+      "NOT_NEAR_DUPLICATE",
+      "POSSIBLE_NEAR_DUPLICATE",
+      "NEAR_DUPLICATE"
+    ],
+    "automatic_rejection_before_stage_d": false,
+    "stage_c_threshold": null
+  },
+  "mandatory_negative_controls": [
+    "RESOURCE_OR_MAGNITUDE_OUTSIDE_MANIFEST",
+    "UNSUPPORTED_OR_OMITTED_CANDIDATE",
+    "RUNTIME_MODEL_OR_TOPOLOGY_DIGEST_MISMATCH",
+    "MISSING_NONFINITE_OR_OUT_OF_BOUNDS_LANDMARK",
+    "INVALID_ANCHOR_ORDER_OR_NONPOSITIVE_SPAN",
+    "FOLDOVER_OR_OUT_OF_BOUNDS_REMAP",
+    "SAME_PLATFORM_NONDETERMINISM",
+    "TARGET_DIRECTION_MISMATCH",
+    "MISSING_CONTROL_MEASUREMENT",
+    "PRIVATE_PATH_PROMPT_IMAGE_LANDMARK_OR_OBJECT_KEY_LEAKAGE",
+    "REAL_PERSON_USER_ASSET_NETWORK_OR_PRODUCTION_PATH",
+    "AUTOMATIC_AGE_BEAUTY_OR_SENSITIVE_CLASSIFICATION"
+  ],
+  "failure_interpretation": {
+    "candidate_failure": "RETAIN_EVIDENCE_AND_REPORT_FURTHER_RESEARCH",
+    "threshold_relaxation_in_stage_c": false,
+    "candidate_omission_after_failure": false,
+    "dimension_ready_in_stage_c": false,
+    "stage_d_requires_at_least_four_bidirectional_candidates_across_three_region_groups": true
+  },
+  "manifest_content_digest": "eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4"
+}
