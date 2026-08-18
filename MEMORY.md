@@ -141,6 +141,12 @@
   Grype 0.117.0/database v6.1.9 零 matches。该结论只关闭 Linux runtime identity；T05 仍待完整
   tracked validation 和 Principal acceptance，T06 继续关闭。
 
+- 2026-08-18：T05 candidate `75c0ccbaeab5ae4e1a8e66054f2225f701e221eb` 的 same-SHA run
+  `32131383622` 三 jobs 全绿，七项预期 audit/frozen-regression/Docker/Gitleaks artifacts 均存在且
+  未过期。Principal 在复核实际 diff、双根 runtime、标准镜像 smoke、SBOM/Grype、本地 full matrix
+  与远端结果后接受 T05 及 R09/R10，并只开放 T06。P2-M4 仍为 EXECUTING；T07/T08 与 Milestone
+  Gate 未完成。
+
 - 2026-08-18：P2-M4-T04 tracked evidence `28e5ae8ab9350fe44fa1e14aa1ae9c15436717fa` 的 run
   `32125987000` 三 jobs 全绿；下载 artifact `9320466783` 精确绑定该 SHA、migration head `0012`、
   46 M3 tests/0 skip 与既有 private-synthetic boundaries。Principal 接受 T04 并只开放 T05；

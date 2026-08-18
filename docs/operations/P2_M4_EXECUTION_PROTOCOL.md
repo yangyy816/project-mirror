@@ -186,6 +186,11 @@ accepted Linux artifact was proven incompatible with the repository's Debian 12 
 open but cannot be accepted until the bounded V3 Linux rebuild passes the unchanged T04 Gates and a
 real adapter smoke in that image. The base image must not be upgraded inside T05 to hide this result.
 
+Principal accepted T05 after `CC-P2-M4-02`/R10 qualified the exact Debian 12 runtime, the complete
+local matrix passed, and candidate SHA `75c0ccbaeab5ae4e1a8e66054f2225f701e221eb` completed GitHub
+Actions run `32131383622` with all three jobs successful and all expected artifacts present. This
+opens T06 only; P2-M4 remains `EXECUTING` and T07/T08 remain dependency-gated.
+
 ### P2-M4-T06 — Application, storage and Worker integration
 
 - Objective/why: make execution recoverable under at-least-once delivery without moving domain

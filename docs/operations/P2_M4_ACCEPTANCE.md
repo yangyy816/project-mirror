@@ -146,8 +146,24 @@ PASS.
   repository-only files from the runtime image, and the second/third exposed the intentionally
   read-only storage mount and a missing `DATABASE_URL` mirror. No production code or Docker image
   scope was changed to conceal those harness conditions; the corrected full-repository run passed.
-- Local candidate status is `READY_FOR_TRACKED_EVIDENCE`. Principal acceptance and T06 remain
-  blocked on same-SHA GitHub Actions and artifact inspection.
+- At the local candidate checkpoint, status was `READY_FOR_TRACKED_EVIDENCE`; Principal acceptance
+  and T06 remained blocked on same-SHA GitHub Actions and artifact inspection.
+
+## T05 tracked acceptance
+
+- Candidate commit `75c0ccbaeab5ae4e1a8e66054f2225f701e221eb` was pushed to the existing M4
+  branch without persistent proxy or Git configuration changes.
+- Same-SHA GitHub Actions run `32131383622` passed `quality-and-integration`, `secret-scan` and
+  `docker-validation`. The only annotations are the existing non-blocking Node 20 action-runtime
+  deprecation notices.
+- Unexpired artifacts are present for project audit (`9322446221`), P2-M3 (`9322438906`), P2-M2
+  (`9322438065`), P2-M1 (`9322437285`), Phase 1 (`9322436502`), Docker evidence (`9322364021`) and
+  Gitleaks SARIF (`9322303145`).
+- Principal reviewed the actual diff, build/runtime hashes, private-path/network scans, standard
+  image smoke, SBOM/Grype result, local matrix and same-SHA remote result. T05 and R09/R10 are
+  accepted. This opens T06 only; P2-M4 remains `EXECUTING`, and T07/T08/Milestone Gate remain open.
+
+`P2_M4_T05: TASK_ACCEPTED`
 
 ## Exit rule
 

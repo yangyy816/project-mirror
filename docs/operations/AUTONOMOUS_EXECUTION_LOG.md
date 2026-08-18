@@ -370,3 +370,12 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   task-owned runtime/build/SBOM volumes remain preserved for evidence.
 - Candidate is ready for tracked commit and same-SHA Actions evidence. T05 is not yet accepted and
   T06 remains closed.
+
+## 2026-08-18T19:28:00+08:00 — P2-M4-T05 tracked acceptance
+
+- Candidate `75c0ccbaeab5ae4e1a8e66054f2225f701e221eb` completed run `32131383622` with
+  `quality-and-integration`, `secret-scan` and `docker-validation` all successful.
+- Seven expected audit/frozen-regression/Docker/Gitleaks artifacts are present and unexpired. Only
+  the existing non-blocking Node 20 action-runtime deprecation annotations remain.
+- Principal accepts T05 plus R09/R10 and opens T06 only. P2-M4 remains `EXECUTING`; T07/T08 and the
+  Milestone Gate are not complete.
