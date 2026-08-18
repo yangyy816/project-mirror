@@ -575,3 +575,11 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Principal accepts T04. T02/T04 contract names are integrated and T03 is authorized only for the frozen
   `0014_m5_eval_authority` PostgreSQL authority. No threshold, holdout, MVR result, production geometry, real-user
   processing or QuestionBank release was approved; T05–T08 and M6 remain closed.
+
+## 2026-08-19T04:05:00+08:00 — P2-M5 T02/T04 contract checkpoint
+
+- Acceptance checkpoint `8640879c586afcbf72c9ea1e67bef82992525bdd` run `32179662032` passed all three jobs.
+  Seven artifacts bind the exact checkpoint and `0013_warp_plan_authority`; Phase 1/M1/M2/M3 evidence is
+  1/98/52/46 tests with zero failures/errors/skips and Gitleaks is zero results.
+- T03 is now the sole authorized implementation task and owns the migration/models/PostgreSQL-test collision domain.
+  M5 technical Gate, MVR result, T05–T08 and M6 remain pending/closed.

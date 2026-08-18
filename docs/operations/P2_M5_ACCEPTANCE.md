@@ -158,3 +158,14 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `P2_M5_T04_TRACKED_ACCEPTANCE: PASS`
 
 `P2_M5_NEXT_TASK: T03_AUTHORIZED`
+
+## T04 acceptance checkpoint
+
+- Acceptance checkpoint `8640879c586afcbf72c9ea1e67bef82992525bdd` run `32179662032` passed all three
+  jobs. Seven downloaded artifacts bind the exact checkpoint and migration head `0013_warp_plan_authority`;
+  Phase 1/M1/M2/M3 evidence remains at 1/98/52/46 tests with zero failures, errors or skips, and Gitleaks reports
+  zero results.
+- This closes the T02/T04 contract-integration checkpoint and leaves only T03 authorized. It does not advance the M5
+  technical Gate or MVR result.
+
+`P2_M5_T02_T04_CONTRACT_CHECKPOINT: PASS`

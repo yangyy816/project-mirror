@@ -398,3 +398,9 @@
   threshold，threshold 预注册前不得自动拒绝候选。T02/T04 contract 已集成并只开放 T03 的冻结
   `0014_m5_eval_authority` PostgreSQL authority；T05–T08、MVR、production geometry、真人处理、M6 与
   QuestionBank release 继续关闭。
+
+- 2026-08-19：P2-M5 T02/T04 contract acceptance checkpoint
+  `8640879c586afcbf72c9ea1e67bef82992525bdd` 的 run `32179662032` 三 jobs 全绿，七项 artifacts 精确绑定
+  checkpoint 与 `0013_warp_plan_authority`，既有回归零 failure/error/skip、Gitleaks 零 results。当前仅
+  T03 的冻结 `0014_m5_eval_authority` schema/transaction 实现获授权；M5 technical Gate、MVR、T05–T08、
+  production geometry、真人处理和 M6 继续关闭。
