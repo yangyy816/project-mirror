@@ -1,0 +1,169 @@
+{
+  "schema_version": "mirror.p2-m3.v03-qa-policy-freeze/v1",
+  "policy_version": "p2-m3-v03-source-built-vision-qa-v1",
+  "candidate_reference": "mediapipe-v0.10.35-source-built-r21",
+  "model_sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+  "windows_runtime_sha256": "5a904100bf197e8b4755f503aa4d1d8a8892107a9940e2f848eeb302ff24dd8d",
+  "linux_runtime_sha256": "6a5fb35175efc2f014fb61f7f4abb2c78c38156bd6abf2186d1549cbf3f006a7",
+  "qa_policy_content": {
+    "schema_version": "mirror.synthetic-dataset/QAPolicyDefinition/v1",
+    "requirements": [
+      {
+        "code": "checksum_binding",
+        "evidence_type": "measurement",
+        "hard_gate": true,
+        "algorithm_reference": "mirror.synthetic/checksum-binding",
+        "algorithm_version": "v1",
+        "threshold_rule_reference": "p2-m3-v03-checksum-binding-v1"
+      },
+      {
+        "code": "exactly_one_face",
+        "evidence_type": "measurement",
+        "hard_gate": true,
+        "algorithm_reference": "mirror.vision/mediapipe-source-built-face-landmarker",
+        "algorithm_version": "v0.10.35-r21",
+        "threshold_rule_reference": "p2-m3-v03-face-count-v1"
+      },
+      {
+        "code": "complete_landmarks",
+        "evidence_type": "measurement",
+        "hard_gate": true,
+        "algorithm_reference": "mirror.vision/mediapipe-source-built-face-landmarker",
+        "algorithm_version": "v0.10.35-r21",
+        "threshold_rule_reference": "p2-m3-v03-landmark-completeness-v1"
+      },
+      {
+        "code": "bounded_coordinates",
+        "evidence_type": "measurement",
+        "hard_gate": true,
+        "algorithm_reference": "mirror.vision/mediapipe-source-built-face-landmarker",
+        "algorithm_version": "v0.10.35-r21",
+        "threshold_rule_reference": "p2-m3-v03-coordinate-validity-v1"
+      },
+      {
+        "code": "transformation_matrix",
+        "evidence_type": "measurement",
+        "hard_gate": true,
+        "algorithm_reference": "mirror.vision/mediapipe-source-built-face-landmarker",
+        "algorithm_version": "v0.10.35-r21",
+        "threshold_rule_reference": "p2-m3-v03-transformation-matrix-v1"
+      },
+      {
+        "code": "face_occupancy",
+        "evidence_type": "measurement",
+        "hard_gate": true,
+        "algorithm_reference": "mirror.vision/mediapipe-source-built-face-landmarker",
+        "algorithm_version": "v0.10.35-r21",
+        "threshold_rule_reference": "p2-m3-v03-face-occupancy-v1"
+      },
+      {
+        "code": "frontal_pose",
+        "evidence_type": "measurement",
+        "hard_gate": true,
+        "algorithm_reference": "mirror.vision/mediapipe-source-built-face-landmarker",
+        "algorithm_version": "v0.10.35-r21",
+        "threshold_rule_reference": "p2-m3-v03-frontal-pose-v1"
+      },
+      {
+        "code": "repeatability",
+        "evidence_type": "measurement",
+        "hard_gate": true,
+        "algorithm_reference": "mirror.vision/mediapipe-source-built-face-landmarker",
+        "algorithm_version": "v0.10.35-r21",
+        "threshold_rule_reference": "p2-m3-v03-repeatability-v1"
+      },
+      {
+        "code": "platform_parity",
+        "evidence_type": "measurement",
+        "hard_gate": true,
+        "algorithm_reference": "mirror.vision/mediapipe-source-built-face-landmarker",
+        "algorithm_version": "v0.10.35-r21",
+        "threshold_rule_reference": "p2-m3-v03-platform-parity-v1"
+      },
+      {
+        "code": "adult_presentation",
+        "evidence_type": "review",
+        "hard_gate": true,
+        "review_rule_reference": "adult-presentation-v2"
+      },
+      {
+        "code": "likeness_risk",
+        "evidence_type": "review",
+        "hard_gate": true,
+        "review_rule_reference": "synthetic-likeness-review-v1"
+      },
+      {
+        "code": "license_scope",
+        "evidence_type": "review",
+        "hard_gate": true,
+        "review_rule_reference": "private-research-license-review-v1"
+      },
+      {
+        "code": "text_watermark",
+        "evidence_type": "review",
+        "hard_gate": true,
+        "review_rule_reference": "text-watermark-review-v1"
+      },
+      {
+        "code": "background_suitability",
+        "evidence_type": "review",
+        "hard_gate": true,
+        "review_rule_reference": "background-suitability-review-v1"
+      }
+    ]
+  },
+  "threshold_rules": {
+    "p2-m3-v03-checksum-binding-v1": {
+      "normalized_sha256_must_match_authority": true,
+      "media_type": "image/jpeg"
+    },
+    "p2-m3-v03-face-count-v1": {
+      "required_count": 1
+    },
+    "p2-m3-v03-landmark-completeness-v1": {
+      "required_landmark_count": 478
+    },
+    "p2-m3-v03-coordinate-validity-v1": {
+      "x_y_finite_and_inclusive_range": [0.0, 1.0],
+      "z_must_be_finite": true
+    },
+    "p2-m3-v03-transformation-matrix-v1": {
+      "required_count": 1,
+      "required_shape": [4, 4],
+      "all_values_finite": true
+    },
+    "p2-m3-v03-face-occupancy-v1": {
+      "normalized_landmark_bbox_area_minimum": 0.1
+    },
+    "p2-m3-v03-frontal-pose-v1": {
+      "matrix_x_rotation_absolute_maximum_degrees": 10.0,
+      "matrix_y_rotation_absolute_maximum_degrees": 10.0,
+      "matrix_z_rotation_absolute_maximum_degrees": 10.0
+    },
+    "p2-m3-v03-repeatability-v1": {
+      "runs_per_platform": 10,
+      "same_platform_landmark_coordinate_span_maximum": 0.000001,
+      "same_platform_matrix_value_span_maximum": 0.000001
+    },
+    "p2-m3-v03-platform-parity-v1": {
+      "landmark_coordinate_absolute_difference_maximum": 0.00005,
+      "matrix_value_absolute_difference_maximum": 0.0005,
+      "bbox_area_absolute_difference_maximum": 0.00001,
+      "rotation_absolute_difference_maximum_degrees": 0.01
+    }
+  },
+  "calibration_evidence": {
+    "windows_analysis_digest": "d8b7c851ed3d6fb50628e4edc7515401bbcf575988e9261528ceaea6c074a928",
+    "linux_analysis_digest": "a17547f88e9259773d35f73e258a670d24671e8b4127a95d9321d7ba008fad28",
+    "platform_comparison_digest": "55751d7979af5393b5ad194dc90fb4ef52924c168553e430480816e29c5a5da5"
+  },
+  "digest_canonicalization": {
+    "algorithm": "sha256",
+    "encoding": "utf-8",
+    "json": "allow_nan=false;ensure_ascii=true;separators=(',',':');sort_keys=true",
+    "qa_policy_content_scope": "qa_policy_content",
+    "document_scope": "complete_document_with_document_digest_omitted"
+  },
+  "qa_policy_content_digest": "6256f8a74af063726bf22c0d4724db5f8ee10bde659455410c75bcec0e888ae5",
+  "document_digest": "5929f44a8383838e51b9b4e34eb4045748dd68c1f579f3ab5ffaa64eadb9fad6"
+}
