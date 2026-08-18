@@ -15,6 +15,7 @@ _SHA256 = re.compile(r"[0-9a-f]{64}")
 _MAX_INPUT_BYTES = 4 * 1024 * 1024
 _V01_EVIDENCE_SCHEMA = "mirror.p2-m3.v01-normalization-redacted-evidence/v1"
 _V01_CORRECTION_SCHEMA = "mirror.p2-m3.v01-migration-head-correction/v1"
+_V01_FROZEN_MIGRATION_HEAD = "0011_offline_synth_source"
 _REQUIRED_CHECKS = {
     "database_authority": (
         "test_normalization_qa_and_identity_authority_is_monotonic_and_non_bypassable"
@@ -258,7 +259,6 @@ def _v01_migration_correction(
     *,
     original_path: Path,
     correction_path: Path,
-    expected_migration_head: str,
 ) -> dict[str, object]:
     original_content = _required_bytes(original_path, label="V01 normalization evidence")
     try:
@@ -284,11 +284,11 @@ def _v01_migration_correction(
         or not isinstance(item_digest, str)
         or _SHA256.fullmatch(item_digest) is None
         or correction.get("original_item_evidence_digest") != item_digest
-        or correction.get("actual_alembic_revision") != expected_migration_head
-        or correction.get("actual_migration_head") != expected_migration_head
+        or correction.get("actual_alembic_revision") != _V01_FROZEN_MIGRATION_HEAD
+        or correction.get("actual_migration_head") != _V01_FROZEN_MIGRATION_HEAD
         or not isinstance(descriptive_name, str)
         or correction.get("descriptive_migration_name") != descriptive_name
-        or descriptive_name == expected_migration_head
+        or descriptive_name == _V01_FROZEN_MIGRATION_HEAD
     ):
         raise EvidenceError("V01 migration-head correction evidence is inconsistent")
     correction_digest = correction.get("document_digest")
@@ -299,7 +299,7 @@ def _v01_migration_correction(
         "original_evidence_sha256": original_sha256,
         "original_item_evidence_sha256": item_digest,
         "correction_evidence_sha256": correction_digest,
-        "actual_alembic_revision": expected_migration_head,
+        "actual_alembic_revision": _V01_FROZEN_MIGRATION_HEAD,
         "descriptive_migration_name": descriptive_name,
     }
 
@@ -329,7 +329,6 @@ def generate_evidence(
     v01_correction = _v01_migration_correction(
         original_path=v01_evidence_path,
         correction_path=v01_correction_path,
-        expected_migration_head=expected_migration_head,
     )
     return {
         "schema_version": SCHEMA_VERSION,

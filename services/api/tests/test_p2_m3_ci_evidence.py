@@ -9,7 +9,8 @@ import pytest
 from mirror_api.scripts.p2_m3_ci_evidence import EvidenceError, generate_evidence, run
 
 COMMIT_SHA = "d" * 40
-MIGRATION_HEAD = "0011_offline_synth_source"
+MIGRATION_HEAD = "0012_geometry_variant_authority"
+V01_FROZEN_MIGRATION_HEAD = "0011_offline_synth_source"
 POLICY_DIGEST = "8" * 64
 HOLDOUT_DIGEST = "7" * 64
 V01_ITEM_DIGEST = "e" * 64
@@ -127,8 +128,8 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path, Path, Path, Path]:
             "original_evidence_reference": v01_evidence.name,
             "original_evidence_sha256": hashlib.sha256(v01_evidence.read_bytes()).hexdigest(),
             "original_item_evidence_digest": V01_ITEM_DIGEST,
-            "actual_alembic_revision": MIGRATION_HEAD,
-            "actual_migration_head": MIGRATION_HEAD,
+            "actual_alembic_revision": V01_FROZEN_MIGRATION_HEAD,
+            "actual_migration_head": V01_FROZEN_MIGRATION_HEAD,
             "descriptive_migration_name": V01_DESCRIPTIVE_MIGRATION_NAME,
         },
     )
@@ -180,7 +181,7 @@ def test_generates_allowlisted_p2_m3_evidence(tmp_path: Path) -> None:
     assert postgres["question_bank_release_authorized"] is False
     assert isinstance(correction, dict)
     assert correction["status"] == "forward_corrected"
-    assert correction["actual_alembic_revision"] == MIGRATION_HEAD
+    assert correction["actual_alembic_revision"] == V01_FROZEN_MIGRATION_HEAD
     assert correction["descriptive_migration_name"] == V01_DESCRIPTIVE_MIGRATION_NAME
     assert not any("path" in key or "database_name" in key for key in evidence)
 
@@ -269,14 +270,14 @@ def test_rejects_incomplete_failed_or_boundary_violating_evidence(
         _write_redacted(v01_correction, value)
     elif mutation == "v01_descriptive_as_revision":
         value = json.loads(v01_evidence.read_text(encoding="utf-8"))
-        value["migration_head"] = MIGRATION_HEAD
+        value["migration_head"] = V01_FROZEN_MIGRATION_HEAD
         v01_evidence.write_text(json.dumps(value) + "\n", encoding="utf-8")
         correction_value = json.loads(v01_correction.read_text(encoding="utf-8"))
         correction_value.pop("document_digest")
         correction_value["original_evidence_sha256"] = hashlib.sha256(
             v01_evidence.read_bytes()
         ).hexdigest()
-        correction_value["descriptive_migration_name"] = MIGRATION_HEAD
+        correction_value["descriptive_migration_name"] = V01_FROZEN_MIGRATION_HEAD
         _write_redacted(v01_correction, correction_value)
 
     with pytest.raises(EvidenceError, match=error):
