@@ -381,9 +381,7 @@ async def test_concurrent_duplicate_account_deletion_serializes_authority_before
 ) -> None:
     async with _database() as sessions:
         clock = [NOW]
-        storage = ConcurrentAccountStorage(
-            root=tmp_path, clock=lambda: NOW - timedelta(minutes=10)
-        )
+        storage = ConcurrentAccountStorage(root=tmp_path, clock=lambda: NOW - timedelta(minutes=10))
         user, _, _, _, _, _ = await _full_fixture(sessions, storage)
         service = _service(sessions, storage, clock)
         admitted = await service.request_deletion(
@@ -399,6 +397,6 @@ async def test_concurrent_duplicate_account_deletion_serializes_authority_before
 
         assert all(result is not None and result.status == "completed" for result in results)
         async with sessions() as session:
-            assert await session.scalar(
-                select(func.count()).select_from(ObjectDeletionEvidence)
-            ) == 3
+            assert (
+                await session.scalar(select(func.count()).select_from(ObjectDeletionEvidence)) == 3
+            )

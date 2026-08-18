@@ -85,4 +85,13 @@ account deletion request authority
 
 The tracked repair candidate and exact-SHA Actions/artifact review remain mandatory.
 
+## P2-M4-R18 — Linux formatter parity repair
+
+- Candidate `a09fb33517a56b7660d76c7f78a23344fb17dd98` run `32169244356` passed
+  `docker-validation` and `secret-scan`, but `quality-and-integration` stopped at Ruff format before migration or
+  tests.
+- The only diff required by the locked Linux Ruff 0.16.3 formatter is a two-location mechanical layout change in
+  the new concurrency test. The repair does not change assertions, timing, lock order or production code.
+- Linux Ruff 0.16.3 format and lint checks pass after the repair. A new exact-SHA run remains mandatory.
+
 `P2_M4_R17_GATE: READY_FOR_TRACKED_EVIDENCE`

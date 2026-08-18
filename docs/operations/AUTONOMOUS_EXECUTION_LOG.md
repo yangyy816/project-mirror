@@ -505,3 +505,6 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   API/Worker, Ruff, strict mypy, pnpm/contracts, migration lifecycle/check, Docker build/health and smoke passed.
 - R17 is `READY_FOR_TRACKED_EVIDENCE`. Exact-SHA Actions/artifacts and independent reviews remain required before
   repairing the closure; P2-M4 is not `FROZEN` and P2-M5 remains closed.
+- Candidate `a09fb33517a56b7660d76c7f78a23344fb17dd98` run `32169244356` passed Docker and secret scan but stopped at
+  Linux Ruff formatting before tests. `P2-M4-R18` applies only the two formatter-requested test-layout changes;
+  Linux Ruff 0.16.3 format/lint now pass, with no product-code or assertion change.
