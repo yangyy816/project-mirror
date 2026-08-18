@@ -169,3 +169,30 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
   technical Gate or MVR result.
 
 `P2_M5_T02_T04_CONTRACT_CHECKPOINT: PASS`
+
+## T03 local candidate and P2-M5-R01
+
+- Added forward migration `0014_variable_isolation_coverage.py` with revision `0014_m5_eval_authority`; historical
+  migrations `0001`–`0013` remain unchanged. The ORM and PostgreSQL schema add immutable evaluation policy/rules,
+  cohort assignments, isolation reports, similarity signatures/pairs, duplicate clusters/memberships/decisions and
+  diversity reports without a User relation or public API change.
+- PostgreSQL recomputes policy, signature and isolation-result digests; binds isolation reports to completed M4
+  transforms and passed variant QA; derives target error, non-target drift, conclusion and reason codes; rejects
+  mutation, split leakage, unqualified assets, fabricated facts and prohibited beauty/sensitive authority.
+- `P2-M5-R01` closes bounded implementation defects found during Principal review: qualified cluster membership,
+  authoritative digest/derived-fact validation, serialization of cluster/finalization/split races, four stale
+  migration-head regression assertions and a driver-dependent exact-duplicate concurrency test expectation.
+- A fresh PostgreSQL run passed all 14 T03 authority tests. The exact-duplicate race passed ten consecutive replays;
+  the complete Linux API/Worker suite collected 566 tests and completed at 100% with only existing optional
+  environment-gated skips. Fresh upgrade, `0013→0014→0013→0014` and both `alembic check` runs passed.
+- Ruff format/lint passed all 211 service files, strict mypy passed 124 source files, `pnpm.cmd check` passed 54 Web
+  tests and the production build, generated contracts had zero drift, and `git diff --check` passed.
+- This candidate remains `READY_FOR_TRACKED_EVIDENCE`. Exact-SHA GitHub Actions, seven artifact inspection and
+  Principal acceptance are still mandatory before T03 PASS or T05 entry. No threshold, cohort, holdout, MVR result,
+  dependency/model adoption, production geometry, real-user processing or QuestionBank release is approved.
+
+`P2_M5_T03: READY_FOR_TRACKED_EVIDENCE`
+
+`P2_M5_R01: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+
+`P2_M5_NEXT_TASK: T03_TRACKED_EVIDENCE`

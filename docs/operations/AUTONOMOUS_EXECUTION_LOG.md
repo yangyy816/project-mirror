@@ -583,3 +583,17 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   1/98/52/46 tests with zero failures/errors/skips and Gitleaks is zero results.
 - T03 is now the sole authorized implementation task and owns the migration/models/PostgreSQL-test collision domain.
   M5 technical Gate, MVR result, T05–T08 and M6 remain pending/closed.
+
+## 2026-08-19T14:30:00+08:00 — P2-M5-T03/R01 local candidate
+
+- Implemented forward `0014_m5_eval_authority` PostgreSQL authority for immutable policy/rules, split assignments,
+  isolation, similarity, duplicate-cluster and diversity evidence; no historical migration, public API, dependency,
+  model or real-user processing surface changed.
+- Principal review added `P2-M5-R01` for authoritative digest/derived-fact recomputation, cluster/split concurrency,
+  stale current-head assertions and driver-dependent exact-duplicate loser classification.
+- A fresh PostgreSQL authority suite passed 14 tests; the exact-duplicate race passed ten consecutive replays. The
+  complete Linux API/Worker suite collected 566 tests and reached 100% with only existing optional skips. Fresh
+  upgrade, `0013→0014→0013→0014`, Alembic zero drift, Ruff over 211 files, strict mypy over 124 sources,
+  pnpm/contracts/build and diff checks passed.
+- T03/R01 are `READY_FOR_TRACKED_EVIDENCE`, not accepted. Exact-SHA three-job Actions and seven artifact inspection
+  remain mandatory; T05–T08, thresholds, holdout, MVR, production geometry, real-user processing and M6 stay closed.

@@ -404,3 +404,12 @@
   checkpoint 与 `0013_warp_plan_authority`，既有回归零 failure/error/skip、Gitleaks 零 results。当前仅
   T03 的冻结 `0014_m5_eval_authority` schema/transaction 实现获授权；M5 technical Gate、MVR、T05–T08、
   production geometry、真人处理和 M6 继续关闭。
+
+- 2026-08-19：P2-M5-T03/R01 本地候选建立前向 `0014_m5_eval_authority` PostgreSQL authority，并由
+  PostgreSQL 重算 policy/signature/isolation digest 与派生结论，绑定 M4 transform/variant QA，序列化
+  cluster membership/finalization/split races。Principal 复核还修复四个旧 migration-head 断言和
+  exact-duplicate loser 在 trigger/unique constraint 两种合法 PostgreSQL 路径下的测试稳定性。Fresh
+  14 项 authority tests、并发十连跑、566 项 Linux API/Worker collection 的完整执行、fresh/
+  `0013→0014→0013→0014`、Alembic zero drift、Ruff、124-source strict mypy、pnpm/contracts/build 均通过。
+  当前仅为 `READY_FOR_TRACKED_EVIDENCE`；same-SHA 三 jobs/七 artifacts 未核验前不得接受 T03 或开放 T05，
+  threshold、holdout、MVR、production geometry、真人处理、M6 与 QuestionBank release 继续关闭。

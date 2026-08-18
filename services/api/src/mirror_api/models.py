@@ -1835,6 +1835,324 @@ class SyntheticIdentity(IdMixin, Base):
     )
 
 
+class SyntheticEvaluationPolicy(IdMixin, TimestampMixin, Base):
+    """Immutable, independently versioned M5 evaluation authority (ADR-041)."""
+
+    __tablename__ = "synthetic_evaluation_policies"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(112),
+        default="mirror.synthetic-dataset/SyntheticEvaluationPolicy/v1",
+        nullable=False,
+    )
+    version: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    geometry_ontology_version_id: Mapped[str] = mapped_column(
+        ForeignKey("geometry_ontology_versions.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    ontology_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    measurement_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    isolation_algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    duplicate_algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    split_rule_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    canonical_content: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    content_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    approval_status: Mapped[str] = mapped_column(String(24), default="DRAFT", nullable=False)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/SyntheticEvaluationPolicy/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("approval_status IN ('DRAFT','APPROVED')", name="approval_status"),
+        CheckConstraint(
+            "(approval_status = 'DRAFT' AND approved_at IS NULL) OR "
+            "(approval_status = 'APPROVED' AND approved_at IS NOT NULL)",
+            name="approval_shape",
+        ),
+        CheckConstraint(
+            "version ~ '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-v[1-9][0-9]*$'",
+            name="canonical_version",
+        ),
+        CheckConstraint("ontology_digest ~ '^[0-9a-f]{64}$'", name="ontology_digest"),
+        CheckConstraint("content_digest ~ '^[0-9a-f]{64}$'", name="content_digest"),
+        CheckConstraint("json_typeof(canonical_content) = 'object'", name="content_object"),
+    )
+
+
+class SyntheticEvaluationDimensionRule(IdMixin, Base):
+    __tablename__ = "synthetic_evaluation_dimension_rules"
+
+    policy_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_evaluation_policies.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    dimension_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    region_group: Mapped[str] = mapped_column(String(64), nullable=False)
+    control_dimensions: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    target_error_tolerance_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
+    control_drift_tolerance_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
+    repeat_variance_tolerance_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
+    platform_variance_tolerance_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
+    __table_args__ = (
+        UniqueConstraint("policy_id", "dimension_key", name="unique_policy_dimension"),
+        CheckConstraint("dimension_key ~ '^[a-z][a-z0-9_]{0,63}$'", name="dimension_key"),
+        CheckConstraint("region_group ~ '^[a-z][a-z0-9_]{0,63}$'", name="region_group"),
+        CheckConstraint(
+            "json_typeof(control_dimensions) = 'array' AND "
+            "json_array_length(control_dimensions) > 0",
+            name="control_dimensions",
+        ),
+        CheckConstraint(
+            "target_error_tolerance_ppm BETWEEN 0 AND 1000000 AND "
+            "control_drift_tolerance_ppm BETWEEN 0 AND 1000000 AND "
+            "repeat_variance_tolerance_ppm BETWEEN 0 AND 1000000 AND "
+            "platform_variance_tolerance_ppm BETWEEN 0 AND 1000000",
+            name="tolerance_bounds",
+        ),
+    )
+
+
+class EvaluationCohortAssignment(IdMixin, Base):
+    __tablename__ = "evaluation_cohort_assignments"
+
+    policy_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_evaluation_policies.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    synthetic_identity_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_identities.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    source_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    source_asset_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    duplicate_cluster_id: Mapped[str | None] = mapped_column(
+        ForeignKey("duplicate_clusters.id", ondelete="RESTRICT"), index=True
+    )
+    split: Mapped[str] = mapped_column(String(16), nullable=False)
+    dimension_keys: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    assignment_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        UniqueConstraint("policy_id", "synthetic_identity_id", name="unique_policy_identity"),
+        UniqueConstraint("policy_id", "source_asset_id", name="unique_policy_asset"),
+        CheckConstraint("split IN ('CALIBRATION','M4_SEEN','HOLDOUT')", name="split"),
+        CheckConstraint("source_asset_sha256 ~ '^[0-9a-f]{64}$'", name="source_asset_sha256"),
+        CheckConstraint(
+            "json_typeof(dimension_keys) = 'array' AND json_array_length(dimension_keys) > 0",
+            name="dimension_keys",
+        ),
+        CheckConstraint("assignment_digest ~ '^[0-9a-f]{64}$'", name="assignment_digest"),
+    )
+
+
+class IsolationReport(IdMixin, Base):
+    __tablename__ = "isolation_reports"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(112), default="mirror.synthetic-dataset/IsolationReport/v1", nullable=False
+    )
+    transform_run_id: Mapped[str] = mapped_column(
+        ForeignKey("transform_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    policy_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_evaluation_policies.id", ondelete="RESTRICT"), nullable=False
+    )
+    target_dimension: Mapped[str] = mapped_column(String(64), nullable=False)
+    requested_delta_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
+    measured_target_delta_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
+    target_error_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
+    control_deltas: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    non_target_drift_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
+    repeat_variance_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
+    platform_variance_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
+    artifact_gate_passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    reliability_gate_passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    conclusion: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason_codes: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    content_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        UniqueConstraint("transform_run_id", "policy_id", name="unique_transform_policy_report"),
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/IsolationReport/v1'", name="schema_version"
+        ),
+        CheckConstraint("target_dimension ~ '^[a-z][a-z0-9_]{0,63}$'", name="target_dimension"),
+        CheckConstraint("target_error_ppm BETWEEN 0 AND 10000000", name="target_error"),
+        CheckConstraint(
+            "non_target_drift_ppm BETWEEN 0 AND 5000000 AND "
+            "repeat_variance_ppm BETWEEN 0 AND 1000000 "
+            "AND platform_variance_ppm BETWEEN 0 AND 1000000",
+            name="measurement_bounds",
+        ),
+        CheckConstraint("json_typeof(control_deltas) = 'object'", name="control_deltas"),
+        CheckConstraint("json_typeof(reason_codes) = 'array'", name="reason_codes"),
+        CheckConstraint("conclusion IN ('PASSED','REJECTED')", name="conclusion"),
+        CheckConstraint("content_digest ~ '^[0-9a-f]{64}$'", name="content_digest"),
+    )
+
+
+class SimilaritySignatureRecord(IdMixin, Base):
+    __tablename__ = "similarity_signatures"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(112), default="mirror.synthetic-dataset/SimilaritySignature/v1", nullable=False
+    )
+    asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    normalized_sha256: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    phash_hex: Mapped[str] = mapped_column(String(16), nullable=False)
+    width: Mapped[int] = mapped_column(Integer, nullable=False)
+    height: Mapped[int] = mapped_column(Integer, nullable=False)
+    content_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/SimilaritySignature/v1'",
+            name="schema_version",
+        ),
+        CheckConstraint("algorithm_version = 'phash-dct-nearest-v1'", name="algorithm_version"),
+        CheckConstraint("normalized_sha256 ~ '^[0-9a-f]{64}$'", name="normalized_sha256"),
+        CheckConstraint("phash_hex ~ '^[0-9a-f]{16}$'", name="phash_hex"),
+        CheckConstraint("width BETWEEN 1 AND 8192 AND height BETWEEN 1 AND 8192", name="bounds"),
+        CheckConstraint("width::bigint * height::bigint <= 40000000", name="total_pixels"),
+        CheckConstraint("content_digest ~ '^[0-9a-f]{64}$'", name="content_digest"),
+    )
+
+
+class SimilarityPairEvidence(IdMixin, Base):
+    __tablename__ = "similarity_pair_evidence"
+
+    left_signature_id: Mapped[str] = mapped_column(
+        ForeignKey("similarity_signatures.id", ondelete="RESTRICT"), nullable=False
+    )
+    right_signature_id: Mapped[str] = mapped_column(
+        ForeignKey("similarity_signatures.id", ondelete="RESTRICT"), nullable=False
+    )
+    algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    hamming_distance: Mapped[int] = mapped_column(Integer, nullable=False)
+    candidate_kind: Mapped[str] = mapped_column(
+        String(24), default="NEAR_DUPLICATE_CANDIDATE", nullable=False
+    )
+    evidence_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        UniqueConstraint("left_signature_id", "right_signature_id", name="unique_canonical_pair"),
+        CheckConstraint("left_signature_id < right_signature_id", name="canonical_order"),
+        CheckConstraint("algorithm_version = 'phash-dct-nearest-v1'", name="algorithm_version"),
+        CheckConstraint("hamming_distance BETWEEN 0 AND 64", name="hamming_distance"),
+        CheckConstraint("candidate_kind = 'NEAR_DUPLICATE_CANDIDATE'", name="candidate_kind"),
+        CheckConstraint("evidence_digest ~ '^[0-9a-f]{64}$'", name="evidence_digest"),
+    )
+
+
+class DuplicateCluster(IdMixin, TimestampMixin, Base):
+    __tablename__ = "duplicate_clusters"
+
+    algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="OPEN", nullable=False)
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cluster_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    __table_args__ = (
+        CheckConstraint("algorithm_version = 'phash-dct-nearest-v1'", name="algorithm_version"),
+        CheckConstraint("status IN ('OPEN','FINALIZED')", name="status"),
+        CheckConstraint(
+            "(status = 'OPEN' AND finalized_at IS NULL) OR "
+            "(status = 'FINALIZED' AND finalized_at IS NOT NULL)",
+            name="finalization_shape",
+        ),
+        CheckConstraint("cluster_digest ~ '^[0-9a-f]{64}$'", name="cluster_digest"),
+    )
+
+
+class DuplicateClusterMembership(IdMixin, Base):
+    __tablename__ = "duplicate_cluster_memberships"
+
+    cluster_id: Mapped[str] = mapped_column(
+        ForeignKey("duplicate_clusters.id", ondelete="RESTRICT"), nullable=False
+    )
+    signature_id: Mapped[str] = mapped_column(
+        ForeignKey("similarity_signatures.id", ondelete="RESTRICT"), nullable=False
+    )
+    evidence_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        UniqueConstraint("cluster_id", "signature_id", name="unique_cluster_signature"),
+        UniqueConstraint("signature_id", name="single_cluster_signature"),
+        CheckConstraint("evidence_digest ~ '^[0-9a-f]{64}$'", name="evidence_digest"),
+    )
+
+
+class DuplicateClusterDecision(IdMixin, Base):
+    __tablename__ = "duplicate_cluster_decisions"
+
+    cluster_id: Mapped[str] = mapped_column(
+        ForeignKey("duplicate_clusters.id", ondelete="RESTRICT"), nullable=False
+    )
+    signature_id: Mapped[str] = mapped_column(
+        ForeignKey("similarity_signatures.id", ondelete="RESTRICT"), nullable=False
+    )
+    decision: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    evidence_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        UniqueConstraint("cluster_id", "signature_id", name="unique_cluster_decision"),
+        CheckConstraint("decision IN ('RETAIN','REJECT')", name="decision"),
+        CheckConstraint("reason_code ~ '^[a-z][a-z0-9_]{2,63}$'", name="reason_code"),
+        CheckConstraint(
+            "actor_reference ~ '^[a-z0-9][a-z0-9._:@/-]{2,127}$'", name="actor_reference"
+        ),
+        CheckConstraint("evidence_digest ~ '^[0-9a-f]{64}$'", name="evidence_digest"),
+    )
+
+
+class DiversityReport(IdMixin, Base):
+    __tablename__ = "diversity_reports"
+
+    schema_version: Mapped[str] = mapped_column(
+        String(112), default="mirror.synthetic-dataset/DiversityReport/v1", nullable=False
+    )
+    policy_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_evaluation_policies.id", ondelete="RESTRICT"), nullable=False
+    )
+    cohort_stage: Mapped[int] = mapped_column(Integer, nullable=False)
+    report_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    content_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    __table_args__ = (
+        UniqueConstraint("policy_id", "cohort_stage", name="unique_policy_cohort_report"),
+        CheckConstraint(
+            "schema_version = 'mirror.synthetic-dataset/DiversityReport/v1'", name="schema_version"
+        ),
+        CheckConstraint("cohort_stage IN (24,48,96)", name="cohort_stage"),
+        CheckConstraint("json_typeof(report_payload) = 'object'", name="payload_object"),
+        CheckConstraint("content_digest ~ '^[0-9a-f]{64}$'", name="content_digest"),
+    )
+
+
 class QuestionAsset(IdMixin, Base):
     __tablename__ = "question_assets"
 
