@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 2 — Synthetic Dataset Engine（COMMITTED）
-- 当前 Milestone：P2-M5 — Variable Isolation, Duplicate and Diversity QA（EXECUTION_READY）
+- 当前 Milestone：P2-M5 — Variable Isolation, Duplicate and Diversity QA（EXECUTING）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -376,3 +376,9 @@
   identity-disjoint、duplicate-cluster-adjusted holdout identity 计算，calibration/M4-seen 不计入，
   按 `24 → 48 → 96` 后仍不稳定就重新分类。当前只有 4 个 canonical identities、一个 experimental
   `jaw_width` 和 N=2 evidence，因此 MVR 仍 `NOT_EVALUATED`，M6 release 保持关闭。
+
+- 2026-08-19：P2-M5-T01 candidate `a39d9763f3a907bc7824994cd92fbe5c319b3acc` 的 run
+  `32176583182` 三 jobs 全绿。七项 artifacts 精确绑定 candidate、`0013_warp_plan_authority` 与既有
+  OpenAPI digest；Phase 1/M1/M2/M3 evidence 为 1/98/52/46 tests 且零 failure/skip，Gitleaks 为零
+  results。Principal 接受 T01，M5 前向进入 `EXECUTING` 并只开放 T02/T04 的无冲突实现；T03 仍等待
+  两者 contract names 集成。technical Gate、MVR result 与 M6 entry 均未通过。

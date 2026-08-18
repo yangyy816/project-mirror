@@ -3,7 +3,7 @@
 ## Status
 
 - Milestone: `P2-M5 — Variable Isolation, Duplicate and Diversity QA`
-- State: `EXECUTION_READY`
+- State: `EXECUTING`
 - Entry baseline: `5f2680e4d0724b409e13ac9cbe318b144cb0375f`
 - Entry migration head: `0013_warp_plan_authority`
 - Public API change: none
@@ -75,3 +75,21 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `P2_MVR_V1_RESULT: NOT_EVALUATED`
 
 `P2_M6_ENTRY: CLOSED`
+
+## T01 tracked acceptance
+
+- Candidate `a39d9763f3a907bc7824994cd92fbe5c319b3acc` completed GitHub Actions run `32176583182` with
+  `quality-and-integration`, `secret-scan` and `docker-validation` successful.
+- Seven artifacts are present, readable and exact-SHA bound. Phase 1/M1/M2/M3 evidence reports
+  1/98/52/46 tests with zero failures and skips, current migration head `0013_warp_plan_authority`, and the unchanged
+  OpenAPI digest. Gitleaks SARIF contains zero results.
+- The Playwright download completed successfully in 3 minutes 34 seconds. No product repair, retry or Gate waiver was
+  used.
+- Principal accepts T01 and advances M5 to `EXECUTING`. T02 and T04 are open with disjoint collision domains; T03
+  remains dependency-gated on their integrated contract names.
+- This acceptance does not approve any MVR threshold, dimension promotion, new dependency, production geometry,
+  real-user facial processing or QuestionBank release.
+
+`P2_M5_T01_TRACKED_ACCEPTANCE: PASS`
+
+`P2_M5_STATE: EXECUTING`

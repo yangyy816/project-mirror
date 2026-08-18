@@ -534,3 +534,11 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   policy, region-group ontology versioning, first-party SHA/pHash/Hamming and append-only evidence.
 - M5 is `EXECUTION_READY`; T02 is next. P2-MVR-v1 remains `NOT_EVALUATED`, M6 entry remains closed, and no code,
   migration, dependency, image/model artifact, production or real-user capability was added.
+
+## 2026-08-19T19:40:00+08:00 — P2-M5-T01 tracked acceptance
+
+- Candidate `a39d9763f3a907bc7824994cd92fbe5c319b3acc` run `32176583182` passed all three jobs.
+- Seven artifacts bind the exact candidate and `0013_warp_plan_authority`; Phase 1/M1/M2/M3 evidence reports
+  1/98/52/46 tests with zero failures/skips and Gitleaks reports zero results.
+- Principal accepts T01 and advances M5 to `EXECUTING`. T02/T04 are open; T03 remains dependency-gated. Technical
+  Gate, P2-MVR-v1 and M6 entry remain pending/closed.

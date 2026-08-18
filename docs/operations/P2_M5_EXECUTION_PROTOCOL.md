@@ -6,7 +6,7 @@
 - Entry baseline: P2-M4 freeze-state `5f2680e4d0724b409e13ac9cbe318b144cb0375f`
 - Entry run: `32171351357`, attempt 2; all three jobs passed on the exact SHA
 - Branch: `codex/phase2-m5-variable-isolation`
-- State: `EXECUTION_READY`
+- State: `EXECUTING`
 - Migration head at entry: `0013_warp_plan_authority`
 - Architecture authority: ADR-021–041
 - Public API impact: none
@@ -15,7 +15,9 @@
 
 This rolling-wave refinement authorizes only the bounded tasks below. It does not claim that the repository already
 has four dimensions, three region groups, 24 holdout identities per dimension or frozen isolation/duplicate
-thresholds. Implementation starts at T02 only after the Principal accepts this T01 checkpoint.
+thresholds. Principal accepted T01 after candidate `a39d9763f3a907bc7824994cd92fbe5c319b3acc` completed
+same-SHA run `32176583182` with three successful jobs and seven verified artifacts. T02 and T04 are open; T03 waits
+for their integrated names and contracts.
 
 ## Objective and non-goals
 
@@ -211,8 +213,8 @@ targeted validation
 Only Principal may declare M5 PASS/FROZEN. A technical PASS with MVR `FURTHER_RESEARCH` may freeze the reusable M5
 engine, but M6 entry remains closed and the missing research evidence stays durable.
 
-`P2_M5_STATE: EXECUTION_READY`
+`P2_M5_STATE: EXECUTING`
 
-`P2_M5_IMPLEMENTATION: AUTHORIZED_AFTER_T01_CHECKPOINT_ACCEPTANCE`
+`P2_M5_IMPLEMENTATION: T02_AND_T04_AUTHORIZED`
 
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
