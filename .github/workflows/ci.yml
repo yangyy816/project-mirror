@@ -152,7 +152,7 @@ jobs:
           python -m mirror_api.scripts.phase1_ci_evidence \
             --commit-sha "$GITHUB_SHA" \
             --migration-head-file phase1-migration-head.txt \
-            --expected-migration-head 0012_geometry_variant_authority \
+            --expected-migration-head 0013_warp_plan_authority \
             --openapi packages/contracts/openapi.json \
             --test-results phase1-integration-results.xml \
             --output phase1-ci-evidence.json
@@ -166,7 +166,7 @@ jobs:
           python -m mirror_api.scripts.p2_m1_ci_evidence \
             --commit-sha "$GITHUB_SHA" \
             --migration-head-file p2-m1-migration-head.txt \
-            --expected-migration-head 0012_geometry_variant_authority \
+            --expected-migration-head 0013_warp_plan_authority \
             --openapi packages/contracts/openapi.json \
             --test-results p2-m1-results.xml \
             --output p2-m1-ci-evidence.json
@@ -180,7 +180,7 @@ jobs:
           python -m mirror_api.scripts.p2_m2_ci_evidence \
             --commit-sha "$GITHUB_SHA" \
             --migration-head-file p2-m2-migration-head.txt \
-            --expected-migration-head 0012_geometry_variant_authority \
+            --expected-migration-head 0013_warp_plan_authority \
             --openapi packages/contracts/openapi.json \
             --test-results p2-m2-results.xml \
             --output p2-m2-ci-evidence.json
@@ -194,7 +194,7 @@ jobs:
           python -m mirror_api.scripts.p2_m3_ci_evidence \
             --commit-sha "$GITHUB_SHA" \
             --migration-head-file p2-m3-migration-head.txt \
-            --expected-migration-head 0012_geometry_variant_authority \
+            --expected-migration-head 0013_warp_plan_authority \
             --openapi packages/contracts/openapi.json \
             --test-results p2-m3-results.xml \
             --holdout-evidence docs/operations/P2_M3_V03_HOLDOUT_REDACTED_EVIDENCE.json \

@@ -9,7 +9,7 @@ import pytest
 from mirror_api.scripts.p2_m3_ci_evidence import EvidenceError, generate_evidence, run
 
 COMMIT_SHA = "d" * 40
-MIGRATION_HEAD = "0012_geometry_variant_authority"
+MIGRATION_HEAD = "0013_warp_plan_authority"
 V01_FROZEN_MIGRATION_HEAD = "0011_offline_synth_source"
 POLICY_DIGEST = "8" * 64
 HOLDOUT_DIGEST = "7" * 64

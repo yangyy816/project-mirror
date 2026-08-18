@@ -412,3 +412,15 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   format/lint/typecheck/test/contracts/build gate also passes.
 - Candidate commit, same-SHA Actions and artifact inspection remain pending. T06 stays blocked until
   Principal accepts CC03-A; T07/T08 and the P2-M4 Gate remain closed.
+
+## 2026-08-18T21:15:00+08:00 — P2-M4-R11 CI evidence-head repair
+
+- Candidate `4af3a8a3ff3264887ac8752a581180049cb6d240` run `32137671571` passed
+  `secret-scan`, `docker-validation`, all migration/tests and browser checks. Phase 1 evidence
+  generation then failed because all four workflow evidence calls still expected the prior `0012`
+  head; downstream evidence/audit steps were skipped by the failed job.
+- R11 changes only those four expected-head arguments and their repository regression assertions to
+  the real `0013_warp_plan_authority`. No evidence generator, check, artifact or frozen regression is
+  removed or weakened.
+- A new same-SHA run and all expected artifacts remain mandatory before CC03-A acceptance and T06
+  resume.

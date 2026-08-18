@@ -199,8 +199,13 @@ forward architecture correction, not an Rxx repair, and does not approve a gener
   `0013→0012→0013`, and `alembic check` with zero drift. The full Linux API/Worker suite completed
   with every executed test passing and seven existing optional skips; the full pnpm format/lint/
   typecheck/test/contracts/build gate also passes.
-- This is local candidate evidence only. `CC-P2-M4-03-A` remains pending tracked commit and same-SHA
-  GitHub Actions/artifact inspection; T06 remains blocked, and T07/T08/Milestone Gate remain closed.
+- Candidate `4af3a8a3ff3264887ac8752a581180049cb6d240` passed `secret-scan` and
+  `docker-validation` in run `32137671571`; all implementation, migration, Python, TypeScript and
+  browser steps also passed. `quality-and-integration` then failed only because four evidence steps
+  still passed the old `0012_geometry_variant_authority` head. `P2-M4-R11` updates those workflow
+  arguments and regression expectations to the actual `0013_warp_plan_authority` without weakening
+  any frozen Gate. CC03-A remains pending the R11 exact-SHA run and artifact inspection; T06 remains
+  blocked, and T07/T08/Milestone Gate remain closed.
 
 ## Exit rule
 
