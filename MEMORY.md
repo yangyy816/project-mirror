@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 2 — Synthetic Dataset Engine（COMMITTED）
-- 当前 Milestone：P2-M4 — Deterministic Geometry Variant Research and Engine（EXECUTING）
+- 当前 Milestone：P2-M4 — Deterministic Geometry Variant Research and Engine（PASS）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -341,3 +341,11 @@
   `PASS_EVALUATION_COMPLETE`，但结论保持 `FURTHER_RESEARCH_FOR_M5_ISOLATION`：N=2 不满足 M5
   MVR，`jaw_width` 仍为 `EXPERIMENTAL`，未批准 M5 tolerance、production geometry、真人处理或
   QuestionBank release。T08 已开放，P2-M4 Milestone Gate 尚未决定。
+
+- 2026-08-19：P2-M4 T08 forward repairs R13–R16 已关闭 split authority、exact Vision/topology binding、
+  current-state drift 与 persisted ontology researchability 缺口。Fresh Windows/Linux replay 与原 T07
+  outputs/measurements 完全一致；candidate `734148c38c591f1514d17a7a4fcb967dd680fd79` 的 run
+  `32165030127` 三 jobs 与七项 exact-SHA artifacts 全绿，独立安全和最终审查均 PASS。Principal 将
+  P2-M4 technical Gate 更新为 PASS；仍须 acceptance closure 与独立 freeze-state CI 后才能 FROZEN。
+  `jaw_width` 保持 `EXPERIMENTAL`，结论仍为 `FURTHER_RESEARCH_FOR_M5_ISOLATION`，P2-M5、production
+  geometry、真人处理与 QuestionBank release 继续关闭。

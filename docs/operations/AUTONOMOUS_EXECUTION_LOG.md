@@ -479,3 +479,16 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   `FURTHER_RESEARCH_FOR_M5_ISOLATION`. `jaw_width` remains `EXPERIMENTAL`; no M5 tolerance,
   production geometry, real-user facial processing or QuestionBank release is approved. T08 opens;
   the P2-M4 Milestone Gate remains undecided.
+
+## 2026-08-19T01:35:00+08:00 — P2-M4 T08 repair technical PASS
+
+- T08 final review found two HIGH authority/execution gaps and one MEDIUM current-state drift. Forward repairs
+  R13–R16 bind the three-axis split authority, exact Vision/model/topology closure, correct current governance and
+  persisted ontology researchability before I/O.
+- Fresh Windows/Linux private replay preserved all original T07 outputs and measurements. The conclusion remains
+  `FURTHER_RESEARCH_FOR_M5_ISOLATION`; N=2 and experimental `jaw_width` do not authorize an M5 tolerance.
+- Candidate `734148c38c591f1514d17a7a4fcb967dd680fd79` completed run `32165030127` with all three jobs successful.
+  Seven exact-SHA artifacts are present and readable; independent security and final reviews both returned PASS with
+  no mandatory finding.
+- Principal accepts R13–R16 and T08 and records P2-M4 technical `PASS`. P2-M4 is not yet `FROZEN`; acceptance closure
+  and freeze-state exact-SHA CI checkpoints remain mandatory, and P2-M5 stays closed.

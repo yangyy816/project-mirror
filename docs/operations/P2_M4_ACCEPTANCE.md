@@ -3,7 +3,7 @@
 ## Status
 
 - Milestone: `P2-M4 — Deterministic Geometry Variant Research and Engine`
-- State: `EXECUTING`
+- State: `PASS`
 - Entry baseline: `6b86a665e845e113bbfa2820f906d3b78506b753`
 - Entry migration head: `0011_offline_synth_source`
 - Public API change: none
@@ -31,7 +31,7 @@ PASS.
 | Synthetic-only   | no User relation, real-person fixture or sensitive classifier       | T07 PASS |
 | Contracts        | public OpenAPI/generated TypeScript unchanged                       | T07 PASS |
 | Full Gate        | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA CI          | T07 PASS |
-| Review           | independent security and final review                               | PENDING  |
+| Review           | independent security and final review                               | PASS     |
 
 ## Entry evidence
 
@@ -370,9 +370,47 @@ LandmarkWarpPlanAuthority → passed canonical source QA/record/identity/Asset`,
 
 `P2_M4_R12: REPAIR_ACCEPTED`
 
+## T08 repair and Principal technical Gate
+
+- Independent final review of `852a9777d8acec30170cc76554a97b51b3296228` found two HIGH gaps and one MEDIUM
+  governance drift. The forward repair protocol froze `P2-M4-R13` through `P2-M4-R16`; no historical ADR,
+  preregistration, attempt or measured result was rewritten.
+- R13 binds calibration and holdout by independent SyntheticIdentity ID, Asset ID and normalized SHA-256 authority.
+  R14 verifies the complete platform Vision closure, model and topology before output-root creation, topology parsing
+  or native execution. R15 aligns current governance to P2-M4. R16 rehydrates the approved, digest-valid persisted
+  ontology and rejects unknown or non-researchable target/control dimensions before any source, native or result I/O.
+- Fresh private Windows/Linux replay used the unchanged N=2 cohort, directions, repeats, algorithm and thresholds.
+  All repaired outputs and measurements equal their original T07 counterparts. Maximum cross-platform difference
+  remains `0.000011863707220088893`; maximum control relative drift remains `0.011420225249709091`.
+- Local validation passed 13 focused T07 tests, Ruff, strict mypy across 122 sources, full pnpm/contracts, fresh
+  PostgreSQL lifecycle and zero drift, Docker health/smoke, staged Gitleaks and the 498-pass API/Worker matrix. The one
+  skip is the existing optional private-runtime Celery test, separately exercised by the preserved private M4
+  evidence.
+- Repair candidate `734148c38c591f1514d17a7a4fcb967dd680fd79` completed GitHub Actions run
+  `32165030127`; `quality-and-integration`, `secret-scan` and `docker-validation` all passed. Seven artifacts are
+  present, readable and unexpired. Phase 1 and P2-M1–M3 evidence binds the exact SHA and
+  `0013_warp_plan_authority`; M1/M2/M3 report 98/52/46 tests with zero failures/errors/skips, and Gitleaks reports
+  zero results.
+- Independent security/privacy/data/supply-chain review and independent final integrated review both returned PASS
+  with no mandatory finding. Principal accepts R13–R16 and T08 and sets the P2-M4 technical Gate to PASS.
+- The research result remains `FURTHER_RESEARCH_FOR_M5_ISOLATION`: `jaw_width` is still `EXPERIMENTAL`; N=2 does not
+  meet the M5 MVR, and no tolerance, production geometry, real-user facial processing or QuestionBank release is
+  authorized.
+
+`P2_M4_R13: REPAIR_ACCEPTED`
+
+`P2_M4_R14: REPAIR_ACCEPTED`
+
+`P2_M4_R15: REPAIR_ACCEPTED`
+
+`P2_M4_R16: REPAIR_ACCEPTED`
+
+`P2_M4_T08: TASK_ACCEPTED`
+
+`P2_M4_GATE: PASS`
+
 ## Exit rule
 
-P2-M4 can pass only when every mandatory row has actual evidence, all candidate claims are bounded to
-private synthetic M4, same-SHA CI and artifacts are verified, and independent reviews pass. A useful
-but insufficient PoC is `FURTHER_RESEARCH`, not PASS. Only Principal can update this document to
-`PASS` and later `FROZEN` through separate closure checkpoints.
+P2-M4 has passed the technical Gate. It may become `FROZEN` only after this acceptance closure and a separate
+freeze-state checkpoint each pass exact-SHA CI/artifact verification. A useful but insufficient PoC remains
+`FURTHER_RESEARCH`, not PASS. Only Principal may record the later `FROZEN` transition.
