@@ -665,3 +665,17 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Full local Gate passed: Ruff 212 files, mypy 124 sources, Alembic round trip/check, API/Worker `567 passed` with one
   existing optional private-runtime skip, `pnpm check`, Compose rebuild/health/smoke and staged-index plus 178-commit
   Gitleaks scans. R02 is `READY_FOR_TRACKED_EVIDENCE`; Stage B remains closed until exact-SHA remote Gates pass.
+
+## 2026-08-19T06:30:00+08:00 — P2-M5-R02 tracked acceptance and Stage B recovery
+
+- Repair candidate `9946a43d771c2cb27d764243bda047e943ad5c99` completed run `32192316257`; all three jobs
+  passed on the exact SHA.
+- Seven expected artifacts are readable and unexpired. Phase 1/M1/M2/M3 evidence binds the candidate,
+  `0014_m5_eval_authority` and unchanged OpenAPI, with 1/98/52/46 tests and zero failures/errors/skips. Gitleaks
+  reports zero results; Celery evidence contains no execution error, traceback or deadlock.
+- Principal accepts R02 as test-composition-only. Stage B returns to `EXECUTION_READY` under the accepted
+  12-identity, 18-attempt, one-retry-per-item, concurrency-1 envelope. Stage C–E, holdout, T06–T08, MVR, production
+  geometry, real-user processing, M6 and QuestionBank release remain closed.
+- Project Owner download authorization remains available for task-required private acquisition, including exact
+  MediaPipe 0.10.35 Windows/Linux wheels, the exact Face Landmarker bundle and necessary dependencies. Download does
+  not change adoption, license, distribution, production or real-user-processing approval.

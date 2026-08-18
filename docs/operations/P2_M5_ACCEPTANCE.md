@@ -330,3 +330,25 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `P2_M5_R02: READY_FOR_TRACKED_EVIDENCE`
 
 `CC_P2_M5_01_B: CLOSED_PENDING_REPAIRED_ACCEPTANCE_CHECKPOINT`
+
+## P2-M5-R02 tracked acceptance and Stage B recovery
+
+- Repair candidate `9946a43d771c2cb27d764243bda047e943ad5c99` run `32192316257` passed
+  `quality-and-integration`, `secret-scan` and `docker-validation` on the exact candidate SHA.
+- Seven artifacts are present, readable and unexpired. Phase 1/M1/M2/M3 evidence binds the exact SHA,
+  `0014_m5_eval_authority` and unchanged OpenAPI; the suites report 1/98/52/46 tests with zero failures, errors or
+  skips. Gitleaks SARIF contains zero results.
+- The full Python suite reports `567 passed, 1 skipped`; the skip is the existing optional private-runtime Gate.
+  Celery evidence has no execution error, traceback or deadlock. The Docker log's only case-insensitive `error` match
+  is Redis field `bf-error-rate`.
+- Principal accepts R02. Its scope remains the synchronous test composition only; production dispatch, data-rights
+  semantics, schema, public contracts and P2 research authority are unchanged.
+- Stage B returns to `EXECUTION_READY` under the accepted 12 identities, 18 total attempts, one retry per
+  item and concurrency-1 envelope. Stage C–E, final holdout, T06–T08, MVR execution, production geometry, real-user
+  processing, M6 and QuestionBank release remain closed.
+
+`P2_M5_R02: REPAIR_ACCEPTED`
+
+`CC_P2_M5_01_B: EXECUTION_READY`
+
+`P2_M5_NEXT_ACTION: CC_P2_M5_01_B_CALIBRATION_ONLY_ACQUISITION`

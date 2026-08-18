@@ -445,3 +445,12 @@
   retry、concurrency 1。Stage C–E、final holdout、T06–T08、MVR、production geometry、真人处理、M6 与
   QuestionBank release 继续关闭。官方 MediaPipe wheels 仍 rejected；下载授权不改变 adoption、license、
   distribution、production 或 real-user-processing status。
+
+- 2026-08-19：`P2-M5-R02` 关闭 Stage A acceptance checkpoint 的测试组合死锁：Phase 1 同步 HTTP vertical
+  test 原先同时向 live Celery 投递 data-rights/asset-deletion 工作并直接执行相同服务，导致 teardown
+  `TRUNCATE` 与后台 transaction 竞态。修复仅在该测试内使用既有 recoverable no-broker dispatchers；20/20
+  live PostgreSQL/Redis/Celery replay 通过且 worker 收到零任务。Candidate
+  `9946a43d771c2cb27d764243bda047e943ad5c99` 的 run `32192316257` 三 jobs 与七项 exact-SHA artifacts
+  全绿，Python 为 567 PASS/1 个既有 optional skip，Gitleaks 零结果。Principal 接受 R02 并恢复 Stage B 为
+  `EXECUTION_READY`；12 identities、18 attempts、单项一次 retry、concurrency 1 边界不变，Stage C–E、MVR、
+  production geometry、真人处理、M6 与 QuestionBank release 继续关闭。

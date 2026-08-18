@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-- Status: `READY_FOR_TRACKED_EVIDENCE`.
+- Status: `REPAIR_ACCEPTED`.
 - Trigger: Stage A acceptance checkpoint `d3158c03e0843e5a504531dd407eafea534630de`, run `32190386366`.
 - Boundary: test-composition repair only. No production code, schema, migration, API, authorization, deletion
   semantics, P2 research result or dependency changes are permitted.
@@ -72,3 +72,21 @@ worker while independently driving the same data-rights services synchronously.
   scan and the 178-commit full-history scan all passed. No dependency, model, image or OpenAPI artifact changed.
 
 `P2_M5_R02_LOCAL_GATE: READY_FOR_TRACKED_EVIDENCE`
+
+## Tracked acceptance evidence
+
+- Repair candidate `9946a43d771c2cb27d764243bda047e943ad5c99` completed GitHub Actions run
+  `32192316257`; `quality-and-integration`, `secret-scan` and `docker-validation` all passed on that exact SHA.
+- Seven expected artifacts are present, readable and unexpired. Phase 1/M1/M2/M3 evidence binds the exact candidate,
+  migration head `0014_m5_eval_authority` and the unchanged OpenAPI digest; the suites report 1/98/52/46 tests with
+  zero failures, errors or skips. Gitleaks SARIF contains zero results.
+- The complete Python run reports `567 passed, 1 skipped`; the skip is the existing optional private-runtime Gate.
+  Celery evidence contains no `ERROR`, traceback or deadlock. The only case-insensitive Docker-log `error` match is
+  Redis configuration field `bf-error-rate`, not an execution failure.
+- Principal accepts R02 as a test-composition repair. No production code, schema, API, authorization, deletion
+  semantics, research result, dependency, model or image changed. Stage B may resume under its already accepted
+  12-identity/18-attempt/concurrency-1 envelope.
+
+`P2_M5_R02: REPAIR_ACCEPTED`
+
+`CC_P2_M5_01_B: EXECUTION_READY`
