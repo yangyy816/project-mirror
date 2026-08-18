@@ -313,3 +313,21 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - The frozen CMake and C++ wrapper digests are `1ba75ad0...` and `2bfe68ce...`. The wrapper accepts
   only bounded in-memory RGB bytes and float32 maps, exports version/remap functions, fixes one thread
   and disables optimized dispatch. No configure or build was run before these digests were recorded.
+
+## 2026-08-18T18:40:00+08:00 — P2-M4-T04 bounded OpenCV 5 V2 local disposition
+
+- Candidate `OPENCV_5_0_0_BOUNDED_TRANSITIVE_SOURCE_V2` completed two clean Linux `--network none`
+  roots and two clean Windows roots. All five runtime pairs are byte-identical per platform; all four
+  harness reports share deterministic digest `ebfee6e9...`, byte-identical cross-platform fixture
+  outputs and passing negative controls.
+- R08's conditional linker overlay removed the last Windows PDB metadata without changing the module
+  graph or algorithm. All Windows binaries have zero RSDS/PDB, private-path, pthread and network-import
+  matches. Linux retains only relative `$ORIGIN` and zero network undefined symbols.
+- A final Windows run under process-specific outbound denial and Filtering Platform failure capture
+  completed with zero attempted egress. The temporary rule was removed and audit policy restored.
+- The exact closure is `core,flann,geometry,imgproc` plus bundled static zlib `1.3.2`. License notices
+  are closed; private CycloneDX SBOM SHA-256 is `2345cba1...`; offline Grype 0.117.0/database v6.1.9
+  reports zero matches.
+- Principal local disposition is `APPROVED_FOR_PRIVATE_SYNTHETIC_M4`. T05 remains closed until this
+  tracked evidence passes same-SHA GitHub Actions. No binary, project dependency, model, image,
+  production, distribution, real-user or QuestionBank authority is added.

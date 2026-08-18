@@ -14,24 +14,24 @@ PASS.
 
 ## Mandatory evidence matrix
 
-| Gate             | Required evidence                                                   | Status               |
-| ---------------- | ------------------------------------------------------------------- | -------------------- |
-| Architecture     | ADR-036 and rolling-wave contracts accepted                         | T01 PASS             |
-| QA subject union | ADR-037 preserves M3 base authority and binds variant result QA     | ACCEPTED             |
-| Domain           | immutable source-relative spec and fail-closed state machine        | T02 PASS             |
-| Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | T03 PASS             |
-| Source authority | only QA-passed canonical synthetic Asset/identity/run               | T03 PASS             |
-| Lineage          | source/spec/run/result/measurement chain immutable                  | T03 PASS             |
-| Candidate        | exact source/version/license/SBOM/vulnerability/zero-network review | T04 FURTHER_RESEARCH |
-| Transform        | bounded adapter, no absolute/global target, new Asset only          | PENDING              |
-| Determinism      | preregistered same-platform and Windows/Linux evidence              | PENDING              |
-| Safety           | bounds/foldover/malformed/second-decode and artifact negatives      | PENDING              |
-| Measurement      | requested and actual target/control evidence retained               | PENDING              |
-| Recovery         | retry/cancel/duplicate/reconcile and lock-order evidence            | PENDING              |
-| Synthetic-only   | no User relation, real-person fixture or sensitive classifier       | PENDING              |
-| Contracts        | public OpenAPI/generated TypeScript unchanged                       | PENDING              |
-| Full Gate        | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA CI          | PENDING              |
-| Review           | independent security and final review                               | PENDING              |
+| Gate             | Required evidence                                                   | Status                             |
+| ---------------- | ------------------------------------------------------------------- | ---------------------------------- |
+| Architecture     | ADR-036 and rolling-wave contracts accepted                         | T01 PASS                           |
+| QA subject union | ADR-037 preserves M3 base authority and binds variant result QA     | ACCEPTED                           |
+| Domain           | immutable source-relative spec and fail-closed state machine        | T02 PASS                           |
+| Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | T03 PASS                           |
+| Source authority | only QA-passed canonical synthetic Asset/identity/run               | T03 PASS                           |
+| Lineage          | source/spec/run/result/measurement chain immutable                  | T03 PASS                           |
+| Candidate        | exact source/version/license/SBOM/vulnerability/zero-network review | T04 CANDIDATE APPROVED; CI PENDING |
+| Transform        | bounded adapter, no absolute/global target, new Asset only          | PENDING                            |
+| Determinism      | preregistered same-platform and Windows/Linux evidence              | PENDING                            |
+| Safety           | bounds/foldover/malformed/second-decode and artifact negatives      | PENDING                            |
+| Measurement      | requested and actual target/control evidence retained               | PENDING                            |
+| Recovery         | retry/cancel/duplicate/reconcile and lock-order evidence            | PENDING                            |
+| Synthetic-only   | no User relation, real-person fixture or sensitive classifier       | PENDING                            |
+| Contracts        | public OpenAPI/generated TypeScript unchanged                       | PENDING                            |
+| Full Gate        | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA CI          | PENDING                            |
+| Review           | independent security and final review                               | PENDING                            |
 
 ## Entry evidence
 
@@ -87,6 +87,26 @@ PASS.
   regression, frozen Phase 1/P2-M1–M3 evidence generation, dependency/license audits, SBOM and
   Gitleaks. Expected artifacts are present and unexpired. Principal accepts T03 and R01 only;
   P2-M4 remains `EXECUTING`, and the milestone Full Gate remains pending.
+
+## T04 candidate evidence
+
+- The general-purpose OpenCV Python wheel and the first two-module source candidate remain
+  `FURTHER_RESEARCH`. They are not silently reclassified or reused.
+- Candidate `OPENCV_5_0_0_BOUNDED_TRANSITIVE_SOURCE_V2` uses exact OpenCV `5.0.0`, actual modules
+  `core;flann;geometry;imgproc`, bundled static zlib `1.3.2` and the narrow first-party C ABI.
+- Two clean Linux `--network none` roots and two clean Windows roots are byte-identical per platform.
+  All four reports share deterministic digest `ebfee6e9...`; both fixture outputs are byte-identical
+  across platforms and all preregistered negative controls pass.
+- R08 removes only MSVC PDB metadata under an explicit private build flag. Windows artifacts contain
+  no RSDS/PDB, private path, `pthread` or network-capable import. Linux uses relative `$ORIGIN`, has
+  zero network undefined symbols and no private paths.
+- Windows process-specific outbound denial plus Filtering Platform capture records zero attempted
+  egress during a complete harness run. The temporary rule and audit change were restored.
+- Apache-2.0/BSD-3-Clause OpenCV notices and the zlib license are retained. The private CycloneDX 1.6
+  SBOM is `2345cba1...`; offline Grype `0.117.0` with database v6.1.9 reports zero matches.
+- Principal local disposition is `APPROVED_FOR_PRIVATE_SYNTHETIC_M4`. The complete redacted report is
+  `docs/research/P2_M4_T04_OPENCV_5_BOUNDED_SOURCE_V2_REPORT.md`. T05 remains closed until this
+  tracked evidence checkpoint passes same-SHA GitHub Actions.
 
 ## Exit rule
 

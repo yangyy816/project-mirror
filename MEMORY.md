@@ -121,6 +121,16 @@
 
 ## 工作记录
 
+- 2026-08-18：P2-M4-T04 候选 `OPENCV_5_0_0_BOUNDED_TRANSITIVE_SOURCE_V2` 完成本地 Gate，Principal
+  处置为 `APPROVED_FOR_PRIVATE_SYNTHETIC_M4`，但须待 tracked evidence 的 same-SHA CI 通过后才开放
+  T05。exact OpenCV 5.0.0 source + R08 conditional no-PDB overlay 构建的实际闭包仅为
+  `core,flann,geometry,imgproc`、bundled static zlib 1.3.2 与第一方 `ctypes-c-v1` wrapper；两个
+  Linux `--network none` 和两个 Windows clean roots 均逐平台 byte-identical，跨平台 fixture
+  pixels 完全一致，全部负向控制通过。Windows/Linux static network closure 为零，Windows
+  process-specific outbound deny + WFP capture 为零 attempted egress。private CycloneDX SBOM 为
+  `2345cba1...`，Grype 0.117.0 / DB v6.1.9 为零 matches。该批准不等于项目 binary/package、
+  distribution、production、真人 facial processing 或 QuestionBank release 授权。
+
 - 2026-08-18：P2-M4-T04 首个候选 `opencv-python-headless==5.0.0.93` 结论为
   `FURTHER_RESEARCH`。Exact OpenCV/NumPy artifacts 均匹配官方 SHA-256；两个 Windows 与两个
   Linux `--network none` 有效运行的 deterministic digest 均为 `5833e2cf...`，跨平台 256/1024
