@@ -124,6 +124,21 @@ byte-identical main/core/imgproc artifacts with no private build paths. OouraFFT
 the remaining sourced vulnerability dispositions, Windows toolchain/build and all runtime/model
 stages remain closed.
 
+Stage B subsequently passed for the authorized isolated synthetic PoC. R21 retained the image
+create/free ABI on both platforms, and fresh Windows roots produced byte-identical main/core/imgproc
+artifacts. Stage C then ran the fixed private model and fixed synthetic RGB input three times on each
+platform. Linux used `--network none`; Windows used a process-specific outbound block with Filtering
+Platform failure capture. All six runs completed create/detect/free/close, returned exactly one face,
+and recorded zero outbound attempts. This does not claim absence of local TFLite profiler/telemetry
+types.
+
+`P2_M3_V03_EXECUTED: STAGE_C_PASS_PRIVATE_SYNTHETIC_ONLY`
+
+`POC_RUNTIME_APPROVED: YES_PRIVATE_SYNTHETIC_ONLY`
+
+Stage D may now start under the unchanged V02 calibration/holdout protocol. The official wheel,
+production Vision, distribution and real-user facial processing remain rejected or blocked.
+
 `SOURCE_BUILD_AUTHORIZED: YES`
 
 `SOURCE_PATCH_APPROVED: YES`

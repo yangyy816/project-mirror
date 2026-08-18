@@ -272,3 +272,54 @@ Stage C Windows/Linux process-level zero-egress runtime qualification is now the
 `PROJECT_DEPENDENCIES_ADDED: NONE`
 
 `MODEL_ARTIFACTS_ADDED: NONE`
+
+## R21 image ABI retention and Stage C closure
+
+R19 retained `MpImageCreateFromUint8Data` and `MpImageFree` on Linux, but the first two Windows
+replays omitted both exports. R21 adds only the equivalent MSVC linker-retention directives. The
+tracked Linux and Windows repair patches have SHA-256 values
+`8838776b861579a9078868150de1475c9f624b032a67715748799bf04d987d31` and
+`5bc80bdceea7e902e3af79c59ec1f121b01add2e660831c9aa85d11ac3c1bdb1` respectively.
+
+Fresh Windows roots `bw34` and `bw35` each completed all 4,549 actions. Their three artifact pairs
+are byte-identical:
+
+- Face Landmarker DLL: size `30476288`, SHA-256
+  `5a904100bf197e8b4755f503aa4d1d8a8892107a9940e2f848eeb302ff24dd8d`.
+- OpenCV core DLL: size `2302464`, SHA-256
+  `353c960dbc233d6d412dc1015b702321f3a7f8a80494a7142c7e9c3670d61f68`.
+- OpenCV imgproc DLL: size `2385408`, SHA-256
+  `1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4`.
+
+The main DLL exports the Face Landmarker create/detect/result-close/close functions and the required
+image create/free functions. Its dynamic imports are limited to the frozen OpenCV DLLs and Windows
+runtime libraries. Main/core/imgproc scans report zero private-build paths, PDB/RSDS references,
+Ooura, Clearcut, certifi/CA-bundle, fixed telemetry endpoint or Windows network API imports. The PE
+debug directory contains deterministic `coffgrp` and `repro` records, not a PDB reference.
+
+The fixed GCS generation `1683136941468629` bundle was reacquired from the official object metadata:
+size `3758596`, SHA-256
+`64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff`. A private Windows harness
+executed the full create -> image-create -> detect -> result-free -> image-free -> close lifecycle
+three times against the fixed synthetic RGB input. All three runs returned one face and clean close;
+the process-specific outbound block plus Filtering Platform failure capture recorded zero outbound
+attempts. The temporary firewall rule was removed and the prior audit-policy state was restored.
+
+Linux Stage C had already executed the same model/input lifecycle three times under `--network none`
+with `DETECT_OK_COUNT=3`, `FACE_ONE_COUNT=3`, `CLOSE_OK_COUNT=3` and `NETWORK_CALL_COUNT=0`. These
+process-level results do not imply that all local TFLite telemetry/profiler types are absent; they
+prove zero observed external network invocation for this exact Stage C closure.
+
+During the Windows reproduction, unsafe cleanup of an old Bazel output root followed reparse points
+and damaged the private toolchain. The same Visual Studio Build Tools workload contract was restored
+and verified as VS `17.14.38`, MSVC `14.44.35207` / compiler `19.44.35228`, and Windows SDK
+`10.0.26100.0` before `bw34`/`bw35`. Future cleanup must never recursively traverse Bazel reparse
+points; failed roots are evidence, not cleanup targets.
+
+`P2_M3_V03_STAGE_C: PASS_PRIVATE_SYNTHETIC_ONLY`
+
+`POC_RUNTIME_APPROVED: YES_PRIVATE_SYNTHETIC_ONLY`
+
+This closes Stage C for the exact source-built candidate only. The official `0.10.35` wheels remain
+rejected, the model remains `PRIVATE_RESEARCH_ONLY`, and distribution, production Vision and
+real-user facial processing remain blocked. Stage D calibration/holdout is the next Gate.

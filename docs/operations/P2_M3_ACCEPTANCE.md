@@ -470,4 +470,24 @@ release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts rem
   exports, bounded imports, no private/PDB/Ooura/Clearcut/CA/network surface, and three successful
   zero-egress synthetic runs.
 
-`P2_M3_R21_STATUS: EXECUTING`
+Fresh roots `bw34` and `bw35` each completed 4,549 actions. Main/core/imgproc pairs are byte-identical
+with SHA-256 values
+`5a904100bf197e8b4755f503aa4d1d8a8892107a9940e2f848eeb302ff24dd8d`,
+`353c960dbc233d6d412dc1015b702321f3a7f8a80494a7142c7e9c3670d61f68` and
+`1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4`. The main DLL exposes the
+required Face Landmarker and image lifecycle functions. All three DLLs have zero private-path,
+PDB/RSDS, Ooura, Clearcut, certifi/CA-bundle, fixed telemetry endpoint and Windows network-API
+matches.
+
+Windows Stage C ran the fixed model and synthetic RGB input three times under a process-specific
+outbound block with Filtering Platform failure capture. Every run returned exit code zero,
+`detect_status=ok`, `face_count=1` and `close_status=ok`; outbound block event count was zero. The
+temporary firewall rule was removed and audit policy restored. Linux had already produced the same
+three successful lifecycle runs under `--network none` with zero network calls.
+
+`P2_M3_R21_STATUS: PASS`
+
+`P2_M3_V03_STAGE_C: PASS_PRIVATE_SYNTHETIC_ONLY`
+
+This acceptance opens Stage D V02 calibration/holdout only. T07, T08, M3 PASS/FROZEN, production
+Vision, distribution and real-user processing remain closed.

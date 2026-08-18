@@ -153,3 +153,25 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   production approval.
 - Two new clean roots, byte comparison, export/import/private-path scans and Windows zero-egress Stage
   C remain mandatory before acceptance.
+
+## 2026-08-18T10:55:00+08:00 — R21 and V03 Stage C closure
+
+- Existing build session completed `bw35` without restart: 4,549/4,549 actions PASS. `bw34`/`bw35`
+  main/core/imgproc pairs are byte-identical with SHA-256 values
+  `5a904100bf197e8b4755f503aa4d1d8a8892107a9940e2f848eeb302ff24dd8d`,
+  `353c960dbc233d6d412dc1015b702321f3a7f8a80494a7142c7e9c3670d61f68` and
+  `1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4`.
+- Export/import and string scans confirm the image create/free ABI and zero private-path, PDB/RSDS,
+  Ooura, Clearcut, certifi/CA-bundle, telemetry-endpoint or Windows network-API matches.
+- The exact official GCS model generation was reacquired with size `3758596` and unchanged SHA-256
+  `64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff`.
+- Windows Stage C completed three fixed synthetic runs under process-specific outbound denial and
+  Filtering Platform failure capture: three detect PASS, three one-face results, three close PASS and
+  zero outbound attempts. Firewall and audit-policy changes were fully reverted. Together with the
+  earlier three Linux `--network none` runs, V03 Stage C is PASS for private synthetic use only.
+- A disk-pressure cleanup incident followed Bazel reparse points and damaged the private toolchain.
+  The exact VS Build Tools workload was restored and verified before both accepted builds. Future
+  cleanup must not recurse through Bazel reparse points; failed roots remain evidence.
+- Official wheels remain rejected; the model remains `PRIVATE_RESEARCH_ONLY`; project dependency,
+  distribution, production Vision and real-user facial processing remain blocked. Next action is
+  V02 Stage D calibration, policy freeze and unchanged holdout.

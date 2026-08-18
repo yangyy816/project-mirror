@@ -167,3 +167,29 @@ The later P2-M5 component is deliberately limited to exact SHA-256 comparison, p
 `MODEL_ARTIFACTS_ADDED: NONE`
 
 `PROVIDER_SDKS_ADDED: NONE`
+
+## V03 R21 and Stage C disposition
+
+R21 retained the image create/free ABI without changing the configured dependency graph. Fresh
+Windows roots `bw34`/`bw35` completed 4,549 actions and produced byte-identical main/core/imgproc
+artifacts with SHA-256 values
+`5a904100bf197e8b4755f503aa4d1d8a8892107a9940e2f848eeb302ff24dd8d`,
+`353c960dbc233d6d412dc1015b702321f3a7f8a80494a7142c7e9c3670d61f68` and
+`1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4`. Export/import and string
+scans found zero private path, PDB/RSDS, Ooura, Clearcut, certifi/CA-bundle, fixed telemetry endpoint
+or Windows network API matches.
+
+The authoritative 22,719-label graph, 51-component SBOM and 38-repository license inventory remain
+unchanged because R21 changes only linker retention. Their recorded SHA-256 values remain
+`902088a0e70d3ce005885c01f7ee472fba19458ae803e09700df52949d152dda` and
+`e1e77546b0a2a8148cc2f6ef6b3dc700305edad16311b09d9a836caa3c2742d3`; the prior vulnerability
+dispositions therefore remain applicable.
+
+Both-platform Stage C used the same fixed model and synthetic input for three complete lifecycle
+runs per platform. Linux `--network none` and Windows process-specific outbound denial/capture each
+recorded zero outbound attempts; all runs detected one face and closed cleanly. This approves the
+exact source-built runtime only for private synthetic Stage D calibration/holdout. It does not alter
+the official-wheel rejection, `PRIVATE_RESEARCH_ONLY` model status, project dependency manifests,
+distribution, production Vision or real-user facial-processing gates.
+
+`V03_STAGE_C: PASS_PRIVATE_SYNTHETIC_ONLY`

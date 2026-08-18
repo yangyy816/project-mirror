@@ -80,6 +80,15 @@ inference 在出站阻断下仍尝试 Google Clearcut telemetry，故 exact `0.1
 `FAIL`；Linux `--network none` 的单次成功不改变该结论。未进入 calibration/holdout，且
 `MODEL_ARTIFACTS_ADDED: NONE`、`PROJECT_DEPENDENCIES_ADDED: NONE`。
 
+2026-08-18 V03 Stage C 使用同一固定 generation 再次从官方 GCS metadata 获取 bundle，size
+`3758596`、SHA-256 仍为
+`64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff`。source-built minimal C
+closure 在 Windows/Linux 各完成三次 synthetic-only create/detect/free/close，均检测一张脸且进程级
+zero-egress capture 为零 outbound attempt。该结果只把 exact source-built runtime 推进到 private
+Stage D；bundle 仍为 `PRIVATE_RESEARCH_ONLY`，训练数据与再分发 provenance 未闭合，distribution、
+production Vision、commercial adoption 与 real-user facial processing 继续 blocked。官方 wheel 的
+Clearcut failure 保持不变。
+
 ## Real-person reference rights boundary
 
 该 registry 不把 source-image rights 混入 model license。未来任何 restricted reference study 必须在
