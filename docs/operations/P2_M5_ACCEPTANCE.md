@@ -252,6 +252,31 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `P2_M5_T06_ENTRY: CLOSED`
 
+## CC-P2-M5-01 Stage B tracked acceptance
+
+- Candidate `7282094406b9754368709f543c4fda54b2e57490` run `32197326163` passed
+  `quality-and-integration`, `secret-scan` and `docker-validation` on the exact candidate SHA.
+- Seven artifacts are present, readable and unexpired. Phase 1/M1/M2/M3 evidence binds the exact SHA, migration head
+  `0014_m5_eval_authority` and unchanged OpenAPI digest; the suites report 1/98/52/46 tests with zero failures,
+  errors or skips. Gitleaks SARIF contains one run and zero results.
+- Docker evidence completed its health/smoke path. Celery evidence contains no execution error; the Docker log's two
+  case-insensitive error-like matches are PostgreSQL shutdown of its logical-replication launcher and Redis's
+  `bf-error-rate` configuration field, not test failures.
+- Principal accepts Stage B as bounded calibration acquisition evidence. This does not select a near-duplicate
+  threshold, promote a dimension, authorize a transform, execute a holdout/MVR, approve production geometry or
+  real-user processing, or authorize M6/QuestionBank release.
+- Stage C opens only for the exact candidate-manifest checkpoint required before reading candidate measurements.
+  Measurement, transform and threshold-calibration execution remain closed until that manifest passes tracked
+  acceptance.
+
+`CC_P2_M5_01_B: PASS_AT_7282094_RUN_32197326163`
+
+`CC_P2_M5_01_C_MANIFEST: AUTHORIZED`
+
+`CC_P2_M5_01_C_EXECUTION: CLOSED_PENDING_MANIFEST_ACCEPTANCE`
+
+`CC_P2_M5_01_D_TO_E: CLOSED`
+
 ## T05 tracked disposition
 
 - Candidate `e46d7a9d19eee536c2f57cac6de224cccf27f2be` run `32187946640` passed

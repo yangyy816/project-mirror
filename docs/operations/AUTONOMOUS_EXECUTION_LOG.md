@@ -679,3 +679,13 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Project Owner download authorization remains available for task-required private acquisition, including exact
   MediaPipe 0.10.35 Windows/Linux wheels, the exact Face Landmarker bundle and necessary dependencies. Download does
   not change adoption, license, distribution, production or real-user-processing approval.
+
+## 2026-08-19T07:40:00+08:00 — CC-P2-M5-01 Stage B tracked acceptance
+
+- Candidate `7282094406b9754368709f543c4fda54b2e57490` run `32197326163` passed all three jobs. Seven artifacts are
+  readable, unexpired and exact-SHA bound to `0014_m5_eval_authority` and the unchanged OpenAPI digest.
+- Phase 1/M1/M2/M3 evidence reports 1/98/52/46 tests with zero failures/errors/skips. Gitleaks SARIF has zero results;
+  Docker and Celery evidence has no execution failure.
+- Principal accepts the bounded 12-identity Stage B calibration acquisition. Stage C opens only for an exact
+  candidate-manifest checkpoint; measurements, transforms, calibration thresholds, Stage D–E, T06–T08, MVR,
+  production geometry, real-user processing, M6 and QuestionBank release remain closed.

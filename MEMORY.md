@@ -466,3 +466,10 @@
   pairs 的观测最小 Hamming distance 为 12，但未选择 near-duplicate threshold。`cal-b-06` 保留
   `REQUESTED_CELL_VISUAL_MATCH_WEAK` 诚实 evidence。当前只到 `LOCAL_PASS_PENDING_TRACKED_EVIDENCE`；Stage C–E、
   T06–T08、MVR、production geometry、真人处理、M6 与 QuestionBank release 继续关闭。
+
+- 2026-08-19：`CC-P2-M5-01-B` candidate `7282094406b9754368709f543c4fda54b2e57490` 的 run
+  `32197326163` 三 jobs 全绿；七项 artifacts 可读、未过期并绑定 exact SHA、`0014_m5_eval_authority` 与
+  unchanged OpenAPI。Phase 1/M1/M2/M3 为 1/98/52/46 tests 且零 failure/error/skip，Gitleaks 零
+  results。Principal 接受 Stage B，只开放 Stage C exact candidate-manifest 编写；在该 manifest tracked
+  acceptance 前 measurement/transform/threshold calibration 仍关闭，Stage D–E、T06–T08、MVR、production
+  geometry、真人处理、M6 与 QuestionBank release 继续关闭。
