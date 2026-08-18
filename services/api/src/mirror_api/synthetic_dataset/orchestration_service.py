@@ -23,12 +23,15 @@ from mirror_api.models import (
     Asset,
     Job,
     JobAttempt,
+    LandmarkWarpPlanAuthority,
     SyntheticAssetRecord,
     SyntheticIdentity,
     SyntheticQAMeasurement,
     SyntheticQAPolicy,
     SyntheticQAReviewDecision,
     SyntheticQARun,
+    TransformRun,
+    VariantSpecification,
     new_id,
 )
 from mirror_api.synthetic_dataset.domain import CanonicalPolicy
@@ -438,6 +441,13 @@ class SyntheticM3OrchestrationService:
             return M3TaskResult(
                 message.qa_run_id, message.job_id, "qa_rejected" if completed else "no_op"
             )
+        if await self._qa_subject_kind(reservation.target_id) == "GEOMETRY_VARIANT":
+            completed = await self._complete(reservation, "succeeded", "variant_qa_passed")
+            return M3TaskResult(
+                message.qa_run_id,
+                message.job_id,
+                "qa_passed" if completed else "no_op",
+            )
         try:
             identity_id, _ = await self._identity.register(
                 record_id=await self._record_for_run(reservation.target_id),
@@ -482,7 +492,7 @@ class SyntheticM3OrchestrationService:
             remaining = limit - len(records)
             runs: list[str] = []
             if remaining:
-                runs = list(
+                base_runs = list(
                     (
                         await session.scalars(
                             select(SyntheticQARun.id)
@@ -502,6 +512,31 @@ class SyntheticM3OrchestrationService:
                         )
                     ).all()
                 )
+                remaining -= len(base_runs)
+                variant_runs: list[str] = []
+                if remaining:
+                    variant_runs = list(
+                        (
+                            await session.scalars(
+                                select(SyntheticQARun.id)
+                                .join(
+                                    TransformRun,
+                                    TransformRun.id == SyntheticQARun.transform_run_id,
+                                )
+                                .where(
+                                    SyntheticQARun.subject_kind == "GEOMETRY_VARIANT",
+                                    (SyntheticQARun.status == "RUNNING")
+                                    | (
+                                        SyntheticQARun.status.in_(("PASSED", "REJECTED"))
+                                        & (TransformRun.status == "MEASURING")
+                                    ),
+                                )
+                                .order_by(SyntheticQARun.created_at, SyntheticQARun.id)
+                                .limit(remaining)
+                            )
+                        ).all()
+                    )
+                runs = base_runs + variant_runs
         messages: list[SyntheticNormalizationTaskMessage | SyntheticQATaskMessage] = []
         for record_id in records:
             messages.append(
@@ -556,8 +591,8 @@ class SyntheticM3OrchestrationService:
                 if record is None or record.status not in {"NORMALIZATION_PENDING", "NORMALIZING"}:
                     return None
             else:
-                run = await self._locked_run(session, target_id)
-                if run is None or run.status not in {"PENDING", "RUNNING", "PASSED"}:
+                run, _ = await self._locked_qa_with_transform_authority(session, target_id)
+                if run.status not in {"PENDING", "RUNNING", "PASSED", "REJECTED"}:
                     return None
             job = await self._locked_job(session, job_id)
             if (
@@ -600,18 +635,36 @@ class SyntheticM3OrchestrationService:
     async def _finalize_qa(self, reservation: M3TaskReservation) -> QAEvaluation:
         try:
             async with _transaction(self._sessions) as session:
+                run, transform = await self._locked_qa_with_transform_authority(
+                    session, reservation.target_id
+                )
                 service = SyntheticQAService(SyntheticQARepository(session))
                 started = await service.start(run_id=reservation.target_id)
                 if not started:
-                    run = await SyntheticQARepository(session).locked_run(reservation.target_id)
-                    if run is None:
-                        raise M3OperationRejected("qa_run_not_found")
                     if run.status == "PASSED":
+                        await self._sync_variant_transform(
+                            session, run=run, transform=transform, outcome=QAOutcome.PASSED
+                        )
                         return QAEvaluation(QAOutcome.PASSED, None, ())
                     if run.status == "REJECTED":
+                        await self._sync_variant_transform(
+                            session, run=run, transform=transform, outcome=QAOutcome.REJECTED
+                        )
                         return QAEvaluation(QAOutcome.REJECTED, run.result_code, ())
-                    raise M3OperationRejected("qa_run_state_invalid")
+                    if run.status != "RUNNING":
+                        raise M3OperationRejected("qa_run_state_invalid")
+                if transform is not None:
+                    if transform.status == "OUTPUT_STORED":
+                        transform.status = "MEASURING"
+                        transform.measurement_started_at = self._now()
+                        transform.updated_at = self._now()
+                        await session.flush()
+                    elif transform.status != "MEASURING":
+                        raise M3OperationRejected("variant_transform_state_invalid")
                 evaluation = await service.finalize(run_id=reservation.target_id)
+                await self._sync_variant_transform(
+                    session, run=run, transform=transform, outcome=evaluation.outcome
+                )
                 await self._lease_guard(reservation)(session)
                 return evaluation
         except M3LeaseExpired:
@@ -632,6 +685,15 @@ class SyntheticM3OrchestrationService:
             if run.subject_kind != "CANONICAL_BASE" or run.synthetic_asset_record_id is None:
                 raise M3OperationRejected("qa_subject_not_canonical_base")
             return run.synthetic_asset_record_id
+
+    async def _qa_subject_kind(self, qa_run_id: str) -> str:
+        async with self._sessions() as session:
+            kind = await session.scalar(
+                select(SyntheticQARun.subject_kind).where(SyntheticQARun.id == qa_run_id)
+            )
+            if kind not in {"CANONICAL_BASE", "GEOMETRY_VARIANT"}:
+                raise M3OperationRejected("qa_run_not_found")
+            return kind
 
     def _lease_guard(
         self, reservation: M3TaskReservation
@@ -694,7 +756,9 @@ class SyntheticM3OrchestrationService:
             if reservation.kind == "normalization":
                 record = await self._locked_record(session, reservation.target_id)
             else:
-                run = await self._locked_run(session, reservation.target_id)
+                run, _ = await self._locked_qa_with_transform_authority(
+                    session, reservation.target_id
+                )
             job = await self._locked_job(session, reservation.job_id)
             attempt = cast(
                 JobAttempt | None,
@@ -733,7 +797,20 @@ class SyntheticM3OrchestrationService:
                 qa_service = SyntheticQAService(SyntheticQARepository(session))
                 if run.status == "PENDING":
                     await qa_service.start(run_id=run.id)
+                transform = await self._variant_transform_for_run(session, run)
+                if transform is not None and transform.status == "OUTPUT_STORED":
+                    transform.status = "MEASURING"
+                    transform.measurement_started_at = now
+                    transform.updated_at = now
+                    await session.flush()
                 await qa_service.fail_execution(run_id=run.id, reason_code=code)
+                if transform is not None:
+                    if transform.status != "MEASURING":
+                        raise M3OperationRejected("variant_transform_state_invalid")
+                    transform.status = "FAILED"
+                    transform.result_code = code
+                    transform.finalized_at = now
+                    transform.updated_at = now
             job.status = "failed"
             job.lease_token = None
             job.lease_acquired_at = None
@@ -799,6 +876,113 @@ class SyntheticM3OrchestrationService:
                 .execution_options(populate_existing=True)
             ),
         )
+
+    @staticmethod
+    async def _locked_qa_with_transform_authority(
+        session: AsyncSession, run_id: str
+    ) -> tuple[SyntheticQARun, TransformRun | None]:
+        subject = (
+            await session.execute(
+                select(SyntheticQARun.subject_kind, SyntheticQARun.transform_run_id).where(
+                    SyntheticQARun.id == run_id
+                )
+            )
+        ).one_or_none()
+        if subject is None:
+            raise M3OperationRejected("qa_run_not_found")
+        transform: TransformRun | None = None
+        if subject.subject_kind == "GEOMETRY_VARIANT":
+            if subject.transform_run_id is None:
+                raise M3OperationRejected("variant_transform_authority_missing")
+            specification_id = await session.scalar(
+                select(TransformRun.variant_specification_id).where(
+                    TransformRun.id == subject.transform_run_id
+                )
+            )
+            if specification_id is None:
+                raise M3OperationRejected("variant_transform_authority_missing")
+            specification = await session.scalar(
+                select(VariantSpecification)
+                .where(VariantSpecification.id == specification_id)
+                .with_for_update()
+            )
+            plan = await session.scalar(
+                select(LandmarkWarpPlanAuthority)
+                .where(LandmarkWarpPlanAuthority.variant_specification_id == specification_id)
+                .with_for_update()
+            )
+            transform = cast(
+                TransformRun | None,
+                await session.scalar(
+                    select(TransformRun)
+                    .where(TransformRun.id == subject.transform_run_id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
+                ),
+            )
+            if specification is None or plan is None or transform is None:
+                raise M3OperationRejected("variant_transform_authority_missing")
+        run = cast(
+            SyntheticQARun | None,
+            await session.scalar(
+                select(SyntheticQARun)
+                .where(SyntheticQARun.id == run_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            ),
+        )
+        if run is None:
+            raise M3OperationRejected("qa_run_not_found")
+        return run, transform
+
+    @staticmethod
+    async def _variant_transform_for_run(
+        session: AsyncSession, run: SyntheticQARun
+    ) -> TransformRun | None:
+        if run.subject_kind != "GEOMETRY_VARIANT":
+            return None
+        if run.transform_run_id is None:
+            raise M3OperationRejected("variant_transform_authority_missing")
+        return cast(
+            TransformRun | None,
+            await session.scalar(
+                select(TransformRun)
+                .where(TransformRun.id == run.transform_run_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            ),
+        )
+
+    async def _sync_variant_transform(
+        self,
+        session: AsyncSession,
+        *,
+        run: SyntheticQARun,
+        transform: TransformRun | None,
+        outcome: QAOutcome,
+    ) -> None:
+        if run.subject_kind != "GEOMETRY_VARIANT":
+            return
+        if transform is None:
+            raise M3OperationRejected("variant_transform_authority_missing")
+        if outcome is QAOutcome.PASSED:
+            if transform.status == "COMPLETED":
+                return
+            if transform.status != "MEASURING":
+                raise M3OperationRejected("variant_transform_state_invalid")
+            transform.status = "COMPLETED"
+            transform.finalized_at = self._now()
+            transform.updated_at = self._now()
+        else:
+            if transform.status == "REJECTED":
+                return
+            if transform.status != "MEASURING":
+                raise M3OperationRejected("variant_transform_state_invalid")
+            transform.status = "REJECTED"
+            transform.result_code = run.result_code or "qa_rejected"
+            transform.finalized_at = self._now()
+            transform.updated_at = self._now()
+        await session.flush()
 
     @staticmethod
     def _job_id(kind: _TASK_KIND, target_id: str) -> str:

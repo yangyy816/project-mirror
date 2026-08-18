@@ -6,7 +6,10 @@ import os
 import pytest
 from mirror_api.config import Settings
 from mirror_api.ingestion.task_contract import IngestionTaskMessage
-from mirror_api.synthetic_dataset.task_contract import SyntheticGenerationTaskMessage
+from mirror_api.synthetic_dataset.task_contract import (
+    SyntheticGenerationTaskMessage,
+    SyntheticTransformTaskMessage,
+)
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
 from mirror_worker.celery_adapter import (
@@ -17,8 +20,10 @@ from mirror_worker.celery_adapter import (
     foundation_probe,
     process_asset_ingestion,
     process_synthetic_generation,
+    process_synthetic_transform,
     reconcile_asset_ingestion,
     reconcile_synthetic_generation,
+    reconcile_synthetic_m4,
 )
 from mirror_worker.ingestion import RetryableWorkerFailure
 from mirror_worker.local import LocalTaskRunner
@@ -85,6 +90,32 @@ def test_local_runner_is_development_only(monkeypatch: pytest.MonkeyPatch) -> No
     )
     assert runner.dispatch_synthetic_generation(synthetic_message) == synthetic_message.job_id
     assert synthetic_captured == [synthetic_message.to_message()]
+
+    transform_captured: list[dict[str, str]] = []
+
+    async def fake_transform_runner(
+        message: dict[str, str], *, settings: Settings
+    ) -> dict[str, str | None]:
+        assert settings.app_env == "test"
+        transform_captured.append(message)
+        return {
+            "transform_run_id": message["transform_run_id"],
+            "job_id": message["job_id"],
+            "status": "no_op",
+            "result_asset_id": None,
+            "qa_run_id": None,
+        }
+
+    monkeypatch.setattr(
+        "mirror_worker.local.run_synthetic_transform_message", fake_transform_runner
+    )
+    transform_message = SyntheticTransformTaskMessage(
+        transform_run_id="f" * 32,
+        job_id="1" * 32,
+        request_id="local-transform-request",
+    )
+    assert runner.dispatch_synthetic_transform(transform_message) == transform_message.job_id
+    assert transform_captured == [transform_message.to_message()]
     with pytest.raises(RuntimeError, match="DEVELOPMENT ONLY"):
         LocalTaskRunner(
             Settings(
@@ -128,6 +159,10 @@ def test_celery_registration_and_retry_policy() -> None:
         "mirror.synthetic_generation.reconcile",
         "mirror.synthetic_generation.cleanup",
     } <= set(celery_app.tasks)
+    assert {
+        "mirror.synthetic_transform.process",
+        "mirror.synthetic_m4.reconcile",
+    } <= set(celery_app.tasks)
     assert INGESTION_RETRY_POLICY == {
         "max_retries": 3,
         "retry_backoff": True,
@@ -138,6 +173,8 @@ def test_celery_registration_and_retry_policy() -> None:
     assert routes["mirror.asset_ingestion.process"]["queue"] == "mirror.ingestion"
     assert routes["mirror.asset_ingestion.cleanup"]["queue"] == "mirror.maintenance"
     assert routes["mirror.synthetic_generation.process"]["queue"] == "mirror.synthetic"
+    assert routes["mirror.synthetic_transform.process"]["queue"] == "mirror.synthetic"
+    assert routes["mirror.synthetic_m4.reconcile"]["queue"] == "mirror.maintenance"
     assert celery_app.conf.worker_prefetch_multiplier == 1
 
 
@@ -189,5 +226,8 @@ def test_synthetic_celery_fallback_does_not_chain_raw_exception(
     assert failure.value.__cause__ is None
     assert "provider raw response" not in str(failure.value)
     for task in (process_synthetic_generation, reconcile_synthetic_generation):
+        assert task.acks_late is True
+        assert task.reject_on_worker_lost is True
+    for task in (process_synthetic_transform, reconcile_synthetic_m4):
         assert task.acks_late is True
         assert task.reject_on_worker_lost is True

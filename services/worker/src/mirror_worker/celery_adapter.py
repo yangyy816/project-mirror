@@ -19,6 +19,7 @@ from mirror_api.synthetic_dataset.task_contract import (
     SyntheticGenerationTaskMessage,
     SyntheticNormalizationTaskMessage,
     SyntheticQATaskMessage,
+    SyntheticTransformTaskMessage,
 )
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
@@ -35,9 +36,11 @@ from mirror_worker.runtime import (
     run_synthetic_generation_message,
     run_synthetic_generation_reconciliation,
     run_synthetic_m3_reconciliation,
+    run_synthetic_m4_reconciliation,
     run_synthetic_normalization_message,
     run_synthetic_qa_message,
     run_synthetic_raw_cleanup,
+    run_synthetic_transform_message,
 )
 
 settings = get_settings()
@@ -67,6 +70,8 @@ celery_app.conf.update(
         "mirror.synthetic_normalization.process": {"queue": "mirror.synthetic"},
         "mirror.synthetic_qa.process": {"queue": "mirror.synthetic"},
         "mirror.synthetic_m3.reconcile": {"queue": "mirror.maintenance"},
+        "mirror.synthetic_transform.process": {"queue": "mirror.synthetic"},
+        "mirror.synthetic_m4.reconcile": {"queue": "mirror.maintenance"},
     },
 )
 
@@ -329,6 +334,37 @@ def reconcile_synthetic_m3(*, limit: int = 100) -> list[str]:
     )
 
 
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.synthetic_transform.process",
+    autoretry_for=(RetryableWorkerFailure,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=300,
+    time_limit=360,
+    **INGESTION_RETRY_POLICY,
+)
+def process_synthetic_transform(message: dict[str, Any]) -> dict[str, str | None]:
+    try:
+        return asyncio.run(run_synthetic_transform_message(message))
+    except RetryableWorkerFailure:
+        raise
+    except Exception:
+        raise RetryableWorkerFailure("synthetic transform execution failed transiently") from None
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.synthetic_m4.reconcile",
+    autoretry_for=(RetryableWorkerFailure,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    **INGESTION_RETRY_POLICY,
+)
+def reconcile_synthetic_m4(*, limit: int = 100) -> list[str]:
+    return list(
+        asyncio.run(run_synthetic_m4_reconciliation(dispatcher=CeleryTaskDispatcher(), limit=limit))
+    )
+
+
 class CeleryTaskDispatcher:
     def dispatch(self, envelope: TaskEnvelope) -> str:
         envelope.validate()
@@ -402,6 +438,16 @@ class CeleryTaskDispatcher:
     def dispatch_synthetic_qa(self, message: SyntheticQATaskMessage) -> str:
         message.validate()
         process_synthetic_qa.apply_async(
+            args=[message.to_message()],
+            task_id=secrets.token_hex(16),
+            headers={"request_id": message.request_id, "job_id": message.job_id},
+            queue="mirror.synthetic",
+        )
+        return message.job_id
+
+    def dispatch_synthetic_transform(self, message: SyntheticTransformTaskMessage) -> str:
+        message.validate()
+        process_synthetic_transform.apply_async(
             args=[message.to_message()],
             task_id=secrets.token_hex(16),
             headers={"request_id": message.request_id, "job_id": message.job_id},

@@ -434,3 +434,19 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   failures/errors/skips, and Gitleaks reports zero results.
 - Principal accepts CC03-A and R11. T06 resumes only after the acceptance checkpoint run passes;
   T07/T08 and the P2-M4 Gate remain closed.
+
+## 2026-08-18T22:32:00+08:00 — P2-M4-T06 local candidate
+
+- Implemented the reference-only transform task, generic Job/Attempt envelope, private variant
+  storage receipt, authoritative transform application service, M3 variant-QA handoff and
+  Local/Celery Worker composition. Job payload remains empty and no runtime path enters contracts.
+- Duplicate, crash recovery, cancellation/orphan cleanup, four-attempt retry exhaustion, committed
+  envelope recovery and exactly-one Asset/QA authority all pass on real PostgreSQL.
+- A real Linux Redis/Celery round trip loaded the accepted exact-hash private OpenCV runtime and
+  completed `variant_qa_pending` from a reference-only message. Fresh full integration passed all 481
+  API/Worker tests with zero skip; Ruff, 122-source strict mypy, Alembic zero drift, pnpm full Gate and
+  contract checks also pass.
+- Reused-database downgrade refusal, copied-runtime symlink shape and API test environment pollution
+  were isolated harness failures; each was corrected without a product-code bypass or weakened Gate.
+- T06 is `READY_FOR_TRACKED_EVIDENCE`, not accepted. Same-SHA Actions/artifacts remain mandatory;
+  T07/T08 and the P2-M4 Milestone Gate remain closed.

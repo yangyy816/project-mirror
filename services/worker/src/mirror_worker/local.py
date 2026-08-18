@@ -9,7 +9,10 @@ from mirror_api.data_rights.task_contract import (
     DataExportTaskMessage,
 )
 from mirror_api.ingestion.task_contract import IngestionTaskMessage
-from mirror_api.synthetic_dataset.task_contract import SyntheticGenerationTaskMessage
+from mirror_api.synthetic_dataset.task_contract import (
+    SyntheticGenerationTaskMessage,
+    SyntheticTransformTaskMessage,
+)
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
 from mirror_worker.runtime import (
@@ -18,6 +21,7 @@ from mirror_worker.runtime import (
     run_data_export_message,
     run_ingestion_message,
     run_synthetic_generation_message,
+    run_synthetic_transform_message,
 )
 
 
@@ -57,4 +61,9 @@ class LocalTaskRunner:
     def dispatch_synthetic_generation(self, message: SyntheticGenerationTaskMessage) -> str:
         message.validate()
         asyncio.run(run_synthetic_generation_message(message.to_message(), settings=self.settings))
+        return message.job_id
+
+    def dispatch_synthetic_transform(self, message: SyntheticTransformTaskMessage) -> str:
+        message.validate()
+        asyncio.run(run_synthetic_transform_message(message.to_message(), settings=self.settings))
         return message.job_id

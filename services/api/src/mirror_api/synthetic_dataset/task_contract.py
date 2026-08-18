@@ -7,6 +7,7 @@ from typing import Any, Protocol
 SYNTHETIC_GENERATION_TASK_SCHEMA = "synthetic-generation-task-v1"
 SYNTHETIC_NORMALIZATION_TASK_SCHEMA = "synthetic-normalization-task-v1"
 SYNTHETIC_QA_TASK_SCHEMA = "synthetic-qa-task-v1"
+SYNTHETIC_TRANSFORM_TASK_SCHEMA = "synthetic-transform-task-v1"
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 
 
@@ -130,3 +131,42 @@ class SyntheticM3Dispatcher(Protocol):
     ) -> str: ...
 
     def dispatch_synthetic_qa(self, message: SyntheticQATaskMessage) -> str: ...
+
+
+@dataclass(frozen=True)
+class SyntheticTransformTaskMessage:
+    """Reference-only M4 work; plans, paths, keys and image bytes are forbidden."""
+
+    transform_run_id: str
+    job_id: str
+    request_id: str
+    schema_version: str = SYNTHETIC_TRANSFORM_TASK_SCHEMA
+
+    def validate(self) -> None:
+        if _ID.fullmatch(self.transform_run_id) is None or _ID.fullmatch(self.job_id) is None:
+            raise ValueError("transform task identifiers must be opaque")
+        if not 8 <= len(self.request_id) <= 128 or any(
+            character in self.request_id for character in "\r\n\0"
+        ):
+            raise ValueError("transform task request id is outside the safe boundary")
+        if self.schema_version != SYNTHETIC_TRANSFORM_TASK_SCHEMA:
+            raise ValueError("unsupported synthetic transform task schema version")
+
+    def to_message(self) -> dict[str, str]:
+        self.validate()
+        return asdict(self)
+
+    @classmethod
+    def from_message(cls, message: dict[str, Any]) -> SyntheticTransformTaskMessage:
+        expected = {"transform_run_id", "job_id", "request_id", "schema_version"}
+        if set(message) != expected or not all(
+            isinstance(value, str) for value in message.values()
+        ):
+            raise ValueError("synthetic transform task message has an invalid shape")
+        result = cls(**message)
+        result.validate()
+        return result
+
+
+class SyntheticM4Dispatcher(Protocol):
+    def dispatch_synthetic_transform(self, message: SyntheticTransformTaskMessage) -> str: ...

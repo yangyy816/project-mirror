@@ -14,6 +14,7 @@ from mirror_api.data_rights.task_contract import (
     DataExportTaskMessage,
     DataRightsDispatcher,
 )
+from mirror_api.geometry_dependencies import create_geometry_transform_provider
 from mirror_api.ingestion.service import IngestionService
 from mirror_api.ingestion.task_contract import IngestionDispatcher, IngestionTaskMessage
 from mirror_api.providers.base import (
@@ -26,12 +27,14 @@ from mirror_api.providers.mock import (
 )
 from mirror_api.providers.synthetic_local import LocalSyntheticRawStorageProvider
 from mirror_api.providers.synthetic_normalized_local import LocalSyntheticNormalizedStorageProvider
+from mirror_api.providers.synthetic_variant_local import LocalSyntheticVariantStorageProvider
 from mirror_api.providers.tencent import (
     TencentImageCandidateProvider,
     TencentSyntheticObjectStorageCandidateProvider,
 )
 from mirror_api.storage_dependencies import create_object_storage_provider
 from mirror_api.synthetic_dataset.generation_service import GenerationBatchService
+from mirror_api.synthetic_dataset.m4_orchestration_service import SyntheticM4OrchestrationService
 from mirror_api.synthetic_dataset.normalization_service import SyntheticNormalizationService
 from mirror_api.synthetic_dataset.orchestration_service import SyntheticM3OrchestrationService
 from mirror_api.synthetic_dataset.raw_storage import SyntheticRawStorageService
@@ -39,9 +42,12 @@ from mirror_api.synthetic_dataset.task_contract import (
     SyntheticGenerationDispatcher,
     SyntheticGenerationTaskMessage,
     SyntheticM3Dispatcher,
+    SyntheticM4Dispatcher,
     SyntheticNormalizationTaskMessage,
     SyntheticQATaskMessage,
+    SyntheticTransformTaskMessage,
 )
+from mirror_api.synthetic_dataset.transform_service import SyntheticTransformService
 from mirror_api.upload_control.types import ConsentRequirement
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
@@ -58,6 +64,7 @@ from mirror_worker.synthetic_generation import (
     SyntheticGenerationTaskExecutor,
 )
 from mirror_worker.synthetic_m3 import SyntheticM3Reconciler, SyntheticM3TaskExecutor
+from mirror_worker.synthetic_m4 import SyntheticM4Reconciler, SyntheticM4TaskExecutor
 
 
 @dataclass(frozen=True)
@@ -83,6 +90,12 @@ class SyntheticGenerationRuntime:
 class SyntheticM3Runtime:
     engine: AsyncEngine
     application: SyntheticM3OrchestrationService
+
+
+@dataclass(frozen=True)
+class SyntheticM4Runtime:
+    engine: AsyncEngine
+    application: SyntheticM4OrchestrationService
 
 
 def _requirement(settings: Settings) -> ConsentRequirement:
@@ -184,6 +197,30 @@ def create_synthetic_m3_runtime(settings: Settings) -> SyntheticM3Runtime:
         application=SyntheticM3OrchestrationService(
             session_factory=sessions,
             normalizer=normalizer,
+        ),
+    )
+
+
+def create_synthetic_m4_runtime(settings: Settings) -> SyntheticM4Runtime:
+    """Compose only the accepted private synthetic transform and local namespaces."""
+    if settings.synthetic_storage_provider != "local":
+        raise RuntimeError("M4 transform requires local synthetic storage in this environment")
+    transform = create_geometry_transform_provider(settings)
+    engine = create_async_engine(settings.database_url)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    service = SyntheticTransformService(
+        session_factory=sessions,
+        transform=transform,
+        normalized_storage=LocalSyntheticNormalizedStorageProvider(
+            root=settings.local_storage_root
+        ),
+        variant_storage=LocalSyntheticVariantStorageProvider(root=settings.local_storage_root),
+    )
+    return SyntheticM4Runtime(
+        engine=engine,
+        application=SyntheticM4OrchestrationService(
+            session_factory=sessions,
+            transforms=service,
         ),
     )
 
@@ -371,5 +408,28 @@ async def run_synthetic_m3_reconciliation(
     runtime = create_synthetic_m3_runtime(settings or get_settings())
     try:
         return await SyntheticM3Reconciler(runtime.application, dispatcher).execute(limit=limit)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_synthetic_transform_message(
+    message: dict[str, Any], *, settings: Settings | None = None
+) -> dict[str, str | None]:
+    runtime = create_synthetic_m4_runtime(settings or get_settings())
+    try:
+        result = await SyntheticM4TaskExecutor(runtime.application).execute(
+            SyntheticTransformTaskMessage.from_message(message)
+        )
+        return asdict(result)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_synthetic_m4_reconciliation(
+    *, dispatcher: SyntheticM4Dispatcher, limit: int = 100, settings: Settings | None = None
+) -> tuple[str, ...]:
+    runtime = create_synthetic_m4_runtime(settings or get_settings())
+    try:
+        return await SyntheticM4Reconciler(runtime.application, dispatcher).execute(limit=limit)
     finally:
         await runtime.engine.dispose()

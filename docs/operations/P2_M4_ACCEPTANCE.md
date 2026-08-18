@@ -14,24 +14,24 @@ PASS.
 
 ## Mandatory evidence matrix
 
-| Gate             | Required evidence                                                   | Status   |
-| ---------------- | ------------------------------------------------------------------- | -------- |
-| Architecture     | ADR-036 and rolling-wave contracts accepted                         | T01 PASS |
-| QA subject union | ADR-037 preserves M3 base authority and binds variant result QA     | ACCEPTED |
-| Domain           | immutable source-relative spec and fail-closed state machine        | T02 PASS |
-| Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | T03 PASS |
-| Source authority | only QA-passed canonical synthetic Asset/identity/run               | T03 PASS |
-| Lineage          | source/spec/run/result/measurement chain immutable                  | T03 PASS |
-| Candidate        | exact source/version/license/SBOM/vulnerability/zero-network review | T04 PASS |
-| Transform        | bounded adapter, no absolute/global target, new Asset only          | PENDING  |
-| Determinism      | preregistered same-platform and Windows/Linux evidence              | PENDING  |
-| Safety           | bounds/foldover/malformed/second-decode and artifact negatives      | PENDING  |
-| Measurement      | requested and actual target/control evidence retained               | PENDING  |
-| Recovery         | retry/cancel/duplicate/reconcile and lock-order evidence            | PENDING  |
-| Synthetic-only   | no User relation, real-person fixture or sensitive classifier       | PENDING  |
-| Contracts        | public OpenAPI/generated TypeScript unchanged                       | PENDING  |
-| Full Gate        | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA CI          | PENDING  |
-| Review           | independent security and final review                               | PENDING  |
+| Gate             | Required evidence                                                   | Status         |
+| ---------------- | ------------------------------------------------------------------- | -------------- |
+| Architecture     | ADR-036 and rolling-wave contracts accepted                         | T01 PASS       |
+| QA subject union | ADR-037 preserves M3 base authority and binds variant result QA     | ACCEPTED       |
+| Domain           | immutable source-relative spec and fail-closed state machine        | T02 PASS       |
+| Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | T03 PASS       |
+| Source authority | only QA-passed canonical synthetic Asset/identity/run               | T03 PASS       |
+| Lineage          | source/spec/run/result/measurement chain immutable                  | T03 PASS       |
+| Candidate        | exact source/version/license/SBOM/vulnerability/zero-network review | T04 PASS       |
+| Transform        | bounded adapter, no absolute/global target, new Asset only          | T05 PASS       |
+| Determinism      | preregistered same-platform and Windows/Linux evidence              | T05 PASS       |
+| Safety           | bounds/foldover/malformed/second-decode and artifact negatives      | T05 PASS       |
+| Measurement      | requested and actual target/control evidence retained               | PENDING        |
+| Recovery         | retry/cancel/duplicate/reconcile and lock-order evidence            | T06 LOCAL PASS |
+| Synthetic-only   | no User relation, real-person fixture or sensitive classifier       | T06 LOCAL PASS |
+| Contracts        | public OpenAPI/generated TypeScript unchanged                       | T06 LOCAL PASS |
+| Full Gate        | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA CI          | PENDING        |
+| Review           | independent security and final review                               | PENDING        |
 
 ## Entry evidence
 
@@ -279,6 +279,43 @@ same-SHA validation are pending; T06 remains blocked until Principal acceptance.
   acceptance checkpoint completes its own same-SHA CI; T07/T08 and the Milestone Gate remain closed.
 
 `CC_P2_M4_04: TASK_ACCEPTED`
+
+## T06 local candidate evidence
+
+- A closed `SyntheticTransformTaskMessage` carries only `transform_run_id`, `job_id`, `request_id`
+  and schema version. The generic Job payload remains `{}`; plan, image, policy, storage key and
+  runtime path are reconstructed only from PostgreSQL authority and typed private providers.
+- The transform service locks and validates `TransformRun → VariantSpecification →
+LandmarkWarpPlanAuthority → passed canonical source QA/record/identity/Asset`, reads only the
+  private normalized namespace, verifies output/runtime/plan evidence and creates exactly one
+  immutable synthetic variant Asset plus one `SyntheticQARun/v2` handoff.
+- The private variant namespace is `internal-synthetic/v1/variants/<digest>`. Its create-if-absent
+  receipt binds checksum, dimensions, specification, runtime, plan and output-policy facts; malformed
+  metadata, payload mismatch, symlink/path escape and conflicting replay fail closed. A deterministic
+  receipt survives storage-before-database failure and is reused without duplicate Asset authority.
+- Job/Attempt integration covers at-least-once duplicate delivery, four-attempt retry exhaustion,
+  cancellation and orphan removal, reconciliation, committed-result envelope recovery and M3
+  `OUTPUT_STORED → MEASURING → COMPLETED | REJECTED | FAILED` QA handoff. Bare pending variant QA is
+  not auto-evaluated before T07 supplies measurement evidence.
+- Worker composition uses only `create_geometry_transform_provider(settings)`. Disabled or missing
+  private runtime configuration fails before storage composition/source reads. Local and Celery
+  routes preserve late acknowledgement and the runtime path never enters message or result contracts.
+- A real Linux Redis/Celery four-queue round trip loaded the accepted exact-hash Debian 12 OpenCV
+  runtime, consumed only the reference message and committed one `variant_qa_pending` result. The
+  returned result, Job payload and checked evidence contain no runtime path.
+- On a fresh task-owned PostgreSQL database migrated `→0013`, fresh private storage and isolated Redis
+  DBs, all 481 API/Worker tests passed with zero skip, including the real M4 round trip. Ruff format/
+  lint covered 204 files, strict mypy covered 122 sources, Alembic check reported zero drift, and the
+  complete pnpm format/lint/typecheck/test/contracts/build Gate passed with unchanged public contracts.
+- Earlier full-run failures were harness evidence only: reused P2 rows correctly blocked destructive
+  downgrade, copied build symlinks did not initially match the accepted runtime shape, and globally
+  injecting geometry settings contaminated fail-closed config tests. Fresh isolation and a test-only
+  runtime mount corrected all three without weakening or changing product behavior.
+- T06 adds no migration, dependency, model/image artifact, public API, production geometry, User Asset
+  path, real-person fixture or external network call. Candidate commit, normal push, same-SHA Actions
+  and artifact inspection remain mandatory before Principal task acceptance; T07/T08 stay closed.
+
+`P2_M4_T06: READY_FOR_TRACKED_EVIDENCE`
 
 ## Exit rule
 

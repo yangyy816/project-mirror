@@ -58,3 +58,23 @@ def internal_synthetic_normalized_object_key(storage_reference: str) -> str:
         raise ValueError("normalized storage reference must use the opaque syntax")
     digest = hashlib.sha256(storage_reference.encode()).hexdigest()
     return f"{INTERNAL_SYNTHETIC_NAMESPACE}/normalized/{digest}"
+
+
+def synthetic_variant_storage_reference(transform_run_id: str, specification_digest: str) -> str:
+    """Derive the stable crash-recovery reference for one immutable transform run."""
+    if not re.fullmatch(r"[0-9a-f]{32}", transform_run_id):
+        raise ValueError("transform run must use the opaque identifier syntax")
+    if not re.fullmatch(r"[0-9a-f]{64}", specification_digest):
+        raise ValueError("variant specification digest must use lowercase SHA-256 syntax")
+    digest = hashlib.sha256(
+        f"mirror-synthetic-variant-v1\n{transform_run_id}\n{specification_digest}".encode()
+    ).hexdigest()
+    return f"variant-{digest[:56]}"
+
+
+def internal_synthetic_variant_object_key(storage_reference: str) -> str:
+    """Map a stable variant reference into its isolated private adapter namespace."""
+    if not re.fullmatch(r"variant-[0-9a-f]{56}", storage_reference):
+        raise ValueError("variant storage reference must use the opaque syntax")
+    digest = hashlib.sha256(storage_reference.encode()).hexdigest()
+    return f"{INTERNAL_SYNTHETIC_NAMESPACE}/variants/{digest}"
