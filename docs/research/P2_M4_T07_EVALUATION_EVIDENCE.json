@@ -1,0 +1,109 @@
+{
+  "aggregate": {
+    "all_cross_platform_outputs_equal": true,
+    "all_same_platform_replays_equal": true,
+    "all_target_directions_correct": true,
+    "maximum_absolute_control_relative_delta": 0.011420225249709091,
+    "maximum_cross_platform_measurement_absolute_difference": 0.000011863707220088893,
+    "maximum_repeat_measurement_span": 0.0
+  },
+  "calibration_split_digest": "bd51d39d8db0072739fd1e8976a226701aca80f7b203acb76b75cace507a844e",
+  "holdout_split_digest": "22ec319dadf23d62d9627121a363384cad196728f6e5902ab8b78d7e083cbc86",
+  "interpretation": "EVALUATION_COMPLETE_NOT_M5_ISOLATION_PASS",
+  "linux_private_report_sha256": "c74839d773f5031adb54b6106e9b67eec0c55a1ca33c1e0d2a16a61550865f61",
+  "linux_runtime_manifest_digest": "5d0e9ee323d7daea78e8baaeec63917c7a1867301ec5f7c71685fa9cbed311d8",
+  "model_sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+  "network_facts": {
+    "linux": "docker-network-none",
+    "windows": "previously-qualified-process-egress-boundary"
+  },
+  "preregistration_commit": "1d2a2732a7ad3d0898663b542dd6f0fa308a59e0",
+  "repeat_count": 3,
+  "rows": [
+    {
+      "changed_pixel_count": 284337,
+      "cross_platform_measurement_absolute_difference_maximum": 0.0,
+      "cross_platform_output_equal": true,
+      "direction": "INCREASE",
+      "linux_relative_delta": {
+        "eye_spacing": 0.003328496273789116,
+        "jaw_width": 0.01599003989993732,
+        "nose_width": 0.011420225249709091
+      },
+      "output_sha256": "519a961256b8a3caceb7edd472c9c5285c9bc35ce07461d674a05c1f10879f09",
+      "reference": "holdout-c",
+      "same_platform_output_replay": true,
+      "source_sha256": "a84f6a0316a665f311b42bf4c88d51caab1e0327109529d72f1a05d45940c3c5",
+      "windows_relative_delta": {
+        "eye_spacing": 0.003328496273789116,
+        "jaw_width": 0.01599003989993732,
+        "nose_width": 0.011420225249709091
+      }
+    },
+    {
+      "changed_pixel_count": 277311,
+      "cross_platform_measurement_absolute_difference_maximum": 0.0000028713108398692455,
+      "cross_platform_output_equal": true,
+      "direction": "DECREASE",
+      "linux_relative_delta": {
+        "eye_spacing": -0.0026218772775724545,
+        "jaw_width": -0.004956913076944323,
+        "nose_width": -0.006724055338454277
+      },
+      "output_sha256": "39eae092ebdae909a55963e412b0cc2789b72ca44dc64c7136d4789da47d4170",
+      "reference": "holdout-c",
+      "same_platform_output_replay": true,
+      "source_sha256": "a84f6a0316a665f311b42bf4c88d51caab1e0327109529d72f1a05d45940c3c5",
+      "windows_relative_delta": {
+        "eye_spacing": -0.002616278269278746,
+        "jaw_width": -0.004953302201363062,
+        "nose_width": -0.0067291172044445175
+      }
+    },
+    {
+      "changed_pixel_count": 276804,
+      "cross_platform_measurement_absolute_difference_maximum": 0.000011863707220088893,
+      "cross_platform_output_equal": true,
+      "direction": "INCREASE",
+      "linux_relative_delta": {
+        "eye_spacing": 0.007710973738283877,
+        "jaw_width": 0.015114900680804556,
+        "nose_width": -0.009217452181544175
+      },
+      "output_sha256": "52f26526cd6713a1b7f9d48f3fa51fe511d68c09b4e08110b6d6f447174aee0e",
+      "reference": "holdout-d",
+      "same_platform_output_replay": true,
+      "source_sha256": "c225320284eceec77dbdf24d9a806ce77f030f40f17237487719411bcc8255c5",
+      "windows_relative_delta": {
+        "eye_spacing": 0.00765631764029748,
+        "jaw_width": 0.015122663369913974,
+        "nose_width": -0.009189637000795309
+      }
+    },
+    {
+      "changed_pixel_count": 269905,
+      "cross_platform_measurement_absolute_difference_maximum": 0.0000061085268351912525,
+      "cross_platform_output_equal": true,
+      "direction": "DECREASE",
+      "linux_relative_delta": {
+        "eye_spacing": 0.0031504841800305884,
+        "jaw_width": -0.00524138807024644,
+        "nose_width": -0.008905336107653561
+      },
+      "output_sha256": "173f82c5078ba9de2eff543466ada09b8e2cf1c7e928e792b8e5ba45593f2846",
+      "reference": "holdout-d",
+      "same_platform_output_replay": true,
+      "source_sha256": "c225320284eceec77dbdf24d9a806ce77f030f40f17237487719411bcc8255c5",
+      "windows_relative_delta": {
+        "eye_spacing": 0.0031307457028726536,
+        "jaw_width": -0.005239046273185874,
+        "nose_width": -0.008937996675528172
+      }
+    }
+  ],
+  "schema": "mirror.p2-m4.t07-redacted-evaluation-evidence/v1",
+  "topology_sha256": "85eea84eef15dd963e06382d6e61f7357029d9901acc935731ecaa7eab856b63",
+  "triangle_count": 852,
+  "windows_private_report_sha256": "45bf5d3ece045f4a711bee02f2a0b1e6a9616661bd12ecd26d61798d9be56222",
+  "windows_runtime_manifest_digest": "27b33d646d8587f76d5ca317ac9d6aec95bc04fd87d413bb3dd6394f9694bb7a"
+}
