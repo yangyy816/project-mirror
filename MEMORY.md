@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 2 — Synthetic Dataset Engine（COMMITTED）
-- 当前 Milestone：P2-M3 — Synthetic Normalization and Base Identity QA（EXECUTING）
+- 当前 Milestone：P2-M4 — Deterministic Geometry Variant Research and Engine（EXECUTION_READY）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -120,6 +120,8 @@
 - CI/生产凭据只记录在对应平台 Secret Manager；本文件永不保存凭据值。
 
 ## 工作记录
+
+- 2026-08-18：P2-M4 rolling-wave refinement 已由 Principal 接受。ADR-036 冻结 source-relative `VariantSpecification`、append-only `TransformRun`、新 immutable variant Asset、第一方 `GeometryTransform` port、determinism 分级和 M5 isolation 分界；M4 研究只允许 `EXPERIMENTAL`/`READY` dimension，且 M4 不能单独把 dimension 提升为 READY。M3 的 OpenCV 3.4.11 closure 不构成 M4 采用；M4 candidate 必须重新完成 exact-version、license/SBOM/vulnerability、Windows/Linux/Docker、zero-network、determinism 与 replacement-cost Gate。P2-M4 状态为 EXECUTION_READY，M5 entry 继续关闭。
 
 - 2026-08-16：落实项目级多 Agent 成本/能力路由升级：默认与普通实现角色从 Terra High 调整为 Terra Medium，保留安全审查 Terra High 与规划/最终 Gate Sol High，新增 `pm_terra_high_worker` 困难实现层、`pm_luna_worker` 机械批处理层并保留 `pm_fast_worker` Spark 原子微改层；`.codex/config.toml` 只约束 subagents 与 4 线程硬上限，明确不设置 Principal 模型或 reasoning，保留对话页面自由选模能力，且不修改全局 Codex 配置。
 - 2026-08-16：Phase 2 rolling-wave plan 及 consolidated planning amendment 已接受；Phase 2 Milestones 为 COMMITTED，P2-M1 为 EXECUTING。T01 只编码 Principal 已批准决定；Principal 通过 `P2-M1-PR1`，并以 `P2-M1-R01` 修正四个 `0008` 实体精确名称、GenerationItem/Variant 生命周期和 unresolved isolation hard-gate 文档保真缺陷，现已解锁 T02–T05。M1 authority content/version/digest 自创建起 immutable，approval state 只允许 terminal `DRAFT → APPROVED`，修订必须新建版本。migration 文件保持 `0008_synthetic_dataset_foundation.py`，revision ID 使用 32 字符以内的 `0008_synth_dataset_foundation`，不修改历史 migration 或 Alembic 版本表。P2 仅建设 synthetic-only、可追溯的成年合成人物数据集引擎；`SyntheticIdentity` 为 bank-independent authority，raw Provider output、normalized Asset、variant 与 released manifest entry 分层且不可互相覆盖。P2-MVR-v1 的 4 dimensions / 3 regions / N=24 只是技术可行性研究下限，须按证据在 24→48→96 cohort 升级，不能当作科学充分性或产品 invariant。Pillow 12.3.0 批准扩展至后续 P2 normalization；MediaPipe/OpenCV/imagededup 分别保持 LICENSE_REVIEW_REQUIRED/POC_REQUIRED/REJECT。MediaPipe 的 `v0.10.35` 是指定 candidate snapshot；上游 latest 的 `v1.0.0` notes 报告内部 `0.10.36`，后续 PoC 必须分别审查 source tag、runtime 与 artifact/terms。
