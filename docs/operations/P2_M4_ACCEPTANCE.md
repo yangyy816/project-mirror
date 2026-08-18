@@ -207,6 +207,26 @@ forward architecture correction, not an Rxx repair, and does not approve a gener
   any frozen Gate. CC03-A remains pending the R11 exact-SHA run and artifact inspection; T06 remains
   blocked, and T07/T08/Milestone Gate remain closed.
 
+## CC-P2-M4-03-A tracked acceptance
+
+- Repair candidate `741752d82bf22434aed2ffe37d6310452db2e51c` completed run `32138493874`;
+  `quality-and-integration`, `secret-scan` and `docker-validation` all passed. The only annotations
+  are the existing non-blocking Node action-runtime deprecation notices.
+- Seven expected artifacts are present and unexpired: project audit `9325076833`, P2-M3 evidence
+  `9325067283`, P2-M2 evidence `9325066429`, P2-M1 evidence `9325065551`, Phase 1 evidence
+  `9325064577`, Docker evidence `9324975508`, and Gitleaks SARIF `9324912211`.
+- Downloaded Phase 1/P2-M1/P2-M2/P2-M3 evidence binds the exact candidate SHA and actual
+  `0013_warp_plan_authority` head. P2-M3 records 46 tests with zero failures/errors/skips; Gitleaks
+  records zero results. No new dependency, model, binary, external call, public API, user Asset or
+  real facial-processing authority was introduced.
+- Principal accepts `CC-P2-M4-03-A` and `P2-M4-R11`. This establishes the immutable preregistered
+  warp-plan authority needed by T06; T06 opens after this acceptance checkpoint passes same-SHA CI.
+  T07/T08 and the P2-M4 Milestone Gate remain closed.
+
+`CC_P2_M4_03_A: TASK_ACCEPTED`
+
+`P2_M4_R11: REPAIR_ACCEPTED`
+
 ## Exit rule
 
 P2-M4 can pass only when every mandatory row has actual evidence, all candidate claims are bounded to

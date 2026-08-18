@@ -424,3 +424,13 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   removed or weakened.
 - A new same-SHA run and all expected artifacts remain mandatory before CC03-A acceptance and T06
   resume.
+
+## 2026-08-18T21:25:00+08:00 — CC-P2-M4-03-A tracked acceptance
+
+- Repair candidate `741752d82bf22434aed2ffe37d6310452db2e51c` run `32138493874` passed all
+  three jobs. Seven project audit, frozen regression, Docker and Gitleaks artifacts are present,
+  readable, unexpired and exact-SHA bound.
+- All four JSON evidence files report `0013_warp_plan_authority`; P2-M3 reports 46 tests with zero
+  failures/errors/skips, and Gitleaks reports zero results.
+- Principal accepts CC03-A and R11. T06 resumes only after the acceptance checkpoint run passes;
+  T07/T08 and the P2-M4 Gate remain closed.
