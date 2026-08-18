@@ -19,9 +19,9 @@ PASS.
 | Architecture     | ADR-036 and rolling-wave contracts accepted                         | T01 PASS |
 | QA subject union | ADR-037 preserves M3 base authority and binds variant result QA     | ACCEPTED |
 | Domain           | immutable source-relative spec and fail-closed state machine        | T02 PASS |
-| Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | PENDING  |
-| Source authority | only QA-passed canonical synthetic Asset/identity/run               | PENDING  |
-| Lineage          | source/spec/run/result/measurement chain immutable                  | PENDING  |
+| Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | T03 PASS |
+| Source authority | only QA-passed canonical synthetic Asset/identity/run               | T03 PASS |
+| Lineage          | source/spec/run/result/measurement chain immutable                  | T03 PASS |
 | Candidate        | exact source/version/license/SBOM/vulnerability/zero-network review | PENDING  |
 | Transform        | bounded adapter, no absolute/global target, new Asset only          | PENDING  |
 | Determinism      | preregistered same-platform and Windows/Linux evidence              | PENDING  |
@@ -62,6 +62,31 @@ PASS.
 - Candidate `c173a46e43312c93b73c11462ee1adb115328fb2` was pushed normally. Same-SHA
   GitHub Actions run `32110263179` passed `quality-and-integration`, `secret-scan` and
   `docker-validation`; the non-blocking Node 20 action-runtime deprecation annotations remain visible.
+
+## T03 PostgreSQL authority evidence
+
+- Forward migration `0012_geometry_variant_authority` adds immutable `VariantSpecification` and
+  monotonic `TransformRun` authority without editing `0001`–`0011`. ADR-037 extends the existing M3
+  QA authority with the explicit `CANONICAL_BASE | GEOMETRY_VARIANT` subject union: a variant result
+  never fabricates raw-source evidence or a `SyntheticAssetRecord`, and one result QA run uniquely
+  reverse-binds its transform run.
+- PostgreSQL rejects non-canonical or non-QA-passed sources, forged/mixed QA subject shapes,
+  specification mutation, illegal or state-incomplete transitions, result reuse, source/result
+  equality and duplicate successful lineage. The concurrency test confirms one successful lineage
+  authority. Downgrade fails closed if a variant QA subject still exists.
+- A fresh database upgrade, `0011→0012→0011→0012`, `alembic check`, six final M4 PostgreSQL tests and
+  the complete API suite on a fresh dedicated PostgreSQL database passed. Full API/Worker tests,
+  Ruff, strict mypy across 113 source files, contract drift and formatting also passed locally.
+- Candidate `e6f45279b72258143a32bd131f5e91aecdaeedd4` exposed one historical-evidence generator defect:
+  frozen P2-M3 evidence correctly records head `0011`, while the current repository head is `0012`.
+  Repair `P2-M4-R01` in `e36ec5073e9fa5b1750642ff676dc102191b2c3f` preserves both authorities
+  separately and does not rewrite frozen evidence or weaken a Gate. Sixteen focused evidence/head
+  tests, Ruff and mypy passed.
+- Same-SHA GitHub Actions run `32113760284` passed `quality-and-integration`, `secret-scan` and
+  `docker-validation`. It executed the `0012` migration lifecycle, full Python/TypeScript/browser
+  regression, frozen Phase 1/P2-M1–M3 evidence generation, dependency/license audits, SBOM and
+  Gitleaks. Expected artifacts are present and unexpired. Principal accepts T03 and R01 only;
+  P2-M4 remains `EXECUTING`, and the milestone Full Gate remains pending.
 
 ## Exit rule
 

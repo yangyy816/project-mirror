@@ -245,3 +245,21 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - No migration, dependency, model/image artifact, external download, public API or real-person data was
   added. M3 OpenCV 3.4.11 remains unavailable as the M4 runtime. Next ready work is T03 PostgreSQL
   authority or T04 isolated candidate PoC.
+
+## 2026-08-18T16:05:00+08:00 — P2-M4-T03 and R01 acceptance
+
+- T03 candidate `e6f45279b72258143a32bd131f5e91aecdaeedd4` added forward migration
+  `0012_geometry_variant_authority`, immutable specification/run lineage and ADR-037 variant QA
+  subject binding. Fresh and round-trip migration lifecycle, zero Alembic drift, six final PostgreSQL
+  tests, full API/Worker regression, Ruff, strict mypy and contract drift passed locally.
+- Candidate run `32113196395` passed secret and Docker jobs but failed only because the frozen P2-M3
+  evidence generator incorrectly compared its historical `0011` head with the current repository
+  `0012` head. `P2-M4-R01` preserves those as separate authorities and changes no historical evidence,
+  schema or Gate.
+- Repair `e36ec5073e9fa5b1750642ff676dc102191b2c3f` completed run `32113760284`; all three jobs passed.
+  The run exercised the `0012` lifecycle, full Python/TypeScript/browser regression, frozen evidence
+  generators, dependency/license audits, SBOM, Gitleaks and Docker. Expected artifacts are present and
+  unexpired. Principal accepts T03 and R01; P2-M4 remains EXECUTING.
+- The next bounded action is T04 candidate preregistration and isolated PoC. Download authorization
+  remains distinct from dependency adoption, model distribution, production Vision and real-user
+  facial-processing approval.

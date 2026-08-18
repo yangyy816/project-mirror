@@ -121,6 +121,16 @@
 
 ## 工作记录
 
+- 2026-08-18：P2-M4-T03 与 `P2-M4-R01` 经 Principal 验收。前向
+  `0012_geometry_variant_authority` 建立 immutable `VariantSpecification`、monotonic
+  `TransformRun`、canonical QA-passed source、distinct result Asset、唯一成功 lineage 与
+  ADR-037 `CANONICAL_BASE | GEOMETRY_VARIANT` QA subject union；variant 不伪造 raw source 或
+  `SyntheticAssetRecord`。Fresh/round-trip migration、Alembic zero drift、六项 PostgreSQL、完整
+  API/Worker、Ruff、113-source strict mypy 与 contracts drift 通过。候选 CI 只因冻结 M3 evidence
+  的 `0011` 与当前 repository head `0012` 被错误要求相等而失败；R01 保留两者独立 authority，
+  修复 SHA `e36ec5073e9fa5b1750642ff676dc102191b2c3f` 的 run `32113760284` 三 jobs 全绿。
+  T03/R01 已接受，P2-M4 仍 EXECUTING，下一步为 T04 isolated candidate PoC。
+
 - 2026-08-18：P2-M4-T03 schema review 发现 M3 `SyntheticQARun` 强制绑定 raw-normalized `SyntheticAssetRecord`，不能合法表示无 raw source 的 geometry variant result。ADR-037 前向批准 `CANONICAL_BASE | GEOMETRY_VARIANT` QA subject union：既有 M3 row/语义不变；variant QARun 不伪造 raw record，而唯一反向绑定 output-stored `TransformRun` 并复用同一 QAPolicy/measurement/review/hard-gate authority。保留 `normalized_asset_id` 冻结列名作为共同 subject Asset reference，不建立第二套 measurement 表；仅限 private synthetic M4，不扩大真人、生产或 release 权限。
 
 - 2026-08-18：P2-M4-T02 经 Principal 验收。新增纯领域 `VariantSpecification`、`TransformRunState`、source-relative ppm magnitude、determinism level 与 `require_researchable_dimension`；只允许 READY/EXPERIMENTAL 进入 M4 研究，unknown/UNSUPPORTED/REQUIRES_3D/STYLE_ONLY fail closed，且 M4 不提升 dimension READY。60 个 targeted tests、全 API Ruff（153 files）、strict mypy（100 sources）与 contracts drift 通过；无 ORM/migration、算法/图片依赖、模型、网络、public API 或真人 fixture。Candidate `c173a46e43312c93b73c11462ee1adb115328fb2` 的 run `32110263179` 三 jobs 全绿。P2-M4 进入 EXECUTING，T03/T04 ready。
