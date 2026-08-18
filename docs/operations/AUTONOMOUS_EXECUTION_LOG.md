@@ -274,3 +274,7 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   license/SBOM/vulnerability and replacement-cost gates were frozen before artifact acquisition.
 - No dependency, wheel, model or fixture was added to Git or project manifests. The next action is
   exact artifact admission into ignored private storage followed by the ordered isolated PoC.
+- Artifact admission matched all three preregistered OpenCV/PyPI hashes. Before first import, wheel
+  metadata exposed the Python 3.13 requirement `numpy>=2`; the resolution was frozen to
+  `numpy==2.5.2` with exact official Windows/Linux wheel names and PyPI SHA-256 values. Runtime
+  execution remains pending this dependency-lock checkpoint.

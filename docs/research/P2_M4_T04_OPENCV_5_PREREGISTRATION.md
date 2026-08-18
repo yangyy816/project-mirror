@@ -30,6 +30,19 @@ The wheel metadata is untrusted until inspected. Exact transitive runtime depend
 must be frozen from wheel metadata and official indices before import. The project manifests and
 lockfiles remain unchanged throughout T04.
 
+### Dependency resolution lock before first import
+
+Artifact admission confirmed that the Python 3.13 branch requires only `numpy>=2`. Before importing
+the candidate, T04 freezes `numpy==2.5.2` with these official PyPI artifacts:
+
+| Platform | Exact artifact                                                            | Expected SHA-256                                                   |
+| -------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Windows  | `numpy-2.5.2-cp313-cp313-win_amd64.whl`                                   | `85aaccb24182c25df891ad0ec333585967e115269d5f1b17f2c9ae005bc96657` |
+| Linux    | `numpy-2.5.2-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl` | `29b86ff8a6cc556b47ec6b64b194815cc80e6bf5eedcc6cddfd65318cb0b4eee` |
+
+This lock was derived only from wheel metadata and official index metadata; no OpenCV or NumPy code
+had been imported. Any additional runtime requirement discovered later is an unexpected-closure stop.
+
 ## Intended adapter surface
 
 The candidate may provide only bounded numeric image primitives behind the first-party
