@@ -58,6 +58,11 @@ Landmark selection, source-relative displacement, target/control semantics, boun
 canonical encode, second decode and domain reason codes remain first-party authority. OpenCV must not
 receive an absolute target face, population prior, sensitive label or User Asset.
 
+The V1 runtime configuration is frozen before benchmark execution: `cv2.setNumThreads(1)`,
+`cv2.setUseOptimized(False)`, `cv2.INTER_LINEAR`, `cv2.BORDER_REFLECT_101`, explicit `float32`
+destination-to-source maps and contiguous RGB `uint8` input. Changing any setting creates a new
+candidate ID.
+
 ## Fixtures and execution order
 
 The PoC executes in this immutable order:
