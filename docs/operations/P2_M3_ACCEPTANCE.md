@@ -12,23 +12,23 @@
 
 ## Mandatory evidence matrix
 
-| Gate                      | Required evidence                                                          | Status     |
-| ------------------------- | -------------------------------------------------------------------------- | ---------- |
-| M2 authority preservation | no GenerationItem/raw/generation evidence rewrite                          | T02 PASS   |
-| Migration                 | `0010` evidence plus fresh and `0010→0011→0010→0011`, drift zero           | PASS       |
-| Normalization             | bounded decode, sanitation, canonical encode, second decode, checksum      | T03 PASS   |
-| Namespace                 | normalized private namespace separate from raw/user assets                 | T03 PASS   |
-| Immutability              | Asset/record/measurement/review/identity lineage cannot mutate/delete      | T02 PASS   |
-| QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | T04 PASS   |
-| Adult policy              | reject clear pre-16 or child/student-minor context; no age estimate        | T06 PASS   |
-| Vision                    | approved exact package/model/data/license + controlled benchmark           | T06 PASS\* |
-| Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | T05 PASS   |
-| Synthetic-only            | no User relation, real-person fixture, scraping or sensitive classifier    | T02 PASS   |
-| Recovery                  | duplicate delivery, lease expiry, blob-before-commit and cleanup race      | T05 PASS   |
-| Contracts                 | OpenAPI/generated TypeScript unchanged                                     | T02 PASS   |
-| Supply chain              | Pillow unchanged; every new package/model separately approved              | T06 PASS\* |
-| Full Gate                 | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA Actions            | T07 LOCAL  |
-| Final review              | independent security and final reviewer acceptance                         | PENDING    |
+| Gate                      | Required evidence                                                          | Status            |
+| ------------------------- | -------------------------------------------------------------------------- | ----------------- |
+| M2 authority preservation | no GenerationItem/raw/generation evidence rewrite                          | T02 PASS          |
+| Migration                 | `0010` evidence plus fresh and `0010→0011→0010→0011`, drift zero           | PASS              |
+| Normalization             | bounded decode, sanitation, canonical encode, second decode, checksum      | T03 PASS          |
+| Namespace                 | normalized private namespace separate from raw/user assets                 | T03 PASS          |
+| Immutability              | Asset/record/measurement/review/identity lineage cannot mutate/delete      | T02 PASS          |
+| QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | T04 PASS          |
+| Adult policy              | reject clear pre-16 or child/student-minor context; no age estimate        | T06 PASS          |
+| Vision                    | approved exact package/model/data/license + controlled benchmark           | T06 PASS\*        |
+| Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | T05 PASS          |
+| Synthetic-only            | no User relation, real-person fixture, scraping or sensitive classifier    | T02 PASS          |
+| Recovery                  | duplicate delivery, lease expiry, blob-before-commit and cleanup race      | T05 PASS          |
+| Contracts                 | OpenAPI/generated TypeScript unchanged                                     | T02 PASS          |
+| Supply chain              | Pillow unchanged; every new package/model separately approved              | T06 PASS\*        |
+| Full Gate                 | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA Actions            | T07 LOCAL         |
+| Final review              | independent security and final reviewer acceptance                         | CONDITIONAL — R26 |
 
 `T06 PASS*` is limited to the source-built private synthetic M3 candidate. Official wheels,
 distribution, production Vision and real-user facial processing remain blocked.
@@ -109,6 +109,11 @@ mandatory.
   digest is `eabea6fe4159cc8932d2ebd4d1797e0ed3aa3e982dcbc15b052f6136e294f299`.
   It contains no Prompt, private path, storage reference, image bytes or fabricated Provider facts,
   and records zero tracked binaries.
+- The historical document's `migration_head` value is a descriptive change-control name rather than
+  the actual Alembic revision. R26 preserves that file byte-for-byte and adds
+  `P2_M3_V01_MIGRATION_HEAD_CORRECTION.json`, binding the original file SHA-256
+  `621ccb7444ae2e678cdad7e290cf0bf362b8d7779b291c9a89ce4f19a774b245`, the item digest above and
+  the actual revision/head `0011_offline_synth_source`.
 - This closes V01 normalization only. Vision QA, the versioned adult review, morphology measurement,
   identity registration and QuestionBank release remain blocked or not authorized until their own
   gates pass.
@@ -544,7 +549,7 @@ Vision, distribution and real-user processing remain closed.
 
 `P2_M3_T07_FULL_LOCAL: PASS`
 
-`P2_M3_T07_SAME_SHA_CI: PENDING`
+`P2_M3_T07_SAME_SHA_CI: PASS — run 32104336955 at f498c80b`
 
 ## P2-M3-R25 portable Windows toolchain path closure
 
@@ -579,7 +584,24 @@ R17's historical `19e90273...` main-library hash is retained as checkpoint histo
 
 `P2_M3_R25_LOCAL_REPRODUCTION: PASS`
 
-`P2_M3_R25_SAME_SHA_CI: PENDING`
+`P2_M3_R25_SAME_SHA_CI: PASS — run 32104336955 at f498c80b`
 
-R25 does not mutate the frozen Stage D policy/evidence and does not advance the M3 Gate. T08 and a
-new same-SHA three-job CI run remain mandatory.
+R25 does not mutate the frozen Stage D policy/evidence. Its independent security review passed; the
+independent final reviewer returned `CONDITIONAL` solely because the historical V01 evidence used a
+descriptive migration name as `migration_head`.
+
+## P2-M3-R26 forward migration-head correction
+
+R26 does not rewrite the historical V01 document. It adds a digest-bound forward correction that
+distinguishes the descriptive name `0011_offline_synthetic_source_authority` from the actual Alembic
+revision/head `0011_offline_synth_source`. The machine-readable M3 evidence generator now verifies
+the correction document digest, original evidence checksum, item evidence digest and live expected
+head, and rejects attempts to treat the descriptive name as a revision identifier.
+
+`P2_M3_R26_LOCAL_VALIDATION: PASS`
+
+`P2_M3_R26_SAME_SHA_CI: PENDING`
+
+R26 changes no migration, schema, domain authority, runtime dependency, model disposition, public
+API or production/real-user boundary. A new same-SHA three-job CI run and narrow independent review
+remain mandatory before the Principal M3 Gate.

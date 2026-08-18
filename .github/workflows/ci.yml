@@ -199,6 +199,8 @@ jobs:
             --test-results p2-m3-results.xml \
             --holdout-evidence docs/operations/P2_M3_V03_HOLDOUT_REDACTED_EVIDENCE.json \
             --authority-evidence docs/operations/P2_M3_V03_AUTHORITY_REDACTED_EVIDENCE.json \
+            --v01-evidence docs/operations/P2_M3_V01_NORMALIZATION_REDACTED_EVIDENCE.json \
+            --v01-correction docs/operations/P2_M3_V01_MIGRATION_HEAD_CORRECTION.json \
             --output p2-m3-ci-evidence.json
       - uses: actions/upload-artifact@v4
         with:

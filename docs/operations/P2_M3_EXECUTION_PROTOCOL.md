@@ -32,12 +32,11 @@ research only. It pins OpenCV 3.4.11 by SHA-256, limits it to `core,imgproc`, di
 download/video/UI/codec surfaces and requires an offline Linux build. This is not project/runtime
 OpenCV adoption; complete evidence is in `P2_M3_V03_BUILD_CLOSURE_REPORT.md`.
 
-The Linux offline build completed after bounded `P2-M3-R04` removed a Windows CR from the upstream
-metadata version stamp. `P2-M3-R05` subsequently removed private foreign-build paths, OpenCV RPATH
-and the compiled OpenCV build timestamp. Two fresh no-network builds produced byte-identical main,
-core and imgproc libraries. Linux bit reproducibility is therefore complete; OouraFFT distribution
-rights, remaining vulnerability dispositions, Windows build and runtime qualification remain
-mandatory before any source-built candidate approval.
+The Linux offline build completed after bounded repairs removed non-portable metadata, dependency and
+toolchain inputs. R25 reproduced the final closure in two fresh Windows roots and two fresh Linux
+`--network none` roots, then repeated the three-run zero-egress Stage C lifecycle. The exact
+source-built runtime is approved only for private synthetic M3; distribution, production Vision and
+real-user facial processing remain blocked.
 
 ## Frozen boundary
 
@@ -213,10 +212,12 @@ evaluation data and redistribution/commercial terms are reviewed separately. The
 versions/checksums, Python 3.13 Windows/Linux/Docker compatibility, SBOM, vulnerabilities, runtime
 footprint, deterministic/repeatability evidence, failure cases and replacement boundary.
 
-`P2-M3-VISION-GATE: EXTERNAL_VALIDATION_REQUIRED`
+`P2-M3-VISION-GATE: PASS_PRIVATE_SYNTHETIC_ONLY`
 
-Without an approved candidate and controlled benchmark, M3 remains `EXECUTING` or at most
-`CONDITIONAL`; it cannot become `PASS/FROZEN`, create release-eligible evidence or open M4.
+The source-built candidate and controlled benchmark satisfy the synthetic M3 Vision Gate only. M3
+still requires same-SHA CI, immutable evidence consistency and independent final review before
+`PASS/FROZEN`; no M3 result creates distribution, production, real-user or QuestionBank release
+authority.
 
 ## Bounded task contracts
 
@@ -352,8 +353,9 @@ Every task reports:
 
 The exact artifact acquisition, isolated runtime audit, calibration/holdout split, negative controls
 and threshold-freeze sequence are preregistered in
-`docs/research/P2_M3_V02_VISION_CALIBRATION_PROTOCOL.md`. That protocol is non-executable until the
-Project Owner explicitly authorizes the exact wheel and model-bundle downloads.
+`docs/research/P2_M3_V02_VISION_CALIBRATION_PROTOCOL.md`. Project Owner authorization was received;
+the official wheels were audited and rejected, while the source-built replacement completed the
+frozen private synthetic qualification.
 
 - BOOTSTRAP_STATUS: `OK`.
 - TASK_ID: `P2-M3-T06`.
@@ -368,8 +370,8 @@ Project Owner explicitly authorizes the exact wheel and model-bundle downloads.
   changes after holdout, or representing code license as model approval.
 - DEPENDENCIES: T03 normalized assets, T04 normalized Vision port, approved PoC authorization and
   checksum-valid private V01 source set.
-- INPUTS_AND_ASSUMPTIONS: MediaPipe is only `LICENSE_REVIEW_REQUIRED`; no package, model or weight is
-  approved by this protocol itself.
+- INPUTS_AND_ASSUMPTIONS: the source-built C ABI is approved only for private synthetic M3; official
+  wheels remain rejected and the model bundle remains `PRIVATE_RESEARCH_ONLY`.
 - ACCEPTANCE_CRITERIA: exact package/model/data/license/checksum and platform evidence; bounded
   eight-asset benchmark plus negative controls and repeatability; explicit PASS/FAIL/FURTHER_RESEARCH.
 - VALIDATION_COMMANDS: reproducible PoC command; checksum verification; Windows/Linux/Docker;

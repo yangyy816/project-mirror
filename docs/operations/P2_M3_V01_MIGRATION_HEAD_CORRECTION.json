@@ -1,0 +1,13 @@
+{
+  "schema_version": "mirror.p2-m3.v01-migration-head-correction/v1",
+  "correction_id": "P2-M3-R26",
+  "status": "FORWARD_CORRECTION",
+  "original_evidence_reference": "P2_M3_V01_NORMALIZATION_REDACTED_EVIDENCE.json",
+  "original_evidence_sha256": "621ccb7444ae2e678cdad7e290cf0bf362b8d7779b291c9a89ce4f19a774b245",
+  "original_item_evidence_digest": "eabea6fe4159cc8932d2ebd4d1797e0ed3aa3e982dcbc15b052f6136e294f299",
+  "actual_alembic_revision": "0011_offline_synth_source",
+  "actual_migration_head": "0011_offline_synth_source",
+  "descriptive_migration_name": "0011_offline_synthetic_source_authority",
+  "correction_statement": "The original migration_head value is a descriptive change-control name, not an Alembic revision identifier. The actual revision and head are 0011_offline_synth_source.",
+  "document_digest": "c3d6751e97383d9cd3332e9450dc60d3427586a2aafa25496ebf09c0daaa894d"
+}

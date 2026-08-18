@@ -13,6 +13,8 @@ SCHEMA_VERSION = "mirror.p2-m3.ci-evidence/v1"
 _COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _MAX_INPUT_BYTES = 4 * 1024 * 1024
+_V01_EVIDENCE_SCHEMA = "mirror.p2-m3.v01-normalization-redacted-evidence/v1"
+_V01_CORRECTION_SCHEMA = "mirror.p2-m3.v01-migration-head-correction/v1"
 _REQUIRED_CHECKS = {
     "database_authority": (
         "test_normalization_qa_and_identity_authority_is_monotonic_and_non_bypassable"
@@ -252,6 +254,56 @@ def _qualification_evidence(
     return vision, postgres
 
 
+def _v01_migration_correction(
+    *,
+    original_path: Path,
+    correction_path: Path,
+    expected_migration_head: str,
+) -> dict[str, object]:
+    original_content = _required_bytes(original_path, label="V01 normalization evidence")
+    try:
+        original = cast(object, json.loads(original_content))
+    except json.JSONDecodeError as exc:
+        raise EvidenceError("V01 normalization evidence is not valid JSON") from exc
+    if not isinstance(original, dict) or original.get("schema_version") != _V01_EVIDENCE_SCHEMA:
+        raise EvidenceError("V01 normalization evidence has an unsupported schema")
+
+    correction = _redacted_document(
+        correction_path,
+        label="V01 migration-head correction evidence",
+        schema_version=_V01_CORRECTION_SCHEMA,
+    )
+    original_sha256 = hashlib.sha256(original_content).hexdigest()
+    item_digest = original.get("item_evidence_digest")
+    descriptive_name = original.get("migration_head")
+    if (
+        correction.get("correction_id") != "P2-M3-R26"
+        or correction.get("status") != "FORWARD_CORRECTION"
+        or correction.get("original_evidence_reference") != original_path.name
+        or correction.get("original_evidence_sha256") != original_sha256
+        or not isinstance(item_digest, str)
+        or _SHA256.fullmatch(item_digest) is None
+        or correction.get("original_item_evidence_digest") != item_digest
+        or correction.get("actual_alembic_revision") != expected_migration_head
+        or correction.get("actual_migration_head") != expected_migration_head
+        or not isinstance(descriptive_name, str)
+        or correction.get("descriptive_migration_name") != descriptive_name
+        or descriptive_name == expected_migration_head
+    ):
+        raise EvidenceError("V01 migration-head correction evidence is inconsistent")
+    correction_digest = correction.get("document_digest")
+    if not isinstance(correction_digest, str) or _SHA256.fullmatch(correction_digest) is None:
+        raise EvidenceError("V01 migration-head correction evidence is incomplete")
+    return {
+        "status": "forward_corrected",
+        "original_evidence_sha256": original_sha256,
+        "original_item_evidence_sha256": item_digest,
+        "correction_evidence_sha256": correction_digest,
+        "actual_alembic_revision": expected_migration_head,
+        "descriptive_migration_name": descriptive_name,
+    }
+
+
 def generate_evidence(
     *,
     commit_sha: str,
@@ -261,6 +313,8 @@ def generate_evidence(
     test_results_path: Path,
     holdout_evidence_path: Path,
     authority_evidence_path: Path,
+    v01_evidence_path: Path,
+    v01_correction_path: Path,
 ) -> dict[str, object]:
     normalized_sha = commit_sha.strip().lower()
     if _COMMIT_SHA.fullmatch(normalized_sha) is None:
@@ -271,6 +325,11 @@ def generate_evidence(
     vision, postgres = _qualification_evidence(
         holdout_path=holdout_evidence_path,
         authority_path=authority_evidence_path,
+    )
+    v01_correction = _v01_migration_correction(
+        original_path=v01_evidence_path,
+        correction_path=v01_correction_path,
+        expected_migration_head=expected_migration_head,
     )
     return {
         "schema_version": SCHEMA_VERSION,
@@ -284,6 +343,7 @@ def generate_evidence(
         "deterministic_checks": checks,
         "private_synthetic_vision": vision,
         "postgresql_authority": postgres,
+        "v01_migration_correction": v01_correction,
     }
 
 
@@ -296,6 +356,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--test-results", type=Path, required=True)
     parser.add_argument("--holdout-evidence", type=Path, required=True)
     parser.add_argument("--authority-evidence", type=Path, required=True)
+    parser.add_argument("--v01-evidence", type=Path, required=True)
+    parser.add_argument("--v01-correction", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     return parser
 
@@ -311,6 +373,8 @@ def run(argv: list[str] | None = None) -> int:
             test_results_path=cast(Path, args.test_results),
             holdout_evidence_path=cast(Path, args.holdout_evidence),
             authority_evidence_path=cast(Path, args.authority_evidence),
+            v01_evidence_path=cast(Path, args.v01_evidence),
+            v01_correction_path=cast(Path, args.v01_correction),
         )
         output = cast(Path, args.output)
         output.parent.mkdir(parents=True, exist_ok=True)

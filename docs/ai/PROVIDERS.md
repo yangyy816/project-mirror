@@ -28,6 +28,8 @@ Provider 名称、模型、Prompt、输入资产引用、状态、成本与验�
 `docs/operations/PRODUCTION_BLOCKERS.md`。
 
 P2-M3 的 Vision 边界只消费 normalized synthetic Asset，不消费 Provider raw output、User Asset、URL、
-object key 或 SDK type。deterministic Mock 只用于 CI；MediaPipe 仍为 `LICENSE_REVIEW_REQUIRED`，未选择
-或批准模型 artifact。M3 可先实现 normalization/QA authority，但必须完成至少一个获批 synthetic-only
-Vision candidate 的受控 benchmark 才能 `PASS/FROZEN`。
+object key 或 SDK type。deterministic Mock 只用于 CI。exact `v0.10.35` official wheels 因 Clearcut
+telemetry 已拒绝；从同一 exact source 构建的最小 Face Landmarker C ABI 已完成 Windows/Linux
+可复现、zero-egress 与 frozen synthetic holdout，只批准用于 private synthetic M3。固定 model bundle
+保持 `PRIVATE_RESEARCH_ONLY`；distribution、production Vision 与 real-user facial processing 继续
+fail closed。

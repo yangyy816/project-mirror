@@ -12,6 +12,8 @@ COMMIT_SHA = "d" * 40
 MIGRATION_HEAD = "0011_offline_synth_source"
 POLICY_DIGEST = "8" * 64
 HOLDOUT_DIGEST = "7" * 64
+V01_ITEM_DIGEST = "e" * 64
+V01_DESCRIPTIVE_MIGRATION_NAME = "0011_offline_synthetic_source_authority"
 REQUIRED_TESTS = (
     "test_normalization_qa_and_identity_authority_is_monotonic_and_non_bypassable",
     "test_m3_evidence_and_lineage_are_append_only",
@@ -40,7 +42,7 @@ def _write_redacted(path: Path, value: dict[str, object]) -> None:
     path.write_text(json.dumps(value) + "\n", encoding="utf-8")
 
 
-def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path, Path]:
+def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path, Path, Path, Path]:
     migration = tmp_path / "migration-head.txt"
     migration.write_text(f"{MIGRATION_HEAD} (head)\n", encoding="utf-8")
     openapi = tmp_path / "openapi.json"
@@ -103,11 +105,40 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path, Path]:
             },
         },
     )
-    return migration, openapi, results, holdout, authority
+    v01_evidence = tmp_path / "v01-evidence.json"
+    v01_evidence.write_text(
+        json.dumps(
+            {
+                "schema_version": "mirror.p2-m3.v01-normalization-redacted-evidence/v1",
+                "migration_head": V01_DESCRIPTIVE_MIGRATION_NAME,
+                "item_evidence_digest": V01_ITEM_DIGEST,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    v01_correction = tmp_path / "v01-correction.json"
+    _write_redacted(
+        v01_correction,
+        {
+            "schema_version": "mirror.p2-m3.v01-migration-head-correction/v1",
+            "correction_id": "P2-M3-R26",
+            "status": "FORWARD_CORRECTION",
+            "original_evidence_reference": v01_evidence.name,
+            "original_evidence_sha256": hashlib.sha256(v01_evidence.read_bytes()).hexdigest(),
+            "original_item_evidence_digest": V01_ITEM_DIGEST,
+            "actual_alembic_revision": MIGRATION_HEAD,
+            "actual_migration_head": MIGRATION_HEAD,
+            "descriptive_migration_name": V01_DESCRIPTIVE_MIGRATION_NAME,
+        },
+    )
+    return migration, openapi, results, holdout, authority, v01_evidence, v01_correction
 
 
 def test_generates_allowlisted_p2_m3_evidence(tmp_path: Path) -> None:
-    migration, openapi, results, holdout, authority = _fixture(tmp_path)
+    migration, openapi, results, holdout, authority, v01_evidence, v01_correction = _fixture(
+        tmp_path
+    )
     evidence = generate_evidence(
         commit_sha=COMMIT_SHA,
         migration_head_path=migration,
@@ -116,6 +147,8 @@ def test_generates_allowlisted_p2_m3_evidence(tmp_path: Path) -> None:
         test_results_path=results,
         holdout_evidence_path=holdout,
         authority_evidence_path=authority,
+        v01_evidence_path=v01_evidence,
+        v01_correction_path=v01_correction,
     )
 
     assert set(evidence) == {
@@ -127,6 +160,7 @@ def test_generates_allowlisted_p2_m3_evidence(tmp_path: Path) -> None:
         "deterministic_checks",
         "private_synthetic_vision",
         "postgresql_authority",
+        "v01_migration_correction",
     }
     assert evidence["schema_version"] == "mirror.p2-m3.ci-evidence/v1"
     assert evidence["commit_sha"] == COMMIT_SHA
@@ -135,6 +169,7 @@ def test_generates_allowlisted_p2_m3_evidence(tmp_path: Path) -> None:
     checks = evidence["deterministic_checks"]
     vision = evidence["private_synthetic_vision"]
     postgres = evidence["postgresql_authority"]
+    correction = evidence["v01_migration_correction"]
     assert isinstance(tests, dict) and tests["skipped"] == 0
     assert isinstance(checks, dict) and checks["checks"] == 12
     assert isinstance(vision, dict)
@@ -143,6 +178,10 @@ def test_generates_allowlisted_p2_m3_evidence(tmp_path: Path) -> None:
     assert isinstance(postgres, dict)
     assert postgres["canonical_identities"] == 4
     assert postgres["question_bank_release_authorized"] is False
+    assert isinstance(correction, dict)
+    assert correction["status"] == "forward_corrected"
+    assert correction["actual_alembic_revision"] == MIGRATION_HEAD
+    assert correction["descriptive_migration_name"] == V01_DESCRIPTIVE_MIGRATION_NAME
     assert not any("path" in key or "database_name" in key for key in evidence)
 
 
@@ -157,6 +196,11 @@ def test_generates_allowlisted_p2_m3_evidence(tmp_path: Path) -> None:
         ("holdout_tamper", "document digest does not match"),
         ("production_enabled", "approved boundary"),
         ("authority_count", "approved boundary"),
+        ("v01_original_tamper", "correction evidence is inconsistent"),
+        ("v01_item_digest", "correction evidence is inconsistent"),
+        ("v01_actual_revision", "correction evidence is inconsistent"),
+        ("v01_actual_head", "correction evidence is inconsistent"),
+        ("v01_descriptive_as_revision", "correction evidence is inconsistent"),
     ],
 )
 def test_rejects_incomplete_failed_or_boundary_violating_evidence(
@@ -164,7 +208,9 @@ def test_rejects_incomplete_failed_or_boundary_violating_evidence(
     mutation: str,
     error: str,
 ) -> None:
-    migration, openapi, results, holdout, authority = _fixture(tmp_path)
+    migration, openapi, results, holdout, authority, v01_evidence, v01_correction = _fixture(
+        tmp_path
+    )
     commit_sha = COMMIT_SHA
     if mutation == "wrong_sha":
         commit_sha = "short"
@@ -202,6 +248,36 @@ def test_rejects_incomplete_failed_or_boundary_violating_evidence(
         value.pop("document_digest")
         value["authority_counts"]["canonical_identities"] = 5
         _write_redacted(authority, value)
+    elif mutation == "v01_original_tamper":
+        value = json.loads(v01_evidence.read_text(encoding="utf-8"))
+        value["item_evidence_digest"] = "f" * 64
+        v01_evidence.write_text(json.dumps(value) + "\n", encoding="utf-8")
+    elif mutation == "v01_item_digest":
+        value = json.loads(v01_correction.read_text(encoding="utf-8"))
+        value.pop("document_digest")
+        value["original_item_evidence_digest"] = "f" * 64
+        _write_redacted(v01_correction, value)
+    elif mutation == "v01_actual_revision":
+        value = json.loads(v01_correction.read_text(encoding="utf-8"))
+        value.pop("document_digest")
+        value["actual_alembic_revision"] = V01_DESCRIPTIVE_MIGRATION_NAME
+        _write_redacted(v01_correction, value)
+    elif mutation == "v01_actual_head":
+        value = json.loads(v01_correction.read_text(encoding="utf-8"))
+        value.pop("document_digest")
+        value["actual_migration_head"] = V01_DESCRIPTIVE_MIGRATION_NAME
+        _write_redacted(v01_correction, value)
+    elif mutation == "v01_descriptive_as_revision":
+        value = json.loads(v01_evidence.read_text(encoding="utf-8"))
+        value["migration_head"] = MIGRATION_HEAD
+        v01_evidence.write_text(json.dumps(value) + "\n", encoding="utf-8")
+        correction_value = json.loads(v01_correction.read_text(encoding="utf-8"))
+        correction_value.pop("document_digest")
+        correction_value["original_evidence_sha256"] = hashlib.sha256(
+            v01_evidence.read_bytes()
+        ).hexdigest()
+        correction_value["descriptive_migration_name"] = MIGRATION_HEAD
+        _write_redacted(v01_correction, correction_value)
 
     with pytest.raises(EvidenceError, match=error):
         generate_evidence(
@@ -212,11 +288,13 @@ def test_rejects_incomplete_failed_or_boundary_violating_evidence(
             test_results_path=results,
             holdout_evidence_path=holdout,
             authority_evidence_path=authority,
+            v01_evidence_path=v01_evidence,
+            v01_correction_path=v01_correction,
         )
 
 
 def test_cli_fails_closed_when_required_input_is_missing(tmp_path: Path) -> None:
-    migration, openapi, results, holdout, _ = _fixture(tmp_path)
+    migration, openapi, results, holdout, _, v01_evidence, v01_correction = _fixture(tmp_path)
     output = tmp_path / "evidence.json"
     exit_code = run(
         [
@@ -234,6 +312,10 @@ def test_cli_fails_closed_when_required_input_is_missing(tmp_path: Path) -> None
             str(holdout),
             "--authority-evidence",
             str(tmp_path / "missing.json"),
+            "--v01-evidence",
+            str(v01_evidence),
+            "--v01-correction",
+            str(v01_correction),
             "--output",
             str(output),
         ]
