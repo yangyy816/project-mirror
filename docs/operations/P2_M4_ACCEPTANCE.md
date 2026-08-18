@@ -262,6 +262,24 @@ same-SHA validation are pending; T06 remains blocked until Principal acceptance.
 
 `CC_P2_M4_04: READY_FOR_TRACKED_EVIDENCE`
 
+## CC-P2-M4-04 tracked acceptance
+
+- Candidate `38e4755e87718ccddc5be81d45177fc37c5caae6` was pushed normally without a
+  persistent proxy, force push or history rewrite. Same-SHA run `32142005006` passed
+  `quality-and-integration`, `secret-scan` and `docker-validation`; only the existing non-blocking
+  Node 20 action-runtime deprecation annotations remain.
+- Seven artifacts are present, readable and unexpired: project audit `9326412825`, P2-M3 evidence
+  `9326404299`, P2-M2 evidence `9326403612`, P2-M1 evidence `9326402997`, Phase 1 evidence
+  `9326402268`, Docker evidence `9326312899`, and Gitleaks SARIF `9326243254`.
+- Phase 1 and P2-M1–M3 evidence all bind the candidate SHA, migration head
+  `0013_warp_plan_authority` and unchanged OpenAPI digest `a9ee1e0a...`. P2-M1 records 98 tests,
+  P2-M2 52 tests and P2-M3 46 tests with zero failures/errors/skips. Gitleaks records zero results.
+- Principal reviewed the actual diff, local full matrix, production fail-closed behavior, same-SHA
+  jobs and downloaded artifacts. `CC-P2-M4-04` is accepted. T06 resumes only after this forward
+  acceptance checkpoint completes its own same-SHA CI; T07/T08 and the Milestone Gate remain closed.
+
+`CC_P2_M4_04: TASK_ACCEPTED`
+
 ## Exit rule
 
 P2-M4 can pass only when every mandatory row has actual evidence, all candidate claims are bounded to
