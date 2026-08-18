@@ -6,7 +6,7 @@
 - 建立日期：2026-08-15
 - 当前目录：`D:\p`
 - 当前阶段：Phase 2 — Synthetic Dataset Engine（COMMITTED）
-- 当前 Milestone：P2-M4 — Deterministic Geometry Variant Research and Engine（PASS）
+- 当前 Milestone：P2-M4 — Deterministic Geometry Variant Research and Engine（FROZEN）
 - 首发策略：中国大陆、18+、手机号 + 邀请码、小规模私测 Beta
 - UI：简体中文默认，预留国际化
 
@@ -356,3 +356,13 @@
   锁序，不改 schema、trigger、授权、公开 API 或删除语义。修复前 live Compose/Celery 在有界第 2 次复现，
   修复后 focused 9 项与同一 vertical flow 20/20 通过，fresh PostgreSQL/isolated Redis/Celery 全套、质量、
   migration 和 Docker Gate 通过；当前仅 `READY_FOR_TRACKED_EVIDENCE`，P2-M4 仍未 FROZEN，P2-M5 关闭。
+
+- 2026-08-19：P2-M4 repaired closure `11bda0ad1fed8d01298cc3be23ea461ff522cc91` 的 run
+  `32169725374` 三 jobs 全绿，七项 exact-SHA artifacts 可读且未过期；Python 499 PASS/1 个既有 optional
+  private-runtime skip，M1/M2/M3 为 98/52/46 且零 skip，Gitleaks 为零 results。独立安全与最终审查均
+  PASS、无 mandatory finding，Principal 接受 R17/R18 并前向记录 P2-M4 `FROZEN`；P2-M5 仅开放
+  rolling-wave refinement。`jaw_width` 仍为 `EXPERIMENTAL`，结论保持
+  `FURTHER_RESEARCH_FOR_M5_ISOLATION`，N=2 不满足 M5 MVR，production geometry、真人处理与
+  QuestionBank release 继续关闭。Project Owner 前向授权按任务需要下载依赖（含 MediaPipe 0.10.35
+  exact Windows/Linux wheels 与 Face Landmarker exact bundle）到私有缓存；下载授权不等于 adoption、
+  license、distribution、production 或 real-user processing 批准。

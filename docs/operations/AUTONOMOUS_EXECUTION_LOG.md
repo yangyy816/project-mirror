@@ -508,3 +508,16 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Candidate `a09fb33517a56b7660d76c7f78a23344fb17dd98` run `32169244356` passed Docker and secret scan but stopped at
   Linux Ruff formatting before tests. `P2-M4-R18` applies only the two formatter-requested test-layout changes;
   Linux Ruff 0.16.3 format/lint now pass, with no product-code or assertion change.
+
+## 2026-08-19T16:10:00+08:00 — P2-M4 repaired closure and freeze-state candidate
+
+- Repaired candidate `11bda0ad1fed8d01298cc3be23ea461ff522cc91` completed run `32169725374`; all three jobs passed.
+  Python reports 499 passes and one existing optional private-runtime skip; M1/M2/M3 report 98/52/46 tests with
+  zero skip. Migration, Ruff, strict mypy, TypeScript/browser, contracts, license, SBOM and Docker evidence passed.
+- Seven unexpired project audit, frozen regression, Docker and Gitleaks artifacts bind the exact SHA and
+  `0013_warp_plan_authority`; Gitleaks SARIF contains zero results.
+- Independent security and final integrated reviews returned PASS with no mandatory finding. Principal accepts
+  R17/R18 and records the separate P2-M4 freeze-state candidate.
+- `jaw_width` remains `EXPERIMENTAL`, the conclusion remains `FURTHER_RESEARCH_FOR_M5_ISOLATION`, N=2 remains below
+  the M5 MVR, and production geometry, real-user facial processing and QuestionBank release remain unauthorized.
+  P2-M5 opens only for rolling-wave refinement after the freeze-state exact-SHA run passes.

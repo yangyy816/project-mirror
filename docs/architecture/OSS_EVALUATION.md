@@ -95,9 +95,10 @@ P2-M1 的逐项 upstream、license、dependency、decision 与 review-trigger ev
 
 ## Current execution boundary
 
-P0/P1 与 P2-M1/P2-M2/P2-M3 保持 `FROZEN`，P2-M4 为 `PASS`、待独立 freeze checkpoint。当前 active milestone 只能按其已冻结
-protocol 和 Gate 前进；本文不授权其引入未来候选。Pillow 12.3.0 保持既有锁定版本；不引入其余
-未经批准候选、不下载权重、不调用未批准外部模型服务，也不预实现 P3–P7 能力。Terra 发现新
+P0/P1 与 P2-M1/P2-M2/P2-M3/P2-M4 保持 `FROZEN`；P2-M5 仅开放 rolling-wave refinement，尚未获得
+implementation authorization。当前 active milestone 只能按其已冻结 protocol 和 Gate 前进；本文不授权其引入未来候选。
+Pillow 12.3.0 保持既有锁定版本；任务所需依赖与模型 artifact 可在 Project Owner 授权下下载到私有缓存，
+但下载不等于 adoption、license、distribution、production 或 real-user processing 批准。Terra 发现新
 候选时只能提交 `THIRD_PARTY_CANDIDATE_FOUND` 报告，包含名称、用途、upstream、Phase、来源与
 claim status、许可证证据、模型/数据依赖、收益、替换成本和风险，由 Principal 决定是否建立未来
 评估任务。

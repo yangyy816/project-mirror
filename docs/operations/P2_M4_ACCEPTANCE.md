@@ -3,14 +3,14 @@
 ## Status
 
 - Milestone: `P2-M4 — Deterministic Geometry Variant Research and Engine`
-- State: `PASS`
+- State: `FROZEN`
 - Entry baseline: `6b86a665e845e113bbfa2820f906d3b78506b753`
 - Entry migration head: `0011_offline_synth_source`
 - Public API change: none
-- M5 entry: closed until P2-M4 is FROZEN
+- M5 entry: open for rolling-wave refinement only; implementation is not authorized
 
-This is the acceptance skeleton. `PENDING` means not yet executed and must never be interpreted as
-PASS.
+This is the completed acceptance record. Historical `PENDING` labels describe their recorded checkpoint and must
+not be interpreted as evidence from a later Gate.
 
 ## Mandatory evidence matrix
 
@@ -420,13 +420,28 @@ LandmarkWarpPlanAuthority → passed canonical source QA/record/identity/Asset`,
 - Before repair, the live Compose/Celery vertical flow reproduced on bounded run 2. After repair, 9 focused
   PostgreSQL tests and 20 consecutive live vertical runs passed. The full fresh-database API/Worker suite, Ruff,
   strict mypy, pnpm/contracts, migration lifecycle/check, Docker build/health and API/Web smoke also passed.
-- R17 remains `READY_FOR_TRACKED_EVIDENCE`. P2-M4 remains technical `PASS` but not `FROZEN`; the repaired
-  exact-SHA closure, artifact inspection, independent review and freeze-state CI are still mandatory.
+- Repair candidate `11bda0ad1fed8d01298cc3be23ea461ff522cc91` completed run `32169725374` with all three jobs
+  passing. Python reports 499 passes and one existing optional private-runtime skip; M1/M2/M3 report 98/52/46
+  tests with zero skip. Migration, Ruff, strict mypy, TypeScript/browser, contracts, license, SBOM and Docker
+  evidence all passed.
+- Seven unexpired artifacts bind the exact SHA and migration head `0013_warp_plan_authority`; Gitleaks SARIF
+  contains zero results. Independent security and final integrated reviews both returned `PASS` with no mandatory
+  finding. Principal accepts R17/R18 and the repaired acceptance closure.
+- The freeze transition does not change the research result: `jaw_width` remains `EXPERIMENTAL`, N=2 remains below
+  the M5 MVR, and production geometry, real-user facial processing and QuestionBank release remain unauthorized.
 
-`P2_M4_R17: READY_FOR_TRACKED_EVIDENCE`
+`P2_M4_R17: REPAIR_ACCEPTED`
+
+`P2_M4_R18: REPAIR_ACCEPTED`
+
+`P2_M4_REPAIRED_CLOSURE_CI: PASS — run 32169725374 at 11bda0a`
 
 ## Exit rule
 
-P2-M4 has passed the technical Gate. It may become `FROZEN` only after this acceptance closure and a separate
-freeze-state checkpoint each pass exact-SHA CI/artifact verification. A useful but insufficient PoC remains
-`FURTHER_RESEARCH`, not PASS. Only Principal may record the later `FROZEN` transition.
+P2-M4 has passed the technical Gate and repaired acceptance closure. Principal records the separate freeze-state
+checkpoint; its own exact-SHA CI/artifact verification remains mandatory before reporting final remote closure. A
+useful but insufficient PoC remains `FURTHER_RESEARCH`, not PASS.
+
+`P2_M4_STATE: FROZEN`
+
+`P2_M5_ENTRY: OPEN_FOR_REFINEMENT_ONLY`

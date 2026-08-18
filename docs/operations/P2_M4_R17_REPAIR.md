@@ -83,7 +83,8 @@ account deletion request authority
   five-service health and API/Web smoke all passed.
 - No dependency, model, image, migration, OpenAPI artifact or private path was added.
 
-The tracked repair candidate and exact-SHA Actions/artifact review remain mandatory.
+The tracked repair candidate and exact-SHA Actions/artifact review passed at
+`11bda0ad1fed8d01298cc3be23ea461ff522cc91`, run `32169725374`.
 
 ## P2-M4-R18 — Linux formatter parity repair
 
@@ -92,6 +93,11 @@ The tracked repair candidate and exact-SHA Actions/artifact review remain mandat
   tests.
 - The only diff required by the locked Linux Ruff 0.16.3 formatter is a two-location mechanical layout change in
   the new concurrency test. The repair does not change assertions, timing, lock order or production code.
-- Linux Ruff 0.16.3 format and lint checks pass after the repair. A new exact-SHA run remains mandatory.
+- Linux Ruff 0.16.3 format and lint checks pass after the repair. Run `32169725374` subsequently passed all three
+  jobs and produced the seven expected exact-SHA artifacts.
+- Independent security and final integrated reviews both returned `PASS` with no mandatory finding. Principal
+  accepts R17/R18 without changing schema, triggers, authorization, public contracts or the M4 research result.
 
-`P2_M4_R17_GATE: READY_FOR_TRACKED_EVIDENCE`
+`P2_M4_R17_GATE: REPAIR_ACCEPTED`
+
+`P2_M4_R18_GATE: REPAIR_ACCEPTED`

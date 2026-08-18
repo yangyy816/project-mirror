@@ -6,7 +6,7 @@
 - Entry baseline: P2-M3 freeze-state `6b86a665e845e113bbfa2820f906d3b78506b753`
 - Entry run: `32108427849`; all three jobs passed on the exact SHA
 - Branch: `codex/phase2-m4-geometry-variants`
-- State: `EXECUTING`
+- State: `FROZEN`
 - Migration head at entry: `0011_offline_synth_source`
 - Architecture authority: ADR-021–039
 - Public API impact: none
@@ -285,3 +285,20 @@ targeted validation
 
 Only Principal may declare `P2-M4: PASS/FROZEN`. A failed candidate may yield
 `FURTHER_RESEARCH` without weakening Gates; M5 entry remains closed until M4 is FROZEN.
+
+## Freeze record
+
+- Repaired acceptance closure: `11bda0ad1fed8d01298cc3be23ea461ff522cc91`.
+- Exact-SHA GitHub Actions run: `32169725374`; `quality-and-integration`, `secret-scan` and
+  `docker-validation` all passed.
+- Seven project audit, frozen regression, Docker and Gitleaks artifacts were inspected and bind the
+  exact SHA and migration head `0013_warp_plan_authority`.
+- Independent security and final integrated reviews both returned `PASS` with no mandatory finding.
+- `jaw_width` remains `EXPERIMENTAL`; the result remains `FURTHER_RESEARCH_FOR_M5_ISOLATION`, and
+  N=2 does not satisfy the M5 MVR.
+
+`P2_M4_STATE: FROZEN`
+
+`P2_M5_ENTRY: OPEN_FOR_REFINEMENT_ONLY`
+
+`P2_M5_IMPLEMENTATION: NOT_AUTHORIZED_UNTIL_REFINEMENT_ACCEPTED`
