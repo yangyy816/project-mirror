@@ -650,3 +650,18 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Principal accepts Stage A and opens only the bounded 12-identity, 18-attempt, concurrency-1 calibration Stage B.
   Stage C–E, holdout, T06–T08, MVR execution, production geometry, real-user processing, M6 and QuestionBank release
   remain closed.
+
+## 2026-08-19T22:55:00+08:00 — Stage A checkpoint CI failure and P2-M5-R02 local repair
+
+- Acceptance checkpoint `d3158c03e0843e5a504531dd407eafea534630de` run `32190386366` passed Docker and
+  Gitleaks but failed the full Python suite at 566 passed, one existing optional skip and one data-rights HTTP-test
+  teardown deadlock.
+- The failing test dispatched work to live Celery and also drove the same services synchronously. In an isolated
+  PostgreSQL/Redis/Celery replay, suppressing data-rights dispatch alone still deadlocked on iteration 2 because asset
+  deletion remained independently queued.
+- R02 uses the existing recoverable no-broker dispatchers for both paths inside this one synchronous vertical test.
+  The repaired replay passed 20/20 and the isolated worker received zero tasks. No production code, schema, API,
+  authorization, dependency, model, image or research result changed.
+- Full local Gate passed: Ruff 212 files, mypy 124 sources, Alembic round trip/check, API/Worker `567 passed` with one
+  existing optional private-runtime skip, `pnpm check`, Compose rebuild/health/smoke and staged-index plus 178-commit
+  Gitleaks scans. R02 is `READY_FOR_TRACKED_EVIDENCE`; Stage B remains closed until exact-SHA remote Gates pass.

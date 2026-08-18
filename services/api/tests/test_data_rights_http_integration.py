@@ -11,9 +11,15 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
+from mirror_api.asset_deletion.coordinator import AssetDeletionCoordinator
+from mirror_api.asset_deletion.dispatcher import RecoverableAssetDeletionDispatcher
+from mirror_api.asset_deletion.service import AssetDeletionService
+from mirror_api.asset_deletion_dependencies import AssetDeletionInfrastructure
 from mirror_api.auth.types import AuthenticatedActor
 from mirror_api.auth_dependencies import get_account_deletion_status_actor, get_current_actor
 from mirror_api.config import get_settings
+from mirror_api.data_rights.coordinator import DataRightsCoordinator
+from mirror_api.data_rights.dispatcher import RecoverableDataRightsDispatcher
 from mirror_api.data_rights_dependencies import DataRightsInfrastructure
 from mirror_api.models import Asset, User, UserSession, new_id
 from mirror_api.providers.local import LocalObjectStorageProvider, sanitized_object_key_for_job
@@ -61,8 +67,30 @@ async def test_data_rights_http_vertical_flow_is_owner_bound_and_idempotent(
         pytest.skip("NOT VERIFIED LOCALLY: TEST_DATABASE_URL PostgreSQL is unavailable")
     test_app = cast(FastAPI, client.app)
     infrastructure = test_app.state.auth_infrastructure
-    rights = cast(DataRightsInfrastructure, test_app.state.data_rights_infrastructure)
+    configured_rights = cast(DataRightsInfrastructure, test_app.state.data_rights_infrastructure)
+    rights = DataRightsInfrastructure(
+        coordinator=DataRightsCoordinator(
+            exports=configured_rights.coordinator.exports,
+            account_deletions=configured_rights.coordinator.account_deletions,
+            dispatcher=RecoverableDataRightsDispatcher(),
+        )
+    )
+    # This test drives both jobs synchronously. Suppress duplicate Celery deliveries so
+    # its TRUNCATE-based isolation cannot race a worker transaction after assertions.
+    test_app.state.data_rights_infrastructure = rights
     storage = cast(LocalObjectStorageProvider, test_app.state.object_storage_provider)
+    settings = get_settings()
+    test_app.state.asset_deletion_infrastructure = AssetDeletionInfrastructure(
+        coordinator=AssetDeletionCoordinator(
+            service=AssetDeletionService(
+                session_factory=infrastructure.sessions,
+                storage=storage,
+                hmac_keyring=dict(settings.auth_hmac_keyring),
+                hmac_active_kid=settings.auth_hmac_active_kid,
+            ),
+            dispatcher=RecoverableAssetDeletionDispatcher(),
+        )
+    )
     session_expires_at = datetime.now(UTC) + timedelta(days=1)
 
     user = User(id=new_id(), phone_hash="a" * 128, status="active", created_at=NOW)
@@ -98,7 +126,6 @@ async def test_data_rights_http_vertical_flow_is_owner_bound_and_idempotent(
     test_app.dependency_overrides[get_current_actor] = lambda: actor[0]
     test_app.dependency_overrides[get_account_deletion_status_actor] = lambda: actor[0]
     auth = {"Authorization": "Bearer synthetic-access"}
-    settings = get_settings()
     deletion_status_token = issue_access_token(
         subject=user.id,
         session_id=session_row.id,

@@ -311,3 +311,22 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `CC_P2_M5_01_C_TO_E: CLOSED`
 
 `P2_M5_T06_ENTRY: CLOSED`
+
+## Stage A acceptance checkpoint failure and P2-M5-R02 local repair
+
+- Acceptance checkpoint `d3158c03e0843e5a504531dd407eafea534630de` run `32190386366` passed
+  `secret-scan` and `docker-validation`, but `quality-and-integration` failed with 566 passed, one existing optional
+  skip and one PostgreSQL deadlock in the Phase 1 data-rights HTTP vertical test's final
+  `TRUNCATE TABLE users CASCADE`.
+- The failing test combined live Celery dispatch with direct synchronous processing of the same data-export,
+  asset-deletion and account-deletion workflow. A dedicated PostgreSQL/Redis/Celery replay confirmed that suppressing
+  only data-rights dispatch was insufficient: asset deletion could still race teardown and deadlocked on iteration 2.
+- `P2-M5-R02` composes this synchronous vertical test with the existing recoverable data-rights and asset-deletion
+  dispatchers. No production service, lock order, schema, trigger, API, authorization or deletion behavior changes.
+- The repaired isolated replay passed 20/20 while the live maintenance worker received zero tasks. Full local Python,
+  migration, TypeScript/contracts, Docker and Gitleaks Gates also passed; exact-SHA remote Actions and artifacts remain
+  required before accepting R02 or reopening Stage B.
+
+`P2_M5_R02: READY_FOR_TRACKED_EVIDENCE`
+
+`CC_P2_M5_01_B: CLOSED_PENDING_REPAIRED_ACCEPTANCE_CHECKPOINT`
