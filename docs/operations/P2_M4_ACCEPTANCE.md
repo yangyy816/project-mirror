@@ -14,24 +14,24 @@ PASS.
 
 ## Mandatory evidence matrix
 
-| Gate             | Required evidence                                                   | Status   |
-| ---------------- | ------------------------------------------------------------------- | -------- |
-| Architecture     | ADR-036 and rolling-wave contracts accepted                         | T01 PASS |
-| QA subject union | ADR-037 preserves M3 base authority and binds variant result QA     | ACCEPTED |
-| Domain           | immutable source-relative spec and fail-closed state machine        | T02 PASS |
-| Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | T03 PASS |
-| Source authority | only QA-passed canonical synthetic Asset/identity/run               | T03 PASS |
-| Lineage          | source/spec/run/result/measurement chain immutable                  | T03 PASS |
-| Candidate        | exact source/version/license/SBOM/vulnerability/zero-network review | PENDING  |
-| Transform        | bounded adapter, no absolute/global target, new Asset only          | PENDING  |
-| Determinism      | preregistered same-platform and Windows/Linux evidence              | PENDING  |
-| Safety           | bounds/foldover/malformed/second-decode and artifact negatives      | PENDING  |
-| Measurement      | requested and actual target/control evidence retained               | PENDING  |
-| Recovery         | retry/cancel/duplicate/reconcile and lock-order evidence            | PENDING  |
-| Synthetic-only   | no User relation, real-person fixture or sensitive classifier       | PENDING  |
-| Contracts        | public OpenAPI/generated TypeScript unchanged                       | PENDING  |
-| Full Gate        | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA CI          | PENDING  |
-| Review           | independent security and final review                               | PENDING  |
+| Gate             | Required evidence                                                   | Status               |
+| ---------------- | ------------------------------------------------------------------- | -------------------- |
+| Architecture     | ADR-036 and rolling-wave contracts accepted                         | T01 PASS             |
+| QA subject union | ADR-037 preserves M3 base authority and binds variant result QA     | ACCEPTED             |
+| Domain           | immutable source-relative spec and fail-closed state machine        | T02 PASS             |
+| Database         | forward `0012`, lifecycle, invariants, concurrency, zero drift      | T03 PASS             |
+| Source authority | only QA-passed canonical synthetic Asset/identity/run               | T03 PASS             |
+| Lineage          | source/spec/run/result/measurement chain immutable                  | T03 PASS             |
+| Candidate        | exact source/version/license/SBOM/vulnerability/zero-network review | T04 FURTHER_RESEARCH |
+| Transform        | bounded adapter, no absolute/global target, new Asset only          | PENDING              |
+| Determinism      | preregistered same-platform and Windows/Linux evidence              | PENDING              |
+| Safety           | bounds/foldover/malformed/second-decode and artifact negatives      | PENDING              |
+| Measurement      | requested and actual target/control evidence retained               | PENDING              |
+| Recovery         | retry/cancel/duplicate/reconcile and lock-order evidence            | PENDING              |
+| Synthetic-only   | no User relation, real-person fixture or sensitive classifier       | PENDING              |
+| Contracts        | public OpenAPI/generated TypeScript unchanged                       | PENDING              |
+| Full Gate        | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA CI          | PENDING              |
+| Review           | independent security and final review                               | PENDING              |
 
 ## Entry evidence
 

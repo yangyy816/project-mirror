@@ -121,6 +121,15 @@
 
 ## 工作记录
 
+- 2026-08-18：P2-M4-T04 首个候选 `opencv-python-headless==5.0.0.93` 结论为
+  `FURTHER_RESEARCH`。Exact OpenCV/NumPy artifacts 均匹配官方 SHA-256；两个 Windows 与两个
+  Linux `--network none` 有效运行的 deterministic digest 均为 `5833e2cf...`，跨平台 256/1024
+  输出像素差为零，负向控制、性能与体积 Gate 通过。R02 修复 NumPy 2.5 二维 `np.cross` harness
+  兼容问题；R03 保留四个 noexec tmpfs import failure 后改用一次性容器层。完整 wheel 含 M4 不需要的
+  FFmpeg/OpenSSL/codec closure，Windows FFmpeg DLL 导入 Winsock socket/connect；Grype native DB
+  两次 TLS timeout，native vulnerability 为 NOT VERIFIED。因此不批准 T05 或项目 dependency，下一
+  候选必须独立预注册 OpenCV 5.0.0 minimal source-built `core,imgproc` closure。
+
 - 2026-08-18：P2-M4-T03 与 `P2-M4-R01` 经 Principal 验收。前向
   `0012_geometry_variant_authority` 建立 immutable `VariantSpecification`、monotonic
   `TransformRun`、canonical QA-passed source、distinct result Asset、唯一成功 lineage 与

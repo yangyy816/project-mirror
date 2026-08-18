@@ -287,3 +287,16 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - R02 replaces only that helper with the equivalent explicit two-dimensional determinant. It changes
   no candidate, fixture, interpolation, threshold, runtime setting or domain behavior. Both failed
   roots remain private attempt evidence; qualification restarts in new roots.
+
+## 2026-08-18T16:35:00+08:00 — P2-M4-T04 OpenCV wheel disposition
+
+- Two Windows and two Linux valid runs produced identical deterministic digest `5833e2cf...`; both
+  cross-platform arrays were byte-identical, all negative controls passed, worst 1024 p95 was 7.2457
+  ms and installed runtime was about 163 MiB. R03 preserves four Linux tmpfs import failures before
+  the two successful ephemeral `--network none` runs.
+- Python package audit found no known NumPy/OpenCV vulnerability and two SBOMs were generated. The
+  general-purpose wheel nevertheless includes unnecessary FFmpeg/OpenSSL/codec closure; its Windows
+  FFmpeg DLL imports Winsock socket/connect. Grype native DB update failed twice with TLS timeout, so
+  native vulnerability review remains NOT VERIFIED.
+- Candidate disposition is `FURTHER_RESEARCH`, not approval. T05 remains blocked. The next bounded
+  work is a separately preregistered minimal OpenCV 5.0.0 source-built `core,imgproc` candidate.
