@@ -3,7 +3,7 @@
 ## Status
 
 - Milestone: `P2-M3 — Synthetic Normalization and Base Identity QA`
-- State: `EXECUTING`
+- State: `PASS`; acceptance closure same-SHA CI pending before `FROZEN`
 - Frozen entry: `0b579ebdb1c2a63936225bc59a4b0ca780544df2`
 - Migration head: `0011_offline_synth_source` after ADR-035 change control
 - Public API change: none
@@ -12,23 +12,23 @@
 
 ## Mandatory evidence matrix
 
-| Gate                      | Required evidence                                                          | Status            |
-| ------------------------- | -------------------------------------------------------------------------- | ----------------- |
-| M2 authority preservation | no GenerationItem/raw/generation evidence rewrite                          | T02 PASS          |
-| Migration                 | `0010` evidence plus fresh and `0010→0011→0010→0011`, drift zero           | PASS              |
-| Normalization             | bounded decode, sanitation, canonical encode, second decode, checksum      | T03 PASS          |
-| Namespace                 | normalized private namespace separate from raw/user assets                 | T03 PASS          |
-| Immutability              | Asset/record/measurement/review/identity lineage cannot mutate/delete      | T02 PASS          |
-| QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | T04 PASS          |
-| Adult policy              | reject clear pre-16 or child/student-minor context; no age estimate        | T06 PASS          |
-| Vision                    | approved exact package/model/data/license + controlled benchmark           | T06 PASS\*        |
-| Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | T05 PASS          |
-| Synthetic-only            | no User relation, real-person fixture, scraping or sensitive classifier    | T02 PASS          |
-| Recovery                  | duplicate delivery, lease expiry, blob-before-commit and cleanup race      | T05 PASS          |
-| Contracts                 | OpenAPI/generated TypeScript unchanged                                     | T02 PASS          |
-| Supply chain              | Pillow unchanged; every new package/model separately approved              | T06 PASS\*        |
-| Full Gate                 | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA Actions            | T07 LOCAL         |
-| Final review              | independent security and final reviewer acceptance                         | CONDITIONAL — R26 |
+| Gate                      | Required evidence                                                          | Status     |
+| ------------------------- | -------------------------------------------------------------------------- | ---------- |
+| M2 authority preservation | no GenerationItem/raw/generation evidence rewrite                          | T02 PASS   |
+| Migration                 | `0010` evidence plus fresh and `0010→0011→0010→0011`, drift zero           | PASS       |
+| Normalization             | bounded decode, sanitation, canonical encode, second decode, checksum      | T03 PASS   |
+| Namespace                 | normalized private namespace separate from raw/user assets                 | T03 PASS   |
+| Immutability              | Asset/record/measurement/review/identity lineage cannot mutate/delete      | T02 PASS   |
+| QA                        | versioned run, typed measurements, reason codes and hard-gate evaluator    | T04 PASS   |
+| Adult policy              | reject clear pre-16 or child/student-minor context; no age estimate        | T06 PASS   |
+| Vision                    | approved exact package/model/data/license + controlled benchmark           | T06 PASS\* |
+| Identity                  | one QA-passed canonical Asset creates at most one identity transactionally | T05 PASS   |
+| Synthetic-only            | no User relation, real-person fixture, scraping or sensitive classifier    | T02 PASS   |
+| Recovery                  | duplicate delivery, lease expiry, blob-before-commit and cleanup race      | T05 PASS   |
+| Contracts                 | OpenAPI/generated TypeScript unchanged                                     | T02 PASS   |
+| Supply chain              | Pillow unchanged; every new package/model separately approved              | T06 PASS\* |
+| Full Gate                 | Python/TS/PG/Redis/Celery/Docker/Gitleaks/SBOM/same-SHA Actions            | T07 PASS   |
+| Final review              | independent security and final reviewer acceptance                         | T08 PASS   |
 
 `T06 PASS*` is limited to the source-built private synthetic M3 candidate. Official wheels,
 distribution, production Vision and real-user facial processing remain blocked.
@@ -409,11 +409,11 @@ release. Codex native provenance remains `PROVENANCE_ONLY` and unknown facts rem
 
 `P2_M3_T03_REMOTE_CI: PASS`
 
-`P2_M3_REMOTE_CI: PENDING_FINAL_T07`
+`P2_M3_REMOTE_CI: PASS`
 
-`P2_M3_STATE: EXECUTING`
+`P2_M3_STATE: PASS`
 
-`P2_M4_ENTRY: CLOSED`
+`P2_M4_ENTRY: CLOSED_UNTIL_M3_FROZEN`
 
 ## R17 hardened Linux clean reproduction checkpoint
 
@@ -600,8 +600,39 @@ head, and rejects attempts to treat the descriptive name as a revision identifie
 
 `P2_M3_R26_LOCAL_VALIDATION: PASS`
 
-`P2_M3_R26_SAME_SHA_CI: PENDING`
+`P2_M3_R26_SAME_SHA_CI: PASS — run 32106647901 at c31ca44`
 
 R26 changes no migration, schema, domain authority, runtime dependency, model disposition, public
-API or production/real-user boundary. A new same-SHA three-job CI run and narrow independent review
-remain mandatory before the Principal M3 Gate.
+API or production/real-user boundary.
+
+## Final candidate review and Principal Gate
+
+Candidate `c31ca44627843c04455bbe333b6e1dcfc515d096` completed run `32106647901`
+with `quality-and-integration`, `secret-scan` and `docker-validation` all passing. Downloaded,
+unexpired evidence was inspected:
+
+- `p2-m3-ci-evidence` artifact `9313484471` has SHA-256
+  `2edb8f76afee534fdc407c35abbbe96e6bb967520edd425068f4517e7f4d59c8`; it binds the exact
+  candidate SHA, actual migration head `0011_offline_synth_source`, unchanged OpenAPI digest,
+  46 M3 tests with zero failures/errors/skips and all 12 deterministic checks passing;
+- the artifact binds the original V01 file SHA-256, item evidence digest and R26 correction digest;
+- official MediaPipe wheels remain rejected, the model remains `PRIVATE_RESEARCH_ONLY`, and
+  distribution, production Vision, real-user facial processing and QuestionBank release remain
+  false;
+- Gitleaks SARIF contains zero results, and Docker/audit artifacts are readable.
+
+The independent security review and independent final review both returned `PASS` with no required
+repair. Their scope and evidence are summarized in `P2_M3_FINAL_REVIEW.md`. Principal accepts R26 and
+the complete candidate evidence as the P2-M3 Milestone Gate.
+
+`P2_M3_FINAL_CANDIDATE_GATE: PASS`
+
+`P2_M3_T08_FINAL_STATUS: PASS`
+
+`P2_M3_MILESTONE_GATE: PASS`
+
+`P2_M3_ACCEPTANCE_CLOSURE_CI: PENDING`
+
+`P2_M3_STATE: PASS`
+
+`P2_M4_REFINEMENT_ENTRY: CLOSED_UNTIL_M3_FROZEN`

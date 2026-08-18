@@ -6,7 +6,7 @@
 - Entry baseline: P2-M2 freeze-state `0b579ebdb1c2a63936225bc59a4b0ca780544df2`
 - Entry run: `31958786882`; all three jobs passed with exact-SHA artifacts
 - Branch: `codex/phase2-m3-normalization-base-qa`
-- State: `EXECUTING`
+- State: `PASS`; acceptance closure same-SHA CI pending before `FROZEN`
 - Architecture authority: ADR-021–035
 - Scope: synthetic-only normalization, base QA evidence and canonical identity registration
 - Public API impact: none

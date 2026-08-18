@@ -206,3 +206,16 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   and `6a5fb351...` is the later frozen and currently reproduced Linux runtime. R25 does not rewrite
   the R21 policy/holdout evidence or approve official wheels, distribution, production Vision or
   real-user facial processing.
+
+## 2026-08-18T14:36:51+08:00 — P2-M3-R26 final candidate acceptance
+
+- R26 preserves the historical V01 evidence byte-for-byte and adds a forward correction binding its
+  SHA-256, item evidence digest, actual Alembic head `0011_offline_synth_source` and descriptive
+  migration name. The correction canonical digest is
+  `c3d6751e97383d9cd3332e9450dc60d3427586a2aafa25496ebf09c0daaa894d`.
+- Candidate `c31ca44627843c04455bbe333b6e1dcfc515d096` completed run `32106647901`; all three jobs passed.
+  Downloaded artifact `9313484471` records 46 M3 tests with zero failures/errors/skips and has JSON
+  SHA-256 `2edb8f76afee534fdc407c35abbbe96e6bb967520edd425068f4517e7f4d59c8`.
+- Independent security and final reviews both returned PASS with no required repair. Principal
+  accepts the P2-M3 Gate as PASS. Acceptance closure CI remains mandatory before FROZEN; P2-M4
+  refinement remains closed until then.
