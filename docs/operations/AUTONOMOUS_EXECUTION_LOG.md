@@ -542,3 +542,13 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   1/98/52/46 tests with zero failures/skips and Gitleaks reports zero results.
 - Principal accepts T01 and advances M5 to `EXECUTING`. T02/T04 are open; T03 remains dependency-gated. Technical
   Gate, P2-MVR-v1 and M6 entry remain pending/closed.
+
+## 2026-08-19T19:52:00+08:00 — P2-M5-T02 local candidate
+
+- Implemented pure domain contracts for immutable evaluation policy/digest, non-sensitive region groups,
+  identity/Asset/SHA/cluster split authority, per-dimension effective N, isolation calculation and separate
+  technical/MVR outcomes.
+- 41 new and 101 adjacent domain tests passed; full-service Ruff format/lint, 123-source strict mypy, contracts drift
+  and diff checks passed.
+- Candidate is `READY_FOR_TRACKED_EVIDENCE`; no ORM/migration, dependency, selected threshold, holdout execution,
+  image/model artifact, public API, production geometry or real-user processing was added.

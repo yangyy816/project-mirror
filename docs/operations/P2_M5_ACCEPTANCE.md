@@ -93,3 +93,21 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `P2_M5_T01_TRACKED_ACCEPTANCE: PASS`
 
 `P2_M5_STATE: EXECUTING`
+
+## T02 local candidate
+
+- Added a pure first-party M5 domain module with no ORM, HTTP, storage, task-runner, image-library or Provider import.
+- `SyntheticEvaluationPolicy` has an independent schema/digest, fixed 24→48→96 cohort stages and sorted immutable
+  per-dimension rules. Region groups reject sensitive, beauty, population and age/sexual classification tokens.
+- Cohort assignments reject identity/Asset/checksum/duplicate-cluster leakage across calibration, M4-seen and holdout;
+  effective N is computed per dimension and counts one unit per duplicate cluster.
+- Isolation evaluation retains actual signed requested/measured target delta, target error, all control deltas,
+  non-target drift, repeat/platform variance, automatic hard-gate failures and deterministic report digest.
+- `TechnicalGateResult` and `MvrResult` are separate types; technical PASS with `FURTHER_RESEARCH` is valid, while
+  technical FAIL with MVR PASS is rejected.
+- 41 new tests and 101 adjacent domain tests passed. Ruff format/lint covered all 207 service files, strict mypy passed
+  123 source files, generated contracts had zero drift, and `git diff --check` passed.
+- This is `READY_FOR_TRACKED_EVIDENCE`, not T02 acceptance. No ORM/migration, dependency, threshold/holdout value,
+  image/model artifact, public API or production/real-user capability was added.
+
+`P2_M5_T02: READY_FOR_TRACKED_EVIDENCE`
