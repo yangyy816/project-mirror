@@ -300,3 +300,13 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   native vulnerability review remains NOT VERIFIED.
 - Candidate disposition is `FURTHER_RESEARCH`, not approval. T05 remains blocked. The next bounded
   work is a separately preregistered minimal OpenCV 5.0.0 source-built `core,imgproc` candidate.
+
+## 2026-08-18T16:45:00+08:00 — P2-M4-T04 minimal OpenCV 5 source candidate
+
+- Wheel-report SHA `51968c1680287542324c78573c46341ddea79aad` completed run `32116663250` with
+  all three jobs passing, closing the prior candidate as `FURTHER_RESEARCH`.
+- New candidate `OPENCV_5_0_0_MINIMAL_CORE_IMGPROC_V1` freezes the official 5.0.0 source archive,
+  Windows/Linux toolchains, core/imgproc-only CMake closure, narrow C ABI, deterministic-build rules,
+  supply-chain gates and the existing pixel/numeric/performance thresholds before any build.
+- T05 remains closed. The next action is to commit and hash the wrapper/build contract, then configure
+  four new task-owned roots and inspect the actual dependency graph before compilation.
