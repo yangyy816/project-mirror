@@ -1,0 +1,17 @@
+diff --git a/cmake/OpenCVModule.cmake b/cmake/OpenCVModule.cmake
+index 3b77e6f..be7ba0e 100644
+--- a/cmake/OpenCVModule.cmake
++++ b/cmake/OpenCVModule.cmake
+@@ -1044,7 +1044,11 @@ function(ocv_create_module)
+     if(CMAKE_CROSSCOMPILING)
+       set_target_properties(${the_module} PROPERTIES LINK_FLAGS "/NODEFAULTLIB:secchk")
+     endif()
+-    set_target_properties(${the_module} PROPERTIES LINK_FLAGS "/NODEFAULTLIB:libc /DEBUG")
++    if(MIRROR_DISABLE_MSVC_PDB)
++      set_target_properties(${the_module} PROPERTIES LINK_FLAGS "/NODEFAULTLIB:libc /DEBUG:NONE")
++    else()
++      set_target_properties(${the_module} PROPERTIES LINK_FLAGS "/NODEFAULTLIB:libc /DEBUG")
++    endif()
+   endif()
+ 
+   get_target_property(_target_type ${the_module} TYPE)
