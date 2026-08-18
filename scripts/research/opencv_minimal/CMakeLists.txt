@@ -25,7 +25,10 @@ else()
       -Wpedantic
   )
   target_link_options(mirror_opencv_remap PRIVATE -Wl,--build-id=none)
-  set_target_properties(mirror_opencv_remap PROPERTIES BUILD_RPATH "$ORIGIN")
+  set_target_properties(
+    mirror_opencv_remap
+    PROPERTIES BUILD_RPATH "$ORIGIN" INSTALL_RPATH "$ORIGIN"
+  )
 endif()
 
 set_target_properties(
