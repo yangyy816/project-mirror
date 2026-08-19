@@ -263,6 +263,9 @@ plan-construction, warp-plan and transform `ValueError` failures into `PLAN_BUIL
   diagnostic harness passed its 58-test targeted contract matrix, and independent implementation/security/final review
   found no mandatory issue. Principal acceptance opens only preparation of a separate CC02-B contract; private input
   remains prohibited until CC02-B tracked acceptance.
+- Acceptance closure `470849f0f42f151d1ec939e3b0d81ef4369ea86c` passed run `32284285946` with all three jobs,
+  Browser Integration 5/5 and eight exact-SHA artifacts. CC02-A is complete; the current candidate is only the separate
+  CC02-B bounded-task contract. It neither reads private input nor creates the real manifest.
 
 The exact authority, reason taxonomy, integrity Gates, resources and stop rules are in
 `P2_M5_CC02_FAILURE_MECHANISM_PROTOCOL.md`.
@@ -311,12 +314,16 @@ engine, but M6 entry remains closed and the missing research evidence stays dura
 
 `CC_P2_M5_02_A_IMPLEMENTATION: PASS_AT_EE19AD6_RUN_32282614608_ATTEMPT_1`
 
-`CC_P2_M5_02_B: READY_FOR_BOUNDED_TASK_CONTRACT`
+`CC_P2_M5_02_A_CLOSURE: PASS_AT_470849F_RUN_32284285946`
 
-`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_TRACKED_ACCEPTANCE`
+`CC_P2_M5_02_B_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+
+`CC_P2_M5_02_B_MANIFEST: NOT_CREATED`
+
+`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_TRACKED_CONTRACT_ACCEPTANCE`
 
 `CC_P2_M5_02_C_TO_E: CLOSED`
 
-`P2_M5_NEXT_ACTION: CC_P2_M5_02_B_BOUNDED_TASK_CONTRACT`
+`P2_M5_NEXT_ACTION: TRACK_AND_ACCEPT_CC_P2_M5_02_B_BOUNDED_TASK_CONTRACT`
 
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`

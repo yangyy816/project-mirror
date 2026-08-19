@@ -472,11 +472,48 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `CC_P2_M5_02_A_IMPLEMENTATION: PASS_AT_EE19AD6_RUN_32282614608_ATTEMPT_1`
 
+`CC_P2_M5_02_A_CLOSURE: PASS_AT_470849F_RUN_32284285946`
+
 `P2_M5_R04: REPAIR_ACCEPTED_AT_EE19AD6_RUN_32282614608_ATTEMPT_1`
 
 `CC_P2_M5_02_B: READY_FOR_BOUNDED_TASK_CONTRACT`
 
 `CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_TRACKED_ACCEPTANCE`
+
+`CC_P2_M5_02_C_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+## CC-P2-M5-02-B bounded-task contract candidate
+
+- CC02-A acceptance closure `470849f0f42f151d1ec939e3b0d81ef4369ea86c` passed run `32284285946` with all three
+  jobs, Browser Integration 5/5 and eight exact-SHA artifacts. This confirms the already accepted CC02-A implementation
+  and R04 repair; it does not add diagnostic evidence or open private input.
+- `P2_M5_CC02_B_TASK_CONTRACT.md` first freezes a versioned first-party deterministic builder and targeted synthetic
+  tests, then a future create-once machine manifest at `P2_M5_CC02_DIAGNOSTIC_MANIFEST.json` and matching human
+  preregistration. The manifest schema verifies two previously accepted canonical report digests, first-binds each
+  validated presented byte stream with an explicit non-retroactive basis, and binds 288 logical/576 platform cases, 232
+  failures, 344 successes with 1,032 accepted repeat-row bindings, plus the 14-case/42-measurement direction subset.
+- The contract also freezes candidate/cohort/case/runtime/model/topology/algorithm/harness/taxonomy authority, canonical
+  digest semantics, resource ceilings, complete key sets, private-field redaction and evidence-reconstruction stop
+  rules. It contains no real report location, case digest, manifest, threshold, replay or mechanism result.
+- This is `READY_FOR_TRACKED_CONTRACT_EVIDENCE` only. Private input remains prohibited until same-SHA contract evidence,
+  independent review and Principal acceptance. Contract acceptance opens only builder/test implementation with
+  synthetic inputs. Exact report locations/bytes remain prohibited until tracked builder acceptance and explicit
+  Principal `CC02_B_BUILDER_PRE_READ_GATE: PASS`; CC02-C replay still requires its own later tracked contract and Windows
+  child-process-inclusive outbound-deny Gate.
+- CC02-C–E, Stage D/E, T06–T08, MVR, production geometry, real-user processing, M6 and QuestionBank release remain
+  closed. P2-M5 remains `EXECUTING`, and old Stage C remains accepted `FURTHER_RESEARCH` with 0/4 eligibility.
+
+`CC_P2_M5_02_B_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+
+`CC_P2_M5_02_B_BUILDER: NOT_IMPLEMENTED`
+
+`CC02_B_BUILDER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_BUILDER_ACCEPTANCE`
+
+`CC_P2_M5_02_B_MANIFEST: NOT_CREATED`
+
+`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_TRACKED_CONTRACT_ACCEPTANCE`
 
 `CC_P2_M5_02_C_TO_E: CLOSED`
 

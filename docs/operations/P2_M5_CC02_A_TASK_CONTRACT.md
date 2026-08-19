@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-- Status: `TRACKED_CONTRACT_ACCEPTED_NOT_IMPLEMENTED`.
+- Status: `IMPLEMENTATION_ACCEPTED`.
 - Task: `CC-P2-M5-02-A`.
 - Change-control authority: ADR-047 and `P2_M5_CC02_FAILURE_MECHANISM_PROTOCOL.md`.
 - Governance acceptance: `137157c41e7b1436ae47fe7dfcf34a7127789166`, run `32267510703`, attempt 1.
@@ -10,9 +10,13 @@
   all three jobs passed and eight exact-SHA artifacts were inspected.
 - Contract acceptance: `d8659ae88fb32c99220d522fc6dbf94a8fc588ac`, run `32271571196`, attempt 1;
   all three jobs passed, eight exact-SHA artifacts were inspected, and independent security and final reviews passed.
+- Implementation acceptance: implementation commit `5159c3f28ab8dcbb7db07c5bead3780a409ace25` plus R04 commit
+  `ee19ad6efe49decfa3a0c8f0dbf3f130b5c59460`, run `32282614608`, attempt 1.
+- Acceptance closure: `470849f0f42f151d1ec939e3b0d81ef4369ea86c`, run `32284285946`; all three jobs,
+  Browser Integration 5/5 and eight exact-SHA artifacts passed.
 - Current milestone: P2-M5 remains `EXECUTING`.
-- Current authorization: one bounded harness implementation is `EXECUTION_READY` within the three allowed new paths.
-  Execution against private input remains prohibited and requires the later CC02-B tracked Gate.
+- Current authorization: CC02-A is complete. Only a separate CC02-B tracked contract candidate may be prepared.
+  Execution against private input remains prohibited and requires CC02-B tracked contract acceptance.
 - Private-input access: prohibited.
 
 This contract does not reopen the accepted Stage C result. `CC-P2-M5-01-C` remains `FURTHER_RESEARCH`, its complete-case
@@ -259,9 +263,13 @@ Tracked implementation acceptance:
 
 `CC_P2_M5_02_A_IMPLEMENTATION: PASS_AT_EE19AD6_RUN_32282614608_ATTEMPT_1`
 
-`CC_P2_M5_02_B: READY_FOR_BOUNDED_TASK_CONTRACT`
+`CC_P2_M5_02_A_CLOSURE: PASS_AT_470849F_RUN_32284285946`
 
-`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_TRACKED_ACCEPTANCE`
+`CC_P2_M5_02_B_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+
+`CC_P2_M5_02_B_MANIFEST: NOT_CREATED`
+
+`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_TRACKED_CONTRACT_ACCEPTANCE`
 
 `CC_P2_M5_02_C_TO_E: CLOSED`
 

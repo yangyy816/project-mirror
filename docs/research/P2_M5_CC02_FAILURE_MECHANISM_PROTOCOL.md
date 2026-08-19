@@ -6,8 +6,10 @@
 - Baseline: `aa695c2f81ca8ec0762fb521d77dd705c8fdeee5`.
 - Accepted Stage C evidence: `042f77e4b6708be827f2033a9740e348ae778f69` / run `32237678569`, attempt 2.
 - Governance acceptance: `137157c41e7b1436ae47fe7dfcf34a7127789166` / run `32267510703`, attempt 1.
-- Current status: `GOVERNANCE_ACCEPTED_DIAGNOSTIC_NOT_EXECUTED`.
-- Execution authorization: `CC02_A_BOUNDED_TASK_CONTRACT_ONLY`; private-input access remains closed.
+- CC02-A implementation acceptance: `ee19ad6efe49decfa3a0c8f0dbf3f130b5c59460` / run `32282614608`, attempt 1.
+- CC02-A acceptance closure: `470849f0f42f151d1ec939e3b0d81ef4369ea86c` / run `32284285946`.
+- Current status: `CC02_A_IMPLEMENTATION_ACCEPTED_CC02_B_CONTRACT_CANDIDATE_READY`.
+- Execution authorization: `CC02_B_TRACKED_CONTRACT_EVIDENCE_ONLY`; private-input access remains closed.
 - Threshold selection: `FORBIDDEN`.
 - Stage D/E, T06–T08, MVR and M6: `CLOSED`.
 
@@ -31,8 +33,10 @@ old Gate, change an algorithm, select a threshold, promote a dimension or author
 | Windows runtime           | manifest digest `27b33d646d8587f76d5ca317ac9d6aec95bc04fd87d413bb3dd6394f9694bb7a` |
 | Linux runtime             | manifest digest `5d0e9ee323d7daea78e8baaeec63917c7a1867301ec5f7c71685fa9cbed311d8` |
 
-The future CC02-B manifest must bind exact private-report bytes and opaque legacy case digests before the harness reads
-source assets or Vision logs. A digest mismatch or unavailable report stops the change control.
+The future CC02-B manifest must first validate each previously accepted canonical private-report digest, then establish
+the first explicit SHA-256 binding for the presented byte stream and bind opaque legacy case digests before the harness
+reads source assets or Vision logs. It must not claim that a byte SHA was accepted before CC02-B. A canonical digest
+mismatch, unstable read or unavailable report stops the change control.
 
 ## Frozen diagnostic question
 
@@ -190,9 +194,13 @@ formula/manifest version, a complete new calibration run and its own same-SHA ev
 
 `CC_P2_M5_02_A: IMPLEMENTATION_ACCEPTED_AT_EE19AD6_RUN_32282614608_ATTEMPT_1`
 
-`CC_P2_M5_02_B: READY_FOR_BOUNDED_TASK_CONTRACT`
+`CC_P2_M5_02_A_CLOSURE: PASS_AT_470849F_RUN_32284285946`
 
-`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_TRACKED_ACCEPTANCE`
+`CC_P2_M5_02_B_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+
+`CC_P2_M5_02_B_MANIFEST: NOT_CREATED`
+
+`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_TRACKED_CONTRACT_ACCEPTANCE`
 
 `CC_P2_M5_02_C_TO_E: CLOSED`
 

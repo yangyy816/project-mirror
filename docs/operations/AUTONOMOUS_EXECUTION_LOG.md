@@ -856,3 +856,20 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   R04 only. A separate CC02-B bounded-task contract may now be prepared; private input remains prohibited until that
   contract receives tracked acceptance. CC02-C–E, Stage D/E, T06–T08, MVR, production geometry, real-user processing,
   M6 and QuestionBank release remain closed.
+
+## 2026-08-20T02:03:46+08:00 — CC02-B immutable diagnostic-manifest contract candidate
+
+- CC02-A acceptance closure `470849f0f42f151d1ec939e3b0d81ef4369ea86c` passed run `32284285946` with all three
+  jobs, Browser Integration 5/5 and eight exact-SHA artifacts. P2-M5 remains `EXECUTING` at the accepted Stage C
+  `FURTHER_RESEARCH` stop.
+- The new CC02-B contract freezes a versioned first-party deterministic builder plus targeted synthetic tests before the
+  future create-once machine/human manifest. It fixes exact schema/key sets, canonical digest semantics and two-report
+  authority, with 288 logical/576 platform cases, 232 failures, 344 successes, 1,032 success-repeat bindings, 14
+  direction cases and 42 future measurement bindings.
+- Candidate/cohort/case/runtime/model/topology/algorithm/harness/taxonomy authority, resource ceilings, redaction and
+  evidence-not-reconstructable stop rules are fixed. No threshold, mechanism result, eligibility or READY disposition is
+  permitted.
+- This is `READY_FOR_TRACKED_CONTRACT_EVIDENCE` only. No builder/test, private input or real manifest exists. Contract
+  acceptance can open only synthetic builder/test implementation. Exact report locations/bytes remain prohibited until
+  tracked builder acceptance and explicit Principal `CC02_B_BUILDER_PRE_READ_GATE: PASS`; CC02-C–E, Stage D/E, T06–T08,
+  MVR, production geometry, real-user processing, M6 and QuestionBank release remain closed.
