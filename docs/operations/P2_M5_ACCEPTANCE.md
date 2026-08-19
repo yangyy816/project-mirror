@@ -453,6 +453,23 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `P2_M5_T06_ENTRY: CLOSED`
 
+## CC-P2-M5-02-A bounded-task contract candidate
+
+- `P2_M5_CC02_A_TASK_CONTRACT.md` freezes the implementation to one new versioned diagnostic harness, one targeted
+  test surface and an optional non-image taxonomy fixture.
+- The contract requires exact eight-stage reason mapping, raw-exception redaction, create-once output, 576-transform/
+  604-Vision ceilings, the full identity/case/time/storage/download envelope, an exact fail-closed private-report JSON
+  contract with separate terminal, legacy-repeat and direction-measurement collections, zero generation/retry,
+  concurrency 1 and deterministic golden negative cases.
+- The old runner/evidence, private input, algorithm/formula, schema/API, dependency/model and all later Gates remain
+  forbidden. This section is a local contract candidate, not implementation or acceptance evidence.
+
+`CC_P2_M5_02_A_CONTRACT: PENDING_TRACKED_EVIDENCE`
+
+`CC_P2_M5_02_A_IMPLEMENTATION: NOT_STARTED`
+
+`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED`
+
 ## P2-M5-R03 Playwright acquisition resilience tracked acceptance
 
 - Exact job logs for run `32237678569`, attempt 1, show the combined

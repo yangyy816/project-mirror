@@ -807,3 +807,16 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   CC02-G diagnosis governance. CC02-A is not implemented or executed; only its separate bounded-task contract may now
   be prepared. Private input, CC02-B–E, Stage D/E, T06–T08, MVR, production geometry, real-user processing, M6 and
   QuestionBank release remain closed.
+
+## 2026-08-19T23:27:00+08:00 — CC-P2-M5-02-A bounded-task contract candidate
+
+- Governance closure `24079b48b301ec38e07c02d4e1ff0b423a7ad6e7` passed run `32268767796`: all three jobs
+  succeeded and eight exact-SHA artifacts were readable. Playwright system dependencies, Chromium and Browser
+  Integration completed in 152/12/15 seconds; Browser passed 5/5 and Gitleaks reported zero results.
+- The new CC02-A contract allows only a new versioned diagnostic harness, targeted tests and an optional non-image
+  taxonomy fixture. It freezes eight-stage safe-reason mapping, separate terminal/legacy-repeat/direction-measurement
+  collections with exact key/nullability/cardinality rules, the complete identity/case/time/storage/download envelope,
+  canonical digest semantics, redaction, 576-transform/604-Vision ceilings, zero generation/retry and concurrency 1.
+  Stable same-correct-sign direction measurements hard-stop as unclassified rather than inventing a new reason.
+- The contract is a local candidate only. Harness implementation, private input, CC02-B–E, Stage D/E, T06–T08, MVR,
+  production geometry, real-user processing, M6 and QuestionBank release remain closed pending tracked acceptance.
