@@ -453,7 +453,7 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `P2_M5_T06_ENTRY: CLOSED`
 
-## CC-P2-M5-02-A bounded-task contract candidate
+## CC-P2-M5-02-A bounded-task contract tracked acceptance
 
 - `P2_M5_CC02_A_TASK_CONTRACT.md` freezes the implementation to one new versioned diagnostic harness, one targeted
   test surface and an optional non-image taxonomy fixture.
@@ -462,11 +462,37 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
   contract with separate terminal, legacy-repeat and direction-measurement collections, zero generation/retry,
   concurrency 1 and deterministic golden negative cases.
 - The old runner/evidence, private input, algorithm/formula, schema/API, dependency/model and all later Gates remain
-  forbidden. This section is a local contract candidate, not implementation or acceptance evidence.
+  forbidden. Candidate `d8659ae88fb32c99220d522fc6dbf94a8fc588ac` changed only the four contract-governance
+  documents and passed run `32271571196` attempt 1 on quality `96129032763`, Docker `96129032868` and secret scan
+  `96129032519`.
+- Quality completed in 334 seconds, Docker in 112 seconds and secret scan in 10 seconds. PostgreSQL completed its full
+  lifecycle at `0014_m5_eval_authority`; Python was 582 PASS with one existing optional skip; Phase 1/M1/M2/M3 were
+  `1/98/52/46` with zero mandatory skip; OpenAPI remained
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`.
+- Playwright 1.62.1 system dependencies completed in 78 seconds, Chromium downloaded from the official source on
+  attempt 1/3 in 12 seconds, and Browser Integration passed 5/5 in 14 seconds. The sole skipped step was the expected
+  `if: failure()` artifact path. Dependency audits found no known vulnerabilities, the CycloneDX 1.6 SBOM contained
+  105 components and no non-null vulnerability entry, and Gitleaks had zero results.
+- Eight readable, unexpired, exact-SHA artifacts were inspected. Their GitHub artifact IDs and API SHA-256 digests are:
 
-`CC_P2_M5_02_A_CONTRACT: PENDING_TRACKED_EVIDENCE`
+  | Artifact                      |           ID | API digest                                                         |
+  | ----------------------------- | -----------: | ------------------------------------------------------------------ |
+  | `gitleaks-results.sarif`      | `9372352559` | `42c2a69c7ac6706e7543f02b53ee2ca153320d4e44586760ee824ecec966a5ee` |
+  | `p2-m1-ci-evidence`           | `9372533932` | `ea79c6e3b4b78dafc95cb4f6921b1cd4dc1c1b776e7d51e220239e0382871fa5` |
+  | `p2-m2-ci-evidence`           | `9372534857` | `3168022cf066009dfcea7f7b4bc562ef24b4a955ab1e7ef54df0e5b65339f307` |
+  | `p2-m3-ci-evidence`           | `9372535745` | `9d40b01cf15aee05df5979cade7716c1e26154c6ae50c219d11c02c8de75d25b` |
+  | `phase1-ci-evidence`          | `9372533072` | `4f938b7e94337c0d35fd8e6b477d9487ce703821fc9a0f96c71dc338c783bd95` |
+  | `playwright-install-evidence` | `9372521282` | `79ef275256c34f2847cf5d36232e7a96d6636f0e2dcfe2b6239a9dbb25f4a718` |
+  | `project-audit-evidence`      | `9372544946` | `a7e0a0d460419c98000905dcbfd6061b082f22fd32e216d63e219a35d0fd213f` |
+  | `project-docker-evidence`     | `9372407461` | `4aca74d37aa944b36b3982cf3c44d1af421268b7523ff0d6c57d22fee5432915` |
 
-`CC_P2_M5_02_A_IMPLEMENTATION: NOT_STARTED`
+- Independent security/privacy/supply-chain and Sol final reviews found no mandatory issue. Principal accepts only the
+  tracked bounded-task contract and sets one implementation worker to `EXECUTION_READY`; this is not implementation,
+  execution, private replay, mechanism evidence or a P2-M5 Gate decision.
+
+`CC_P2_M5_02_A_CONTRACT: PASS_AT_D8659AE_RUN_32271571196_ATTEMPT_1`
+
+`CC_P2_M5_02_A_IMPLEMENTATION: EXECUTION_READY`
 
 `CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED`
 

@@ -254,6 +254,10 @@ plan-construction, warp-plan and transform `ValueError` failures into `PLAN_BUIL
 - CC02-G candidate `137157c41e7b1436ae47fe7dfcf34a7127789166` passed run `32267510703` attempt 1 with all three
   jobs and eight readable exact-SHA artifacts. Independent security and final reviews passed. Principal acceptance only
   opens a separate CC02-A bounded-task contract; it does not execute the harness or permit private input.
+- CC02-A contract candidate `d8659ae88fb32c99220d522fc6dbf94a8fc588ac` passed run `32271571196` attempt 1 with all
+  three jobs and eight readable exact-SHA artifacts. Independent security and final reviews passed. Principal acceptance
+  makes only the frozen bounded implementation `EXECUTION_READY`; it does not execute the harness or permit private
+  input.
 
 The exact authority, reason taxonomy, integrity Gates, resources and stop rules are in
 `P2_M5_CC02_FAILURE_MECHANISM_PROTOCOL.md`.
@@ -296,14 +300,16 @@ engine, but M6 entry remains closed and the missing research evidence stays dura
 
 `CC_P2_M5_02_G: PASS_AT_137157C_RUN_32267510703_ATTEMPT_1`
 
-`CC_P2_M5_02_A: READY_FOR_BOUNDED_TASK_CONTRACT`
+`CC_P2_M5_02_A: CONTRACT_ACCEPTED_IMPLEMENTATION_EXECUTION_READY`
 
-`CC_P2_M5_02_A_CONTRACT: LOCAL_CANDIDATE_NOT_ACCEPTED`
+`CC_P2_M5_02_A_CONTRACT: PASS_AT_D8659AE_RUN_32271571196_ATTEMPT_1`
 
-`CC_P2_M5_02_A_IMPLEMENTATION: CLOSED_PENDING_CONTRACT_ACCEPTANCE`
+`CC_P2_M5_02_A_IMPLEMENTATION: EXECUTION_READY`
+
+`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED`
 
 `CC_P2_M5_02_B_TO_E: CLOSED`
 
-`P2_M5_NEXT_ACTION: CC_P2_M5_02_A_CONTRACT_TRACKED_ACCEPTANCE`
+`P2_M5_NEXT_ACTION: CC_P2_M5_02_A_BOUNDED_IMPLEMENTATION`
 
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`

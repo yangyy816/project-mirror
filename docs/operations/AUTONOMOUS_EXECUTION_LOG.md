@@ -820,3 +820,18 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   Stable same-correct-sign direction measurements hard-stop as unclassified rather than inventing a new reason.
 - The contract is a local candidate only. Harness implementation, private input, CC02-B–E, Stage D/E, T06–T08, MVR,
   production geometry, real-user processing, M6 and QuestionBank release remain closed pending tracked acceptance.
+
+## 2026-08-19T23:52:54+08:00 — CC-P2-M5-02-A bounded-task contract tracked acceptance
+
+- Candidate `d8659ae88fb32c99220d522fc6dbf94a8fc588ac` passed GitHub Actions run `32271571196`
+  attempt 1. Quality `96129032763`, Docker `96129032868` and secret scan `96129032519` all succeeded on real runners.
+- Eight artifacts were downloaded and parsed; all were readable, unexpired and exact-SHA bound. Migration head remained
+  `0014_m5_eval_authority`, OpenAPI remained unchanged, Phase 1/M1/M2/M3 evidence was `1/98/52/46` with zero mandatory
+  skip, and Gitleaks had zero results.
+- Playwright 1.62.1 system dependencies completed in 78 seconds, Chromium downloaded from the official source on
+  attempt 1/3 in 12 seconds, and Browser Integration passed 5/5 in 14 seconds. The failure-only artifact path was the
+  sole expected skipped step and did not bypass the Browser Gate.
+- Independent security/privacy/supply-chain and Sol final reviews passed with no mandatory finding. Principal accepts
+  the tracked contract and sets only its frozen implementation to `EXECUTION_READY`.
+- No harness has been implemented or executed. Private input, CC02-B–E, Stage D/E, T06–T08, MVR, production geometry,
+  real-user processing, M6 and QuestionBank release remain closed; P2-M5 remains `EXECUTING`.

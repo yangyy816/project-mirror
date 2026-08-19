@@ -2,15 +2,17 @@
 
 ## Status and authority
 
-- Status: `LOCAL_CONTRACT_CANDIDATE_NOT_IMPLEMENTED`.
+- Status: `TRACKED_CONTRACT_ACCEPTED_NOT_IMPLEMENTED`.
 - Task: `CC-P2-M5-02-A`.
 - Change-control authority: ADR-047 and `P2_M5_CC02_FAILURE_MECHANISM_PROTOCOL.md`.
 - Governance acceptance: `137157c41e7b1436ae47fe7dfcf34a7127789166`, run `32267510703`, attempt 1.
 - Governance closure: `24079b48b301ec38e07c02d4e1ff0b423a7ad6e7`, run `32268767796`, attempt 1;
   all three jobs passed and eight exact-SHA artifacts were inspected.
+- Contract acceptance: `d8659ae88fb32c99220d522fc6dbf94a8fc588ac`, run `32271571196`, attempt 1;
+  all three jobs passed, eight exact-SHA artifacts were inspected, and independent security and final reviews passed.
 - Current milestone: P2-M5 remains `EXECUTING`.
-- Current authorization: contract preparation only. Harness implementation and execution remain closed until Principal
-  accepts this contract with tracked same-SHA evidence.
+- Current authorization: one bounded harness implementation is `EXECUTION_READY` within the three allowed new paths.
+  Execution against private input remains prohibited and requires the later CC02-B tracked Gate.
 - Private-input access: prohibited.
 
 This contract does not reopen the accepted Stage C result. `CC-P2-M5-01-C` remains `FURTHER_RESEARCH`, its complete-case
@@ -244,11 +246,11 @@ tracked contract candidate
 → separate CC02-B bounded-task contract
 ```
 
-Until the contract candidate is accepted:
+Following Principal tracked contract acceptance:
 
-`CC_P2_M5_02_A_CONTRACT: LOCAL_CANDIDATE`
+`CC_P2_M5_02_A_CONTRACT: PASS_AT_D8659AE_RUN_32271571196_ATTEMPT_1`
 
-`CC_P2_M5_02_A_IMPLEMENTATION: CLOSED`
+`CC_P2_M5_02_A_IMPLEMENTATION: EXECUTION_READY`
 
 `CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED`
 

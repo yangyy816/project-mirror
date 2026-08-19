@@ -513,3 +513,9 @@
   604-Vision ceiling、零 generation/retry/threshold 和 evidence-reconstruction stop。旧 Stage C
   `FURTHER_RESEARCH`、0/4 eligibility 与旧 evidence 保持不可变；当前只允许准备 CC02-A 的独立 bounded-task
   contract，不代表 harness 已实现或 private input、CC02-B–E、Stage D/E、T06–T08、MVR、M6 已开放。
+
+- 2026-08-19：`CC-P2-M5-02-A` bounded-task contract candidate
+  `d8659ae88fb32c99220d522fc6dbf94a8fc588ac` 的 run `32271571196` attempt 1 三 jobs 全绿，八 artifacts
+  可读、未过期且 exact-SHA bound，独立安全与 Sol final review 均 PASS。Principal 接受 contract 并仅将冻结的
+  新 diagnostic harness 实现设为 `EXECUTION_READY`；harness 尚未实现或执行，private input、CC02-B–E、Stage
+  D/E、T06–T08、MVR、M6 继续关闭，旧 Stage C `FURTHER_RESEARCH` 与 0/4 eligibility 不变。
