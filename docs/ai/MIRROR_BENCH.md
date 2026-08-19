@@ -5,24 +5,31 @@
 - 状态：`ACCEPTED DIRECTION / PROVISIONAL EXECUTION`。
 - 适用范围：P2–P7 的候选算法、Provider、Agent runtime、Tool、编辑与视觉记忆架构。
 - 本文只建立 benchmark authority、证据格式和未来 PoC backlog；不授权安装依赖、下载模型、处理真实用户图片或执行 P3–P7。
-- P0/P1 与 P2-M1/P2-M2 保持 `FROZEN`，P2-M3 为 `EXECUTION_READY`。本文不得改变当前 active
+- P0/P1 与 P2-M1–P2-M4 保持 `FROZEN`，P2-M5 为 `EXECUTING`。本文不得改变当前 active
   milestone 的 schema、typed ports、task DAG、synthetic-only 边界或生产 fail-closed Gate。
 - P3–P7 当前全部为 `DIRECTIONAL`，不是 `RESEARCH_APPROVED` 或 `EXECUTION_READY`。
   完整 maturity 定义和跨 Phase 依赖见 `docs/research/P3_P7_RESEARCH_ROADMAP.md`。
 
-Project Mirror 采用统一晋级链：
+Research maturity 与 dependency/model/runtime qualification 是两条相关但不同的轴。高影响候选采用：
 
 ```text
-Candidate
-→ isolated PoC
-→ MirrorBench
-→ ablation
+DIRECTIONAL / complete PoC contract / RESEARCH_APPROVED
+→ CANDIDATE
+→ isolated PoC + MirrorBench + negative control + ablation
 → license / privacy / security / cost review
-→ ADR
-→ APPROVED
+→ RESEARCH_QUALIFIED
+→ active-Phase rolling-wave refinement
+→ INTERNAL_ENGINE_CANDIDATE
+→ phase-scoped integration Gate
+→ APPROVED_FOR_INTERNAL_ENGINE
+→ PRODUCTION_CANDIDATE
+→ complete production review
+→ PRODUCTION_APPROVED
 ```
 
-PoC 成功不是生产批准。若简单 baseline 与复杂候选效果接近，选择简单方案；失败的 benchmark 可以删除复杂架构，而不是放宽阈值强迫通过。
+不得跳过状态；具体 evidence 与 scope fields 见 ADR-043 和
+`docs/operations/DEPENDENCY_QUALIFICATION_TIERS.md`。PoC 成功不是 internal 或 production 批准。若简单 baseline
+与复杂候选效果接近，选择简单方案；失败的 benchmark 可以删除复杂架构，而不是放宽阈值强迫通过。
 
 ## 每项 Bench 的强制合同
 
@@ -36,6 +43,8 @@ PoC 成功不是生产批准。若简单 baseline 与复杂候选效果接近，
 - reproducibility level、seed 支持事实和 platform；
 - latency、cost、resource envelope 与 failure rate；
 - machine-readable artifact、summary、provenance 和 commit SHA。
+- `QUALIFICATION_TIER`、`CURRENT_STATUS`、`APPROVED_SCOPE`、`PROHIBITED_SCOPE`、network/license/model/
+  distribution/SBOM/vulnerability status 与 next promotion Gate。
 
 阈值必须先由 calibration evidence 冻结，再在未参与校准的 holdout 上评估。看到 holdout 后放宽阈值只能产生新算法/QAPolicy/Bench version，不能改写旧结果。
 

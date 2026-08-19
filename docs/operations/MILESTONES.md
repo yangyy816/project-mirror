@@ -63,6 +63,10 @@ P2 的可执行状态不解除 P3 真实 facial-data 的 Legal/Consent/PIPIA/Sec
   no-sensitive-user-routing 与 anti-homogenization。它只定义已冻结的 M1 governance/domain
   contract，不改变后续 active milestone、Milestone DAG、`0008` 或 P1 frozen implementation。
 - P2–P7 采用 benchmark-gated development：重要候选必须经过 PoC、MirrorBench、ablation、许可/隐私/安全/成本审查和 ADR；简单 baseline 与复杂候选效果接近时选择简单方案。完整 family 与 future PoC backlog 见 `docs/ai/MIRROR_BENCH.md`。
+- ADR-043 / `CC-GOV-QUAL-01` 将重要 dependency、model、weight、native runtime、Provider SDK 与
+  research engine 的候选资格改为 forward-only、scope-specific 晋级链。Research 证据不自动授权
+  Internal Engine 或 Production；P2-M3/P2-M4 已冻结证据不追溯降级，P2-M5 当前 Gate 不变。
+  层级、entry/exit 与证据字段见 `docs/operations/DEPENDENCY_QUALIFICATION_TIERS.md`。
 - P3–P7 的 maturity 当前全部为 `DIRECTIONAL`；`RESEARCH_APPROVED` 要求完整预注册 PoC
   合同，`EXECUTION_READY` 还要求对应 Phase 已激活并由 Principal 拆成 bounded tasks。权威路线见
   `docs/research/P3_P7_RESEARCH_ROADMAP.md`。

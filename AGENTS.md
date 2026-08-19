@@ -95,6 +95,22 @@
   celebrity/influencer imitation、one-to-one identity reproduction 和未经独立权利 Gate 的真人 reference
   一律禁止。完整决定见 ADR-024。
 
+## C.3 Progressive Qualification
+
+- 重要 dependency、model、weight、native runtime、research algorithm、Provider SDK、视觉/编辑引擎和 Agent
+  runtime 候选必须按 ADR-043 声明 `QUALIFICATION_TIER`、`CURRENT_STATUS`、`APPROVED_SCOPE` 与
+  `PROHIBITED_SCOPE`；禁止使用不带层级和范围的含糊 `approved`。
+- 晋级链为 `CANDIDATE` → `RESEARCH_QUALIFIED` → `INTERNAL_ENGINE_CANDIDATE` →
+  `APPROVED_FOR_INTERNAL_ENGINE` → `PRODUCTION_CANDIDATE` → `PRODUCTION_APPROVED`。Research 证据可复用，
+  批准范围不能继承或跳级；`PRODUCTION_CANDIDATE` 仍必须由 Principal 明确记录
+  `PRODUCTION_APPROVAL: GRANTED` 才能启用。
+- 所有层级都必须保留 exact provenance、synthetic-only/no-real-user 边界、license/model/data 分离、bounded
+  network/no hidden telemetry、Provider/Adapter、no credential、no unknown weight、no fake PASS 和 production
+  fail-closed。当前 Milestone 已冻结的更严格 Gate 不得由后来的层级模型放宽。
+- 完整 entry/exit/evidence 字段见 `docs/operations/DEPENDENCY_QUALIFICATION_TIERS.md`。P2-M3 既有证据为
+  `LEGACY_STRICT_QUALIFICATION`；P2-M4 OpenCV 仅为 scope-specific
+  `APPROVED_FOR_PRIVATE_SYNTHETIC_M4`，均不产生 production 或真实用户授权。
+
 ## D. P7 Visual Memory OS 方向性 Invariants
 
 P7 仍为 `PROVISIONAL`，以下约束只保护未来架构方向，不授权提前实现、建表、选型或拆分任务。完整边界见 `docs/architecture/VISUAL_MEMORY_OS.md`。

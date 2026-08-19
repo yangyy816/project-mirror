@@ -17,6 +17,23 @@ This record freezes the P2-M1 dependency, model and data boundary. It records re
 
 MediaPipe upstream version labels are not collapsed: the v0.10.35 release is the plan's candidate snapshot, while the 2026-08-16 `releases/latest` response is tag v1.0.0 and its notes mention internal version 0.10.36. A later PoC must lock the exact source tag, package/runtime and Face Landmarker artifact independently.
 
+## ADR-043 qualification mapping
+
+This is a forward classification only; it does not rewrite, reopen or downgrade any P2-M3/P2-M4 evidence:
+
+- P2-M3's accepted source-built Vision/runtime evidence is `LEGACY_STRICT_QUALIFICATION` and
+  `EXCEEDS_CURRENT_RESEARCH_MINIMUM`. Its Windows/Linux reproduction, SBOM, license, vulnerability, zero-egress and
+  private model dispositions remain frozen. Official MediaPipe wheels remain rejected and the Face Landmarker bundle
+  remains private-research-only; neither is a project dependency or production/real-user approval.
+- The exact P2-M4 OpenCV 5.0.0 bounded closure is scope-specific
+  `APPROVED_FOR_PRIVATE_SYNTHETIC_M4`, corresponding only to the recorded Internal Engine synthetic M4 use. It does
+  not authorize distribution, production, another Phase or real-user data.
+- P2-M5's active complete-case, threshold, holdout, MVR and stop criteria are unchanged. Progressive qualification
+  cannot reinterpret a failed/missing case, promote a dimension or open a closed research stage.
+
+Future entries must use `QUALIFICATION_TIER`, `CURRENT_STATUS`, `APPROVED_SCOPE` and `PROHIBITED_SCOPE`; a bare
+`approved` is insufficient.
+
 ## P2-M3-T06 MediaPipe evidence update
 
 On 2026-08-17 the Principal independently read and visually verified all pages of the official

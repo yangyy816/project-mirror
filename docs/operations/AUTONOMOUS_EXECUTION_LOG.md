@@ -755,3 +755,16 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   steps took 20/17/20 seconds and eight exact-SHA artifacts, including the install evidence, are readable and unexpired.
 - Principal accepts R03 as CI-only resilience. Browser Gate semantics and all P2-M5 research/Phase boundaries remain
   unchanged.
+
+## 2026-08-19T20:10:00+08:00 — ADR-043 progressive qualification governance candidate
+
+- Project Owner accepted the forward-only progressive qualification model in ADR-043 / `CC-GOV-QUAL-01`. Important
+  dependency, model, weight, native runtime, Provider SDK and research-engine candidates now require an explicit tier,
+  current status, approved/prohibited scope and next promotion Gate; evidence may be reused, but approval scope cannot
+  be inherited or skipped.
+- Existing P2-M3 strict runtime evidence remains frozen and is classified as exceeding the current research minimum;
+  the P2-M4 OpenCV closure remains only `APPROVED_FOR_PRIVATE_SYNTHETIC_M4`. Neither classification authorizes
+  production, distribution, another Phase or real-user facial processing.
+- This governance-only candidate adds no dependency, model artifact, runtime, schema, migration, OpenAPI or production
+  permission and does not alter the P2-M5 Stage C `FURTHER_RESEARCH` stop. It is pending tracked same-SHA CI/artifact
+  evidence before Principal acceptance is recorded in durable project memory.

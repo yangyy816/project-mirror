@@ -27,25 +27,37 @@ Every P3–P7 item in this revision is `DIRECTIONAL`. None is `RESEARCH_APPROVED
 
 ## Cross-phase promotion rule
 
-Every high-impact candidate follows one chain:
+Research maturity controls whether a PoC may run; ADR-043 qualification controls where its dependency/model/runtime
+may be used. Every high-impact candidate follows both without skipping scope:
 
 ```text
 DIRECTIONAL
 → complete reproducible PoC contract
 → Principal preregistration review
 → RESEARCH_APPROVED
+→ CANDIDATE
 → isolated PoC
 → MirrorBench holdout + negative control + ablation
 → license / privacy / security / cost review
-→ ADR when production architecture changes
+→ RESEARCH_QUALIFIED
 → active-Phase rolling-wave refinement
 → EXECUTION_READY
+→ INTERNAL_ENGINE_CANDIDATE
+→ phase-scoped integration + ADR when architecture changes
+→ APPROVED_FOR_INTERNAL_ENGINE
+→ PRODUCTION_CANDIDATE only for a later production proposal
+→ complete production Gate
+→ PRODUCTION_APPROVED
 ```
 
 A successful PoC is evidence, not production approval. A candidate remains blocked if any
 required code, model, weight, dataset, foundation-model, biometric, privacy, commercial, or
 redistribution evidence is unresolved. If a simpler baseline performs materially the same,
 the simpler baseline wins.
+
+Each candidate must state the exact qualification tier, approved/prohibited scope, platforms, real-user/production
+permission, network/license/model/distribution/reproducibility/SBOM/vulnerability status and next promotion Gate.
+Research qualification never grants internal-engine or production use.
 
 ## Reproducible PoC contract
 

@@ -14,6 +14,33 @@
 - 真实用户图片不得进入研究仓库、公开 benchmark 或第三方调用，除非对应 Phase 的 Consent、法律、隐私、安全、数据地域和 Provider Gate 全部通过。
 - 研究实现与商业实现必须分离。受限模型可在条款允许的隔离环境中提供算法研究证据，但不得把受限权重、代码路径或衍生镜像带入生产。
 
+## Progressive qualification
+
+ADR-043 replaces ambiguous approval wording with a forward-only, scope-specific qualification chain:
+
+```text
+CANDIDATE
+→ RESEARCH_QUALIFIED
+→ INTERNAL_ENGINE_CANDIDATE
+→ APPROVED_FOR_INTERNAL_ENGINE
+→ PRODUCTION_CANDIDATE
+→ PRODUCTION_APPROVED
+```
+
+Every important candidate record must declare qualification tier, current status, approved/prohibited scope,
+canonical/supported platforms, real-user and production permission, network policy, license/model/distribution status,
+reproducibility, SBOM/vulnerability status and next promotion Gate. Full entry/exit evidence is defined in
+`docs/operations/DEPENDENCY_QUALIFICATION_TIERS.md`.
+
+Research qualification is limited to isolated, bounded, synthetic/non-sensitive work and never authorizes internal
+integration or production. Internal Engine approval is private, synthetic-only, non-production, non-real-user and
+phase/milestone scoped. `PRODUCTION_CANDIDATE` remains fail closed until a Principal final Gate explicitly records
+`PRODUCTION_APPROVAL: GRANTED`; real facial data also retains its independent Legal/Consent/PIPIA/Security Gate.
+
+Exact provenance, separated code/model/weight/data terms, no unknown artifact, no hidden telemetry, bounded or denied
+network, no production credential and no fake PASS apply at every tier. A later tier model cannot weaken a stricter
+active Milestone protocol or rewrite frozen evidence.
+
 ## Model artifact and dataset controls
 
 任何 `.pth`、`.pt`、`.onnx`、`.ckpt`、`.safetensors`、`.bin`、`.gguf`、`.mlmodel`、
@@ -36,7 +63,7 @@ README、公开可访问、CC/public-domain copyright 或单一 stock license �
 
 AI-BOM 未来应评估 SPDX 3.x AI/Dataset profiles，但标准或工具选择保持开放。AI-BOM 记录不能包含用户图片、私有 object key、signed URL、AestheticProfile 或 face geometry。模型 artifact 进入任何 approved environment 前必须有 checksum 与 provenance；许可未指定时只能标 `UNSPECIFIED` 或 `REQUIRES_LEGAL_REVIEW`，禁止猜测。
 
-Terra 不得自行安装重大依赖、下载权重、接受条款、采用 hosted service 或重构架构。候选从 `RESEARCH_ONLY` 到 `CANDIDATE` 再到 `APPROVED` 的每次跃迁都需要 Principal；Vision、Canvas、Agent、生成模型、分割模型、模型 runtime、支付和认证框架等高影响项还需 ADR。
+Terra 不得自行安装重大依赖、下载权重、接受条款、采用 hosted service 或重构架构。ADR-043 状态机中的每次跃迁都需要 Principal；Vision、Canvas、Agent、生成模型、分割模型、模型 runtime、支付和认证框架等高影响项还需 ADR。
 
 ## External research claim status
 
