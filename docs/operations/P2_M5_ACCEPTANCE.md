@@ -277,7 +277,7 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `CC_P2_M5_01_D_TO_E: CLOSED`
 
-## CC-P2-M5-01 Stage C manifest local candidate
+## CC-P2-M5-01 Stage C manifest tracked acceptance
 
 - `docs/research/P2_M5_CC01C_CANDIDATE_MANIFEST.json` freezes the complete six-candidate family, four non-sensitive
   region groups, exact normalized-X/Y formulas, source-relative plan builders, `15_000/30_000 ppm` grid, two
@@ -287,12 +287,18 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
   model, binary, schema, public API or production path.
 - The deterministic test verifies manifest content addressing, complete candidate/control coverage, redaction,
   synthetic-only boundaries and the absence of any Stage C threshold or READY claim.
-- No Stage C measurement or transform was read or executed. Execution remains closed until this manifest candidate
-  passes exact-SHA Actions and artifact inspection.
+- Candidate `b0b60eb29336d74a0f4c7628c9d1d1458d11d3f9` run `32199176469` passed
+  `quality-and-integration`, `secret-scan` and `docker-validation`. All seven artifacts were readable, unexpired and
+  exact-SHA bound. Evidence records migration head `0014_m5_eval_authority`, unchanged OpenAPI digest
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`, frozen-regression counts
+  `1/98/52/46` with zero failure/error/skip and zero Gitleaks results.
+- Principal accepts the immutable premeasurement manifest. Only the exact Stage C execution encoded by that manifest
+  is now open. Stage D-E, thresholds, dimension promotion, T06-T08, MVR, production geometry, real-user processing,
+  M6 and QuestionBank release remain closed.
 
-`CC_P2_M5_01_C_MANIFEST: LOCAL_CANDIDATE_PENDING_TRACKED_ACCEPTANCE`
+`CC_P2_M5_01_C_MANIFEST: PASS_AT_B0B60EB_RUN_32199176469`
 
-`CC_P2_M5_01_C_EXECUTION: CLOSED_PENDING_MANIFEST_TRACKED_ACCEPTANCE`
+`CC_P2_M5_01_C_EXECUTION: OPEN_EXACT_MANIFEST_ONLY`
 
 ## T05 tracked disposition
 

@@ -480,3 +480,9 @@
   冻结 6 个 candidates、4 个 non-sensitive region groups、精确 landmark/formula、source-relative Gaussian
   plan、`15k/30k ppm`、双平台三次 repeat、全 control/missingness/artifact/negative-control 规则。
   尚未读取或执行 Stage C measurement/transform；tracked acceptance 前继续关闭。
+
+- 2026-08-19：Stage C premeasurement manifest candidate `b0b60eb29336d74a0f4c7628c9d1d1458d11d3f9`
+  的 run `32199176469` 三 jobs 与七 artifacts 全绿；证据绑定 exact SHA、`0014_m5_eval_authority`、
+  unchanged OpenAPI，Phase 1/M1/M2/M3 为 `1/98/52/46` 且零 failure/error/skip，Gitleaks 零结果。
+  Principal 接受 digest `eb202109...` 的不可变 manifest，并仅开放其精确 Stage C execution；threshold、
+  READY、Stage D-E、T06-T08、MVR、production geometry、真人处理、M6 与 QuestionBank release 继续关闭。

@@ -701,3 +701,12 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Two deterministic manifest tests pass. No Stage C measurement or transform was read or executed; Stage C execution,
   Stage D–E, T06–T08, MVR, production geometry, real-user processing, M6 and QuestionBank release remain closed until
   tracked manifest acceptance.
+
+## 2026-08-19T08:05:00+08:00 — Stage C manifest tracked acceptance
+
+- Commit `b0b60eb29336d74a0f4c7628c9d1d1458d11d3f9` was pushed normally; run `32199176469` passed all three jobs.
+- Seven artifacts were readable, unexpired and exact-SHA bound. They record migration head
+  `0014_m5_eval_authority`, unchanged OpenAPI digest `a9ee1e0a...`, Phase 1/M1/M2/M3 counts `1/98/52/46`
+  with zero failure/error/skip, and zero Gitleaks results; Docker and Celery evidence contains no product error.
+- Principal accepts only the immutable premeasurement manifest and opens its exact Stage C execution. No threshold,
+  READY claim, Stage D-E, T06-T08, MVR, production geometry, real-user processing, M6 or QuestionBank release opens.
