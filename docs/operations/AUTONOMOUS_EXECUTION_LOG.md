@@ -873,3 +873,22 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   acceptance can open only synthetic builder/test implementation. Exact report locations/bytes remain prohibited until
   tracked builder acceptance and explicit Principal `CC02_B_BUILDER_PRE_READ_GATE: PASS`; CC02-C–E, Stage D/E, T06–T08,
   MVR, production geometry, real-user processing, M6 and QuestionBank release remain closed.
+
+## 2026-08-20T02:45:27+08:00 — CC02-B bounded-task contract tracked acceptance
+
+- Candidate `f69361e8d855fa6262b2d79560c456c8862df2f7` preserves accepted contract content SHA-256
+  `e82e0b83bd5ded0932dd547d2f46f0d229cf63c430637fedc736548ad9ccdc35`. Exact-SHA run `32287419743`, attempt 1,
+  passed quality `96180144101`, Docker `96180143930` and secret scan `96180144180`.
+- Full Python was 642 PASS with one existing optional private-runtime skip. Phase 1/M1/M2/M3 remained `1/98/52/46`
+  with zero failure/error/skip, migration head `0014_m5_eval_authority` and unchanged OpenAPI digest `a9ee1e0a...`.
+  Gitleaks had zero results; dependency audits had no known vulnerability; the SBOM contained 105 components and zero
+  non-null vulnerability entries.
+- Playwright 1.62.1 system dependencies completed in 452 seconds inside the frozen 600-second bound. Chromium downloaded
+  from official `cdn.playwright.dev` on attempt 1/3 in 13 seconds, Browser Integration passed 5/5 in 13.8 seconds, and the
+  extracted install log SHA-256 is `530a09486a3a0e4959942ab8e1154b47f4e960dc236c86125ec5aa4a2b6a8320`.
+- Eight exact-SHA artifacts were downloaded, parsed and found readable/unexpired. Independent security/research-integrity
+  and final reviews found no mandatory issue. Principal accepts only the tracked CC02-B contract and sets its frozen
+  first-party builder plus synthetic tests to `EXECUTION_READY`.
+- Builder implementation, private input and real manifest still do not exist. `CC02_B_BUILDER_PRE_READ_GATE` remains
+  closed; CC02-C–E, Stage D/E, T06–T08, MVR, production geometry, real-user processing, M6 and QuestionBank release remain
+  closed. The next bounded action is synthetic-only builder/test implementation.

@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-- Status: `READY_FOR_TRACKED_CONTRACT_EVIDENCE`.
+- Status: `CONTRACT_ACCEPTED_BUILDER_EXECUTION_READY`.
 - Task: `CC-P2-M5-02-B`.
 - Change-control authority: ADR-047 and `P2_M5_CC02_FAILURE_MECHANISM_PROTOCOL.md`.
 - CC02-A implementation acceptance: implementation commit
@@ -10,10 +10,13 @@
   `ee19ad6efe49decfa3a0c8f0dbf3f130b5c59460`, run `32282614608`, attempt 1.
 - CC02-A acceptance closure: `470849f0f42f151d1ec939e3b0d81ef4369ea86c`, run `32284285946`; all three jobs,
   Browser Integration 5/5 and eight exact-SHA artifacts passed.
+- CC02-B contract acceptance: candidate `f69361e8d855fa6262b2d79560c456c8862df2f7`, run `32287419743`, attempt 1;
+  all three jobs, Browser Integration 5/5 and eight exact-SHA artifacts passed. The accepted contract content SHA-256 is
+  `e82e0b83bd5ded0932dd547d2f46f0d229cf63c430637fedc736548ad9ccdc35`.
 - Current milestone: P2-M5 remains `EXECUTING`.
-- Current authorization: this tracked contract candidate only. No private input may be read and no real manifest may be
-  created before Principal accepts this contract.
-- Private-input access: `PROHIBITED_PENDING_CC02_B_TRACKED_CONTRACT_ACCEPTANCE`.
+- Current authorization: implement the frozen first-party builder and synthetic/numeric tests only. No private input may
+  be read and no real manifest may be created before tracked builder acceptance and the separate Principal pre-read Gate.
+- Private-input access: `PROHIBITED_PENDING_CC02_B_BUILDER_PRE_READ_GATE`.
 
 This contract does not reopen the accepted Stage C result. `CC-P2-M5-01-C` remains `FURTHER_RESEARCH`, its complete-case
 eligible count remains 0/4, and every old runner output, report and digest remains immutable. Contract acceptance first
@@ -562,15 +565,15 @@ this tracked contract candidate
 → separate CC02-C bounded-task contract
 ```
 
-`CC_P2_M5_02_B_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+`CC_P2_M5_02_B_CONTRACT: PASS_AT_F69361E_RUN_32287419743_ATTEMPT_1`
 
-`CC_P2_M5_02_B_BUILDER: NOT_IMPLEMENTED`
+`CC_P2_M5_02_B_BUILDER: EXECUTION_READY`
 
 `CC02_B_BUILDER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_BUILDER_ACCEPTANCE`
 
 `CC_P2_M5_02_B_MANIFEST: NOT_CREATED`
 
-`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_TRACKED_CONTRACT_ACCEPTANCE`
+`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_BUILDER_PRE_READ_GATE`
 
 `CC_P2_M5_02_C_TO_E: CLOSED`
 

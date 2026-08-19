@@ -14,10 +14,12 @@
   `ee19ad6efe49decfa3a0c8f0dbf3f130b5c59460`, run `32282614608`, attempt 1.
 - Acceptance closure: `470849f0f42f151d1ec939e3b0d81ef4369ea86c`, run `32284285946`; all three jobs,
   Browser Integration 5/5 and eight exact-SHA artifacts passed.
+- CC02-B contract acceptance: `f69361e8d855fa6262b2d79560c456c8862df2f7`, run `32287419743`, attempt 1.
 - Current milestone: P2-M5 remains `EXECUTING`.
-- Current authorization: CC02-A is complete. Only a separate CC02-B tracked contract candidate may be prepared.
-  Execution against private input remains prohibited and requires CC02-B tracked contract acceptance.
-- Private-input access: prohibited.
+- Current authorization: CC02-A is complete. Only the accepted CC02-B first-party builder and synthetic/numeric tests may
+  be implemented. Execution against private input remains prohibited until tracked builder acceptance and the separate
+  Principal pre-read Gate.
+- Private-input access: `PROHIBITED_PENDING_CC02_B_BUILDER_PRE_READ_GATE`.
 
 This contract does not reopen the accepted Stage C result. `CC-P2-M5-01-C` remains `FURTHER_RESEARCH`, its complete-case
 eligible count remains 0/4, and all old runner outputs and reports remain immutable.
@@ -265,11 +267,15 @@ Tracked implementation acceptance:
 
 `CC_P2_M5_02_A_CLOSURE: PASS_AT_470849F_RUN_32284285946`
 
-`CC_P2_M5_02_B_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+`CC_P2_M5_02_B_CONTRACT: PASS_AT_F69361E_RUN_32287419743_ATTEMPT_1`
+
+`CC_P2_M5_02_B_BUILDER: EXECUTION_READY`
+
+`CC02_B_BUILDER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_BUILDER_ACCEPTANCE`
 
 `CC_P2_M5_02_B_MANIFEST: NOT_CREATED`
 
-`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_TRACKED_CONTRACT_ACCEPTANCE`
+`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_BUILDER_PRE_READ_GATE`
 
 `CC_P2_M5_02_C_TO_E: CLOSED`
 

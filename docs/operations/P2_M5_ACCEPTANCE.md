@@ -519,6 +519,53 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `P2_M5_T06_ENTRY: CLOSED`
 
+## CC-P2-M5-02-B bounded-task contract tracked acceptance
+
+- Candidate `f69361e8d855fa6262b2d79560c456c8862df2f7` preserves the accepted contract content SHA-256
+  `e82e0b83bd5ded0932dd547d2f46f0d229cf63c430637fedc736548ad9ccdc35`. Independent security/research-integrity and
+  final reviews of that exact contract found no mandatory issue.
+- Exact-SHA run `32287419743`, attempt 1, passed quality `96180144101`, Docker `96180143930` and secret scan
+  `96180144180`. Full Python was 642 PASS with one existing optional private-runtime skip. Phase 1/M1/M2/M3 evidence
+  remained `1/98/52/46` with zero failure, error or skip, migration head `0014_m5_eval_authority` and unchanged OpenAPI
+  digest `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`.
+- Playwright 1.62.1 system dependencies completed within the frozen 600-second bound in 452 seconds. Chromium downloaded
+  from the official `cdn.playwright.dev` source on attempt 1/3 in 13 seconds, and Browser Integration passed 5/5 in 13.8
+  seconds. The extracted install log SHA-256 is
+  `530a09486a3a0e4959942ab8e1154b47f4e960dc236c86125ec5aa4a2b6a8320`.
+- Dependency audits reported no known vulnerabilities, Gitleaks contained zero results, and the CycloneDX 1.6 SBOM
+  contained 105 components with zero non-null vulnerability entries. Eight readable, unexpired, exact-SHA artifacts were
+  inspected:
+
+  | Artifact                      |           ID | API digest                                                         |
+  | ----------------------------- | -----------: | ------------------------------------------------------------------ |
+  | `gitleaks-results.sarif`      | `9378158014` | `a6c170aeb855f71518346b6a767176169273a73644c6f092f38e7bc39a12c1c4` |
+  | `p2-m1-ci-evidence`           | `9378557805` | `79f01d12f825bb340d1e94f03258bc1edade26d651caec705e9f84f51c417e64` |
+  | `p2-m2-ci-evidence`           | `9378558723` | `50beb49835809f9a748147290776ef8d672202c0b5aadb1a286e5fe3badce3f6` |
+  | `p2-m3-ci-evidence`           | `9378559652` | `dfaeea0fe25d5079e4986617e2cf1fd5c8958857973e497174a31b2f11f8c760` |
+  | `phase1-ci-evidence`          | `9378556884` | `c04a7f98fa0028d5d98ca406dcfcff409e7070d66d589093b1585758a9e9d4a3` |
+  | `playwright-install-evidence` | `9378545103` | `ffb9a78c78a9b699dadeed0c97a26d1b0d1eec0e620a96bde36423331eb5dc7f` |
+  | `project-audit-evidence`      | `9378567881` | `18796d0681649d7d4a2d9401e796f276dd2bf157d2b8052018653c012477f528` |
+  | `project-docker-evidence`     | `9378208554` | `f9327b2c4db3e915e87e6c790eb06663cd937b32601194f86f4e85ee3765e6ca` |
+
+- Principal accepts only the tracked CC02-B contract and sets the frozen first-party builder plus synthetic tests to
+  `EXECUTION_READY`. No builder exists yet. Private report locations/bytes, real manifest creation, CC02-C–E, Stage D/E,
+  T06–T08, MVR, production geometry, real-user processing, M6 and QuestionBank release remain closed. The accepted Stage
+  C result remains `FURTHER_RESEARCH` with 0/4 eligibility.
+
+`CC_P2_M5_02_B_CONTRACT: PASS_AT_F69361E_RUN_32287419743_ATTEMPT_1`
+
+`CC_P2_M5_02_B_BUILDER: EXECUTION_READY`
+
+`CC02_B_BUILDER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_BUILDER_ACCEPTANCE`
+
+`CC_P2_M5_02_B_MANIFEST: NOT_CREATED`
+
+`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_BUILDER_PRE_READ_GATE`
+
+`CC_P2_M5_02_C_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
 ## CC-P2-M5-02 failure-mechanism governance candidate
 
 - ADR-047 preserves the accepted Stage C `FURTHER_RESEARCH` result and creates a diagnosis-only forward change
