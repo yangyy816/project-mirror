@@ -821,3 +821,31 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `CC_P2_M5_01_C_TO_E: CLOSED`
 
 `P2_M5_T06_ENTRY: CLOSED`
+
+## P2-M5-R06 Playwright system-dependency retry tracked acceptance
+
+- Acceptance checkpoint `aa32c8b912aa0a5196f2615a1ed4b651ef17166d` run `32300981951` failed twice at the
+  same stage and SHA. Each quality attempt reached the existing 600-second timeout while the official Playwright
+  `install-deps chromium` command was still acquiring Ubuntu `noble-updates` indexes; Chromium download and Browser
+  Integration never started. The incident is therefore
+  `REPEATED_EXTERNAL_APT_REPOSITORY_ACQUISITION_STALL`, not a browser-download, launch, lockfile, checksum, assertion or
+  product defect.
+- R06 candidate `09c77be149e05c074dcc4e038882be0fdad5b3a9` preserves the official command and adds three bounded
+  600-second attempts with 30/60-second backoff. Per-attempt timeout plus kill/backoff is 1,980 seconds, below the
+  independent 2,100-second Actions watchdog. Three failures still fail closed; Chromium acquisition remains separate,
+  its official source override protection is unchanged, and Browser Integration is never skipped.
+- Exact-SHA run `32304931584`, attempt 1, passed quality `96235526799`, Docker `96235526513` and secret scan
+  `96235526810`. The system-dependency artifact recorded attempt 1/3 success in 420 seconds; Chromium attempt 1/3
+  succeeded in 11 seconds; Browser Integration then passed 5/5 in 14.2 seconds.
+- Full Python was 689 passed with one existing optional private-runtime skip. Phase 1/M1/M2/M3 evidence remained
+  `1/98/52/46` with zero failure, error or skip and bound the exact SHA, migration head `0014_m5_eval_authority` and
+  unchanged OpenAPI digest. All eight artifacts were readable and unexpired; their IDs/digests and the extracted
+  Playwright log SHA-256 are recorded in `P2_M5_R06_REPAIR.md`. Gitleaks reported zero results, both dependency audits
+  found no known vulnerability, the CycloneDX 1.6 SBOM contained 105 components and Docker/Celery evidence was healthy.
+- Principal accepts only R06. P2-M5 remains `EXECUTING`; Stage/research results, private-input authority, CC02-C–E,
+  T06–T08, MVR, production geometry, real-user processing, M6 and QuestionBank release are unchanged and remain governed
+  by their existing Gates.
+
+`P2_M5_R06: REPAIR_ACCEPTED_AT_09C77BE_RUN_32304931584_ATTEMPT_1`
+
+`P2_M5_STATE: EXECUTING`

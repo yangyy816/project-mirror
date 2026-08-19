@@ -1003,3 +1003,18 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - No private environment variable is present, the builder entry point was not run, and neither real output exists. Private
   input may be released only during a separately established ADR-048 exclusive-custody window. CC02-C–E and every later
   Gate remain closed.
+
+## 2026-08-20T05:53:11+08:00 — P2-M5-R06 Playwright system-dependency retry acceptance
+
+- Run `32300981951` attempts 1 and 2 at exact SHA `aa32c8b912aa0a5196f2615a1ed4b651ef17166d` both timed out after
+  600 seconds while Playwright was acquiring Ubuntu package indexes. Chromium download and Browser Integration never
+  started, so the incident was reclassified as `REPEATED_EXTERNAL_APT_REPOSITORY_ACQUISITION_STALL`.
+- R06 candidate `09c77be149e05c074dcc4e038882be0fdad5b3a9` retains the official system-dependency command, gives it
+  three 600-second attempts with 30/60-second backoff and preserves the separate Chromium retry plus fail-closed Browser
+  Gate. Independent review passed after the static contract bound timeout, loop, guarded backoff, success stop,
+  terminal failure, always-upload and watchdog arithmetic.
+- Exact-SHA run `32304931584` attempt 1 passed all three jobs. System dependencies succeeded on attempt 1/3 in 420
+  seconds, Chromium downloaded on attempt 1/3 in 11 seconds and Browser Integration passed 5/5 in 14.2 seconds. Eight
+  artifacts were readable and unexpired; exact IDs/digests are recorded in `P2_M5_R06_REPAIR.md`.
+- Principal accepts R06 only. No product, dependency, lockfile, browser-test, research-threshold, private-input or
+  downstream-Gate change occurred; P2-M5 remains `EXECUTING`.
