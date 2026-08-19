@@ -768,3 +768,26 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - This governance-only candidate adds no dependency, model artifact, runtime, schema, migration, OpenAPI or production
   permission and does not alter the P2-M5 Stage C `FURTHER_RESEARCH` stop. It is pending tracked same-SHA CI/artifact
   evidence before Principal acceptance is recorded in durable project memory.
+
+## 2026-08-19T22:45:00+08:00 — CC-P2-M5-02 failure-mechanism governance candidate
+
+- Repository truth was re-established at remote M5 head `aa695c2f81ca8ec0762fb521d77dd705c8fdeee5`, migration
+  head `0014_m5_eval_authority` and protected untracked `.tmp/`. Phase 0/1 and P2-M1–M4 remain frozen; P2-M5 remains
+  `EXECUTING` at the accepted Stage C `FURTHER_RESEARCH` stop.
+- GitHub run `32246940749` attempts 1/2 still show `runner_id=0`, zero steps and the explicit account
+  payment/spending-limit annotation. No queued/in-progress run exists. The external blocker is retained and no third
+  rerun was started.
+- Read-only evidence review found that the old CC01C runner maps all generic `ValueError` across plan construction,
+  warp-plan authority and transform to `PLAN_BUILD_FAILED`. The 218 coarse failures therefore cannot support an
+  unsupported-dimension or algorithm-repair decision without a lossless diagnostic.
+- ADR-047 / `CC-P2-M5-02` freezes a diagnosis-only path over the existing 12 calibration identities and six candidates.
+  It adds no threshold, algorithm, identity, image, dependency, model, schema, migration, API or runtime permission.
+  Private input remains closed until a tracked immutable manifest binds the accepted reports and case digests.
+- Independent security/research-integrity review required a verified Windows outbound deny covering runner and child
+  processes, plus an exhaustive versioned eight-stage taxonomy through `RESULT_SIGNATURE`. Capture alone is not
+  containment; any unlisted stage/reason pair hard-stops.
+- Evidence cardinality is fixed as 344 successful platform cases with three accepted repeat artifacts/rows each (1,032
+  total). The 14 direction mismatches were rejected before legacy artifact write, so their later recomputed bytes can
+  only be new diagnostic evidence and cannot support a legacy-success drift claim.
+- CC02-G is a local governance candidate only. CC02-A–E, Stage D/E, T06–T08, MVR, production geometry, real-user
+  processing, M6 and QuestionBank release remain closed.

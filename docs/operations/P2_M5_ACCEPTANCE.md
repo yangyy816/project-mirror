@@ -416,6 +416,32 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `P2_M5_T06_ENTRY: CLOSED`
 
+## CC-P2-M5-02 failure-mechanism governance candidate
+
+- ADR-047 preserves the accepted Stage C `FURTHER_RESEARCH` result and creates a diagnosis-only forward change
+  control. It is not a Repair Task and does not create a new numbered Milestone task.
+- The existing runner collapses plan-construction, warp-plan and transform `ValueError` failures into the coarse
+  `PLAN_BUILD_FAILED` reason. Current evidence therefore cannot honestly classify those candidates as unsupported or
+  choose an algorithm repair.
+- `P2_M5_CC02_FAILURE_MECHANISM_PROTOCOL.md` freezes the old manifest/cohort/case/runtime/model/topology authority,
+  zero-threshold policy, exhaustive versioned eight-stage terminal taxonomy, 576-transform/604-Vision ceiling, zero
+  generation/retry, child-process-inclusive Windows outbound deny, serial execution and evidence-reconstruction stop
+  rule.
+- The 344 successful platform cases bind three accepted repeat artifacts/rows each (1,032 total). The 14 direction
+  mismatches have no accepted legacy result artifact because the old runner rejected them before artifact write; CC02-C
+  may only create new diagnostic bytes from frozen authority and must not claim legacy-success drift comparison.
+- This local governance candidate does not access private input or implement the harness. Missing private reports,
+  digest mismatch, legacy-success drift or unresolved coarse reasons must stop as explicit FAIL/FURTHER_RESEARCH.
+- Stage D/E, T06–T08, MVR, production geometry, real-user processing, M6 and QuestionBank release remain closed.
+- Local validation and independent architecture review are required before a candidate commit. Same-SHA Actions and
+  artifacts remain mandatory before Principal may open CC02-A.
+
+`CC_P2_M5_02_G: LOCAL_GOVERNANCE_CANDIDATE_PENDING_VALIDATION`
+
+`CC_P2_M5_02_A_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
 ## P2-M5-R03 Playwright acquisition resilience tracked acceptance
 
 - Exact job logs for run `32237678569`, attempt 1, show the combined

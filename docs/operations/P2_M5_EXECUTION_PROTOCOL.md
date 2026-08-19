@@ -222,6 +222,39 @@ T05 candidate `e46d7a9d19eee536c2f57cac6de224cccf27f2be` and run `32187946640` w
 Complete acquisition, candidate, blindness, negative-control and stop rules are in
 `P2_M5_EVIDENCE_EXPANSION_PROTOCOL.md`.
 
+## CC-P2-M5-02 — Stage C failure-mechanism isolation
+
+Stage C candidate `042f77e4b6708be827f2033a9740e348ae778f69` and run `32237678569` attempt 2 remain
+immutably accepted as `FURTHER_RESEARCH`. ADR-047 adds a diagnosis-only forward path because the old runner collapsed
+plan-construction, warp-plan and transform `ValueError` failures into `PLAN_BUILD_FAILED`:
+
+```text
+02-G governance and closed-Gate contract
+→ 02-A versioned diagnostic harness
+→ 02-B immutable private-report/case manifest
+→ 02-C serial Windows/Linux private replay
+→ 02-D redacted failure-mechanism decision
+→ 02-E independent reviews
+→ separate redesign change control or FURTHER_RESEARCH
+```
+
+- CC02 does not create a threshold, algorithm-v2, formula-v2, new identity, holdout or READY dimension.
+- The CC01C manifest, six candidates, 12 calibration identities, two platforms, two directions, two magnitudes and all
+  accepted digests remain immutable.
+- CC02-A cannot access private inputs. CC02-B tracked acceptance is mandatory before private replay.
+- The replay is capped at 576 transforms, 604 Vision executions, zero generation, zero retry and global concurrency 1.
+- The exhaustive `p2-m5-cc02-terminal-taxonomy-v1` has eight stages through `RESULT_SIGNATURE`; an unlisted stage,
+  reason or stage/code pair hard-stops as `UNCLASSIFIED_TERMINAL_FAILURE`.
+- Windows private replay requires a pre-read verified outbound deny covering the runner and every child Vision/runtime
+  process. Capture alone is not containment; Linux remains `--network none`.
+- The 14 direction mismatches have no accepted legacy result artifact. Their one recomputed result per platform case is
+  new diagnostic evidence and cannot be represented as a legacy-success drift comparison.
+- Missing accepted private reports or digest mismatch ends as `FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`.
+- Diagnostic completion does not change old 0/4 eligibility or open Stage D/E, T06–T08, MVR or M6.
+
+The exact authority, reason taxonomy, integrity Gates, resources and stop rules are in
+`P2_M5_CC02_FAILURE_MECHANISM_PROTOCOL.md`.
+
 ## Repair, closure and stop protocol
 
 Implementation defects use `P2-M5-R01...`. Architecture, privacy, schema ownership, dependency adoption, research
@@ -258,6 +291,10 @@ engine, but M6 entry remains closed and the missing research evidence stays dura
 
 `CC_P2_M5_01_D_TO_E: CLOSED_BY_STAGE_C_COMPLETE_CASE_RULE`
 
-`P2_M5_NEXT_ACTION: FORWARD_RESEARCH_CHANGE_CONTROL_REQUIRED`
+`CC_P2_M5_02_G: LOCAL_GOVERNANCE_CANDIDATE_PENDING_TRACKED_EVIDENCE`
+
+`CC_P2_M5_02_A_TO_E: CLOSED`
+
+`P2_M5_NEXT_ACTION: CC_P2_M5_02_G_TRACKED_ACCEPTANCE`
 
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
