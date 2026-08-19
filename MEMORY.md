@@ -496,3 +496,12 @@
   均有 failed/missing case，complete-case eligible 为 0/4；不得选 threshold、宣称 READY 或开放 Stage D/E、
   T06–T08、MVR、production geometry、真人处理、M6 或 QuestionBank release。继续研究必须走新的前向
   change control。
+
+- 2026-08-19：`P2-M5-R03` 通过 exact job log 将 run `32237678569` attempt 1 的粗略“Chromium 下载停滞”
+  修正为 `TRANSIENT_EXTERNAL_SYSTEM_DEPENDENCY_ACQUISITION_STALL`：组合 Playwright 步骤最后停在 Ubuntu
+  repository fetch，未出现 Chromium binary download、checksum、launch 或 Browser Integration 失败。
+  R03 将 `install-deps chromium` 与 `install chromium` 分离；系统依赖只执行一次且 hard timeout 600 秒，
+  browser download 最多 3 次、每次 600 秒、30/60 秒退避、官方源、三次失败即 fail closed，并上传仅含版本、
+  时间、耗时、状态和安装输出的 evidence。Candidate `d3f0597019bc0b4de37a058159a74a26ea1fc046` 的 run
+  `32245119767` 三 jobs 全绿；依赖/下载/browser 为 20/17/20 秒，八 artifacts 可读且 exact-SHA bound，
+  Gitleaks 零结果。该修复不改变 Browser Gate、依赖锁、Stage C `FURTHER_RESEARCH` 或任何后续 Gate。

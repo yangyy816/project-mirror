@@ -740,3 +740,18 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Principal accepts Stage C only as `FURTHER_RESEARCH`. All six candidates retain failed/missing cases, so zero meet
   the frozen complete-case rule. Stage D/E, T06–T08, MVR, production geometry, real-user processing, M6 and
   QuestionBank release remain closed; continuation requires a new forward research change control.
+
+## 2026-08-19T19:02:00+08:00 — P2-M5-R03 Playwright acquisition resilience
+
+- Exact attempt-1 logs from run `32237678569` refine the earlier coarse download label: the combined Playwright step
+  stopped after Ubuntu repository fetches and never logged a Chromium binary download. The incident is therefore a
+  transient external system-dependency acquisition stall; no product, lockfile, browser-launch or Browser Integration
+  failure was observed. Same-SHA attempt 2 and the later closure run both passed.
+- R03 split system dependencies from browser binary acquisition, bounded the one-time dependency step to 600 seconds,
+  and bounded Chromium acquisition to three 600-second official-source attempts with 30/60-second backoff. It records
+  version, timestamps, elapsed seconds and exit status and uploads a redacted install evidence artifact on every run.
+- Local workflow assertions, Bash syntax checks, `pnpm check` and Browser Integration 5/5 passed. Candidate
+  `d3f0597019bc0b4de37a058159a74a26ea1fc046` run `32245119767` passed all three jobs; the dependency/download/browser
+  steps took 20/17/20 seconds and eight exact-SHA artifacts, including the install evidence, are readable and unexpired.
+- Principal accepts R03 as CI-only resilience. Browser Gate semantics and all P2-M5 research/Phase boundaries remain
+  unchanged.

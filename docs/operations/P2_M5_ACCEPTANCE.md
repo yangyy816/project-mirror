@@ -416,6 +416,32 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `P2_M5_T06_ENTRY: CLOSED`
 
+## P2-M5-R03 Playwright acquisition resilience tracked acceptance
+
+- Exact job logs for run `32237678569`, attempt 1, show the combined
+  `playwright install --with-deps chromium` step stopped producing progress after Ubuntu repository fetches and was
+  cancelled after 3,768 seconds. The log never reached a Chromium binary download line, so the precise classification
+  is `TRANSIENT_EXTERNAL_SYSTEM_DEPENDENCY_ACQUISITION_STALL`, not a Browser Integration, lockfile, product or browser
+  launch defect. Same-SHA attempt 2 installed successfully in 25 seconds and Browser Integration passed in 18 seconds.
+- R03 separates `playwright install-deps chromium` from `playwright install chromium`. System dependencies run once
+  with a 600-second hard timeout. Chromium binary acquisition uses the official Playwright endpoints, at most three
+  600-second attempts and 30/60-second backoff, and fails the job after the third unsuccessful attempt. Every attempt
+  records exact Playwright version, UTC start/end, elapsed seconds and exit status in a redacted text artifact.
+- Candidate `d3f0597019bc0b4de37a058159a74a26ea1fc046` run `32245119767` passed
+  `quality-and-integration`, `secret-scan` and `docker-validation`. The system-dependency step passed in 20 seconds,
+  Chromium downloaded on attempt 1/3 in 17 seconds, the evidence artifact uploaded successfully and Browser
+  Integration passed in 20 seconds.
+- Eight artifacts are readable, unexpired and include `playwright-install-evidence`. Frozen Phase 1/M1/M2/M3
+  evidence binds the exact SHA, `0014_m5_eval_authority` and unchanged OpenAPI digest; Gitleaks has zero results and
+  Docker evidence has no traceback, deadlock or fatal match.
+- R03 changes only CI acquisition resilience. It does not skip Browser Integration, add a browser cache, change a
+  dependency/lockfile, alter Stage C research evidence or open Stage D/E, T06–T08, MVR, production geometry,
+  real-user processing, M6 or QuestionBank release.
+
+`P2_M5_R03: REPAIR_ACCEPTED`
+
+`PLAYWRIGHT_ACQUISITION_POLICY: BOUNDED_FAIL_CLOSED`
+
 ## Stage A acceptance checkpoint failure and P2-M5-R02 local repair
 
 - Acceptance checkpoint `d3158c03e0843e5a504531dd407eafea534630de` run `32190386366` passed
