@@ -433,12 +433,23 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 - This local governance candidate does not access private input or implement the harness. Missing private reports,
   digest mismatch, legacy-success drift or unresolved coarse reasons must stop as explicit FAIL/FURTHER_RESEARCH.
 - Stage D/E, T06–T08, MVR, production geometry, real-user processing, M6 and QuestionBank release remain closed.
-- Local validation and independent architecture review are required before a candidate commit. Same-SHA Actions and
-  artifacts remain mandatory before Principal may open CC02-A.
+- Candidate `137157c41e7b1436ae47fe7dfcf34a7127789166` and run `32267510703` attempt 1 completed all three real-runner
+  jobs: quality `96115516046`, Docker `96115516188` and secret scan `96115516219`. Eight artifacts were downloaded,
+  readable, unexpired and exact-SHA bound; migration head remained `0014_m5_eval_authority`, OpenAPI digest remained
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`, Phase 1/M1/M2/M3 evidence was
+  `1/98/52/46` with zero failure/error/skip, and Gitleaks had zero results.
+- Full Python was 582 PASS with one existing optional private-runtime skip. Playwright 1.62.1 system dependencies
+  completed in 11 seconds, Chromium download succeeded on attempt 1/3 in 12 seconds, and Browser Integration passed
+  5/5. The only skipped upload was the expected `if: failure()` browser-failure artifact path.
+- Independent security/privacy/research-integrity and Sol final reviews found no mandatory issue. Principal therefore
+  accepts CC02-G as tracked diagnosis-only governance. This opens only preparation of a separate CC02-A bounded-task
+  contract; CC02-A is not implemented or executed and has no private-input permission.
 
-`CC_P2_M5_02_G: LOCAL_GOVERNANCE_CANDIDATE_PENDING_VALIDATION`
+`CC_P2_M5_02_G: PASS_AT_137157C_RUN_32267510703_ATTEMPT_1`
 
-`CC_P2_M5_02_A_TO_E: CLOSED`
+`CC_P2_M5_02_A: READY_FOR_BOUNDED_TASK_CONTRACT`
+
+`CC_P2_M5_02_B_TO_E: CLOSED`
 
 `P2_M5_T06_ENTRY: CLOSED`
 

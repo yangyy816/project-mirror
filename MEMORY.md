@@ -505,3 +505,11 @@
   时间、耗时、状态和安装输出的 evidence。Candidate `d3f0597019bc0b4de37a058159a74a26ea1fc046` 的 run
   `32245119767` 三 jobs 全绿；依赖/下载/browser 为 20/17/20 秒，八 artifacts 可读且 exact-SHA bound，
   Gitleaks 零结果。该修复不改变 Browser Gate、依赖锁、Stage C `FURTHER_RESEARCH` 或任何后续 Gate。
+
+- 2026-08-19：ADR-047 / `CC-P2-M5-02-G` diagnosis-only governance candidate
+  `137157c41e7b1436ae47fe7dfcf34a7127789166` 的 run `32267510703` attempt 1 三 jobs 全绿，八 artifacts
+  可读且 exact-SHA bound，独立安全与 Sol final review 均 PASS。Principal 接受冻结的八阶段
+  `p2-m5-cc02-terminal-taxonomy-v1`、Windows runner/child-process pre-read outbound deny、576-transform/
+  604-Vision ceiling、零 generation/retry/threshold 和 evidence-reconstruction stop。旧 Stage C
+  `FURTHER_RESEARCH`、0/4 eligibility 与旧 evidence 保持不可变；当前只允许准备 CC02-A 的独立 bounded-task
+  contract，不代表 harness 已实现或 private input、CC02-B–E、Stage D/E、T06–T08、MVR、M6 已开放。

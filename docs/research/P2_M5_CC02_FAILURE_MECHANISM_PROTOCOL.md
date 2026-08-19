@@ -5,8 +5,9 @@
 - Change control: `CC-P2-M5-02` / ADR-047.
 - Baseline: `aa695c2f81ca8ec0762fb521d77dd705c8fdeee5`.
 - Accepted Stage C evidence: `042f77e4b6708be827f2033a9740e348ae778f69` / run `32237678569`, attempt 2.
-- Current status: `GOVERNANCE_CANDIDATE_NOT_EXECUTED`.
-- Execution authorization: `CLOSED_PENDING_CC02_G_TRACKED_ACCEPTANCE`.
+- Governance acceptance: `137157c41e7b1436ae47fe7dfcf34a7127789166` / run `32267510703`, attempt 1.
+- Current status: `GOVERNANCE_ACCEPTED_DIAGNOSTIC_NOT_EXECUTED`.
+- Execution authorization: `CC02_A_BOUNDED_TASK_CONTRACT_ONLY`; private-input access remains closed.
 - Threshold selection: `FORBIDDEN`.
 - Stage D/E, T06–T08, MVR and M6: `CLOSED`.
 
@@ -185,9 +186,11 @@ CC02-G governance tracked acceptance
 No outcome from this protocol opens Stage D/E, T06–T08, MVR or M6. A later redesign requires a new immutable algorithm/
 formula/manifest version, a complete new calibration run and its own same-SHA evidence.
 
-`CC_P2_M5_02_G: LOCAL_GOVERNANCE_CANDIDATE`
+`CC_P2_M5_02_G: PASS_AT_137157C_RUN_32267510703_ATTEMPT_1`
 
-`CC_P2_M5_02_A_TO_E: CLOSED`
+`CC_P2_M5_02_A: READY_FOR_BOUNDED_TASK_CONTRACT`
+
+`CC_P2_M5_02_B_TO_E: CLOSED`
 
 `P2_M5_T06_ENTRY: CLOSED`
 

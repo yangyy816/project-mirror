@@ -791,3 +791,19 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   only be new diagnostic evidence and cannot support a legacy-success drift claim.
 - CC02-G is a local governance candidate only. CC02-A–E, Stage D/E, T06–T08, MVR, production geometry, real-user
   processing, M6 and QuestionBank release remain closed.
+
+## 2026-08-19T23:12:00+08:00 — CC-P2-M5-02-G tracked acceptance
+
+- Governance candidate `137157c41e7b1436ae47fe7dfcf34a7127789166` passed GitHub Actions run `32267510703`
+  attempt 1. Quality `96115516046`, Docker `96115516188` and secret scan `96115516219` all used real runners and
+  succeeded; the prior payment/spending-limit blocker no longer prevented this run from starting.
+- Eight artifacts were downloaded and parsed. Phase 1/M1/M2/M3 evidence bound the exact commit, migration head
+  `0014_m5_eval_authority` and unchanged OpenAPI digest; Gitleaks had zero results, audit/SBOM files were readable and
+  Docker evidence contained no execution failure.
+- Playwright 1.62.1 system dependencies completed in 11 seconds, Chromium downloaded from the official source on
+  attempt 1/3 in 12 seconds, and Browser Integration passed 5/5. The failure-only browser artifact upload was the sole
+  expected skipped step and did not bypass the Gate.
+- Post-artifact independent security and Sol final reviews passed with no mandatory finding. Principal accepts only
+  CC02-G diagnosis governance. CC02-A is not implemented or executed; only its separate bounded-task contract may now
+  be prepared. Private input, CC02-B–E, Stage D/E, T06–T08, MVR, production geometry, real-user processing, M6 and
+  QuestionBank release remain closed.

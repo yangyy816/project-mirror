@@ -251,6 +251,9 @@ plan-construction, warp-plan and transform `ValueError` failures into `PLAN_BUIL
   new diagnostic evidence and cannot be represented as a legacy-success drift comparison.
 - Missing accepted private reports or digest mismatch ends as `FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`.
 - Diagnostic completion does not change old 0/4 eligibility or open Stage D/E, T06–T08, MVR or M6.
+- CC02-G candidate `137157c41e7b1436ae47fe7dfcf34a7127789166` passed run `32267510703` attempt 1 with all three
+  jobs and eight readable exact-SHA artifacts. Independent security and final reviews passed. Principal acceptance only
+  opens a separate CC02-A bounded-task contract; it does not execute the harness or permit private input.
 
 The exact authority, reason taxonomy, integrity Gates, resources and stop rules are in
 `P2_M5_CC02_FAILURE_MECHANISM_PROTOCOL.md`.
@@ -291,10 +294,12 @@ engine, but M6 entry remains closed and the missing research evidence stays dura
 
 `CC_P2_M5_01_D_TO_E: CLOSED_BY_STAGE_C_COMPLETE_CASE_RULE`
 
-`CC_P2_M5_02_G: LOCAL_GOVERNANCE_CANDIDATE_PENDING_TRACKED_EVIDENCE`
+`CC_P2_M5_02_G: PASS_AT_137157C_RUN_32267510703_ATTEMPT_1`
 
-`CC_P2_M5_02_A_TO_E: CLOSED`
+`CC_P2_M5_02_A: READY_FOR_BOUNDED_TASK_CONTRACT`
 
-`P2_M5_NEXT_ACTION: CC_P2_M5_02_G_TRACKED_ACCEPTANCE`
+`CC_P2_M5_02_B_TO_E: CLOSED`
+
+`P2_M5_NEXT_ACTION: CC_P2_M5_02_A_BOUNDED_TASK_CONTRACT`
 
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
