@@ -131,6 +131,9 @@ jobs:
       - name: TypeScript quality and build
         run: pnpm check
       - name: Install Playwright Chromium system dependencies
+        # The inner GNU timeout owns the complete logging pipeline; this outer
+        # watchdog also bounds a process that escapes the inner process group.
+        timeout-minutes: 12
         shell: bash
         env:
           PLAYWRIGHT_INSTALL_LOG: ${{ runner.temp }}/playwright-chromium-install.log
@@ -146,9 +149,12 @@ jobs:
 
           set +e
           timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" \
-            pnpm --filter @mirror/web exec playwright install-deps chromium \
-            2>&1 | tee -a "$PLAYWRIGHT_INSTALL_LOG"
-          install_status="${PIPESTATUS[0]}"
+            bash -o pipefail -c '
+              pnpm --filter @mirror/web exec playwright install-deps chromium 2>&1 \
+                | tee -a "$PLAYWRIGHT_INSTALL_LOG"
+              exit "${PIPESTATUS[0]}"
+            '
+          install_status="$?"
           set -e
 
           end_epoch="$(date +%s)"
@@ -158,6 +164,9 @@ jobs:
             | tee -a "$PLAYWRIGHT_INSTALL_LOG"
           exit "$install_status"
       - name: Download Playwright Chromium
+        # Three bounded 600-second attempts plus 30/60-second backoff fit in
+        # this independent runner watchdog while leaving cleanup headroom.
+        timeout-minutes: 35
         shell: bash
         env:
           PLAYWRIGHT_INSTALL_LOG: ${{ runner.temp }}/playwright-chromium-install.log
@@ -182,9 +191,12 @@ jobs:
 
             set +e
             timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" \
-              pnpm --filter @mirror/web exec playwright install chromium \
-              2>&1 | tee -a "$PLAYWRIGHT_INSTALL_LOG"
-            install_status="${PIPESTATUS[0]}"
+              bash -o pipefail -c '
+                pnpm --filter @mirror/web exec playwright install chromium 2>&1 \
+                  | tee -a "$PLAYWRIGHT_INSTALL_LOG"
+                exit "${PIPESTATUS[0]}"
+              '
+            install_status="$?"
             set -e
 
             end_epoch="$(date +%s)"
