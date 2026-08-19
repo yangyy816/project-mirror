@@ -130,8 +130,93 @@ jobs:
           --junitxml=p2-m3-results.xml
       - name: TypeScript quality and build
         run: pnpm check
-      - name: Install Playwright Chromium
-        run: pnpm --filter @mirror/web exec playwright install --with-deps chromium
+      - name: Install Playwright Chromium system dependencies
+        shell: bash
+        env:
+          PLAYWRIGHT_INSTALL_LOG: ${{ runner.temp }}/playwright-chromium-install.log
+        run: |
+          set -euo pipefail
+          readonly timeout_seconds=600
+          playwright_version="$(pnpm --filter @mirror/web exec playwright --version)"
+          playwright_version="${playwright_version#Version }"
+          start_epoch="$(date +%s)"
+          printf 'event=playwright_system_dependencies start=%s timeout_seconds=%s version=%q\n' \
+            "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$timeout_seconds" "$playwright_version" \
+            | tee "$PLAYWRIGHT_INSTALL_LOG"
+
+          set +e
+          timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" \
+            pnpm --filter @mirror/web exec playwright install-deps chromium \
+            2>&1 | tee -a "$PLAYWRIGHT_INSTALL_LOG"
+          install_status="${PIPESTATUS[0]}"
+          set -e
+
+          end_epoch="$(date +%s)"
+          elapsed_seconds="$((end_epoch - start_epoch))"
+          printf 'event=playwright_system_dependencies end=%s elapsed_seconds=%s exit_status=%s\n' \
+            "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$elapsed_seconds" "$install_status" \
+            | tee -a "$PLAYWRIGHT_INSTALL_LOG"
+          exit "$install_status"
+      - name: Download Playwright Chromium
+        shell: bash
+        env:
+          PLAYWRIGHT_INSTALL_LOG: ${{ runner.temp }}/playwright-chromium-install.log
+        run: |
+          set -euo pipefail
+          readonly max_attempts=3
+          readonly timeout_seconds=600
+          readonly -a backoff_seconds=(30 60)
+          playwright_version="$(pnpm --filter @mirror/web exec playwright --version)"
+          playwright_version="${playwright_version#Version }"
+
+          # Do not allow a repository or runner override to replace Playwright's
+          # official browser download endpoints.
+          unset PLAYWRIGHT_DOWNLOAD_HOST PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST
+
+          for attempt in $(seq 1 "$max_attempts"); do
+            start_epoch="$(date +%s)"
+            start_timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            printf 'event=playwright_chromium_download attempt=%s/%s start=%s timeout_seconds=%s version=%q\n' \
+              "$attempt" "$max_attempts" "$start_timestamp" "$timeout_seconds" "$playwright_version" \
+              | tee -a "$PLAYWRIGHT_INSTALL_LOG"
+
+            set +e
+            timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" \
+              pnpm --filter @mirror/web exec playwright install chromium \
+              2>&1 | tee -a "$PLAYWRIGHT_INSTALL_LOG"
+            install_status="${PIPESTATUS[0]}"
+            set -e
+
+            end_epoch="$(date +%s)"
+            end_timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            elapsed_seconds="$((end_epoch - start_epoch))"
+            printf 'event=playwright_chromium_download attempt=%s/%s end=%s elapsed_seconds=%s exit_status=%s\n' \
+              "$attempt" "$max_attempts" "$end_timestamp" "$elapsed_seconds" "$install_status" \
+              | tee -a "$PLAYWRIGHT_INSTALL_LOG"
+
+            if [[ "$install_status" -eq 0 ]]; then
+              exit 0
+            fi
+
+            if [[ "$attempt" -lt "$max_attempts" ]]; then
+              backoff="${backoff_seconds[$((attempt - 1))]}"
+              printf 'event=playwright_chromium_download retry_after_seconds=%s\n' "$backoff" \
+                | tee -a "$PLAYWRIGHT_INSTALL_LOG"
+              sleep "$backoff"
+            fi
+          done
+
+          printf 'event=playwright_chromium_download outcome=failed attempts=%s\n' "$max_attempts" \
+            | tee -a "$PLAYWRIGHT_INSTALL_LOG"
+          exit 1
+      - name: Upload Playwright install evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-install-evidence
+          path: ${{ runner.temp }}/playwright-chromium-install.log
+          if-no-files-found: error
+          retention-days: 14
       - name: Browser integration
         run: pnpm --filter @mirror/web test:e2e
       - uses: actions/upload-artifact@v4
