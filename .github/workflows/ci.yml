@@ -131,38 +131,62 @@ jobs:
       - name: TypeScript quality and build
         run: pnpm check
       - name: Install Playwright Chromium system dependencies
-        # The inner GNU timeout owns the complete logging pipeline; this outer
-        # watchdog also bounds a process that escapes the inner process group.
-        timeout-minutes: 12
+        # Three bounded 600-second attempts plus 30/60-second backoff fit in
+        # this independent runner watchdog while leaving cleanup headroom.
+        # Retrying in the same runner preserves any apt indexes downloaded by
+        # an earlier attempt without repeating this work during browser download.
+        timeout-minutes: 35
         shell: bash
         env:
           PLAYWRIGHT_INSTALL_LOG: ${{ runner.temp }}/playwright-chromium-install.log
         run: |
           set -euo pipefail
+          readonly max_attempts=3
           readonly timeout_seconds=600
+          readonly -a backoff_seconds=(30 60)
           playwright_version="$(pnpm --filter @mirror/web exec playwright --version)"
           playwright_version="${playwright_version#Version }"
-          start_epoch="$(date +%s)"
-          printf 'event=playwright_system_dependencies start=%s timeout_seconds=%s version=%q\n' \
-            "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$timeout_seconds" "$playwright_version" \
-            | tee "$PLAYWRIGHT_INSTALL_LOG"
+          : > "$PLAYWRIGHT_INSTALL_LOG"
 
-          set +e
-          timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" \
-            bash -o pipefail -c '
-              pnpm --filter @mirror/web exec playwright install-deps chromium 2>&1 \
+          for attempt in $(seq 1 "$max_attempts"); do
+            start_epoch="$(date +%s)"
+            start_timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            printf 'event=playwright_system_dependencies attempt=%s/%s start=%s timeout_seconds=%s version=%q\n' \
+              "$attempt" "$max_attempts" "$start_timestamp" "$timeout_seconds" "$playwright_version" \
+              | tee -a "$PLAYWRIGHT_INSTALL_LOG"
+
+            set +e
+            timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" \
+              bash -o pipefail -c '
+                pnpm --filter @mirror/web exec playwright install-deps chromium 2>&1 \
+                  | tee -a "$PLAYWRIGHT_INSTALL_LOG"
+                exit "${PIPESTATUS[0]}"
+              '
+            install_status="$?"
+            set -e
+
+            end_epoch="$(date +%s)"
+            end_timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            elapsed_seconds="$((end_epoch - start_epoch))"
+            printf 'event=playwright_system_dependencies attempt=%s/%s end=%s elapsed_seconds=%s exit_status=%s\n' \
+              "$attempt" "$max_attempts" "$end_timestamp" "$elapsed_seconds" "$install_status" \
+              | tee -a "$PLAYWRIGHT_INSTALL_LOG"
+
+            if [[ "$install_status" -eq 0 ]]; then
+              exit 0
+            fi
+
+            if [[ "$attempt" -lt "$max_attempts" ]]; then
+              backoff="${backoff_seconds[$((attempt - 1))]}"
+              printf 'event=playwright_system_dependencies retry_after_seconds=%s\n' "$backoff" \
                 | tee -a "$PLAYWRIGHT_INSTALL_LOG"
-              exit "${PIPESTATUS[0]}"
-            '
-          install_status="$?"
-          set -e
+              sleep "$backoff"
+            fi
+          done
 
-          end_epoch="$(date +%s)"
-          elapsed_seconds="$((end_epoch - start_epoch))"
-          printf 'event=playwright_system_dependencies end=%s elapsed_seconds=%s exit_status=%s\n' \
-            "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$elapsed_seconds" "$install_status" \
+          printf 'event=playwright_system_dependencies outcome=failed attempts=%s\n' "$max_attempts" \
             | tee -a "$PLAYWRIGHT_INSTALL_LOG"
-          exit "$install_status"
+          exit 1
       - name: Download Playwright Chromium
         # Three bounded 600-second attempts plus 30/60-second backoff fit in
         # this independent runner watchdog while leaving cleanup headroom.
