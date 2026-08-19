@@ -416,6 +416,72 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `P2_M5_T06_ENTRY: CLOSED`
 
+## CC-P2-M5-02-A implementation and P2-M5-R04 tracked acceptance
+
+- CC02-A implementation commit `5159c3f28ab8dcbb7db07c5bead3780a409ace25`
+  added only the versioned diagnostic harness and its targeted tests. Its first
+  run `32278984711` passed Docker and secret scan, but quality job `96152991638`
+  was cancelled after the one-time Playwright system-dependency acquisition
+  stopped making progress. Chromium download and Browser Integration never
+  started, so this was not valid implementation acceptance evidence.
+- The failed-run install artifact contained a system-dependency start record
+  but no end record and stopped during Ubuntu `noble-updates` acquisition. The
+  incident is classified as
+  `TRANSIENT_EXTERNAL_SYSTEM_DEPENDENCY_ACQUISITION_STALL + CI_TIMEOUT_WRAPPER_DEFECT`,
+  not a Chromium, browser-launch, assertion, lockfile, checksum or product
+  defect.
+- R04 commit `ee19ad6efe49decfa3a0c8f0dbf3f130b5c59460` moved each complete
+  `pnpm | tee` pipeline into the GNU `timeout` child shell and added independent
+  12/35-minute step watchdogs. It preserved the one-time system-dependency
+  command, three 600-second Chromium attempts, 30/60-second backoff, official
+  source, fail-closed terminal result and unchanged Browser Integration Gate.
+- Exact-SHA run `32282614608` attempt 1 passed quality `96164640367`, Docker
+  `96164640344` and secret scan `96164640053`. System dependencies completed in
+  12 seconds, Chromium downloaded on attempt 1/3 in 12 seconds, the install
+  evidence uploaded, and Browser Integration passed 5/5 in 13.1 seconds.
+- Full Python was 642 PASS with one existing optional private-runtime skip.
+  Phase 1/M1/M2/M3 evidence remained `1/98/52/46` with zero failure, error or
+  skip, migration head `0014_m5_eval_authority` and unchanged OpenAPI digest
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`.
+  Gitleaks reported zero results, dependency audits reported no known
+  vulnerabilities, and the CycloneDX SBOM contained 105 components with zero
+  non-null vulnerability entries.
+- Eight readable, unexpired artifacts were inspected:
+
+  | Artifact                      |           ID | API digest                                                         |
+  | ----------------------------- | -----------: | ------------------------------------------------------------------ |
+  | `gitleaks-results.sarif`      | `9376388807` | `f3c6b167b3d5ce7b43af3da239f6475238b07bd9c7d9faf2d1cf68a08c696488` |
+  | `p2-m1-ci-evidence`           | `9376528295` | `a7c1b38c7cdb82e87e71f618a54ba2d322b42760bed0f0a1589eae0347dbb89c` |
+  | `p2-m2-ci-evidence`           | `9376529060` | `082a4f070e3bc0798fd0b50dd60f72088242982f80cbc5c6be1872ac958b8257` |
+  | `p2-m3-ci-evidence`           | `9376529768` | `0cb51e2817843408f0e8195c1d724a2771f5814bbecec0d3673939add5578ea4` |
+  | `phase1-ci-evidence`          | `9376527560` | `fafde59e69cdc9795a752ce34b10c9f03d46dbbc8ecb26df35fabc8e82160ada` |
+  | `playwright-install-evidence` | `9376516571` | `83fcede6c3c7ae45bf3aa7825fefaf1e14a5a99edd4df4f634e9e56afdfefd31` |
+  | `project-audit-evidence`      | `9376537708` | `277f824bca887c1f9bcf72029d66ca99979aad5dac6054b79336d5b63156d6c2` |
+  | `project-docker-evidence`     | `9376465587` | `9edd9507085c3793466d8c7b27f575027c38616f69e6e8b66f7b36039179071d` |
+
+- The extracted Playwright install log has SHA-256
+  `dc50b9aea95858178d994e13d76cb1b4e636c19dfee5652feb555432c5c2125d`.
+  Targeted CC02-A validation passed 58 tests; its frozen authority, resource,
+  taxonomy, redaction and negative-contract matrix passed independent review.
+  Independent R04 security and Sol final reviews also found no mandatory issue.
+- The Principal accepts the CC02-A implementation and R04 repair only. This
+  opens preparation of a separate CC02-B bounded-task contract. Private input
+  remains prohibited until that contract receives tracked acceptance; CC02-C–E,
+  Stage D/E, T06–T08, MVR, production geometry, real-user processing, M6 and
+  QuestionBank release remain closed.
+
+`CC_P2_M5_02_A_IMPLEMENTATION: PASS_AT_EE19AD6_RUN_32282614608_ATTEMPT_1`
+
+`P2_M5_R04: REPAIR_ACCEPTED_AT_EE19AD6_RUN_32282614608_ATTEMPT_1`
+
+`CC_P2_M5_02_B: READY_FOR_BOUNDED_TASK_CONTRACT`
+
+`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_TRACKED_ACCEPTANCE`
+
+`CC_P2_M5_02_C_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
 ## CC-P2-M5-02 failure-mechanism governance candidate
 
 - ADR-047 preserves the accepted Stage C `FURTHER_RESEARCH` result and creates a diagnosis-only forward change
@@ -492,9 +558,13 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `CC_P2_M5_02_A_CONTRACT: PASS_AT_D8659AE_RUN_32271571196_ATTEMPT_1`
 
-`CC_P2_M5_02_A_IMPLEMENTATION: EXECUTION_READY`
+`CC_P2_M5_02_A_IMPLEMENTATION: PASS_AT_EE19AD6_RUN_32282614608_ATTEMPT_1`
 
-`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED`
+`CC_P2_M5_02_B: READY_FOR_BOUNDED_TASK_CONTRACT`
+
+`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_TRACKED_ACCEPTANCE`
+
+`CC_P2_M5_02_C_TO_E: CLOSED`
 
 ## P2-M5-R03 Playwright acquisition resilience tracked acceptance
 

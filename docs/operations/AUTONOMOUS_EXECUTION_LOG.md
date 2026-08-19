@@ -835,3 +835,24 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   the tracked contract and sets only its frozen implementation to `EXECUTION_READY`.
 - No harness has been implemented or executed. Private input, CC02-B–E, Stage D/E, T06–T08, MVR, production geometry,
   real-user processing, M6 and QuestionBank release remain closed; P2-M5 remains `EXECUTING`.
+
+## 2026-08-20T01:47:42+08:00 — CC02-A implementation and P2-M5-R04 tracked acceptance
+
+- CC02-A implementation commit `5159c3f28ab8dcbb7db07c5bead3780a409ace25` passed its 58-test targeted contract
+  matrix and independent authority review. Its first run `32278984711` could not serve as acceptance evidence because
+  quality was cancelled during the Playwright system-dependency acquisition stall; Chromium and Browser Integration
+  never started.
+- R04 commit `ee19ad6efe49decfa3a0c8f0dbf3f130b5c59460` corrected the timeout ownership boundary around
+  the complete logging pipeline and added 12/35-minute outer watchdogs without changing dependencies, retries, Browser
+  semantics, research authority or product code. A Linux GNU `timeout` probe returned status 124 in two seconds for a
+  deliberately stalled child pipeline.
+- Exact-SHA run `32282614608` attempt 1 passed quality `96164640367`, Docker `96164640344` and secret scan
+  `96164640053`. Playwright 1.62.1 system dependencies/download/Browser completed in 12/12/13.1 seconds; Chromium used
+  attempt 1/3 and Browser passed 5/5. Full Python was 642 PASS with one existing optional private-runtime skip.
+- Eight artifacts were downloaded and parsed. Install artifact `9376516571` is readable; its extracted log SHA-256 is
+  `dc50b9aea95858178d994e13d76cb1b4e636c19dfee5652feb555432c5c2125d`. Exact-SHA Phase 1/M1/M2/M3,
+  migration, OpenAPI, Gitleaks, dependency audit, SBOM and Docker evidence remained green.
+- Independent security and Sol final reviews found no mandatory issue. Principal accepts CC02-A implementation and
+  R04 only. A separate CC02-B bounded-task contract may now be prepared; private input remains prohibited until that
+  contract receives tracked acceptance. CC02-C–E, Stage D/E, T06–T08, MVR, production geometry, real-user processing,
+  M6 and QuestionBank release remain closed.

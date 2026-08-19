@@ -246,14 +246,23 @@ tracked contract candidate
 → separate CC02-B bounded-task contract
 ```
 
-Following Principal tracked contract acceptance:
+Tracked implementation acceptance:
+
+- Implementation commit `5159c3f28ab8dcbb7db07c5bead3780a409ace25` and the bounded R04 repair at
+  `ee19ad6efe49decfa3a0c8f0dbf3f130b5c59460` passed exact-SHA run `32282614608` attempt 1. All three jobs and eight
+  artifacts passed; the full Python suite was 642 PASS with one existing optional skip, Browser Integration was 5/5,
+  and the targeted harness contract matrix was 58 PASS.
+- Independent contract, security and final reviews found no mandatory issue. Principal accepts only the frozen CC02-A
+  implementation. This opens a separate CC02-B bounded-task contract and does not permit private input or replay.
 
 `CC_P2_M5_02_A_CONTRACT: PASS_AT_D8659AE_RUN_32271571196_ATTEMPT_1`
 
-`CC_P2_M5_02_A_IMPLEMENTATION: EXECUTION_READY`
+`CC_P2_M5_02_A_IMPLEMENTATION: PASS_AT_EE19AD6_RUN_32282614608_ATTEMPT_1`
 
-`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED`
+`CC_P2_M5_02_B: READY_FOR_BOUNDED_TASK_CONTRACT`
 
-`CC_P2_M5_02_B_TO_E: CLOSED`
+`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_TRACKED_ACCEPTANCE`
+
+`CC_P2_M5_02_C_TO_E: CLOSED`
 
 `P2_M5_T06_ENTRY: CLOSED`
