@@ -602,20 +602,46 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
   one exact winner and one fail-closed loser without marker/staging residue. Fresh independent security/privacy and Sol
   final reviews both pass under ADR-048. Principal accepts only the local implementation evidence; same-SHA Actions and
   eight readable artifacts remain mandatory before tracked acceptance.
+- Candidate `298420fcc362851b96c1005e25608f37b2016373` passed exact-SHA run `32299835326`, attempt 1: quality
+  `96219610867`, Docker `96219611030` and secret scan `96219610747` all succeeded. Full Python was 688 PASS with one
+  existing optional private-runtime skip. Phase 1/M1/M2/M3 evidence remained `1/98/52/46` with zero failure, error or
+  skip, migration head `0014_m5_eval_authority` and unchanged OpenAPI digest
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`.
+- Playwright 1.62.1 system dependencies completed in 212 seconds, Chromium downloaded from official
+  `cdn.playwright.dev` on attempt 1/3 in 12 seconds, and Browser Integration passed 5/5 in 13.0 seconds. The extracted
+  install log SHA-256 is `1e06d3162ae4e9579a13d67ccd82db8b01e382a2d6960dcfef329080b4115416`.
+- Dependency audits reported no known vulnerabilities, Gitleaks contained zero results, and the CycloneDX 1.6 SBOM
+  contained 105 components with no vulnerability section. Eight readable, unexpired, exact-SHA artifacts were inspected:
 
-`CC_P2_M5_03_LOCAL_PUBLICATION_TRUST_BOUNDARY: ACCEPTED_BY_PRINCIPAL_PENDING_TRACKED_EVIDENCE`
+  | Artifact                      |           ID | API digest                                                         |
+  | ----------------------------- | -----------: | ------------------------------------------------------------------ |
+  | `gitleaks-results.sarif`      | `9382574745` | `afc534d251efefbc4b77b159013b56cfc6a704e276e65312a2c7a99ec93d85a0` |
+  | `p2-m1-ci-evidence`           | `9382817418` | `bcf18d82bfb43d25876420ab25d2ec180b9d02ca5b0ca7202e48c0bc1cefeda2` |
+  | `p2-m2-ci-evidence`           | `9382818138` | `86c60f0bc14dbef8dc2f8dd7928f1f2ada11c189ade6b77fc282960861c31f64` |
+  | `p2-m3-ci-evidence`           | `9382818792` | `5bb04f05cabf90b43f124218e578d44bcf7e1e9fd5d4d7281aa63b85c37f7e98` |
+  | `phase1-ci-evidence`          | `9382816679` | `373318e106e1111ea67a9bf2ecf5f959ad037f606599025f1e63d1f0aff4ed67` |
+  | `playwright-install-evidence` | `9382806652` | `2eff44ea98168b22f55dfca1646e29dd92a6f9424929bff863a9ea0b3a70723a` |
+  | `project-audit-evidence`      | `9382826039` | `90916cd5f8b308d7bd3cc9cc7e3b774fb2f4cf40842a1f0dc1a31312b726af5e` |
+  | `project-docker-evidence`     | `9382624832` | `5c7e82fc9cc0857ddba0512409988da4189e0d87d9e016afdce33b654838e6db` |
+
+- Principal accepts R05 and the tracked CC02-B builder. The explicit pre-read Gate now permits only the two frozen private
+  report byte streams to be released to this exact accepted builder during an ADR-048 exclusive-custody window. No private
+  environment variable is present, the builder entry point has not run and neither real output exists. This does not open
+  CC02-C–E, Stage D/E, T06–T08, MVR, production geometry, real-user processing, M6 or QuestionBank release.
+
+`CC_P2_M5_03_LOCAL_PUBLICATION_TRUST_BOUNDARY: ACCEPTED_AT_298420F_RUN_32299835326_ATTEMPT_1`
 
 `LOCAL_PUBLICATION_CUSTODY_GATE: REQUIRED_FOR_REAL_BUILDER_INVOCATION`
 
-`P2_M5_R05: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+`P2_M5_R05: REPAIR_ACCEPTED_AT_298420F_RUN_32299835326_ATTEMPT_1`
 
-`CC_P2_M5_02_B_BUILDER: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+`CC_P2_M5_02_B_BUILDER: PASS_AT_298420F_RUN_32299835326_ATTEMPT_1`
 
-`CC02_B_BUILDER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_BUILDER_ACCEPTANCE`
+`CC02_B_BUILDER_PRE_READ_GATE: PASS_AT_298420F_RUN_32299835326_ATTEMPT_1`
 
-`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_BUILDER_PRE_READ_GATE`
+`CC_P2_M5_02_PRIVATE_INPUT: NOT_RELEASED_ENVIRONMENT_ABSENT`
 
-`P2_M5_NEXT_ACTION: TRACK_CC02_B_BUILDER_CANDIDATE_AND_VERIFY_SAME_SHA_CI`
+`P2_M5_NEXT_ACTION: VERIFY_CC02_B_ACCEPTANCE_CHECKPOINT_BEFORE_PRIVATE_CUSTODY`
 
 ## CC-P2-M5-02 failure-mechanism governance candidate
 

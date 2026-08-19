@@ -986,3 +986,20 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   Exact-SHA three-job Actions and eight readable artifacts remain mandatory before tracked acceptance.
 - `CC02_B_BUILDER_PRE_READ_GATE` remains closed. Private input, CC02-C–E, Stage D/E, T06–T08, MVR, production geometry,
   real-user processing, M6 and QuestionBank release remain closed.
+
+## 2026-08-20 — CC02-B builder tracked acceptance and pre-read Gate
+
+- Candidate `298420fcc362851b96c1005e25608f37b2016373` passed exact-SHA run `32299835326`, attempt 1: quality
+  `96219610867`, Docker `96219611030` and secret scan `96219610747` all succeeded. Full Python was 688 passed / one
+  existing optional private-runtime skip; Phase 1/M1/M2/M3 evidence remained `1/98/52/46` with zero failure/error/skip,
+  migration head `0014_m5_eval_authority` and unchanged OpenAPI digest.
+- Playwright 1.62.1 system dependencies completed within the frozen bound in 212 seconds; Chromium downloaded from the
+  official source on attempt 1/3 in 12 seconds and Browser Integration passed 5/5 in 13.0 seconds. All eight exact-SHA
+  artifacts are readable and unexpired; Gitleaks contains zero results, both dependency audits report no known
+  vulnerabilities and the CycloneDX 1.6 SBOM contains 105 components with no vulnerability section.
+- Fresh ADR-048 security/privacy review and Sol final review passed before the candidate snapshot. The reviewed core
+  builder/test hashes are unchanged in the tracked candidate. Principal accepts R05 and the CC02-B builder and records
+  `CC02_B_BUILDER_PRE_READ_GATE: PASS_AT_298420F_RUN_32299835326_ATTEMPT_1`.
+- No private environment variable is present, the builder entry point was not run, and neither real output exists. Private
+  input may be released only during a separately established ADR-048 exclusive-custody window. CC02-C–E and every later
+  Gate remain closed.

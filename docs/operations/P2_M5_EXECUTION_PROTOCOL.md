@@ -266,6 +266,10 @@ plan-construction, warp-plan and transform `ValueError` failures into `PLAN_BUIL
 - Acceptance closure `470849f0f42f151d1ec939e3b0d81ef4369ea86c` passed run `32284285946` with all three jobs,
   Browser Integration 5/5 and eight exact-SHA artifacts. CC02-A is complete; the current candidate is only the separate
   CC02-B bounded-task contract. It neither reads private input nor creates the real manifest.
+- CC02-B builder/R05 candidate `298420fcc362851b96c1005e25608f37b2016373` passed run `32299835326`, attempt 1,
+  with all three jobs, Browser Integration 5/5 and eight readable exact-SHA artifacts. Fresh ADR-048 security/privacy and
+  final reviews passed. Principal accepts the builder and records the exact pre-read Gate; private input remains absent and
+  can be released only during a separately established ADR-048 exclusive-custody window.
 
 The exact authority, reason taxonomy, integrity Gates, resources and stop rules are in
 `P2_M5_CC02_FAILURE_MECHANISM_PROTOCOL.md`.
@@ -318,22 +322,22 @@ engine, but M6 entry remains closed and the missing research evidence stays dura
 
 `CC_P2_M5_02_B_CONTRACT: PASS_AT_F69361E_RUN_32287419743_ATTEMPT_1`
 
-`CC_P2_M5_02_B_BUILDER: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+`CC_P2_M5_02_B_BUILDER: PASS_AT_298420F_RUN_32299835326_ATTEMPT_1`
 
-`P2_M5_R05: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+`P2_M5_R05: REPAIR_ACCEPTED_AT_298420F_RUN_32299835326_ATTEMPT_1`
 
-`CC_P2_M5_03_LOCAL_PUBLICATION_TRUST_BOUNDARY: ACCEPTED_BY_PRINCIPAL_PENDING_TRACKED_EVIDENCE`
+`CC_P2_M5_03_LOCAL_PUBLICATION_TRUST_BOUNDARY: ACCEPTED_AT_298420F_RUN_32299835326_ATTEMPT_1`
 
 `LOCAL_PUBLICATION_CUSTODY_GATE: REQUIRED_FOR_REAL_BUILDER_INVOCATION`
 
-`CC02_B_BUILDER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_BUILDER_ACCEPTANCE`
+`CC02_B_BUILDER_PRE_READ_GATE: PASS_AT_298420F_RUN_32299835326_ATTEMPT_1`
 
 `CC_P2_M5_02_B_MANIFEST: NOT_CREATED`
 
-`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_BUILDER_PRE_READ_GATE`
+`CC_P2_M5_02_PRIVATE_INPUT: NOT_RELEASED_ENVIRONMENT_ABSENT`
 
 `CC_P2_M5_02_C_TO_E: CLOSED`
 
-`P2_M5_NEXT_ACTION: TRACK_CC02_B_BUILDER_CANDIDATE_AND_VERIFY_SAME_SHA_CI`
+`P2_M5_NEXT_ACTION: VERIFY_CC02_B_ACCEPTANCE_CHECKPOINT_BEFORE_PRIVATE_CUSTODY`
 
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
