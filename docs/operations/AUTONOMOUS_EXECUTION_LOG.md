@@ -1018,3 +1018,20 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   artifacts were readable and unexpired; exact IDs/digests are recorded in `P2_M5_R06_REPAIR.md`.
 - Principal accepts R06 only. No product, dependency, lockfile, browser-test, research-threshold, private-input or
   downstream-Gate change occurred; P2-M5 remains `EXECUTING`.
+
+## 2026-08-20T06:13:59+08:00 — CC02-B private-input release checkpoint
+
+- Recovery returned to the accepted CC02-B builder checkpoint after R06 closure. At HEAD
+  `84390c6ae728a06d61abcef5192e130b13edfdd0`, the builder and its targeted test have no diff from accepted candidate
+  `298420fcc362851b96c1005e25608f37b2016373`; their Git blob IDs remain
+  `ad4de2ea1f376f760f89c619265b37e688014baa` and
+  `2f208da88876a6eaa239b1b06dd8855e842ae1bb`.
+- The repository, `docs` and `docs/research` directory chain is regular and non-reparse. Both final outputs, both staging
+  names and the incomplete marker are absent, and no concurrent Project Mirror Agent is writing the publication
+  directory.
+- The two fixed private-input variables are absent. The builder was not invoked; no private path was enumerated and no
+  private bytes were read. The safe refresh passed 46 targeted tests, Ruff format/check and strict mypy with the
+  repository source path.
+- Status is `PRIVATE_INPUT_RELEASE_REQUIRED`. Real construction remains fail closed until the two fixed report locations
+  are securely released into a new ADR-048 exclusive-custody window. CC02-C–E, Stage D/E, T06–T08, MVR, production
+  geometry, real-user processing, M6 and QuestionBank release remain closed.

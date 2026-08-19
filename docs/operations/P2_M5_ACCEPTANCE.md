@@ -849,3 +849,31 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `P2_M5_R06: REPAIR_ACCEPTED_AT_09C77BE_RUN_32304931584_ATTEMPT_1`
 
 `P2_M5_STATE: EXECUTING`
+
+## CC02-B private-input release checkpoint
+
+- At repository HEAD `84390c6ae728a06d61abcef5192e130b13edfdd0`, the accepted builder and targeted
+  test are byte-for-byte unchanged from accepted candidate
+  `298420fcc362851b96c1005e25608f37b2016373`. Their Git blob IDs remain
+  `ad4de2ea1f376f760f89c619265b37e688014baa` and
+  `2f208da88876a6eaa239b1b06dd8855e842ae1bb`.
+- The custody preflight found the repository, `docs` and `docs/research` directory chain to be regular local
+  directories with no reparse point. Both fixed outputs, both fixed staging names and the incomplete-publication marker
+  are absent. No concurrent Project Mirror Agent is writing the publication directory.
+- The two fixed private-input environment variables are absent. The builder entry point was not invoked and no private
+  path enumeration, report read, output construction, replay, transform, Vision, generation or network operation was
+  performed.
+- The unchanged builder evidence was refreshed without private input: 46 targeted tests passed; Ruff format/check and
+  strict mypy with `MYPYPATH=services/api/src` passed. This evidence reconfirms implementation readiness only and does
+  not replace the accepted same-SHA run or authorize fabricated inputs.
+- Real construction is therefore stopped at the external release boundary. It may resume only after both fixed private
+  report locations are securely released into an ADR-048 exclusive-custody window; the values must remain outside Git,
+  logs and tracked evidence.
+
+`CC_P2_M5_02_PRIVATE_INPUT: PRIVATE_INPUT_RELEASE_REQUIRED`
+
+`CC02_B_REAL_BUILDER_INVOCATION: NOT_RUN_FAIL_CLOSED`
+
+`CC02_C_TO_E: CLOSED`
+
+`P2_M5_NEXT_ACTION: SECURE_FIXED_PRIVATE_INPUT_RELEASE_THEN_REPEAT_CUSTODY_PREFLIGHT`
