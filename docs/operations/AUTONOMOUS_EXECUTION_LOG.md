@@ -892,3 +892,97 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Builder implementation, private input and real manifest still do not exist. `CC02_B_BUILDER_PRE_READ_GATE` remains
   closed; CC02-C–E, Stage D/E, T06–T08, MVR, production geometry, real-user processing, M6 and QuestionBank release remain
   closed. The next bounded action is synthetic-only builder/test implementation.
+
+## 2026-08-20T03:25:52+08:00 — CC02-B builder Principal review and P2-M5-R05 local repair
+
+- Principal reviewed the complete untracked builder/test candidate and did not accept the worker PASS as sufficient.
+  Review found incomplete preregistration resource disclosure, caller-injectable production authority/root, missing
+  canonical-byte/direction-order validation and missing `fsync`/close cleanup coverage.
+- The accepted contract also contains one internally conflicting phrase: output bytes cannot remain invariant when JSON
+  key ordering changes because the manifest must bind the exact presented report bytes. R05 preserves exact-byte SHA
+  precedence: repeat construction from identical bytes is byte-identical; a reordered byte stream changes only its byte
+  binding/final digest while the safe semantic projection remains stable.
+- The repaired candidate and expanded negative tests remain synthetic-only and local. Both private-report environment
+  variables and both future tracked outputs are absent. The pre-read Gate remains closed pending full validation,
+  same-SHA Actions, eight artifacts and independent security/final review.
+
+## 2026-08-20T03:40:00+08:00 — R05 independent-review findings and bounded filesystem repair
+
+- Independent security and final reviews rejected the first R05 candidate. They reproduced a raw `KeyError` from sorting
+  malformed manifest bindings before structural validation, found no symlink/junction/reparse or identity protection for
+  the fixed output parent, and demonstrated that a close-before-release failure could leave partial fixed outputs while
+  cleanup errors were ignored.
+- The bounded repair validates collection shapes before sorting, verifies the root/`docs`/`docs/research` identity,
+  writes both complete documents to hidden non-authoritative same-parent staging files, and publishes fixed paths only
+  after successful write/`fsync`/close and parent revalidation. Ordinary second-publication failure rolls back the first
+  fixed path; cleanup errors are explicit fail-closed recovery stops.
+- Two independent fixed paths are not described as an operating-system transaction. A persistent cleanup failure cannot
+  be made atomically reversible on every supported filesystem; any residue is non-authoritative, blocks create-once and
+  requires exact-path operator recovery before retry. Pre-read/private-input/CC02-C gates remain closed while the repaired
+  candidate awaits fresh local and independent validation.
+
+## 2026-08-20T03:50:00+08:00 — R05 held-directory anchor and incomplete-publication recovery
+
+- Security rereview constructed a remaining path-swap race between parent validation and path-based staging creation,
+  plus a second-publication failure where persistent unlink failure could retain the first fixed path. The earlier final
+  review PASS was not used because the concrete security counterexamples take precedence.
+- R2 anchors every POSIX child `stat`/open/link/unlink to a held root-to-research `dir_fd` chain. On Windows it holds
+  `CreateFileW` directory handles with `GENERIC_READ`, reparse-point-open semantics and no delete sharing; directory
+  identity is compared only with WinAPI volume/file-index values. Independent temporary probes confirmed that this handle
+  shape blocks rename/delete while allowing child creation.
+- A hidden incomplete-publication marker now precedes the first fixed link. It is removed only after both fixed paths,
+  staging cleanup and anchor validation succeed. Persistent rollback failure returns the allowlisted stop, retains the
+  marker, makes any fixed residue explicitly non-authoritative and blocks a second invocation pending exact-path recovery.
+  Private input and both real outputs remain untouched; fresh local and independent review are still required.
+
+## 2026-08-20T04:20:00+08:00 — R05 R3–R5 child binding, durability and logical commit closure
+
+- R3 added Windows pre-open inode comparison, Windows `FlushFileBuffers` / POSIX directory `fsync`, exact-type frozen
+  value comparison, staging/final identity-and-byte binding and post-commit close best-effort semantics. Principal then
+  reproduced one remaining Windows-specific counterexample: a matching-byte child file symlink/reparse passed because
+  Windows `os.open` does not provide POSIX `O_NOFOLLOW` behavior. R05 now binds child `lstat` identity/type/reparse state
+  to the opened descriptor and repeats the name binding after the read; the native Windows probe changed from unsafe PASS
+  to fail closed.
+- Independent security review rejected R3 and R4 because rollback or revalidation after successful marker unlink could
+  produce `FAIL` with unmarked partial residue under combined filesystem failures. R5 freezes the only coherent portable
+  boundary: all final links, directory syncs, staging cleanup, held-anchor checks, exact final bytes/identities and exact
+  marker bytes/identity complete before marker unlink; successful unlink is the logical commit. The following directory
+  sync is best-effort and never starts a second transaction. A crash before unlink durability can only restore the
+  already-durable incomplete marker and conservatively block use.
+- The marker itself is identity- and byte-bound before each publication step, after staging cleanup and immediately before
+  commit. A matching-byte marker replacement fails closed. This remains an ordinary repository publication protocol, not
+  an operating-system multi-file transaction; same-permission mutation after logical commit is bound later by tracked
+  hashes, diff review and same-SHA CI.
+- Stable R5 evidence is 45 targeted tests on native Windows and 45 in the standard Linux API image with `--network none`;
+  targeted Ruff and strict mypy pass. Independent security review is `PASS`. Final independent review and final full local
+  regression remain required; private input, real outputs and every downstream Gate remain closed.
+
+## 2026-08-20T05:00:00+08:00 — CC-P2-M5-03 local publication trust-boundary decision
+
+- Final R5 review reproduced a final-child swap after the last exact check and before marker unlink. The counterexample is
+  valid under an active same-credential writer and therefore blocked local acceptance; security PASS alone was not used.
+- Independent Sol architecture review proved that ordinary POSIX/Windows files cannot portably combine validation of two
+  child identities/contents with deletion of a third marker as one conditional transaction. More validation only moves
+  the race; post-unlink recovery can create a failed unmarked residue. Windows deny-share handles are not a portable POSIX
+  solution.
+- Principal accepted ADR-048 / `CC-P2-M5-03`: the existing contract's concurrency-one execution now has an explicit
+  trusted-exclusive-custody prerequisite from publication preflight through immediate Principal hash/diff snapshot.
+  Builder guarantees create-once correctness, abnormal-node rejection, cooperative duplicate invocation and bounded
+  crash/syscall recovery; it does not claim hostile same-credential tamper resistance.
+- This forward security boundary does not authorize private input or any later Gate. R05 must add a cooperative duplicate
+  invocation regression and obtain fresh security/final review before local acceptance or tracked candidate creation.
+
+## 2026-08-20T04:37:38+08:00 — CC02-B builder local acceptance under ADR-048
+
+- The builder now includes two barrier-synchronized cooperative duplicate-invocation regressions. Each requires exactly
+  one exact winner and one fail-closed loser, verifies winner bytes, and requires marker/staging absence; the accepted
+  concurrency-one real-run limit is unchanged.
+- Final stable local evidence is 46 targeted tests on native Windows and 46 in the standard Linux API image with
+  `--network none`; the complete local Python regression is 527 passed / 162 skipped. Ruff format/check, strict mypy,
+  `pnpm.cmd check` and scoped `git diff --check` pass. The builder entry point was not run, private inputs were not read,
+  and neither future tracked output was created.
+- Fresh independent security/privacy review and Sol final review both returned PASS under ADR-048. Principal accepts the
+  local implementation evidence only and advances R05 and the builder to `LOCAL_PASS_PENDING_TRACKED_EVIDENCE`.
+  Exact-SHA three-job Actions and eight readable artifacts remain mandatory before tracked acceptance.
+- `CC02_B_BUILDER_PRE_READ_GATE` remains closed. Private input, CC02-C–E, Stage D/E, T06–T08, MVR, production geometry,
+  real-user processing, M6 and QuestionBank release remain closed.

@@ -566,6 +566,57 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `P2_M5_T06_ENTRY: CLOSED`
 
+## P2-M5-R05 CC02-B builder contract-fidelity repair candidate
+
+- Principal review of the untracked synthetic-only builder found four implementation acceptance defects: incomplete
+  preregistration resource summary, caller-injectable production authority/root, missing canonical-byte/direction-order
+  validation, and missing `fsync`/close cleanup coverage.
+- The review also found one wording conflict in the accepted contract. Exact presented report-byte SHA authority means
+  semantically equivalent JSON with different key ordering must produce a different report binding and final digest;
+  only the safe semantic projection remains invariant. `P2_M5_R05_REPAIR.md` records this forward correction without
+  changing schema, accepted evidence, thresholds, algorithms or later Gates.
+- The repaired local candidate has only synthetic/numeric tests. It has not read private input or created either future
+  tracked output. R05 and the builder remain pending full diff review, local/full validation, same-SHA Actions, artifacts
+  and independent security/final review.
+- The first independent security/final review rejected the candidate for malformed-sort raw exceptions, missing output
+  parent containment and close/unlink cleanup behavior. The forward repair now uses validated parent identities and
+  hidden non-authoritative staging. Because two fixed paths are not a portable filesystem transaction, persistent cleanup
+  failure is an explicit recovery-required stop and can never be accepted as output; fresh reviews remain mandatory.
+- Security rereview then supplied two narrower counterexamples, so the earlier local final-review PASS was not accepted.
+  R2 replaces path-only publication with held POSIX `dir_fd` / Windows no-delete-share directory anchors and writes a
+  hidden incomplete-publication marker before the first fixed link. A persistent rollback residue is therefore
+  explicitly non-authoritative, blocks create-once and requires exact-path recovery; it cannot advance any Gate.
+- R3–R5 close the remaining platform and recovery counterexamples. Windows child file reparse is rejected by pre/open/post
+  identity, regular-file and reparse checks even when target bytes match. The incomplete marker is bound by exact bytes and
+  file identity throughout precommit publication. All final links, directory syncs, staging cleanup, held-anchor and exact
+  final checks precede successful marker unlink, which is the logical commit; a later directory-sync error is best-effort
+  and cannot start destructive rollback or turn committed exact outputs into a false failure.
+- Native Windows and standard Linux `--network none` targeted suites each pass 46 tests. The complete local Python
+  regression is 527 passed / 162 skipped; Ruff format/check, strict mypy, `pnpm.cmd check` and scoped
+  `git diff --check` pass. The builder entry point was not run, private inputs were not read and neither future tracked
+  output was created.
+- Final R5 review reproduced an active same-credential final replacement in the last validation-to-marker-unlink window.
+  ADR-048 / `CC-P2-M5-03` accepts the portability proof and freezes trusted exclusive `docs/research` custody as an
+  invocation prerequisite. The builder is not a hostile-local-writer security boundary; Git hash/same-SHA CI remains a
+  later snapshot authority, not a retroactive fix. The cooperative duplicate-invocation regressions now require exactly
+  one exact winner and one fail-closed loser without marker/staging residue. Fresh independent security/privacy and Sol
+  final reviews both pass under ADR-048. Principal accepts only the local implementation evidence; same-SHA Actions and
+  eight readable artifacts remain mandatory before tracked acceptance.
+
+`CC_P2_M5_03_LOCAL_PUBLICATION_TRUST_BOUNDARY: ACCEPTED_BY_PRINCIPAL_PENDING_TRACKED_EVIDENCE`
+
+`LOCAL_PUBLICATION_CUSTODY_GATE: REQUIRED_FOR_REAL_BUILDER_INVOCATION`
+
+`P2_M5_R05: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+
+`CC_P2_M5_02_B_BUILDER: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+
+`CC02_B_BUILDER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_BUILDER_ACCEPTANCE`
+
+`CC_P2_M5_02_PRIVATE_INPUT: PROHIBITED_PENDING_CC02_B_BUILDER_PRE_READ_GATE`
+
+`P2_M5_NEXT_ACTION: TRACK_CC02_B_BUILDER_CANDIDATE_AND_VERIFY_SAME_SHA_CI`
+
 ## CC-P2-M5-02 failure-mechanism governance candidate
 
 - ADR-047 preserves the accepted Stage C `FURTHER_RESEARCH` result and creates a diagnosis-only forward change
