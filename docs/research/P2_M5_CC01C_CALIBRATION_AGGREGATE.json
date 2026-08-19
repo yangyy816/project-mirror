@@ -1,0 +1,417 @@
+{
+  "candidate_outcomes": [
+    {
+      "candidate": "cheekbone_width",
+      "case_count": 96,
+      "cross_platform_measurement_variance": {
+        "count": 270,
+        "maximum": 2.9271237617312096e-5,
+        "median": 3.510160545228125e-6,
+        "minimum": 0.0,
+        "p95": 1.9914630326689498e-5
+      },
+      "failed_case_count": 66,
+      "failure_reason_counts": {
+        "PLAN_BUILD_FAILED": 58,
+        "TARGET_DIRECTION_MISMATCH": 8
+      },
+      "manual_artifact_review": {
+        "passed_case_count": 15,
+        "rejected_case_count": 0,
+        "reviewed_case_count": 15,
+        "status": "COMPLETE"
+      },
+      "maximum_normalized_control_drift": {
+        "count": 90,
+        "maximum": 0.011699922966833547,
+        "median": 0.006608589178053651,
+        "minimum": 0.0024708046669559545,
+        "p95": 0.011651981641367017
+      },
+      "near_duplicate_threshold": null,
+      "ready_decision": "NOT_PERMITTED_IN_STAGE_C",
+      "same_platform_repeat_measurement_variance": {
+        "count": 180,
+        "maximum": 0.0,
+        "median": 0.0,
+        "minimum": 0.0,
+        "p95": 0.0
+      },
+      "stage_d_consideration": "INELIGIBLE_INCOMPLETE_CASE_COVERAGE",
+      "target_error": {
+        "count": 90,
+        "maximum": 0.028750913732490016,
+        "median": 0.01447155926942413,
+        "minimum": 0.009687582502699629,
+        "p95": 0.028720463657692846
+      },
+      "target_relative_delta": {
+        "count": 90,
+        "maximum": 0.009244526992681976,
+        "median": -0.0005284407305758682,
+        "minimum": -0.005815362838118653,
+        "p95": 0.009227223028112096
+      },
+      "transform_vision_row_count": 90,
+      "variant_duplicate_evidence": {
+        "comparison_pair_count": 42,
+        "exact_duplicate_pair_count": 0,
+        "phash_hamming": {
+          "count": 42,
+          "maximum": 30,
+          "median": 22,
+          "minimum": 14,
+          "p95": 28
+        }
+      }
+    },
+    {
+      "candidate": "chin_height",
+      "case_count": 96,
+      "cross_platform_measurement_variance": {
+        "count": 846,
+        "maximum": 3.4662412619734795e-5,
+        "median": 3.5099597926468995e-6,
+        "minimum": 0.0,
+        "p95": 1.8594344988298595e-5
+      },
+      "failed_case_count": 2,
+      "failure_reason_counts": {
+        "TARGET_DIRECTION_MISMATCH": 2
+      },
+      "manual_artifact_review": {
+        "passed_case_count": 47,
+        "rejected_case_count": 0,
+        "reviewed_case_count": 47,
+        "status": "COMPLETE"
+      },
+      "maximum_normalized_control_drift": {
+        "count": 282,
+        "maximum": 0.008478415461549559,
+        "median": 0.0030137337574819368,
+        "minimum": 0.0008478178767253617,
+        "p95": 0.006494372991669103
+      },
+      "near_duplicate_threshold": null,
+      "ready_decision": "NOT_PERMITTED_IN_STAGE_C",
+      "same_platform_repeat_measurement_variance": {
+        "count": 564,
+        "maximum": 0.0,
+        "median": 0.0,
+        "minimum": 0.0,
+        "p95": 0.0
+      },
+      "stage_d_consideration": "INELIGIBLE_INCOMPLETE_CASE_COVERAGE",
+      "target_error": {
+        "count": 282,
+        "maximum": 0.028178985713798878,
+        "median": 0.013977311192073967,
+        "minimum": 0.002354055051603382,
+        "p95": 0.026162071534668038
+      },
+      "target_relative_delta": {
+        "count": 282,
+        "maximum": 0.015124735747599826,
+        "median": 0.0009939565058809357,
+        "minimum": -0.021195818026703894,
+        "p95": 0.011725917236282739
+      },
+      "transform_vision_row_count": 282,
+      "variant_duplicate_evidence": {
+        "comparison_pair_count": 506,
+        "exact_duplicate_pair_count": 0,
+        "phash_hamming": {
+          "count": 506,
+          "maximum": 34,
+          "median": 24,
+          "minimum": 12,
+          "p95": 30
+        }
+      }
+    },
+    {
+      "candidate": "eye_spacing",
+      "case_count": 96,
+      "cross_platform_measurement_variance": {
+        "count": 846,
+        "maximum": 3.891720234827645e-5,
+        "median": 3.2743810892688074e-6,
+        "minimum": 2.2109847286344575e-10,
+        "p95": 2.056393983762561e-5
+      },
+      "failed_case_count": 2,
+      "failure_reason_counts": {
+        "TARGET_DIRECTION_MISMATCH": 2
+      },
+      "manual_artifact_review": {
+        "passed_case_count": 47,
+        "rejected_case_count": 0,
+        "reviewed_case_count": 47,
+        "status": "COMPLETE"
+      },
+      "maximum_normalized_control_drift": {
+        "count": 282,
+        "maximum": 0.009618287523083536,
+        "median": 0.00393633997147143,
+        "minimum": 0.0013006312219911338,
+        "p95": 0.008117796728756376
+      },
+      "near_duplicate_threshold": null,
+      "ready_decision": "NOT_PERMITTED_IN_STAGE_C",
+      "same_platform_repeat_measurement_variance": {
+        "count": 564,
+        "maximum": 0.0,
+        "median": 0.0,
+        "minimum": 0.0,
+        "p95": 0.0
+      },
+      "stage_d_consideration": "INELIGIBLE_INCOMPLETE_CASE_COVERAGE",
+      "target_error": {
+        "count": 282,
+        "maximum": 0.025174964385358333,
+        "median": 0.013033278019366051,
+        "minimum": 0.005553874596613485,
+        "p95": 0.01982655210342417
+      },
+      "target_relative_delta": {
+        "count": 282,
+        "maximum": 0.016406162702601586,
+        "median": 0.001960604764471158,
+        "minimum": -0.01797824681434193,
+        "p95": 0.013661607415581836
+      },
+      "transform_vision_row_count": 282,
+      "variant_duplicate_evidence": {
+        "comparison_pair_count": 506,
+        "exact_duplicate_pair_count": 0,
+        "phash_hamming": {
+          "count": 506,
+          "maximum": 34,
+          "median": 24,
+          "minimum": 12,
+          "p95": 30
+        }
+      }
+    },
+    {
+      "candidate": "jaw_width",
+      "case_count": 96,
+      "cross_platform_measurement_variance": {
+        "count": 846,
+        "maximum": 4.9965088934289525e-5,
+        "median": 4.527210506255486e-6,
+        "minimum": 4.008444132175271e-9,
+        "p95": 2.0448442505149877e-5
+      },
+      "failed_case_count": 2,
+      "failure_reason_counts": {
+        "TARGET_DIRECTION_MISMATCH": 2
+      },
+      "manual_artifact_review": {
+        "passed_case_count": 47,
+        "rejected_case_count": 0,
+        "reviewed_case_count": 47,
+        "status": "COMPLETE"
+      },
+      "maximum_normalized_control_drift": {
+        "count": 282,
+        "maximum": 0.020329314668416892,
+        "median": 0.007478433218286018,
+        "minimum": 0.0031562103086094258,
+        "p95": 0.015814754466956696
+      },
+      "near_duplicate_threshold": null,
+      "ready_decision": "NOT_PERMITTED_IN_STAGE_C",
+      "same_platform_repeat_measurement_variance": {
+        "count": 564,
+        "maximum": 0.0,
+        "median": 0.0,
+        "minimum": 0.0,
+        "p95": 0.0
+      },
+      "stage_d_consideration": "INELIGIBLE_INCOMPLETE_CASE_COVERAGE",
+      "target_error": {
+        "count": 282,
+        "maximum": 0.029635905678275176,
+        "median": 0.01234099604784521,
+        "minimum": 0.0015761226216459215,
+        "p95": 0.025131940108667344
+      },
+      "target_relative_delta": {
+        "count": 282,
+        "maximum": 0.019864799734768276,
+        "median": 0.0006812114365158861,
+        "minimum": -0.0165958931857832,
+        "p95": 0.01833441804288395
+      },
+      "transform_vision_row_count": 282,
+      "variant_duplicate_evidence": {
+        "comparison_pair_count": 506,
+        "exact_duplicate_pair_count": 0,
+        "phash_hamming": {
+          "count": 506,
+          "maximum": 36,
+          "median": 24,
+          "minimum": 12,
+          "p95": 30
+        }
+      }
+    },
+    {
+      "candidate": "mouth_width",
+      "case_count": 96,
+      "cross_platform_measurement_variance": {
+        "count": 198,
+        "maximum": 3.9359922143766823e-5,
+        "median": 2.2438994147777613e-6,
+        "minimum": 0.0,
+        "p95": 2.7213032642164903e-5
+      },
+      "failed_case_count": 74,
+      "failure_reason_counts": {
+        "PLAN_BUILD_FAILED": 74
+      },
+      "manual_artifact_review": {
+        "passed_case_count": 11,
+        "rejected_case_count": 0,
+        "reviewed_case_count": 11,
+        "status": "COMPLETE"
+      },
+      "maximum_normalized_control_drift": {
+        "count": 66,
+        "maximum": 0.01591860222691804,
+        "median": 0.008009186661228965,
+        "minimum": 0.0029515500495568845,
+        "p95": 0.01589152671227406
+      },
+      "near_duplicate_threshold": null,
+      "ready_decision": "NOT_PERMITTED_IN_STAGE_C",
+      "same_platform_repeat_measurement_variance": {
+        "count": 132,
+        "maximum": 0.0,
+        "median": 0.0,
+        "minimum": 0.0,
+        "p95": 0.0
+      },
+      "stage_d_consideration": "INELIGIBLE_INCOMPLETE_CASE_COVERAGE",
+      "target_error": {
+        "count": 66,
+        "maximum": 0.0033931681820187493,
+        "median": 0.0006337501879418624,
+        "minimum": 9.886384975890672e-5,
+        "p95": 0.0033847496576772836
+      },
+      "target_relative_delta": {
+        "count": 66,
+        "maximum": 0.032901898728903714,
+        "median": 0.015134478633437582,
+        "minimum": -0.030809062355505002,
+        "p95": 0.032901485360730134
+      },
+      "transform_vision_row_count": 66,
+      "variant_duplicate_evidence": {
+        "comparison_pair_count": 22,
+        "exact_duplicate_pair_count": 0,
+        "phash_hamming": {
+          "count": 22,
+          "maximum": 30,
+          "median": 24,
+          "minimum": 18,
+          "p95": 30
+        }
+      }
+    },
+    {
+      "candidate": "nose_width",
+      "case_count": 96,
+      "cross_platform_measurement_variance": {
+        "count": 90,
+        "maximum": 2.6299984150629507e-5,
+        "median": 3.69518721965445e-6,
+        "minimum": 1.466101795521979e-8,
+        "p95": 2.3417050981300314e-5
+      },
+      "failed_case_count": 86,
+      "failure_reason_counts": {
+        "PLAN_BUILD_FAILED": 86
+      },
+      "manual_artifact_review": {
+        "passed_case_count": 5,
+        "rejected_case_count": 0,
+        "reviewed_case_count": 5,
+        "status": "COMPLETE"
+      },
+      "maximum_normalized_control_drift": {
+        "count": 30,
+        "maximum": 0.008212773345300151,
+        "median": 0.0028321297574573348,
+        "minimum": 0.0017471666336898095,
+        "p95": 0.008212773345300151
+      },
+      "near_duplicate_threshold": null,
+      "ready_decision": "NOT_PERMITTED_IN_STAGE_C",
+      "same_platform_repeat_measurement_variance": {
+        "count": 60,
+        "maximum": 0.0,
+        "median": 0.0,
+        "minimum": 0.0,
+        "p95": 0.0
+      },
+      "stage_d_consideration": "INELIGIBLE_INCOMPLETE_CASE_COVERAGE",
+      "target_error": {
+        "count": 30,
+        "maximum": 0.02479478629350176,
+        "median": 0.012044158199716734,
+        "minimum": 0.01133530315982517,
+        "p95": 0.02479478629350176
+      },
+      "target_relative_delta": {
+        "count": 30,
+        "maximum": 0.005232387023705029,
+        "median": 0.0029434334278988054,
+        "minimum": -0.0068315148261211414,
+        "p95": 0.005232387023705029
+      },
+      "transform_vision_row_count": 30,
+      "variant_duplicate_evidence": {
+        "comparison_pair_count": 2,
+        "exact_duplicate_pair_count": 0,
+        "phash_hamming": {
+          "count": 2,
+          "maximum": 18,
+          "median": 18,
+          "minimum": 18,
+          "p95": 18
+        }
+      }
+    }
+  ],
+  "case_set_digest": "79cbaf4ad14f8b0ee3aa2fb2360e507740c2bf0737242356b601df5f23f7093f",
+  "cohort_digest": "618b993f81f282367719173119ff109fbbb8131d26cb41f5c803805a92c52358",
+  "failure_reason_counts": {
+    "PLAN_BUILD_FAILED": 218,
+    "TARGET_DIRECTION_MISMATCH": 14
+  },
+  "manual_artifact_review": {
+    "content_digest": "4e687b2dfe7a01cc39495025e04d6a891b5250ed80be16f509af2aaf44c55551",
+    "private_evidence_sha256": "d9ed67391b83669c54335fda388acfb7c22eebf1f97c6580f4b980c43fb2bde6",
+    "rejected_cross_platform_case_count": 0,
+    "reviewed_artifact_count": 344,
+    "reviewed_cross_platform_case_count": 172,
+    "status": "COMPLETE"
+  },
+  "platform_count": 2,
+  "schema": "mirror.p2-m5/CC01C-redacted-aggregate/v3",
+  "source_duplicate_evidence": {
+    "comparison_pair_count": 132,
+    "exact_duplicate_pair_count": 0,
+    "phash_hamming": null
+  },
+  "stage_d_eligible_candidate_count": 0,
+  "stage_d_opened": false,
+  "stage_d_required_candidate_count": 4,
+  "status": "CALIBRATION_COMPLETE_NO_STAGE_D_DECISION",
+  "thresholds_selected": false,
+  "transform_vision_row_count": 1032,
+  "unique_cross_platform_case_count": 288
+}

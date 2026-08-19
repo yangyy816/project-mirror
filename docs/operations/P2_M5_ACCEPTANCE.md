@@ -252,6 +252,34 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `P2_M5_T06_ENTRY: CLOSED`
 
+## CC-P2-M5-01 Stage C local stop candidate
+
+- The accepted immutable manifest was executed on the exact Windows and qualified zero-network Linux runtimes. The
+  first Debian 12 composition is retained as failed ABI evidence; the qualified Linux run used the existing Debian 13
+  composition without changing the manifest, model, transform runtime or case set.
+- The two qualified reports contain the same 288 cases. Combined evidence contains 1,032 successful transform/Vision
+  rows, 232 failed platform cases, zero same-platform repeat variance and maximum cross-platform measurement difference
+  `4.9965088934289525e-05`.
+- The aggregate fixes a pre-checkpoint evidence defect: Windows/Linux copies of the same case are reproducibility pairs,
+  not duplicate identities. Source and variant duplicate evidence now compare distinct identities within one platform;
+  both report zero exact-duplicate pairs. No pHash threshold was selected.
+- Manual review covers all 172 successful cross-platform repeat-1 pairs / 344 artifacts and finds no visible warp tear,
+  duplicated feature, disconnected contour or background seam. It does not override automatic or completeness failure.
+- All six candidates have at least one missing or direction-failed case. Under the preregistered complete-case rule,
+  Stage D has zero eligible candidates versus four required. The honest local result is `FURTHER_RESEARCH`; no threshold,
+  `READY`, holdout, MVR, production geometry, real-user processing, M6 or QuestionBank release opens.
+- Redacted evidence is `docs/research/P2_M5_CC01C_CALIBRATION_AGGREGATE.json`; the report and private review digests are
+  recorded in `docs/research/P2_M5_CC01C_CALIBRATION_REPORT.md`. Images, landmarks, Vision logs and private paths remain
+  outside Git.
+
+`CC_P2_M5_01_C: LOCAL_FURTHER_RESEARCH_PENDING_TRACKED_EVIDENCE`
+
+`CC_P2_M5_01_D_TO_E: CLOSED`
+
+`P2_M5_T06_TO_T08_ENTRY: CLOSED`
+
+`P2_M6_ENTRY: CLOSED`
+
 ## CC-P2-M5-01 Stage B tracked acceptance
 
 - Candidate `7282094406b9754368709f543c4fda54b2e57490` run `32197326163` passed

@@ -710,3 +710,19 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   with zero failure/error/skip, and zero Gitleaks results; Docker and Celery evidence contains no product error.
 - Principal accepts only the immutable premeasurement manifest and opens its exact Stage C execution. No threshold,
   READY claim, Stage D-E, T06-T08, MVR, production geometry, real-user processing, M6 or QuestionBank release opens.
+
+## 2026-08-19T11:30:00+08:00 — Stage C calibration local stop candidate
+
+- The exact manifest ran on qualified Windows and zero-network Linux roots. The first Debian 12 attempt is retained as
+  ABI-incompatible evidence; the qualified Debian 13 composition completed the identical case set.
+- Combined evidence contains 1,032 successful transform/Vision rows and 232 failed platform cases. Same-platform
+  measurement repeat variance is zero; maximum cross-platform measurement difference is
+  `4.9965088934289525e-05`.
+- Duplicate aggregation was corrected before checkpoint: comparisons now use distinct identities within one platform
+  and configuration, while cross-platform copies and repeats are reproducibility evidence. Source and variant exact
+  duplicate pair counts are zero; no near-duplicate threshold was selected.
+- Manual review covered all 172 successful cross-platform repeat-1 pairs / 344 artifacts and found no visible warp tear,
+  duplicated feature, disconnected contour or background seam.
+- Every candidate has at least one failed case, so zero candidates satisfy the frozen complete-case rule versus four
+  required. Local outcome is `FURTHER_RESEARCH`; Stage D–E, T06–T08, MVR, production geometry, real-user processing,
+  M6 and QuestionBank release remain closed pending candidate same-SHA evidence.
