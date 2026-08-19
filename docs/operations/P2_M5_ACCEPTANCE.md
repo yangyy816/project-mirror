@@ -280,6 +280,34 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `P2_M6_ENTRY: CLOSED`
 
+## CC-P2-M5-01 Stage C tracked acceptance
+
+- Candidate `042f77e4b6708be827f2033a9740e348ae778f69` completed GitHub Actions run `32237678569`, attempt 2, with
+  `quality-and-integration`, `secret-scan` and `docker-validation` successful. Attempt 1 is retained as bounded external
+  failure evidence: every product, migration, Python and TypeScript step before Playwright passed, but the Chromium
+  download had no runner heartbeat for more than 60 minutes and was cancelled before a same-SHA retry. No repository
+  repair or Gate change was made.
+- Seven artifacts are present, readable, unexpired and exact-SHA bound. Phase 1/M1/M2/M3 evidence records migration head
+  `0014_m5_eval_authority`, unchanged OpenAPI digest
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841` and `1/98/52/46` tests with zero
+  failures, errors or skips. Gitleaks SARIF has one run and zero results; Docker and Celery logs have zero failure,
+  traceback, deadlock or fatal matches.
+- The full Python suite passed 582 tests with one existing optional private-runtime skip; five Playwright tests passed.
+  Dependency/license and SBOM artifacts are readable. This remote evidence reproduces the committed Stage C aggregate
+  and does not alter any candidate measurement or failure.
+- Principal accepts Stage C only as an evidence-backed `FURTHER_RESEARCH` stop. All six candidates have failed/missing
+  cases and zero satisfy the immutable complete-case rule versus four required. No threshold, READY dimension,
+  ontology/policy freeze, Stage D/E, T06–T08, MVR execution, production geometry, real-user processing, M6 or
+  QuestionBank release is authorized.
+
+`CC_P2_M5_01_C: ACCEPTED_FURTHER_RESEARCH_AT_042F77E_RUN_32237678569_ATTEMPT_2`
+
+`CC_P2_M5_01_D_TO_E: CLOSED_BY_STAGE_C_COMPLETE_CASE_RULE`
+
+`P2_M5_T06_TO_T08_ENTRY: CLOSED`
+
+`P2_M6_ENTRY: CLOSED`
+
 ## CC-P2-M5-01 Stage B tracked acceptance
 
 - Candidate `7282094406b9754368709f543c4fda54b2e57490` run `32197326163` passed

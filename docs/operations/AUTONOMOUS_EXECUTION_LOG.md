@@ -726,3 +726,17 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Every candidate has at least one failed case, so zero candidates satisfy the frozen complete-case rule versus four
   required. Local outcome is `FURTHER_RESEARCH`; Stage D–E, T06–T08, MVR, production geometry, real-user processing,
   M6 and QuestionBank release remain closed pending candidate same-SHA evidence.
+
+## 2026-08-19T18:45:00+08:00 — Stage C tracked further-research acceptance
+
+- Candidate `042f77e4b6708be827f2033a9740e348ae778f69` run `32237678569` attempt 1 passed every product,
+  migration, Python and TypeScript step before Playwright, then lost runner progress for more than 60 minutes while
+  downloading Chromium. The cancelled attempt is retained as bounded external-network evidence; no repository repair
+  or Gate change was made.
+- Same-SHA attempt 2 completed in under five minutes with all three jobs successful. Seven artifacts are readable,
+  unexpired and bind the exact SHA, `0014_m5_eval_authority` and unchanged OpenAPI. Phase 1/M1/M2/M3 report
+  `1/98/52/46` tests with zero failure/error/skip; full Python is 582 passed with one existing optional private-runtime
+  skip, browser integration is 5/5, Gitleaks is zero and Docker/Celery logs contain no execution failure.
+- Principal accepts Stage C only as `FURTHER_RESEARCH`. All six candidates retain failed/missing cases, so zero meet
+  the frozen complete-case rule. Stage D/E, T06–T08, MVR, production geometry, real-user processing, M6 and
+  QuestionBank release remain closed; continuation requires a new forward research change control.

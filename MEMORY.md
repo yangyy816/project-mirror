@@ -486,3 +486,13 @@
   unchanged OpenAPI，Phase 1/M1/M2/M3 为 `1/98/52/46` 且零 failure/error/skip，Gitleaks 零结果。
   Principal 接受 digest `eb202109...` 的不可变 manifest，并仅开放其精确 Stage C execution；threshold、
   READY、Stage D-E、T06-T08、MVR、production geometry、真人处理、M6 与 QuestionBank release 继续关闭。
+
+- 2026-08-19：`CC-P2-M5-01-C` candidate `042f77e4b6708be827f2033a9740e348ae778f69` 的 run
+  `32237678569` attempt 1 在此前产品/迁移/Python/TS 步骤通过后，因 Playwright Chromium 下载超过 60 分钟
+  无 runner heartbeat 而取消；same-SHA attempt 2 在 4m53s 内三 jobs 全绿。七 artifacts 绑定 exact SHA、
+  `0014_m5_eval_authority` 和 unchanged OpenAPI；Phase 1/M1/M2/M3 为 `1/98/52/46` 且零
+  failure/error/skip，完整 Python 为 582 pass/1 个既有 optional private-runtime skip，浏览器 5/5，Gitleaks
+  零结果，Docker/Celery 无 execution failure。Principal 接受 Stage C 的 `FURTHER_RESEARCH` stop：六个候选
+  均有 failed/missing case，complete-case eligible 为 0/4；不得选 threshold、宣称 READY 或开放 Stage D/E、
+  T06–T08、MVR、production geometry、真人处理、M6 或 QuestionBank release。继续研究必须走新的前向
+  change control。
