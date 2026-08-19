@@ -877,3 +877,26 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `CC02_C_TO_E: CLOSED`
 
 `P2_M5_NEXT_ACTION: SECURE_FIXED_PRIVATE_INPUT_RELEASE_THEN_REPEAT_CUSTODY_PREFLIGHT`
+
+## CC02-B private-input status alignment tracked acceptance
+
+- Checkpoint `65715a8b4c732888c5f028a2238534dac575f819` synchronizes only the current private-input and next-action
+  markers in the execution protocol, CC02 research protocol and R05 record. It does not modify the accepted builder,
+  tests, schema, dependency, threshold, research result or Gate authority.
+- Exact-SHA run `32308693218`, attempt 1, passed quality `96246950916`, Docker `96246950681` and secret scan
+  `96246950939`. Full Python was 689 passed with one existing optional private-runtime skip; Phase 1/M1/M2/M3 evidence
+  was `1/98/52/46` with zero failure, error or skip and bound migration head `0014_m5_eval_authority` plus unchanged
+  OpenAPI digest `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`.
+- Playwright 1.62.1 system dependencies and Chromium each succeeded on attempt 1/3 in 11 seconds; Browser Integration
+  passed 5/5 in 13.0 seconds. Gitleaks contained zero results, both dependency audits reported no known vulnerability,
+  the CycloneDX 1.6 SBOM contained 105 components and no vulnerability entries, Celery contained no
+  ERROR/CRITICAL/Traceback and Docker live/ready probes returned 200.
+- All eight artifacts were readable and unexpired: Gitleaks `9385631464`, Docker `9385671008`, Playwright
+  `9385725282`, Phase 1 `9385733170`, M1 `9385733644`, M2 `9385734147`, M3 `9385734611` and project audit
+  `9385740306`.
+- Principal accepts the status alignment only. The real builder remains uninvoked and fail closed. Private input still
+  requires external secure release; CC02-C–E and every downstream Gate remain closed.
+
+`CC02_B_PRIVATE_INPUT_STATUS_ALIGNMENT: PASS_AT_65715A8_RUN_32308693218_ATTEMPT_1`
+
+`CC_P2_M5_02_PRIVATE_INPUT: PRIVATE_INPUT_RELEASE_REQUIRED`

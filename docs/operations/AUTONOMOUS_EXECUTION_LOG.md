@@ -1035,3 +1035,18 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Status is `PRIVATE_INPUT_RELEASE_REQUIRED`. Real construction remains fail closed until the two fixed report locations
   are securely released into a new ADR-048 exclusive-custody window. CC02-C–E, Stage D/E, T06–T08, MVR, production
   geometry, real-user processing, M6 and QuestionBank release remain closed.
+
+## 2026-08-20T06:30:57+08:00 — CC02-B status-alignment tracked acceptance
+
+- Checkpoint `65715a8b4c732888c5f028a2238534dac575f819` updates only the current private-input and next-action markers
+  in the execution, research and R05 records. Exact-SHA run `32308693218`, attempt 1, passed quality
+  `96246950916`, Docker `96246950681` and secret scan `96246950939`.
+- Full Python was 689 passed with one existing optional private-runtime skip; Phase evidence remained `1/98/52/46`,
+  migration head remained `0014_m5_eval_authority` and OpenAPI remained unchanged. Playwright system dependencies and
+  Chromium each succeeded on attempt 1/3 in 11 seconds, and Browser Integration passed 5/5 in 13.0 seconds.
+- All eight artifacts were readable and unexpired. Gitleaks contained zero results, both dependency audits reported no
+  known vulnerability, the CycloneDX 1.6 SBOM contained 105 components with no vulnerability entries, Celery had no
+  ERROR/CRITICAL/Traceback and Docker live/ready probes returned 200.
+- Principal accepts only the status alignment. The builder was not invoked, no private input was read, and
+  `PRIVATE_INPUT_RELEASE_REQUIRED` remains the next external boundary. CC02-C–E and every downstream Gate remain
+  closed.
