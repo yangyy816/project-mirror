@@ -1096,3 +1096,15 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   redacted receipt; CC02-D retains mechanism aggregation and decision authority.
 - No private input, replay, transform, Vision, driver, report, receipt, threshold or downstream Gate was opened. The
   contract remains `READY_FOR_TRACKED_CONTRACT_EVIDENCE` pending local validation and same-SHA acceptance.
+
+## 2026-08-20 — P2-M5-R07 status-summary repair candidate
+
+- CC02-C contract candidate `bdba03b6abbb4ac849076976afa30e2b0ca2f055` passed same-SHA run `32335732640` with
+  all three jobs and eight readable artifacts. Independent security review passed.
+- Independent final review found one governance synchronization defect: the top-level Phase 2 row in `MILESTONES.md`
+  still said later M5 research was closed although the detailed M5 authority had advanced to a contract-only CC02-C
+  candidate.
+- R07 updates only that stale summary and records the repair in acceptance evidence. It does not modify the contract,
+  ADR, manifest, code, schema, API, dependency, model, workflow or private evidence.
+- Driver implementation, private input, replay, CC02-D/E, T06, MVR and M6 remain closed pending repaired same-SHA
+  evidence and independent final review.

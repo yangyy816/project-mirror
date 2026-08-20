@@ -1039,3 +1039,31 @@ builder has now run exactly once under ADR-048 custody; local manifest digest is
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: VALIDATE_AND_TRACK_CC02_C_CONTRACT_CANDIDATE_NO_REPLAY`
+
+## P2-M5-R07 — Phase 2 status-summary synchronization
+
+- Independent final review of candidate `bdba03b6abbb4ac849076976afa30e2b0ca2f055` found that the top-level Phase 2
+  row in `MILESTONES.md` still said later P2-M5 research was closed, while the detailed M5 row and accepted governance
+  correctly described the CC02-C contract-only candidate.
+- R07 changes only that stale summary row and records this forward repair. It does not modify the CC02-C contract,
+  ADR, manifest, preregistration, implementation, schema, API, dependency, model, workflow or private evidence.
+- CC02-C replay and every downstream Gate remain closed. The repaired contract candidate requires a new same-SHA run,
+  eight-artifact inspection and independent final review before Principal acceptance.
+
+`P2_M5_R07: READY_FOR_TRACKED_EVIDENCE`
+
+`CC_P2_M5_02_C_CONTRACT: READY_FOR_REPAIRED_TRACKED_EVIDENCE`
+
+`CC02_C_RUNNER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_DRIVER_ACCEPTANCE`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: VALIDATE_AND_TRACK_P2_M5_R07_NO_REPLAY`
