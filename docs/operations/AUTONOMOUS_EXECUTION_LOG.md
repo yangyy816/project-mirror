@@ -1121,3 +1121,18 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Principal accepts R07 and the CC02-C contract-only checkpoint. Only the non-private first-party driver plus
   synthetic/numeric tests are execution-ready. Private input, pre-read Gate, replay, CC02-D/E, T06, MVR, M6,
   production geometry and real-user processing remain closed.
+
+## 2026-08-20 — P2-M5-R08 CC02-C driver tracked acceptance
+
+- Initial driver candidate `0b8690ae19c3d375d89734140f6da9c6a0cd9438` passed same-SHA CI, but final review found
+  the redacted receipt lacked the contract-required containment outcome. Principal kept the pre-read Gate closed and
+  created two-file bounded repair R08.
+- R08 `410dcb99a35b2a327405ae91b9ca51d1a2aba488` records fixed `ESTABLISHED` only after each platform
+  containment Gate succeeds, requires the exact two-platform mapping and rejects missing/unknown/extra outcomes before
+  the create-once sink. Local Ruff/mypy, 89 targeted tests, full Python quality/API/Worker and `pnpm check` passed.
+- Run `32343563224`, attempt 1, passed all three jobs. Python was 731 pass/1 existing optional skip; eight exact-SHA
+  artifacts, unchanged migration/OpenAPI evidence, Browser 5/5, Gitleaks zero results, dependency audits, SBOM and
+  Docker/Celery evidence all passed inspection. Independent security and final reviews returned PASS.
+- Principal accepts R08 and the driver blobs. This docs-only checkpoint records the pre-read disposition but performs
+  no private read or replay; execution remains closed until the checkpoint's own same-SHA evidence is accepted.
+- `MEMORY.md` remains a protected pre-existing worktree modification and was not staged or overwritten.

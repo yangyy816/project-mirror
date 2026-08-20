@@ -1115,3 +1115,63 @@ builder has now run exactly once under ADR-048 custody; local manifest digest is
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: IMPLEMENT_CC02_C_DRIVER_SYNTHETIC_ONLY_NO_PRIVATE_INPUT`
+
+## P2-M5-R08 and CC02-C driver tracked acceptance
+
+- Initial candidate `0b8690ae19c3d375d89734140f6da9c6a0cd9438` passed run `32341389915` attempt 2, but
+  independent final review rejected tracked acceptance because the receipt omitted the accepted contract's explicit
+  containment outcome. That candidate never opened pre-read or private replay.
+- R08 candidate `410dcb99a35b2a327405ae91b9ca51d1a2aba488` changes exactly the replay driver and its
+  synthetic/numeric tests. Driver SHA-256 is
+  `135d52e310f5128a17352b3557b5e913ceb7e58dcef41a5cea29897ab9131379`; test SHA-256 is
+  `2dac0e04bb0902afa17b225963a8b245cc8a3ae5e99c46f7711c9b7dc78e57d3`.
+- The fixed projection records `containment_outcome=ESTABLISHED` for each exact platform only after containment
+  succeeds. Missing, unknown or extra evidence fails closed, receipt construction precedes the create-once sink and
+  sink rejection still returns no receipt.
+- Local validation passed Ruff, strict mypy, 89 targeted driver/diagnostic tests, full Python static quality over 125
+  sources, the complete host API/Worker suite and `pnpm check`. Windows pytest used a task-owned temporary root because
+  the existing default temp root remained ACL-protected; no protected directory was changed.
+- Exact-SHA run `32343563224`, attempt 1, passed quality `96347418064`, Docker `96347417982` and secret scan
+  `96347417853`. Full Python was `731 passed, 1 skipped`; the skip is the existing optional private-runtime case.
+  Phase 1/M1/M2/M3 evidence was `1/98/52/46` with zero failure, error or skip. Migration head remained
+  `0014_m5_eval_authority`, OpenAPI remained
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`, contract drift passed and Browser
+  Integration passed 5/5.
+- Eight readable, unexpired, exact-SHA artifacts were inspected:
+
+  | Artifact                      |           ID | API digest                                                         |
+  | ----------------------------- | -----------: | ------------------------------------------------------------------ |
+  | `gitleaks-results.sarif`      | `9397178542` | `dfa050d4fa836098322f8ada7898d05a5dc36f572db3520fc833829892c45d41` |
+  | `project-docker-evidence`     | `9397221163` | `4a86d19c692a78c02bf5aa7c69750b3e7e56d2ceec8f8ad9ab9cc71459354a8e` |
+  | `playwright-install-evidence` | `9397275451` | `a0e64a5664ab9f36307ccad1d8dc5b138e2292c813fdea6533394d05c39f3c06` |
+  | `phase1-ci-evidence`          | `9397283435` | `af22f9dab3f245b6d6c171cebe569383fe5c8730dc2fa2d318e96eeb9b953308` |
+  | `p2-m1-ci-evidence`           | `9397284130` | `ecc490482d7ef26cc1a09ca62327679ecafca019f86ad646a4a8662664a7dc28` |
+  | `p2-m2-ci-evidence`           | `9397284832` | `6105b8f7921add2f3d9cf325df1b08a70c173731202eec13b184ad72bb9b46cb` |
+  | `p2-m3-ci-evidence`           | `9397285477` | `3545c3ea1ad9e6a6319e0e32452d03e8285fb7d284fd81757ef4ee14f035de78` |
+  | `project-audit-evidence`      | `9397291116` | `83c35630ec262d1387670ffc6735c88edabe7d99a4a292db9cdd199ca3b90178` |
+
+- Gitleaks returned zero results; both dependency audits found no known vulnerability; CycloneDX 1.6 contained 105
+  components and no vulnerability entries. Playwright dependencies and Chromium each passed attempt 1/3 in 12
+  seconds; Docker/Celery had no execution failure. Independent security and Sol final reviews both returned PASS with
+  no mandatory finding.
+- Principal accepts R08 and the CC02-C driver tracked evidence. A separate docs-only checkpoint now records the
+  pre-read disposition; private input and replay remain closed until that checkpoint receives its own same-SHA
+  acceptance. This does not open CC02-D/E, T06, MVR, M6, production geometry or real-user processing.
+
+`P2_M5_R08: REPAIR_ACCEPTED_AT_410DCB9_RUN_32343563224_ATTEMPT_1`
+
+`CC_P2_M5_02_C_DRIVER: PASS_AT_410DCB9_RUN_32343563224_ATTEMPT_1`
+
+`CC02_C_RUNNER_PRE_READ_GATE: PASS_PENDING_ACCEPTANCE_CHECKPOINT_CI`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: VALIDATE_PRE_READ_ACCEPTANCE_CHECKPOINT_NO_PRIVATE_READ`

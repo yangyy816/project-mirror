@@ -430,3 +430,36 @@ own full local, same-SHA artifact and independent-review acceptance.
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: IMPLEMENT_CC02_C_DRIVER_SYNTHETIC_ONLY_NO_PRIVATE_INPUT`
+
+## CC02-C driver R08 tracked acceptance and pre-read checkpoint
+
+Initial driver candidate `0b8690ae19c3d375d89734140f6da9c6a0cd9438` passed same-SHA CI but independent
+final review found that its redacted receipt omitted the contract-required containment outcome. Principal classified
+the defect as bounded repair `P2-M5-R08`; no private input was read and the pre-read Gate remained closed.
+
+Repair `410dcb99a35b2a327405ae91b9ca51d1a2aba488` changes only the driver and its synthetic/numeric test. Each
+platform now records fixed allowlisted `ESTABLISHED` only after its custody containment Gate succeeds. Receipt
+projection requires the exact Linux/Windows mapping, rejects missing/unknown/extra outcomes, and is constructed before
+the create-once sink. Run `32343563224`, attempt 1, all eight artifacts and both independent reviews passed.
+
+Principal accepts R08 and the exact driver/test blobs. The pre-read Gate disposition is recorded here, but no private
+input may be recovered or read until this governance checkpoint itself passes same-SHA CI, artifact inspection and
+independent review. CC02-C replay is not executed in this checkpoint.
+
+`P2_M5_R08: REPAIR_ACCEPTED_AT_410DCB9_RUN_32343563224_ATTEMPT_1`
+
+`CC_P2_M5_02_C_DRIVER: PASS_AT_410DCB9_RUN_32343563224_ATTEMPT_1`
+
+`CC02_C_RUNNER_PRE_READ_GATE: PASS_PENDING_ACCEPTANCE_CHECKPOINT_CI`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: VALIDATE_PRE_READ_ACCEPTANCE_CHECKPOINT_NO_PRIVATE_READ`

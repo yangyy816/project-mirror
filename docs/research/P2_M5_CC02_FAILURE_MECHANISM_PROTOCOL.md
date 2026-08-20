@@ -301,3 +301,36 @@ pre-read Gate, private input, both platform replays, receipt, CC02-D/E and all d
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: IMPLEMENT_CC02_C_DRIVER_SYNTHETIC_ONLY_NO_PRIVATE_INPUT`
+
+## CC02-C driver tracked acceptance and pre-read checkpoint
+
+The initial driver candidate passed CI but final review found its tracked receipt did not explicitly project the
+accepted containment outcome. R08 corrected only the driver/test pair: the driver derives fixed `ESTABLISHED` after
+each platform containment Gate succeeds, requires exact Linux/Windows binding, rejects missing/unknown/extra values
+and constructs the receipt before private pair publication.
+
+R08 `410dcb99a35b2a327405ae91b9ca51d1a2aba488` passed run `32343563224`, all eight artifacts and both
+independent reviews. Principal accepts the exact driver blobs. The old Stage C result remains `FURTHER_RESEARCH` with
+0/4 eligibility; no threshold, mechanism aggregate, READY class or downstream Gate changed.
+
+This status checkpoint records the pre-read disposition only. No private input may be recovered and no replay may run
+until the checkpoint itself receives same-SHA acceptance. Linux network-none and Windows runner-and-child outbound
+deny must still be proven immediately before their respective reads.
+
+`P2_M5_R08: REPAIR_ACCEPTED_AT_410DCB9_RUN_32343563224_ATTEMPT_1`
+
+`CC_P2_M5_02_C_DRIVER: PASS_AT_410DCB9_RUN_32343563224_ATTEMPT_1`
+
+`CC02_C_RUNNER_PRE_READ_GATE: PASS_PENDING_ACCEPTANCE_CHECKPOINT_CI`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: VALIDATE_PRE_READ_ACCEPTANCE_CHECKPOINT_NO_PRIVATE_READ`
