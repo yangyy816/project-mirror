@@ -228,15 +228,17 @@ validation matched all frozen authority and no private locator entered tracked e
 Principal then held the ADR-048 exclusive window, ran the accepted builder exactly once and completed the immediate
 snapshot. The resulting manifest digest is
 `5a0479a21556498d259572a050d659a0e3617429f83e5fd313c842a35591e0a3`. It contains the exact frozen
-288/576 cases, 1,032 success-repeat bindings and 14 direction cases. This remains a local candidate pending same-SHA CI
-and independent review; CC02-C–E, T06, MVR and M6 remain closed.
+288/576 cases, 1,032 success-repeat bindings and 14 direction cases. Exact-SHA run `32332408245` and both independent
+reviews accepted the CC02-B tracked evidence; CC02-C–E, T06, MVR and M6 remain closed.
 
 `PRIOR_PRINCIPAL_OUTPUT_RECOVERY: PASS`
 
 `CC02_B_REAL_BUILDER_INVOCATION: PASS_EXACTLY_ONCE`
 
-`CC_P2_M5_02_B_MANIFEST: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+`CC_P2_M5_02_B_MANIFEST: PASS_AT_96CA439_RUN_32332408245_ATTEMPT_1`
 
 `P2_MVR_V1_RESULT: NOT_EVALUATED`
 
-`P2_M5_NEXT_ACTION: COMPLETE_BOUNDED_REVIEW_THEN_CANDIDATE_CI`
+`CC_P2_M5_02_C_ENTRY: CLOSED_PENDING_SEPARATE_BOUNDED_CONTRACT`
+
+`P2_M5_NEXT_ACTION: PREPARE_SEPARATE_CC02_C_BOUNDED_CONTRACT_NO_EXECUTION`

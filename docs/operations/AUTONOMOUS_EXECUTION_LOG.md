@@ -1067,3 +1067,17 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - ADR-049 and the private-input protocol now also require a Git-external Principal private-output registry and
   recoverable sub-agent handback. The manifest and governance changes remain a local candidate pending same-SHA CI and
   independent review. CC02-C–E, T06, MVR and M6 remain closed.
+
+## 2026-08-20T12:50:31+08:00 — CC02-B recovered-report manifest tracked acceptance
+
+- Candidate `96ca439c727e0d9b54b1e6acdaf92be045ff40ab` was normally pushed after two direct HTTPS connection resets;
+  the final bounded attempt used the Owner-authorized process-scoped local proxy and did not persist proxy settings.
+- Exact-SHA run `32332408245`, attempt 1, passed quality `96315441294`, Docker `96315441246` and secret scan
+  `96315441033`. Eight artifacts were readable, unexpired and carried GitHub SHA-256 archive digests.
+- Full Python was 700 passed with one existing conditional private M4 runtime skip. Mandatory Phase 1/M1/M2/M3
+  evidence was `1/98/52/46` with zero skip, migration lifecycle ended at `0014_m5_eval_authority`, OpenAPI digest was
+  unchanged and contract drift passed. Playwright dependencies/Chromium succeeded on attempt 1/3, Browser Integration
+  passed 5/5, Gitleaks returned zero results, both audits found no known vulnerability and Docker/Celery were healthy.
+- Independent post-CI security and Sol final reviews passed. Principal accepts the CC02-B manifest and governance
+  tracked evidence only. CC02-C execution, T06, MVR, M6, production geometry and real-user processing remain closed;
+  the next action is preparation of a separate bounded CC02-C contract without execution.

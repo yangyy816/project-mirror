@@ -870,7 +870,7 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
   report locations are securely released into an ADR-048 exclusive-custody window; the values must remain outside Git,
   logs and tracked evidence.
 
-`CC_P2_M5_02_PRIVATE_INPUT: PRIVATE_INPUT_RELEASE_REQUIRED`
+`HISTORICAL_CC_P2_M5_02_PRIVATE_INPUT: PRIVATE_INPUT_RELEASE_REQUIRED_SUPERSEDED_BY_RECOVERY_PASS`
 
 ## Principal-managed private-input delegation candidate
 
@@ -883,7 +883,7 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 - Acceptance requires ADR-048 blob equality, targeted Ruff/mypy/pytest, formatting/diff/private-path/secret scans,
   same-SHA three-job Actions, independent security review and Principal final review.
 
-`PRIVATE_INPUT_DELEGATION_GOVERNANCE: LOCAL_CANDIDATE`
+`HISTORICAL_PRIVATE_INPUT_DELEGATION_GOVERNANCE: LOCAL_CANDIDATE_SUPERSEDED_BY_TRACKED_PASS`
 
 - The prior Principal Stage C rollout receipt recovered both original task-owned report locators without disk or home
   scanning. Accepted held-file validation proved schema v2, expected canonical report/runtime/model/topology/candidate/
@@ -899,15 +899,15 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `CC02_B_REAL_BUILDER_INVOCATION: PASS_EXACTLY_ONCE`
 
-`CC_P2_M5_02_B_MANIFEST: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+`HISTORICAL_CC_P2_M5_02_B_MANIFEST: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
 
 `CC02_C_TO_E: CLOSED`
 
-`CC02_B_REAL_BUILDER_INVOCATION: NOT_RUN_FAIL_CLOSED`
+`HISTORICAL_CC02_B_REAL_BUILDER_INVOCATION: NOT_RUN_FAIL_CLOSED_SUPERSEDED_BY_PASS_EXACTLY_ONCE`
 
 `CC02_C_TO_E: CLOSED`
 
-`P2_M5_NEXT_ACTION: SECURE_FIXED_PRIVATE_INPUT_RELEASE_THEN_REPEAT_CUSTODY_PREFLIGHT`
+`HISTORICAL_P2_M5_NEXT_ACTION: SECURE_FIXED_PRIVATE_INPUT_RELEASE_THEN_REPEAT_CUSTODY_PREFLIGHT`
 
 ## CC02-B private-input status alignment tracked acceptance
 
@@ -930,9 +930,9 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `CC02_B_PRIVATE_INPUT_STATUS_ALIGNMENT: PASS_AT_65715A8_RUN_32308693218_ATTEMPT_1`
 
-`CC_P2_M5_02_PRIVATE_INPUT: PRIVATE_INPUT_RELEASE_REQUIRED`
+`HISTORICAL_CC_P2_M5_02_PRIVATE_INPUT: PRIVATE_INPUT_RELEASE_REQUIRED_SUPERSEDED_BY_RECOVERY_PASS`
 
-## Prior-output recovery supersession and current local candidate
+## Prior-output recovery supersession and historical local candidate
 
 The preceding private-input release checkpoint is retained as historical evidence. Owner subsequently corrected the
 authority, and Principal recovered the original task-owned reports from the exact Stage C rollout receipt. The accepted
@@ -943,8 +943,62 @@ builder has now run exactly once under ADR-048 custody; local manifest digest is
 
 `CC02_B_REAL_BUILDER_INVOCATION: PASS_EXACTLY_ONCE`
 
-`CC_P2_M5_02_B_MANIFEST: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+`HISTORICAL_CC_P2_M5_02_B_MANIFEST: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
 
 `CC02_C_TO_E: CLOSED`
 
-`P2_M5_NEXT_ACTION: COMPLETE_LOCAL_VALIDATION_THEN_CANDIDATE_CI`
+`HISTORICAL_P2_M5_NEXT_ACTION: COMPLETE_LOCAL_VALIDATION_THEN_CANDIDATE_CI`
+
+## CC02-B recovered-report manifest tracked acceptance
+
+- Candidate `96ca439c727e0d9b54b1e6acdaf92be045ff40ab` includes the reviewed
+  Principal-managed private-evidence governance, the redacted diagnostic manifest and preregistration, plus the
+  bounded authority-status repair. The private CC01C report bytes and locators remain outside Git and ordinary CI.
+- Exact-SHA run `32332408245`, attempt 1, passed quality `96315441294`, Docker `96315441246` and secret scan
+  `96315441033`. The remote branch head exactly matched the candidate SHA.
+- All eight artifacts were readable, unexpired and carried GitHub SHA-256 archive digests:
+  - Gitleaks `9393471393` / `56ae8ee121009692354cbd6b9a72562e68ce69004a70b62750a3988af2fc2a66`;
+  - Docker `9393500991` / `2c5b0cc33dfbaabbed23eb4090bc8ee49ce925488e79fc91d4813d9d8d8e6f05`;
+  - Playwright `9393548314` / `4ced117adce07aec28507eb987054ba5f14d48b59b9f8e716d04a9b94ba0b9fe`;
+  - Phase 1 `9393554580` / `e8fc12a5a1fd69c13815d77f87e80a6e91d626e07c0af8dc0b02316a835cf7d3`;
+  - M1 `9393555085` / `01ee73075083718d9257b6629e9f11f7b620a87210eb170354bdb2ab3183d5cc`;
+  - M2 `9393555640` / `4acfba74e0f4b9fe63fbdfc7268f3140865907f9c3658d766e0051684643db54`;
+  - M3 `9393556137` / `4323364a2ecf093dd36772ba0564683b0af49ffa4591b0a6f567061061be66dd`;
+  - project audit `9393560762` / `4feeaa110090a011e124187606a980189c45e66f1aa4aa1dfa5756ebb52de554`.
+- Full Python reported `700 passed, 1 skipped`; the only skip is the existing conditional private M4 Celery runtime
+  test because ordinary CI intentionally does not set `RUN_M4_CELERY_INTEGRATION`. Mandatory Phase 1/M1/M2/M3
+  evidence reported `1/98/52/46` passed with zero failure, error or skip.
+- PostgreSQL completed `0013→0014→0013→0014`; `alembic check` reported no new upgrade operations. All four evidence
+  documents bind migration head `0014_m5_eval_authority` and committed OpenAPI SHA-256
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`; contract regeneration had zero drift.
+- Playwright 1.62.1 system dependencies and Chromium completed on attempt 1/3 in 17 and 12 seconds; Browser
+  Integration passed 5/5 in 14.3 seconds. The failure-only browser artifact step was correctly skipped after success.
+- Gitleaks SARIF contained zero results. Python and pnpm audits found no known vulnerability. The CycloneDX 1.6 SBOM
+  contained 105 components; Docker probes returned 200 and Celery completed its integration tasks without
+  `ERROR`, `CRITICAL` or `Traceback`.
+- Independent security review and Sol final review both returned PASS after reconciling the exact remote SHA, all three
+  jobs and all eight artifacts. Artifact scans found no private report bytes, locators, authority digests, Prompt,
+  image payload, object key, signed URL or credential propagation.
+- Principal accepts only ADR-048 real-invocation evidence, ADR-049 governance and the CC02-B manifest snapshot. This
+  does not authorize CC02-C execution, threshold selection, T06, MVR, M6, production geometry, real-user processing or
+  QuestionBank release. The next action is limited to preparing a separate CC02-C bounded contract.
+
+`PRIVATE_INPUT_DELEGATION_GOVERNANCE: PASS_AT_96CA439_RUN_32332408245_ATTEMPT_1`
+
+`ADR_048_REAL_INVOCATION: ACCEPTED_AT_96CA439_RUN_32332408245_ATTEMPT_1`
+
+`CC_P2_M5_02_B_MANIFEST: PASS_AT_96CA439_RUN_32332408245_ATTEMPT_1`
+
+`CC_P2_M5_02_C_ENTRY: CLOSED_PENDING_SEPARATE_BOUNDED_CONTRACT`
+
+`CC_P2_M5_02_C_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_STATE: EXECUTING`
+
+`P2_M5_NEXT_ACTION: PREPARE_SEPARATE_CC02_C_BOUNDED_CONTRACT_NO_EXECUTION`

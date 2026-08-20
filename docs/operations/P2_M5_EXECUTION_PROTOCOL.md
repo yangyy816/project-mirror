@@ -356,17 +356,20 @@ ordinary CI never receives either report.
 The original Stage C task receipt proved both task-owned locators without broad disk discovery. Principal recovered and
 validated the exact original reports, established ADR-048 exclusive custody, invoked the accepted builder exactly once
 and took the immediate canonical/path/type/hash/diff snapshot before clearing the injected environment. The manifest
-candidate digest is `5a0479a21556498d259572a050d659a0e3617429f83e5fd313c842a35591e0a3`; this local candidate does
-not open CC02-C or any downstream Gate before tracked same-SHA acceptance and independent review.
+snapshot digest is `5a0479a21556498d259572a050d659a0e3617429f83e5fd313c842a35591e0a3`. Exact-SHA run
+`32332408245` and both independent reviews accepted the CC02-B tracked evidence; that acceptance does not open CC02-C
+or any downstream Gate.
 
-`PRIVATE_INPUT_DELEGATION_GOVERNANCE: LOCAL_CANDIDATE_PENDING_TRACKED_EVIDENCE`
+`PRIVATE_INPUT_DELEGATION_GOVERNANCE: PASS_AT_96CA439_RUN_32332408245_ATTEMPT_1`
 
 `PRIOR_PRINCIPAL_OUTPUT_RECOVERY: PASS`
 
 `CC02_UNIQUE_BUILDER_EXECUTOR: PRINCIPAL_COMPLETED_EXACTLY_ONCE`
 
-`CC_P2_M5_02_B_MANIFEST: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+`CC_P2_M5_02_B_MANIFEST: PASS_AT_96CA439_RUN_32332408245_ATTEMPT_1`
 
 `CC_P2_M5_02_C_TO_E: CLOSED`
 
-`P2_M5_NEXT_ACTION: COMPLETE_BOUNDED_REVIEW_THEN_CANDIDATE_CI`
+`CC_P2_M5_02_C_ENTRY: CLOSED_PENDING_SEPARATE_BOUNDED_CONTRACT`
+
+`P2_M5_NEXT_ACTION: PREPARE_SEPARATE_CC02_C_BOUNDED_CONTRACT_NO_EXECUTION`
