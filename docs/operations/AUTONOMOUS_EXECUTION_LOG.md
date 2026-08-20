@@ -1081,3 +1081,18 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Independent post-CI security and Sol final reviews passed. Principal accepts the CC02-B manifest and governance
   tracked evidence only. CC02-C execution, T06, MVR, M6, production geometry and real-user processing remain closed;
   the next action is preparation of a separate bounded CC02-C contract without execution.
+
+## 2026-08-20 — CC02-C bounded-task contract local candidate
+
+- Repository truth was refreshed at local/remote HEAD `3338b263eb3bdcd507ed6007c20b35d8f2070685`, branch
+  `codex/phase2-m5-failure-mechanism-isolation`, Alembic head `0014_m5_eval_authority`. Latest run `32333890093`
+  remained successful with all three jobs and eight inspected artifacts.
+- Principal created `P2_M5_CC02_C_TASK_CONTRACT.md` as governance only. It freezes a synthetic-only tracked driver
+  implementation checkpoint, a later Principal `CC02_C_RUNNER_PRE_READ_GATE`, manifest-order Linux-then-Windows serial
+  replay, zero retry/generation/download, the accepted 576-transform/604-Vision ceilings and private create-once output
+  registry/custody.
+- The future driver may be implemented by one Terra High worker without private input. Principal alone may execute the
+  sensitive replay after tracked driver acceptance and verified Linux/Windows containment. CC02-C publishes only a
+  redacted receipt; CC02-D retains mechanism aggregation and decision authority.
+- No private input, replay, transform, Vision, driver, report, receipt, threshold or downstream Gate was opened. The
+  contract remains `READY_FOR_TRACKED_CONTRACT_EVIDENCE` pending local validation and same-SHA acceptance.

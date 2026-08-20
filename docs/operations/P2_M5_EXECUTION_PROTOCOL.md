@@ -373,3 +373,29 @@ or any downstream Gate.
 `CC_P2_M5_02_C_ENTRY: CLOSED_PENDING_SEPARATE_BOUNDED_CONTRACT`
 
 `P2_M5_NEXT_ACTION: PREPARE_SEPARATE_CC02_C_BOUNDED_CONTRACT_NO_EXECUTION`
+
+## CC02-C bounded-task contract local candidate
+
+Closure checkpoint `3338b263eb3bdcd507ed6007c20b35d8f2070685` passed exact-SHA run `32333890093` with all
+three jobs and eight inspected artifacts. It confirms the CC02-B acceptance state only; it does not authorize replay.
+
+The new `P2_M5_CC02_C_TASK_CONTRACT.md` is a governance-only local candidate. It freezes a non-private tracked driver
+implementation Gate followed by a separate Principal pre-read Gate. Only after both Gate checkpoints pass may
+Principal execute Linux and Windows serial private replay under ADR-048/049 custody and platform containment. The
+contract candidate itself creates no driver, report, receipt, transform or Vision evidence and reads no private input.
+
+`CC_P2_M5_02_C_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+
+`CC_P2_M5_02_C_ENTRY: CLOSED_PENDING_TRACKED_CONTRACT_ACCEPTANCE`
+
+`CC_P2_M5_02_C_DRIVER: CLOSED_PENDING_CONTRACT_ACCEPTANCE`
+
+`CC02_C_RUNNER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_DRIVER_ACCEPTANCE`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_M5_NEXT_ACTION: VALIDATE_AND_TRACK_CC02_C_CONTRACT_CANDIDATE_NO_REPLAY`

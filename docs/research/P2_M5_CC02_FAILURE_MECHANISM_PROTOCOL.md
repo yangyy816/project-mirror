@@ -9,8 +9,10 @@
 - CC02-A implementation acceptance: `ee19ad6efe49decfa3a0c8f0dbf3f130b5c59460` / run `32282614608`, attempt 1.
 - CC02-A acceptance closure: `470849f0f42f151d1ec939e3b0d81ef4369ea86c` / run `32284285946`.
 - CC02-B contract acceptance: `f69361e8d855fa6262b2d79560c456c8862df2f7` / run `32287419743`, attempt 1.
-- Current status: `CC02_B_CONTRACT_ACCEPTED_BUILDER_EXECUTION_READY`.
-- Execution authorization: `CC02_B_BUILDER_SYNTHETIC_IMPLEMENTATION_ONLY`; private-input access remains closed.
+- CC02-B manifest acceptance: `96ca439c727e0d9b54b1e6acdaf92be045ff40ab` / run `32332408245`, attempt 1.
+- CC02-B closure checkpoint: `3338b263eb3bdcd507ed6007c20b35d8f2070685` / run `32333890093`.
+- Current status: `CC02_C_BOUNDED_CONTRACT_CANDIDATE`.
+- Execution authorization: `CC02_C_CONTRACT_ONLY_NO_PRIVATE_REPLAY`.
 - Threshold selection: `FORBIDDEN`.
 - Stage D/E, T06–T08, MVR and M6: `CLOSED`.
 
@@ -242,3 +244,30 @@ reviews accepted the CC02-B tracked evidence; CC02-C–E, T06, MVR and M6 remain
 `CC_P2_M5_02_C_ENTRY: CLOSED_PENDING_SEPARATE_BOUNDED_CONTRACT`
 
 `P2_M5_NEXT_ACTION: PREPARE_SEPARATE_CC02_C_BOUNDED_CONTRACT_NO_EXECUTION`
+
+## CC02-C bounded-task contract local candidate
+
+`P2_M5_CC02_C_TASK_CONTRACT.md` freezes a two-Gate execution boundary. Contract acceptance may open only a new
+first-party replay-driver implementation with synthetic/numeric tests and no private input. The driver must receive
+separate tracked acceptance before Principal may record `CC02_C_RUNNER_PRE_READ_GATE: PASS` and recover registered
+private inputs. Principal remains the sole sensitive replay executor under ADR-048/049.
+
+The future execution order is fixed to the manifest platform order: Linux under `--network none`, then Windows after a
+verified runner-and-child outbound deny. The two platform windows cannot overlap. Private reports remain outside Git;
+CC02-C may publish only a redacted replay receipt after accepted pair validation. Mechanism aggregation and decision
+remain CC02-D work.
+
+This local contract candidate does not read private input, execute replay, create the future driver or receipt, select
+a threshold, change the old 0/4 outcome or open any downstream Gate.
+
+`CC_P2_M5_02_C_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+
+`CC_P2_M5_02_C_DRIVER: CLOSED_PENDING_CONTRACT_ACCEPTANCE`
+
+`CC02_C_RUNNER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_DRIVER_ACCEPTANCE`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_NEXT_ACTION: VALIDATE_AND_TRACK_CC02_C_CONTRACT_CANDIDATE_NO_REPLAY`

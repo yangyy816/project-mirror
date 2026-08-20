@@ -1002,3 +1002,40 @@ builder has now run exactly once under ADR-048 custody; local manifest digest is
 `P2_M5_STATE: EXECUTING`
 
 `P2_M5_NEXT_ACTION: PREPARE_SEPARATE_CC02_C_BOUNDED_CONTRACT_NO_EXECUTION`
+
+## CC02-B acceptance closure and CC02-C contract local candidate
+
+- Closure commit `3338b263eb3bdcd507ed6007c20b35d8f2070685` was normally pushed and exact-SHA run
+  `32333890093` passed quality `96319579461`, secret scan `96319579578` and Docker `96319579665`.
+- All eight closure artifacts were readable and unexpired. GitHub archive SHA-256 values were project audit
+  `9e2fcff9...`, M3 `7d1de2ea...`, M2 `20bf6b80...`, M1 `65bf98c0...`, Phase 1 `85b309b6...`, Playwright
+  `a4372eb7...`, Docker `18af77e0...` and Gitleaks `56761b75...`.
+- Full Python was 700 passed with the one existing conditional private M4 Celery skip. Mandatory Phase 1/M1/M2/M3
+  evidence remained `1/98/52/46` with zero skip. Migration head remained `0014_m5_eval_authority`, OpenAPI remained
+  `a9ee1e0a...`, Browser Integration passed 5/5, Gitleaks had zero results, both dependency audits found no known
+  vulnerability and the CycloneDX 1.6 SBOM contained 105 components.
+- The new `P2_M5_CC02_C_TASK_CONTRACT.md` is a local contract-only candidate. It freezes the tracked replay-driver,
+  separate Principal pre-read Gate, Linux-then-Windows serial order, exact resource ceiling, private-output custody and
+  redacted receipt boundary.
+- No private input was read; no driver, replay, transform, Vision call, private report, tracked receipt, mechanism
+  aggregate or threshold was created. The old Stage C 0/4 result and all downstream closures remain unchanged.
+
+`CC_P2_M5_02_C_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+
+`CC_P2_M5_02_C_ENTRY: CLOSED_PENDING_TRACKED_CONTRACT_ACCEPTANCE`
+
+`CC_P2_M5_02_C_DRIVER: CLOSED_PENDING_CONTRACT_ACCEPTANCE`
+
+`CC02_C_RUNNER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_DRIVER_ACCEPTANCE`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: VALIDATE_AND_TRACK_CC02_C_CONTRACT_CANDIDATE_NO_REPLAY`
