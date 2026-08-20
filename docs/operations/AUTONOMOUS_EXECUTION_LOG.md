@@ -1108,3 +1108,16 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   ADR, manifest, code, schema, API, dependency, model, workflow or private evidence.
 - Driver implementation, private input, replay, CC02-D/E, T06, MVR and M6 remain closed pending repaired same-SHA
   evidence and independent final review.
+
+## 2026-08-20 — R07 and CC02-C contract tracked acceptance
+
+- Repair `8213b401a28c873e92d813eda4f40dc24983dd4f` passed exact-SHA run `32336519837`: quality
+  `96327048156`, Docker `96327047920` and secret scan `96327048109` all succeeded.
+- Eight artifacts were unexpired, exact-SHA bound, downloaded and parsed. Gitleaks contained zero results, the
+  CycloneDX 1.6 SBOM contained 105 components, Browser Integration passed 5/5 and committed OpenAPI/migration evidence
+  remained unchanged.
+- Independent security regression and final reviews passed. The final reviewer confirmed R07 closed the stale summary
+  finding and preserved contract blob `af271478dac4311bca810221b49b9d5e2167960e`.
+- Principal accepts R07 and the CC02-C contract-only checkpoint. Only the non-private first-party driver plus
+  synthetic/numeric tests are execution-ready. Private input, pre-read Gate, replay, CC02-D/E, T06, MVR, M6,
+  production geometry and real-user processing remain closed.

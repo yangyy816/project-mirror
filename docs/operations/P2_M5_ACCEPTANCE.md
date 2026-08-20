@@ -1067,3 +1067,51 @@ builder has now run exactly once under ADR-048 custody; local manifest digest is
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: VALIDATE_AND_TRACK_P2_M5_R07_NO_REPLAY`
+
+## P2-M5-R07 and CC02-C bounded contract tracked acceptance
+
+- Repair candidate `8213b401a28c873e92d813eda4f40dc24983dd4f` preserves the accepted CC02-C contract blob
+  `af271478dac4311bca810221b49b9d5e2167960e` and changes only the three R07 governance files relative to
+  `bdba03b`. The stale top-level Phase 2 summary is removed and now agrees with the detailed M5 state.
+- Exact-SHA run `32336519837`, attempt 1, passed quality `96327048156`, Docker `96327047920` and secret scan
+  `96327048109`. Full Python was 700 PASS with one existing conditional private-runtime skip; mandatory Phase
+  1/M1/M2/M3 evidence remained `1/98/52/46` with zero failure, error or skip.
+- Migration head remained `0014_m5_eval_authority`, OpenAPI remained
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`, contract drift passed, Browser
+  Integration passed 5/5, Gitleaks had zero results and the CycloneDX 1.6 SBOM contained 105 components.
+- Eight readable, unexpired, exact-SHA artifacts were inspected:
+
+  | Artifact                      |           ID | API digest                                                         |
+  | ----------------------------- | -----------: | ------------------------------------------------------------------ |
+  | `gitleaks-results.sarif`      | `9394825631` | `7250b3f6dcdba59181a3fdf2c347df433f46a78c045299149d3125d79e74dd6e` |
+  | `project-docker-evidence`     | `9394856788` | `0faa7e550e84fe7bc6a96c4e563fe33bb7d1610ba24e174a879084b51e0bbd65` |
+  | `playwright-install-evidence` | `9394905663` | `50c088757adc91ba4d2fe31cd06ffe82c081fb2305f87423bcfba7e77816838e` |
+  | `phase1-ci-evidence`          | `9394911963` | `963a79852f427004dee5c58f9189c6132099eec47d43c4826540fc5eea8c6e9a` |
+  | `p2-m1-ci-evidence`           | `9394912334` | `b6bd6afd71f47f0dafe74621d57ded28740bff811072128faec3a4488472bc9b` |
+  | `p2-m2-ci-evidence`           | `9394912709` | `f781edc8b7a18db8d96c07011358edc830a1f900702afaaef12fad1c8e5779cc` |
+  | `p2-m3-ci-evidence`           | `9394913103` | `cb961ee76132f51abe448505fd8be2dfd1b3e090ecca5d8167eadf20252c22cb` |
+  | `project-audit-evidence`      | `9394917918` | `5712ebb359f24d48181769c7dbad75e48daa730c5bc71edf4d050d5962233ba3` |
+
+- Independent security regression and final reviews passed with no mandatory finding. Principal accepts R07 and the
+  tracked CC02-C contract only. This opens one synthetic/numeric driver implementation task; it does not open private
+  input, replay or any downstream Gate.
+
+`P2_M5_R07: REPAIR_ACCEPTED_AT_8213B40_RUN_32336519837_ATTEMPT_1`
+
+`CC_P2_M5_02_C_CONTRACT: PASS_AT_8213B40_RUN_32336519837_ATTEMPT_1`
+
+`CC_P2_M5_02_C_DRIVER: EXECUTION_READY_SYNTHETIC_ONLY_NO_PRIVATE_INPUT`
+
+`CC02_C_RUNNER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_DRIVER_ACCEPTANCE`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: IMPLEMENT_CC02_C_DRIVER_SYNTHETIC_ONLY_NO_PRIVATE_INPUT`

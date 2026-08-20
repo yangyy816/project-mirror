@@ -399,3 +399,34 @@ contract candidate itself creates no driver, report, receipt, transform or Visio
 `P2_M5_T06_ENTRY: CLOSED`
 
 `P2_M5_NEXT_ACTION: VALIDATE_AND_TRACK_CC02_C_CONTRACT_CANDIDATE_NO_REPLAY`
+
+## CC02-C bounded-task contract tracked acceptance
+
+Candidate `bdba03b6abbb4ac849076976afa30e2b0ca2f055` passed run `32335732640` and independent security review. Final
+review found one stale Phase 2 summary, so Principal created bounded repair R07 without modifying the contract blob.
+Repair `8213b401a28c873e92d813eda4f40dc24983dd4f` passed run `32336519837`, eight-artifact inspection and independent
+security/final reviews. Principal accepts R07 and the contract-only checkpoint.
+
+Only the future first-party driver and synthetic/numeric tests are now execution-ready. The implementation worker may
+not receive a private locator or byte. Principal cannot record the pre-read Gate until that exact driver receives its
+own full local, same-SHA artifact and independent-review acceptance.
+
+`P2_M5_R07: REPAIR_ACCEPTED_AT_8213B40_RUN_32336519837_ATTEMPT_1`
+
+`CC_P2_M5_02_C_CONTRACT: PASS_AT_8213B40_RUN_32336519837_ATTEMPT_1`
+
+`CC_P2_M5_02_C_DRIVER: EXECUTION_READY_SYNTHETIC_ONLY_NO_PRIVATE_INPUT`
+
+`CC02_C_RUNNER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_DRIVER_ACCEPTANCE`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: IMPLEMENT_CC02_C_DRIVER_SYNTHETIC_ONLY_NO_PRIVATE_INPUT`

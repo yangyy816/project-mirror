@@ -11,8 +11,9 @@
 - CC02-B contract acceptance: `f69361e8d855fa6262b2d79560c456c8862df2f7` / run `32287419743`, attempt 1.
 - CC02-B manifest acceptance: `96ca439c727e0d9b54b1e6acdaf92be045ff40ab` / run `32332408245`, attempt 1.
 - CC02-B closure checkpoint: `3338b263eb3bdcd507ed6007c20b35d8f2070685` / run `32333890093`.
-- Current status: `CC02_C_BOUNDED_CONTRACT_CANDIDATE`.
-- Execution authorization: `CC02_C_CONTRACT_ONLY_NO_PRIVATE_REPLAY`.
+- CC02-C contract acceptance: `8213b401a28c873e92d813eda4f40dc24983dd4f` / run `32336519837`, attempt 1.
+- Current status: `CC02_C_CONTRACT_ACCEPTED_DRIVER_EXECUTION_READY`.
+- Execution authorization: `CC02_C_DRIVER_SYNTHETIC_IMPLEMENTATION_ONLY_NO_PRIVATE_INPUT`.
 - Threshold selection: `FORBIDDEN`.
 - Stage D/E, T06–T08, MVR and M6: `CLOSED`.
 
@@ -271,3 +272,32 @@ a threshold, change the old 0/4 outcome or open any downstream Gate.
 `CC_P2_M5_02_D_TO_E: CLOSED`
 
 `P2_M5_NEXT_ACTION: VALIDATE_AND_TRACK_CC02_C_CONTRACT_CANDIDATE_NO_REPLAY`
+
+## CC02-C bounded-task contract tracked acceptance
+
+The accepted contract blob is `af271478dac4311bca810221b49b9d5e2167960e`. Candidate `bdba03b...` passed its
+same-SHA run and security review; R07 `8213b40...` removed the only final-review status-sync finding without changing
+the contract. R07 then passed run `32336519837`, eight-artifact inspection and independent security/final reviews.
+
+This acceptance opens only the non-private first-party replay-driver implementation and synthetic/numeric tests. The
+pre-read Gate, private input, both platform replays, receipt, CC02-D/E and all downstream Gates remain closed.
+
+`P2_M5_R07: REPAIR_ACCEPTED_AT_8213B40_RUN_32336519837_ATTEMPT_1`
+
+`CC_P2_M5_02_C_CONTRACT: PASS_AT_8213B40_RUN_32336519837_ATTEMPT_1`
+
+`CC_P2_M5_02_C_DRIVER: EXECUTION_READY_SYNTHETIC_ONLY_NO_PRIVATE_INPUT`
+
+`CC02_C_RUNNER_PRE_READ_GATE: CLOSED_PENDING_TRACKED_DRIVER_ACCEPTANCE`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: IMPLEMENT_CC02_C_DRIVER_SYNTHETIC_ONLY_NO_PRIVATE_INPUT`
