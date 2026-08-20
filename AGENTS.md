@@ -57,6 +57,32 @@
 - 所有创建型接口必须支持幂等；账务使用不可变 Ledger，禁止直接修改余额。
 - 不得提交 `.env`、凭据、真实用户数据或真实人脸测试素材。
 
+## Principal-Managed Private Input Delegation
+
+- 所有 private、sensitive 或 untracked input 默认遵循 `OWNER → PRINCIPAL → SUB-AGENT`。对未变化的授权用途，
+  Owner 只向 Principal 交接一次；Principal 是 `PRIVATE_INPUT_CUSTODIAN`，负责分类、authority/digest/type/scope
+  验证、custody、最小 handoff、cleanup 和最终 Gate。
+- 冻结 `PRIVATE_INPUT_OWNER_HANDOFF_ONCE`、`SUBAGENT_NO_PRIVATE_DISCOVERY`、
+  `PRIVATE_INPUT_NON_PROPAGATION`、`PRINCIPAL_RETAINS_AUTHORITY`。Sub-agent 只能消费 handoff packet 明示的输入，
+  不得扫描磁盘、glob 猜测、枚举父目录、扩大 scope、跨 task/sibling/递归 Agent 复用或传递权限。
+- 每个委派 packet 必须额外包含 `PRIVATE_INPUT_HANDOFF`、task/role/input IDs、purpose、read/write permission、
+  expected digests、max bytes、allowed/forbidden outputs、network policy、cleanup 和 escalation。缺少所需输入时返回
+  `PRIVATE_INPUT_SCOPE_EXPANSION_REQUIRED`，不得自行寻找。
+- Secret value 禁止以文本或文件交给 sub-agent，只能在批准的进程边界注入；Agent 只能知道 presence。真实用户
+  敏感输入仍受既有 Legal/Consent/Privacy/Security Gate，本规则不授权新用途。
+- Handoff 优先使用 task-scoped handle/reference；若 runtime 无法证明 least privilege，则
+  `PRINCIPAL_EXECUTES_SENSITIVE_STEP` 并只向 reviewer 交付 tracked/redacted output。临时 copy 必须在 Git 外或
+  ignored `.private-handoff/`、byte-identical、尽可能 read-only，并在 task 后确认删除。
+- Private input、绝对路径、Prompt、secret、object key 和 raw payload 不得进入 Git、普通 CI artifact、MEMORY 或
+  无关 Agent context。Delegation 不转移 architecture、Gate、consent、production approval 或 scope-expansion
+  authority。完整协议见 ADR-049 与 `docs/operations/PRIVATE_INPUT_DELEGATION_PROTOCOL.md`。
+- Principal/sub-agent 创建的 private evidence 必须进入 Git 外 `PRINCIPAL_PRIVATE_OUTPUT_REGISTRY`，记录 opaque
+  locator、digest、authority、retention、future-task scope、custody 和 cleanup。冻结
+  `PRIVATE_OUTPUT_LOCATION_MUST_BE_RECOVERABLE`、`SUBAGENT_HANDOFF_IS_PRINCIPAL_RESPONSIBILITY`、
+  `PRIVATE_BYTES_STAY_OUT_OF_GIT`；sub-agent 结束前必须把可恢复 locator/authority 交回 Principal。恢复只能从
+  task receipt/registry/已证明 task-owned root 开始，不得广搜磁盘；丢失时报告 `EVIDENCE_LOCATION_LOST` 并走
+  forward change control，不得要求 Owner 重建 Principal 自己产生的 legacy output。
+
 ## B. 架构决策的执行规则
 
 - 技术栈、数据库、Worker、云、账务和契约来源等决策必须记录为 `docs/adr/` 下的 Accepted ADR，并包含 Context、Decision、Alternatives、Consequences、Status。

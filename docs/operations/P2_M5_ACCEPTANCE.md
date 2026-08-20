@@ -872,6 +872,37 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 
 `CC_P2_M5_02_PRIVATE_INPUT: PRIVATE_INPUT_RELEASE_REQUIRED`
 
+## Principal-managed private-input delegation candidate
+
+- ADR-049 freezes Owner→Principal→Sub-agent least-privilege handoff without changing ADR-048, CC02 evidence,
+  thresholds, algorithm, schema/API, dependency/model or downstream Gate authority.
+- CC02 defaults to `PRINCIPAL_EXECUTES_SENSITIVE_STEP`; security/final review receives only tracked outputs and
+  redacted status. The two reports are prior Principal task-owned outputs, not new Owner uploads.
+- Synthetic reference tests must prove exact Owner→Principal→Terra handoff, sibling/cross-task denial, missing-input
+  `OWNER_ACTION_REQUIRED`, digest mismatch, cleanup, Git ignore and ordinary-workflow non-reference.
+- Acceptance requires ADR-048 blob equality, targeted Ruff/mypy/pytest, formatting/diff/private-path/secret scans,
+  same-SHA three-job Actions, independent security review and Principal final review.
+
+`PRIVATE_INPUT_DELEGATION_GOVERNANCE: LOCAL_CANDIDATE`
+
+- The prior Principal Stage C rollout receipt recovered both original task-owned report locators without disk or home
+  scanning. Accepted held-file validation proved schema v2, expected canonical report/runtime/model/topology/candidate/
+  Stage B/cohort/case-set authority, 288 cases and 516 successful rows per platform.
+- Under ADR-048 exclusive custody, Principal invoked builder blob `ad4de2ea...` exactly once. Immediate snapshot proved
+  manifest digest `5a0479a21556498d259572a050d659a0e3617429f83e5fd313c842a35591e0a3`, 288 logical/576
+  platform cases, 1,032 success-repeat bindings, 14 direction cases, zero staging/marker residue and exactly two scoped
+  untracked research outputs. Task-scoped environment cleanup completed; original reports remain outside Git.
+- This is local evidence only. Same-SHA three-job Actions, eight artifacts and independent security/final review remain
+  mandatory before Principal may accept the manifest or open a separate CC02-C contract.
+
+`PRIOR_PRINCIPAL_OUTPUT_RECOVERY: PASS`
+
+`CC02_B_REAL_BUILDER_INVOCATION: PASS_EXACTLY_ONCE`
+
+`CC_P2_M5_02_B_MANIFEST: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+
+`CC02_C_TO_E: CLOSED`
+
 `CC02_B_REAL_BUILDER_INVOCATION: NOT_RUN_FAIL_CLOSED`
 
 `CC02_C_TO_E: CLOSED`
@@ -900,3 +931,20 @@ This is an acceptance skeleton. `PENDING` is not PASS evidence.
 `CC02_B_PRIVATE_INPUT_STATUS_ALIGNMENT: PASS_AT_65715A8_RUN_32308693218_ATTEMPT_1`
 
 `CC_P2_M5_02_PRIVATE_INPUT: PRIVATE_INPUT_RELEASE_REQUIRED`
+
+## Prior-output recovery supersession and current local candidate
+
+The preceding private-input release checkpoint is retained as historical evidence. Owner subsequently corrected the
+authority, and Principal recovered the original task-owned reports from the exact Stage C rollout receipt. The accepted
+builder has now run exactly once under ADR-048 custody; local manifest digest is
+`5a0479a21556498d259572a050d659a0e3617429f83e5fd313c842a35591e0a3`.
+
+`PRIOR_PRINCIPAL_OUTPUT_RECOVERY: PASS`
+
+`CC02_B_REAL_BUILDER_INVOCATION: PASS_EXACTLY_ONCE`
+
+`CC_P2_M5_02_B_MANIFEST: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+
+`CC02_C_TO_E: CLOSED`
+
+`P2_M5_NEXT_ACTION: COMPLETE_LOCAL_VALIDATION_THEN_CANDIDATE_CI`

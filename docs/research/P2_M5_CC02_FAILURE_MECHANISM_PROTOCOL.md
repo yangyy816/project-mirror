@@ -219,6 +219,24 @@ formula/manifest version, a complete new calibration run and its own same-SHA ev
 
 `P2_M5_T06_ENTRY: CLOSED`
 
+## Prior Principal output recovery and local manifest candidate
+
+The two qualified CC01C reports were recovered only from the original Principal task receipt and its proven task-owned
+root. They were not Owner uploads, filename guesses, regenerated evidence or redacted-aggregate substitutes. Held-file
+validation matched all frozen authority and no private locator entered tracked evidence.
+
+Principal then held the ADR-048 exclusive window, ran the accepted builder exactly once and completed the immediate
+snapshot. The resulting manifest digest is
+`5a0479a21556498d259572a050d659a0e3617429f83e5fd313c842a35591e0a3`. It contains the exact frozen
+288/576 cases, 1,032 success-repeat bindings and 14 direction cases. This remains a local candidate pending same-SHA CI
+and independent review; CC02-C–E, T06, MVR and M6 remain closed.
+
+`PRIOR_PRINCIPAL_OUTPUT_RECOVERY: PASS`
+
+`CC02_B_REAL_BUILDER_INVOCATION: PASS_EXACTLY_ONCE`
+
+`CC_P2_M5_02_B_MANIFEST: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+
 `P2_MVR_V1_RESULT: NOT_EVALUATED`
 
 `P2_M5_NEXT_ACTION: SECURE_FIXED_PRIVATE_INPUT_RELEASE_THEN_REPEAT_CUSTODY_PREFLIGHT`

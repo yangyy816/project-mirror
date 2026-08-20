@@ -338,6 +338,33 @@ engine, but M6 entry remains closed and the missing research evidence stays dura
 
 `CC_P2_M5_02_C_TO_E: CLOSED`
 
+`P2_M5_NEXT_ACTION: COMPLETE_LOCAL_VALIDATION_THEN_CANDIDATE_CI`
+
 `P2_M5_NEXT_ACTION: SECURE_FIXED_PRIVATE_INPUT_RELEASE_THEN_REPEAT_CUSTODY_PREFLIGHT`
 
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+## Principal-managed private-input delegation alignment
+
+ADR-049 applies forward without changing ADR-048 or any M5 research authority. The two CC02 legacy reports are
+`PRIVATE_SENSITIVE_INPUT`; Owner releases each unchanged input to Principal once, and Principal retains registry,
+digest/type/scope validation, custody, cleanup and Gate authority. Because the shared Agent workspace cannot prove
+ADR-048 immediate Principal snapshot across a delegated writer, the default unique executor is
+`PRINCIPAL_EXECUTES_SENSITIVE_STEP`. Reviewers receive only tracked manifest/preregistration plus redacted status;
+ordinary CI never receives either report.
+
+The original Stage C task receipt proved both task-owned locators without broad disk discovery. Principal recovered and
+validated the exact original reports, established ADR-048 exclusive custody, invoked the accepted builder exactly once
+and took the immediate canonical/path/type/hash/diff snapshot before clearing the injected environment. The manifest
+candidate digest is `5a0479a21556498d259572a050d659a0e3617429f83e5fd313c842a35591e0a3`; this local candidate does
+not open CC02-C or any downstream Gate before tracked same-SHA acceptance and independent review.
+
+`PRIVATE_INPUT_DELEGATION_GOVERNANCE: LOCAL_CANDIDATE_PENDING_TRACKED_EVIDENCE`
+
+`PRIOR_PRINCIPAL_OUTPUT_RECOVERY: PASS`
+
+`CC02_UNIQUE_BUILDER_EXECUTOR: PRINCIPAL_COMPLETED_EXACTLY_ONCE`
+
+`CC_P2_M5_02_B_MANIFEST: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+
+`CC_P2_M5_02_C_TO_E: CLOSED`

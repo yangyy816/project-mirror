@@ -1050,3 +1050,20 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Principal accepts only the status alignment. The builder was not invoked, no private input was read, and
   `PRIVATE_INPUT_RELEASE_REQUIRED` remains the next external boundary. CC02-C–E and every downstream Gate remain
   closed.
+
+## 2026-08-20 — Prior Principal output recovery and CC02-B manifest local candidate
+
+- Owner corrected the blocker classification: both qualified legacy reports were prior Principal Stage C task-owned
+  outputs, not new Owner uploads. Principal recovered their locators only from the original Codex rollout receipt; no
+  disk/home scan, protected `.tmp` access, filename guess, Stage C rerun or aggregate substitution occurred.
+- Accepted held-file validation proved both regular/non-reparse report byte streams, schema v2, canonical digests
+  `0eac3ef...` / `916ff0...`, the frozen runtime/model/topology/candidate/Stage B/cohort/case-set authority, 288 cases
+  and 516 successful rows per platform.
+- With no other Agent or writer active, Principal established ADR-048 custody and invoked accepted builder blob
+  `ad4de2ea...` exactly once. Immediate snapshot validated manifest digest
+  `5a0479a21556498d259572a050d659a0e3617429f83e5fd313c842a35591e0a3`, 288 logical/576 platform
+  cases, 1,032 success-repeat bindings, 14 direction cases, exactly two scoped research outputs and zero staging/marker
+  residue. Environment references were cleared before custody release; original private reports remain outside Git.
+- ADR-049 and the private-input protocol now also require a Git-external Principal private-output registry and
+  recoverable sub-agent handback. The manifest and governance changes remain a local candidate pending same-SHA CI and
+  independent review. CC02-C–E, T06, MVR and M6 remain closed.

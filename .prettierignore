@@ -6,4 +6,5 @@ coverage
 pnpm-lock.yaml
 packages/contracts/openapi.json
 packages/contracts/src/schema.ts
+docs/research/P2_M5_CC02_DIAGNOSTIC_MANIFEST.json
 pytest-cache-files-*/

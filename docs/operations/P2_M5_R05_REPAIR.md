@@ -162,3 +162,17 @@ services/api/tests/test_p2_m5_cc02_manifest.py`;
 `CC_P2_M5_02_PRIVATE_INPUT: PRIVATE_INPUT_RELEASE_REQUIRED`
 
 `P2_M5_NEXT_ACTION: SECURE_FIXED_PRIVATE_INPUT_RELEASE_THEN_REPEAT_CUSTODY_PREFLIGHT`
+
+## ADR-048 real invocation checkpoint
+
+Principal recovered the two original reports from the prior Stage C task receipt, validated their frozen authority,
+established exclusive custody and invoked the accepted builder exactly once. Immediate snapshot found both fixed
+regular outputs, manifest digest `5a0479a21556498d259572a050d659a0e3617429f83e5fd313c842a35591e0a3`, zero
+staging nodes and no incomplete marker. The environment handoff was cleared before custody release. This is local
+candidate evidence only and does not change R05 acceptance or open CC02-C.
+
+`ADR_048_REAL_INVOCATION: COMPLETE_PENDING_TRACKED_EVIDENCE`
+
+`CC_P2_M5_02_B_MANIFEST: LOCAL_PASS_PENDING_TRACKED_EVIDENCE`
+
+`P2_M5_NEXT_ACTION: COMPLETE_LOCAL_VALIDATION_THEN_CANDIDATE_CI`

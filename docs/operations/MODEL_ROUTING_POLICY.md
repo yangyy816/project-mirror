@@ -30,6 +30,25 @@ Luna, Terra and Spark may not redefine the Master Specification, Phase/Milestone
 
 Every delegated task follows the bounded-task contract in the root `AGENTS.md`, including `BOOTSTRAP_STATUS`, scope, allowed and forbidden areas, acceptance criteria, validation commands, recommended role/tier, output format and escalation condition.
 
+## Private-input routing
+
+- Principal alone classifies private input, validates authority/digest/type/scope, establishes custody, selects the
+  handoff mechanism and retains final Gate authority. Model cost never justifies broader input access.
+- Terra Medium/High may consume only the exact task-scoped input listed in `PRIVATE_INPUT_HANDOFF`. Luna may perform
+  deterministic private processing only when authority and outputs are fully frozen. Spark is denied secret,
+  real-user-sensitive, private facial, architecture-sensitive or uncontrolled research input by default.
+- Access is non-transitive across agents and tasks. A worker that needs another input stops with
+  `PRIVATE_INPUT_SCOPE_EXPANSION_REQUIRED`; it never discovers or enumerates private storage.
+- If the runtime cannot enforce least privilege or a stricter ADR requires immediate Principal custody, use
+  `PRINCIPAL_EXECUTES_SENSITIVE_STEP` and give reviewers only tracked/redacted outputs.
+- Secret values use approved process-bound injection only and are never placed in an Agent packet. Real-user-sensitive
+  input remains behind the existing Legal/Consent/Privacy/Security Gates.
+- Any worker that creates private output must return its opaque recoverable locator, digest, authority, retention and
+  cleanup state to Principal before completion. Routing completion without that handback is `BLOCKED`, not PASS.
+
+The authoritative lifecycle and packet fields are ADR-049 and
+`docs/operations/PRIVATE_INPUT_DELEGATION_PROTOCOL.md`.
+
 ## SPARK eligibility gate
 
 A task is Spark-eligible only when every applicable SPARK condition is true:

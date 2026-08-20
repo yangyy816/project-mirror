@@ -29,6 +29,7 @@ __pycache__/
 
 # local data
 .local-storage/
+.private-handoff/
 work/
 *.db
 *.sqlite
