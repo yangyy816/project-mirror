@@ -28,6 +28,7 @@ MAX_VISION_CALLS = 604
 MAX_SECONDS_PER_PLATFORM = 7200
 MAX_TOTAL_SECONDS = 14400
 MAX_PRIVATE_OUTPUT_BYTES_PER_PLATFORM = 4_294_967_296
+CONTAINMENT_OUTCOME_ESTABLISHED = "ESTABLISHED"
 _SHA256_LENGTH = 64
 
 
@@ -737,14 +738,26 @@ def _execute_platform(
     )
 
 
-def redacted_receipt_projection(reports: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+def redacted_receipt_projection(
+    reports: Mapping[str, Mapping[str, Any]],
+    *,
+    containment_outcomes: Mapping[str, object],
+) -> dict[str, Any]:
     """Return the sole allowed tracked projection after a fully accepted private pair."""
     if set(reports) != set(PLATFORM_ORDER):
+        _stop(ReplayStopCode.UNCLASSIFIED_TERMINAL_FAILURE)
+    if set(containment_outcomes) != set(PLATFORM_ORDER):
         _stop(ReplayStopCode.UNCLASSIFIED_TERMINAL_FAILURE)
     projection_reports: list[dict[str, Any]] = []
     for platform in PLATFORM_ORDER:
         report = reports.get(platform)
         if not isinstance(report, Mapping):
+            _stop(ReplayStopCode.UNCLASSIFIED_TERMINAL_FAILURE)
+        containment_outcome = containment_outcomes.get(platform)
+        if (
+            type(containment_outcome) is not str
+            or containment_outcome != CONTAINMENT_OUTCOME_ESTABLISHED
+        ):
             _stop(ReplayStopCode.UNCLASSIFIED_TERMINAL_FAILURE)
         digest = report.get("report_digest")
         usage = report.get("resource_usage")
@@ -759,6 +772,7 @@ def redacted_receipt_projection(reports: Mapping[str, Mapping[str, Any]]) -> dic
                 "wall_clock_seconds": usage.get("wall_clock_seconds"),
                 "private_output_bytes": usage.get("private_output_bytes"),
                 "resource_outcome": report.get("resource_outcome"),
+                "containment_outcome": containment_outcome,
             }
         )
     return {
@@ -791,9 +805,11 @@ def run_replay(
         reports: dict[str, dict[str, Any]] = {}
         legacy_bytes: dict[str, bytes] = {}
         counts: dict[str, diagnostic.OperationCounts] = {}
+        containment_outcomes: dict[str, str] = {}
         for platform in PLATFORM_ORDER:
             if not custody_gate.establish_containment(platform):
                 _stop(ReplayStopCode.CONTAINMENT_NOT_ESTABLISHED)
+            containment_outcomes[platform] = CONTAINMENT_OUTCOME_ESTABLISHED
             authority = authorities[platform]
             global_meter.start(platform)
             report, platform_legacy, operation_counts = _execute_platform(
@@ -815,11 +831,14 @@ def run_replay(
             legacy_report_bytes=legacy_bytes,
             operation_counts=counts,
         )
+        receipt_projection = redacted_receipt_projection(
+            reports, containment_outcomes=containment_outcomes
+        )
         try:
             report_sink.create_pair_once(reports)
         except Exception:
             _stop(ReplayStopCode.OUTPUT_PUBLICATION_REJECTED)
-        return ReplayResult("COMPLETE", None, redacted_receipt_projection(reports))
+        return ReplayResult("COMPLETE", None, receipt_projection)
     except ReplayDriverError as error:
         return ReplayResult("STOPPED", error.stop_code, None)
     except Exception:

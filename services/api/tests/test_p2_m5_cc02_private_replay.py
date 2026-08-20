@@ -312,6 +312,7 @@ def test_serial_platform_order_no_retry_and_create_once_after_both_complete(
             "wall_clock_seconds": 1,
             "private_output_bytes": len(b"result"),
             "resource_outcome": "WITHIN_ENVELOPE",
+            "containment_outcome": "ESTABLISHED",
         },
         {
             "platform": "windows_x86_64",
@@ -321,6 +322,7 @@ def test_serial_platform_order_no_retry_and_create_once_after_both_complete(
             "wall_clock_seconds": 1,
             "private_output_bytes": len(b"result"),
             "resource_outcome": "WITHIN_ENVELOPE",
+            "containment_outcome": "ESTABLISHED",
         },
     ]
     assert all(
@@ -416,8 +418,50 @@ def test_redacted_receipt_projection_has_no_row_exception_or_capability_fields()
             "resource_outcome": "WITHIN_ENVELOPE",
         },
     }
-    receipt = replay.redacted_receipt_projection(reports)
+    receipt = replay.redacted_receipt_projection(
+        reports,
+        containment_outcomes={
+            platform: replay.CONTAINMENT_OUTCOME_ESTABLISHED for platform in replay.PLATFORM_ORDER
+        },
+    )
     rendered = repr(receipt)
     assert "private_path" not in rendered
     assert "exception" not in rendered
     assert "must-not-project" not in rendered
+
+
+@pytest.mark.parametrize(
+    "containment_outcomes",
+    [
+        {},
+        {"linux_x86_64_network_none": "ESTABLISHED"},
+        {
+            "linux_x86_64_network_none": "ESTABLISHED",
+            "windows_x86_64": "UNKNOWN",
+        },
+        {
+            "linux_x86_64_network_none": "ESTABLISHED",
+            "windows_x86_64": "ESTABLISHED",
+            "unexpected": "ESTABLISHED",
+        },
+    ],
+)
+def test_redacted_receipt_rejects_incomplete_or_unknown_containment(
+    containment_outcomes: dict[str, str],
+) -> None:
+    reports = {
+        platform: {
+            "report_digest": _sha(index),
+            "resource_usage": {
+                "transform_execution_count": 1,
+                "vision_execution_count": 1,
+                "wall_clock_seconds": 1,
+                "private_output_bytes": 1,
+            },
+            "resource_outcome": "WITHIN_ENVELOPE",
+        }
+        for index, platform in enumerate(replay.PLATFORM_ORDER, start=201)
+    }
+    with pytest.raises(replay.ReplayDriverError) as error:
+        replay.redacted_receipt_projection(reports, containment_outcomes=containment_outcomes)
+    assert error.value.stop_code is replay.ReplayStopCode.UNCLASSIFIED_TERMINAL_FAILURE
