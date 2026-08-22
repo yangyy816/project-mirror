@@ -27,14 +27,14 @@ transform, threshold, report, private-input read or output root.
 
 ## Stage boundaries
 
-| Stage  | Allowed outcome                          | Forbidden outcome                                              |
-| ------ | ---------------------------------------- | -------------------------------------------------------------- |
-| `04-G` | governance packet / `FURTHER_RESEARCH`   | assets, providers, measurements, thresholds, private reads     |
-| `04-A` | versioned proposal or explicit stop      | legacy input reuse, hidden resource expansion, model adoption  |
-| `04-B` | fresh bounded calibration cohort         | real/legacy asset reuse, holdout access, production generation |
-| `04-C` | complete fresh candidate-family evidence | READY/threshold selection after unseen holdout access          |
-| `04-D` | immutable policy/split preregistration   | post-access threshold or candidate edits                       |
-| `04-E` | separate technical/MVR disposition       | M6 release or production enablement without all Gates          |
+| Stage  | Allowed outcome                                                | Forbidden outcome                                              |
+| ------ | -------------------------------------------------------------- | -------------------------------------------------------------- |
+| `04-G` | governance packet / `FURTHER_RESEARCH`                         | assets, providers, measurements, thresholds, private reads     |
+| `04-A` | versioned proposal or explicit stop                            | legacy input reuse, hidden resource expansion, model adoption  |
+| `04-B` | fresh bounded calibration cohort                               | real/legacy asset reuse, holdout access, production generation |
+| `04-C` | complete fresh candidate-family evidence                       | READY/threshold selection after unseen holdout access          |
+| `04-D` | immutable policy/split preregistration                         | post-access threshold or candidate edits                       |
+| `04-E` | sealed identity-disjoint holdout evidence + independent review | M6 release or production enablement without all Gates          |
 
 ## `04-G` acceptance contract
 
@@ -43,7 +43,8 @@ transform, threshold, report, private-input read or output root.
   not be regenerated, substituted or silently reclassified.
 - Negative controls: attempted legacy locator discovery; use of old case/identity/Asset IDs; old-output recreation;
   unversioned resource count; threshold/candidate/algorithm decision; real or user input; dependency/model addition.
-- Exit: only `04-A` proposal planning becomes eligible. It is not execution authorization.
+- Exit: only `04-A` proposal planning becomes eligible. It is not execution authorization. After an independently
+  accepted `04-E`, a separate M5 technical/MVR disposition may be considered; that disposition is not part of `04-E`.
 
 `CC_P2_M5_04_G: GOVERNANCE_CANDIDATE_PENDING_TRACKED_EVIDENCE`
 
