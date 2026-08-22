@@ -1361,3 +1361,25 @@ real-user processing.
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: EXECUTE_CC04_A_PROPOSAL_WRITING_PER_ACCEPTED_CONTRACT_NO_STUDY_EXECUTION`
+
+## CC04-A proposal-writing local candidate
+
+The only new tracked material is a versioned proposal and an unresolved-decision register. They contain required
+future evidence categories and stop conditions only; they do not select any concrete source, candidate, resource,
+algorithm/runtime, policy/ontology, threshold/split, budget or custody arrangement. No execution, acquisition,
+private-input access, asset/identity creation, model/runtime adoption, generation, Vision, transform or later-stage
+authorization occurred.
+
+`CC_P2_M5_04_A_PROPOSAL_WRITING: LOCAL_CANDIDATE_PENDING_VALIDATION`
+
+`CC_P2_M5_04_A_EXECUTION: CLOSED`
+
+`CC_P2_M5_04_B_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: VALIDATE_CC04_A_PROPOSAL_ONLY_CANDIDATE_NO_STUDY_EXECUTION`

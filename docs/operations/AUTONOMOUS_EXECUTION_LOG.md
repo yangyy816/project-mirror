@@ -1195,3 +1195,13 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   readable artifacts; both independent reviews passed.
 - Principal accepts the corrected `04-G` governance/separation contract. Only `04-A` proposal planning is eligible;
   `04-A` execution, `04-B–E`, CC02-D/E, T06, MVR, M6, production geometry and real-user processing remain closed.
+
+## 2026-08-23 — CC04-A proposal-only local candidate
+
+- After the accepted CC04-A contract, Principal created a versioned fresh-study proposal and unresolved-decision
+  register only. They enumerate independent future admission evidence and stop conditions without deciding a source,
+  candidate, resource envelope, algorithm/runtime, policy/ontology, threshold/split, budget or custody arrangement.
+- No network, acquisition, generation, private-input read, asset/identity creation, model/runtime adoption, Vision,
+  transform, threshold, MVR or QuestionBank action occurred. `04-A` execution, `04-B–E`, T06, MVR, M6, production
+  geometry and real-user processing remain closed pending this candidate's validation and review.
+- `MEMORY.md`, OpenAPI and `.tmp/` remain protected pre-existing worktree changes and were not modified or staged.

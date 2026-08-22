@@ -1,0 +1,79 @@
+# P2-M5 CC04 Fresh Study Proposal
+
+## Status and authority
+
+- Document version: `p2-m5-cc04-fresh-study-proposal/v1`.
+- Status: `PROPOSAL_ONLY_UNDECIDED_NO_EXECUTION_AUTHORITY`.
+- Task: `CC-P2-M5-04-A`.
+- Authority: ADR-041, ADR-047, ADR-049, ADR-050, the CC04 fresh-evidence protocol, and the accepted CC04-A
+  proposal-task contract.
+- Current milestone: P2-M5 is `EXECUTING`; `P2_MVR_V1_RESULT: NOT_EVALUATED`.
+
+This is a versioned planning artifact, not a study specification or execution approval. It records the independent
+decision and admission-evidence categories that a later bounded task must resolve before any fresh calibration can be
+considered. It selects no source, candidate, quantity, algorithm, runtime, provider, model, policy, ontology,
+threshold, split, budget, custody locator, schedule or implementation path.
+
+## Purpose
+
+The only proposed future sequence is:
+
+```text
+04-A proposal-only decision closure
+→ 04-B fresh calibration
+→ 04-C fresh calibration and diagnostic evidence
+→ 04-D immutable preregistration
+→ 04-E sealed identity-disjoint holdout and independent review
+→ separate M5 technical/MVR disposition
+```
+
+Every arrow requires an independently accepted bounded task. A satisfactory `04-E` result is not itself an M5
+technical or MVR decision.
+
+## Non-negotiable boundaries
+
+- All possible future evidence remains synthetic-only, private and independently versioned. No real-person, User, or
+  sensitive-classification input is in scope.
+- The legacy recovery line is historical context only. It must not be selected, discovered, copied, reconstructed,
+  inferred from, compared against, or used to substitute fresh evidence.
+- Every future source, Asset, identity, measurement, transform, signature, policy, split, runtime/model manifest,
+  output and report requires new authority, a fresh version/digest, and ADR-049 recoverable custody.
+- The existing adult boundary, no-beauty-score, no-sensitive-inference, anti-homogenization and production-fail-closed
+  invariants remain unchanged. A proposal cannot introduce an adult-policy exception or a minor-ambiguity bypass.
+- This document cannot authorize source acquisition, generation, download, installation, private-input access,
+  model/runtime adoption, measurement, transform, threshold selection, or downstream Gate opening.
+
+## Required independent decisions before any 04-B work
+
+| Decision category                        | Required admission evidence                                                                                           | Mandatory independent disposition                                       |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Fresh origin and rights                  | source classification, origin, ownership/rights, retention and provenance evidence                                    | `LICENSE_REVIEW_REQUIRED` until accepted                                |
+| Adult and safety boundary                | synthetic-only and adult-boundary evidence; review process that cannot bypass a hard failure                          | `SECURITY_REVIEW_REQUIRED` and `PRIVACY_REVIEW_REQUIRED` until accepted |
+| Candidate-family admission               | evidence that the future candidate family is fresh, non-legacy, synthetic-only and non-sensitive                      | `OWNER_DECISION_REQUIRED` until accepted                                |
+| Bounded resource envelope                | independently justified resource, retry, cost and storage ceilings                                                    | `OWNER_DECISION_REQUIRED` until accepted                                |
+| Algorithm, runtime and Provider boundary | qualification tier, model/runtime provenance, license, telemetry and zero-network assessment                          | `LICENSE_REVIEW_REQUIRED` and `SECURITY_REVIEW_REQUIRED` until accepted |
+| Policy and ontology                      | separately versioned policy/ontology authority and validation rules                                                   | `OWNER_DECISION_REQUIRED` until accepted                                |
+| Calibration and holdout separation       | independently defined fresh split authority and identity-disjoint evidence                                            | `OWNER_DECISION_REQUIRED` until accepted                                |
+| Negative controls                        | explicit controls for legacy reuse, real/User input, malformed/tampered inputs, hidden network and unsupported claims | `SECURITY_REVIEW_REQUIRED` until accepted                               |
+| Private evidence custody                 | ADR-049 task receipt, opaque recoverable locator, digest/type/scope and cleanup plan                                  | `PRIVACY_REVIEW_REQUIRED` until accepted                                |
+| Reproducibility and platform evidence    | version capture, repeatability plan and platform-variance evidence                                                    | `FURTHER_RESEARCH` if insufficient                                      |
+| Diversity and isolation evidence         | non-sensitive morphology/style diversity, duplicate and mode-collapse evidence                                        | `FURTHER_RESEARCH` if insufficient                                      |
+| M5 disposition separation                | evidence that any later technical/MVR decision is outside `04-E`                                                      | `OWNER_DECISION_REQUIRED` until accepted                                |
+
+The table states requirements only. It does not freeze a value, select a resource, or create an execution envelope.
+
+## Stop and escalation rules
+
+- Missing or unknown authority, source rights, retention, telemetry, artifact, custody or qualification facts result in
+  `FURTHER_RESEARCH`, `DEFERRED_EXTERNAL_DEPENDENCY`, or the applicable review-required state; they must not be
+  represented by placeholder values.
+- A requirement for a new architecture, schema, public contract, Product Invariant, adult-policy change, Provider
+  scope, model/license disposition, resource/budget ceiling, threshold/split or custody arrangement is
+  `OWNER_DECISION_REQUIRED` before a later task is written.
+- Any legacy-evidence reference that would affect selection, comparison, replacement or execution is a hard stop.
+- Any request that would expose private bytes, a locator, Prompt, object key, signed URL or credential is a hard stop.
+
+## Current result
+
+`04-A` has produced this proposal and its decision register only. No execution authority exists, and `04-B` through
+`04-E`, T06, MVR, M6, production geometry and real-user facial processing remain closed.

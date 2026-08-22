@@ -621,3 +621,19 @@ nor `04-B` through `04-E`.
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: EXECUTE_CC04_A_PROPOSAL_WRITING_PER_ACCEPTED_CONTRACT_NO_STUDY_EXECUTION`
+
+## CC04-A proposal-writing local candidate
+
+Principal has created only the versioned CC04 fresh-study proposal and unresolved-decision register permitted by the
+accepted CC04-A contract. They enumerate future admission evidence and honest stop conditions without selecting a
+source, candidate, resource envelope, algorithm/runtime, policy/ontology, threshold/split, budget or custody
+arrangement. No network, private input, asset, identity, model, Provider, generation, measurement, transform or
+downstream Gate is involved.
+
+`CC_P2_M5_04_A_PROPOSAL_WRITING: LOCAL_CANDIDATE_PENDING_VALIDATION`
+
+`CC_P2_M5_04_A_EXECUTION: CLOSED`
+
+`CC_P2_M5_04_B_TO_E: CLOSED`
+
+`P2_M5_NEXT_ACTION: VALIDATE_CC04_A_PROPOSAL_ONLY_CANDIDATE_NO_STUDY_EXECUTION`
