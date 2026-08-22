@@ -17,8 +17,13 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   Provider call, public API, M5 execution or M6 release/revoke capability.
 - Scoped Prettier and `git diff --check` passed. Full workspace formatting remains blocked only by the pre-existing
   user-modified `AGENTS.md` and `MODEL_ROUTING_POLICY.md`; those files remain outside this checkpoint.
-- Next action: validate the T01 governance candidate, then create/push a normal candidate commit and inspect its
-  same-SHA CI before accepting M7 T01 or changing M7 state.
+- Candidate `6ecacf45792e7b93c666eec05b4d19ba7c05a3f8` was normally pushed. Exact-SHA run `32587937578`, attempt 1,
+  completed `quality-and-integration`, `secret-scan` and `docker-validation` successfully. All eight expected
+  artifacts are unexpired and service-side metadata-bound to the candidate SHA.
+- Current-session archive content download returned HTTP 401. The artifact metadata is preserved as evidence, but it
+  cannot substitute for content inspection; T01 remains unaccepted, M7 remains `COMMITTED`, and T02 remains closed.
+- Next action: restore read-only artifact access, inspect the eight archives, then independently review T01 before
+  accepting it or changing M7 state.
 
 ## 2026-08-18T01:45:05+08:00 — P2-M3 recovery and V01 authority closure
 

@@ -36,8 +36,25 @@
 - Scoped Prettier check passed for all five T01-owned documents, and `git diff --check` passed. The full workspace
   format check still reports the pre-existing user-modified `AGENTS.md` and `MODEL_ROUTING_POLICY.md`; neither file
   was formatted, staged or adopted by this task. No public route or dependency-manifest diff was found.
+- Candidate `6ecacf45792e7b93c666eec05b4d19ba7c05a3f8` completed exact-SHA run `32587937578`, attempt 1, with
+  `quality-and-integration`, `secret-scan` and `docker-validation` all successful. The quality job completed
+  PostgreSQL lifecycle, Python, retained Phase 1/P2-M1/M2/M3 evidence, TypeScript, Playwright dependency/download,
+  Browser Integration, contract drift and dependency/license stages successfully.
+- Eight unexpired service-side artifacts are present and metadata-bound to the exact candidate SHA:
+  `gitleaks-results.sarif`, `project-docker-evidence`, `playwright-install-evidence`, `phase1-ci-evidence`,
+  `p2-m1-ci-evidence`, `p2-m2-ci-evidence`, `p2-m3-ci-evidence` and `project-audit-evidence`. Current-session
+  archive download returned HTTP 401, so artifact **content** is `NOT_VERIFIED_AUTH_REQUIRED`; metadata is not
+  treated as a replacement for content inspection.
+- T01 remains unaccepted and M7 remains `COMMITTED` until a read-only authenticated artifact inspection proves the
+  archived contents are readable, exact-SHA bound and free of contradictory mandatory evidence.
 
-`P2_M7_T01: READY_FOR_TRACKED_EVIDENCE`
+`P2_M7_T01_REMOTE_CI: PASS_AT_6ECACF4_RUN_32587937578_ATTEMPT_1`
+
+`P2_M7_T01_ARTIFACT_METADATA: PASS_8_EXACT_SHA_UNEXPIRED`
+
+`P2_M7_T01_ARTIFACT_CONTENT: NOT_VERIFIED_AUTH_REQUIRED`
+
+`P2_M7_T01: PENDING_ARTIFACT_CONTENT_INSPECTION`
 
 `P2_M7_GATE: NOT_EVALUATED`
 

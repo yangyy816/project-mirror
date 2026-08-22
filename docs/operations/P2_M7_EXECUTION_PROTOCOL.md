@@ -146,8 +146,8 @@ schema requirement is a change-control boundary, not a repair.
 | Recovery integration             | T05       | Depends on T02–T04; real infrastructure only.                |
 | Tests/evidence/reviews           | T06–T08   | Sequential after implementation.                             |
 
-`P2_M7_T01: READY_FOR_TRACKED_EVIDENCE`
+`P2_M7_T01: PENDING_ARTIFACT_CONTENT_INSPECTION`
 
 `P2_M7_STATE: COMMITTED`
 
-`P2_M7_NEXT_ACTION: VALIDATE_AND_TRACK_T01_GOVERNANCE_CANDIDATE`
+`P2_M7_NEXT_ACTION: RESTORE_READ_ONLY_ARTIFACT_ACCESS_THEN_INSPECT_T01_ARCHIVES`
