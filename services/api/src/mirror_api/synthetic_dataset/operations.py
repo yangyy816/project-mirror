@@ -20,6 +20,33 @@ _STATE = re.compile(r"[A-Z][A-Z0-9_]{2,63}\Z")
 
 OperationEnvironment = Literal["development", "test", "ci", "production"]
 _OPERATION_ENVIRONMENTS = frozenset({"development", "test", "ci", "production"})
+_RESULT_CODES = frozenset(
+    {
+        "dataset_operation_rejected",
+        "operation_actor_invalid",
+        "operation_backend_unavailable",
+        "operation_completed",
+        "operation_environment_invalid",
+        "operation_execution_unavailable",
+        "operation_expected_state_invalid",
+        "operation_projection_amount_invalid",
+        "operation_projection_count_invalid",
+        "operation_projection_currency_missing",
+        "operation_projection_status_invalid",
+        "operation_production_disabled",
+        "operation_reason_invalid",
+        "operation_rejected",
+        "operation_request_id_invalid",
+        "operation_result_code_invalid",
+        "operation_result_correlation_mismatch",
+        "operation_result_kind_mismatch",
+        "operation_result_projection_forbidden",
+        "operation_result_projection_missing",
+        "operation_result_request_id_invalid",
+        "operation_result_target_invalid",
+        "operation_target_invalid",
+    }
+)
 
 
 class DatasetOperationKind(StrEnum):
@@ -40,7 +67,7 @@ class DatasetOperationRejected(Exception):
     """A safe, stable rejection that never includes operator-supplied values."""
 
     def __init__(self, code: str) -> None:
-        self.code = code if _CODE.fullmatch(code) else "dataset_operation_rejected"
+        self.code = code if code in _RESULT_CODES else "dataset_operation_rejected"
         super().__init__("synthetic dataset operation was rejected")
 
 
@@ -65,9 +92,7 @@ class DatasetOperationCommand:
             raise DatasetOperationRejected("operation_actor_invalid")
         if _CODE.fullmatch(self.reason_code) is None:
             raise DatasetOperationRejected("operation_reason_invalid")
-        if not 8 <= len(self.request_id) <= 96 or any(
-            character in self.request_id for character in "\r\n\0"
-        ):
+        if _ID.fullmatch(self.request_id) is None:
             raise DatasetOperationRejected("operation_request_id_invalid")
 
 
@@ -101,13 +126,11 @@ class DatasetOperationResult:
     projection: DatasetOperationProjection | None = None
 
     def __post_init__(self) -> None:
-        if _CODE.fullmatch(self.code) is None:
+        if self.code not in _RESULT_CODES:
             raise DatasetOperationRejected("operation_result_code_invalid")
         if _ID.fullmatch(self.target_id) is None:
             raise DatasetOperationRejected("operation_result_target_invalid")
-        if not 8 <= len(self.request_id) <= 96 or any(
-            character in self.request_id for character in "\r\n\0"
-        ):
+        if _ID.fullmatch(self.request_id) is None:
             raise DatasetOperationRejected("operation_result_request_id_invalid")
         if self.outcome is DatasetOperationOutcome.SUCCEEDED and self.projection is None:
             raise DatasetOperationRejected("operation_result_projection_missing")

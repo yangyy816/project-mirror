@@ -26,7 +26,7 @@ def command(**overrides: object) -> DatasetOperationCommand:
         "expected_target_state": "QUEUED",
         "actor_reference": "system.operator",
         "reason_code": "operator_inspection",
-        "request_id": "request-1234",
+        "request_id": "b" * 32,
     }
     values.update(overrides)
     return DatasetOperationCommand(**values)  # type: ignore[arg-type]
@@ -96,8 +96,18 @@ async def test_operation_contract_redacts_backend_failure_and_mismatch() -> None
     assert failure.code == "operation_execution_unavailable"
     assert "secret-value" not in str(failure)
 
+    rejected = await SyntheticDatasetOperationService(
+        backends={
+            DatasetOperationKind.BATCH_STATUS: Backend(
+                error=DatasetOperationRejected("secret_like_backend_code")
+            )
+        }
+    ).execute(value)
+    assert rejected.code == "dataset_operation_rejected"
+    assert "secret_like_backend_code" not in str(rejected)
+
     mismatch = DatasetOperationResult.rejected(
-        command(operation=DatasetOperationKind.QA_STATUS), "qa_rejected"
+        command(operation=DatasetOperationKind.QA_STATUS), "operation_rejected"
     )
     result = await SyntheticDatasetOperationService(
         backends={DatasetOperationKind.BATCH_STATUS: Backend(result=mismatch)}
@@ -114,6 +124,7 @@ async def test_operation_contract_redacts_backend_failure_and_mismatch() -> None
         ("actor_reference", "x", "operation_actor_invalid"),
         ("reason_code", "BAD", "operation_reason_invalid"),
         ("request_id", "short", "operation_request_id_invalid"),
+        ("request_id", "prompt_like_token_123456", "operation_request_id_invalid"),
     ],
 )
 def test_operation_contract_rejects_invalid_inputs_without_echoing_them(
@@ -131,6 +142,34 @@ def test_operation_contract_rejects_unknown_environment_without_echoing_it() -> 
         command(environment=cast(OperationEnvironment, invalid))
     assert raised.value.code == "operation_environment_invalid"
     assert invalid not in str(raised.value)
+
+
+def test_operation_contract_rejects_nonopaque_result_correlation_without_echoing_it() -> None:
+    unsafe_request_id = "secret_like_result_token"
+    with pytest.raises(DatasetOperationRejected) as raised:
+        DatasetOperationResult(
+            operation=DatasetOperationKind.BATCH_STATUS,
+            outcome=DatasetOperationOutcome.REJECTED,
+            code="operation_rejected",
+            target_id="a" * 32,
+            request_id=unsafe_request_id,
+        )
+    assert raised.value.code == "operation_result_request_id_invalid"
+    assert unsafe_request_id not in str(raised.value)
+
+
+def test_operation_contract_rejects_nonallowlisted_result_code_without_echoing_it() -> None:
+    unsafe_code = "secret_like_result_code"
+    with pytest.raises(DatasetOperationRejected) as raised:
+        DatasetOperationResult(
+            operation=DatasetOperationKind.BATCH_STATUS,
+            outcome=DatasetOperationOutcome.REJECTED,
+            code=unsafe_code,
+            target_id="a" * 32,
+            request_id="b" * 32,
+        )
+    assert raised.value.code == "operation_result_code_invalid"
+    assert unsafe_code not in str(raised.value)
 
 
 def test_operation_contract_has_no_database_or_provider_import_boundary() -> None:
