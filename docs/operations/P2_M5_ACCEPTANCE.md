@@ -1217,16 +1217,27 @@ builder has now run exactly once under ADR-048 custody; local manifest digest is
 
 `P2_M5_NEXT_ACTION: PREPARE_FORWARD_RECOVERY_FAILURE_CHANGE_CONTROL_NO_REGENERATION`
 
-## CC04-G fresh-evidence governance candidate
+## CC04-G fresh-evidence governance acceptance
 
 ADR-050 and `P2_M5_CC04_FRESH_EVIDENCE_PROTOCOL.md` propose only an independent future research line after the accepted
 CC02-C recovery stop. This candidate does not regenerate, copy, select or infer legacy evidence; it does not create a
 new asset, identity, provider call, transform, Vision measurement, threshold or release decision. `04-A` through
 `04-E` remain closed until this governance packet completes its own tracked evidence and review.
 
-`CC_P2_M5_04_G: GOVERNANCE_CANDIDATE_PENDING_TRACKED_EVIDENCE`
+Candidate `b1331f1bedd5c08d65fd8a5a3d00297ed59475c7` passed run `32582165849`, three jobs and eight readable artifacts,
+but final review correctly found that the protocol had conflated the `04-E` sealed holdout/review stage with a later M5
+technical/MVR disposition. `P2-M5-R10` changed only that protocol boundary. Repair
+`3ac41c3c54de34b6386aebb1ba79b6fa1790dfe1` passed run `32582621932`, all three jobs and eight readable exact-SHA
+artifacts; independent security and final reviews passed. Principal accepts only the corrected `04-G` governance and
+separation contract. It does not accept a new study, evidence, disposition, MVR result or M6 entry.
 
-`CC_P2_M5_04_A_TO_E: CLOSED`
+`CC_P2_M5_04_G: GOVERNANCE_ACCEPTED_AT_3AC41C3_RUN_32582621932_ATTEMPT_1`
+
+`CC_P2_M5_04_A_PROPOSAL_PLANNING: ELIGIBLE_NOT_EXECUTION_AUTHORIZATION`
+
+`CC_P2_M5_04_A_EXECUTION: CLOSED`
+
+`CC_P2_M5_04_B_TO_E: CLOSED`
 
 ## CC02-C recovery-stop checkpoint remote-CI external blocker
 

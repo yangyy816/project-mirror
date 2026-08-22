@@ -1186,3 +1186,12 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   records must be newly versioned and recoverable. Legacy inputs remain excluded from selection and execution.
 - This candidate creates no asset, dependency, model, schema, API, threshold, transform, Vision call or downstream
   Gate opening. `04-A` through `04-E`, CC02-D/E, T06, MVR and M6 remain closed pending its own review and CI evidence.
+
+## 2026-08-22 — CC04-G accepted after R10 stage-boundary repair
+
+- Candidate `b1331f1` passed its same-SHA CI and security review, but independent final review found that the CC04
+  protocol had incorrectly collapsed `04-E` holdout/review with the later M5 technical/MVR disposition.
+- `P2-M5-R10` `3ac41c3` corrected only that boundary. Its same-SHA run `32582621932` passed all three jobs with eight
+  readable artifacts; both independent reviews passed.
+- Principal accepts the corrected `04-G` governance/separation contract. Only `04-A` proposal planning is eligible;
+  `04-A` execution, `04-B–E`, CC02-D/E, T06, MVR, M6, production geometry and real-user processing remain closed.

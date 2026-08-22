@@ -46,9 +46,13 @@ transform, threshold, report, private-input read or output root.
 - Exit: only `04-A` proposal planning becomes eligible. It is not execution authorization. After an independently
   accepted `04-E`, a separate M5 technical/MVR disposition may be considered; that disposition is not part of `04-E`.
 
-`CC_P2_M5_04_G: GOVERNANCE_CANDIDATE_PENDING_TRACKED_EVIDENCE`
+`CC_P2_M5_04_G: GOVERNANCE_ACCEPTED_AT_3AC41C3_RUN_32582621932_ATTEMPT_1`
 
-`CC_P2_M5_04_A_TO_E: CLOSED`
+`CC_P2_M5_04_A_PROPOSAL_PLANNING: ELIGIBLE_NOT_EXECUTION_AUTHORIZATION`
+
+`CC_P2_M5_04_A_EXECUTION: CLOSED`
+
+`CC_P2_M5_04_B_TO_E: CLOSED`
 
 `CC02_C_INPUT_RECOVERY: EVIDENCE_LOCATION_LOST`
 
