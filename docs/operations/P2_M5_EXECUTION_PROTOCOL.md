@@ -518,3 +518,25 @@ R09 completed its exact-SHA run `32580630760` on `b179c193b3a719142139b6d42e5be0
 eight artifacts passed inspection, the SBOM records `pip 26.2.1`, and independent security/final reviews passed.
 Principal accepts this bounded repair and the unchanged recovery-stop content carried by the same SHA. It does not
 open private replay, CC02-D/E, T06, MVR, M6, production geometry or real-user processing.
+
+## CC-P2-M5-04 — Fresh evidence line after recovery stop
+
+ADR-050 establishes a new, independent research line because CC02-C cannot be reconstructed without violating
+ADR-047/049. `04-G` is governance only: it preserves the legacy stop, prohibits legacy input/output reuse and freezes
+that future evidence must have new authority/digest/custody. It does not generate or process anything.
+
+```text
+04-G governance/separation
+→ 04-A new resource/candidate proposal
+→ 04-B fresh calibration
+→ 04-C fresh calibration/diagnostic evidence
+→ 04-D preregistration
+→ 04-E holdout/review
+→ separate M5 disposition
+```
+
+`CC_P2_M5_04_G: GOVERNANCE_CANDIDATE_PENDING_TRACKED_EVIDENCE`
+
+`CC_P2_M5_04_A_TO_E: CLOSED`
+
+`P2_M5_NEXT_ACTION: VALIDATE_CC04_G_GOVERNANCE_ONLY_NO_LEGACY_REGENERATION`

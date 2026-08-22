@@ -1177,3 +1177,12 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   Replay remains `NOT_EXECUTED_FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`; CC02-D/E, T06, MVR, M6, production
   geometry and real-user processing remain closed. `MEMORY.md` remains a protected pre-existing modification and was
   not staged or overwritten.
+
+## 2026-08-22 — CC04-G fresh-evidence governance candidate
+
+- ADR-050 establishes a governance-only, independent future research line after CC02-C evidence loss. It does not
+  reopen CC02, reconstruct/recreate legacy evidence or assert a diagnosis.
+- Before any future experiment, new sources, identities, measurements, outputs, policies, splits and private custody
+  records must be newly versioned and recoverable. Legacy inputs remain excluded from selection and execution.
+- This candidate creates no asset, dependency, model, schema, API, threshold, transform, Vision call or downstream
+  Gate opening. `04-A` through `04-E`, CC02-D/E, T06, MVR and M6 remain closed pending its own review and CI evidence.

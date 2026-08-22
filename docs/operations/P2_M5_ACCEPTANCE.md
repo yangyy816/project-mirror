@@ -1217,6 +1217,17 @@ builder has now run exactly once under ADR-048 custody; local manifest digest is
 
 `P2_M5_NEXT_ACTION: PREPARE_FORWARD_RECOVERY_FAILURE_CHANGE_CONTROL_NO_REGENERATION`
 
+## CC04-G fresh-evidence governance candidate
+
+ADR-050 and `P2_M5_CC04_FRESH_EVIDENCE_PROTOCOL.md` propose only an independent future research line after the accepted
+CC02-C recovery stop. This candidate does not regenerate, copy, select or infer legacy evidence; it does not create a
+new asset, identity, provider call, transform, Vision measurement, threshold or release decision. `04-A` through
+`04-E` remain closed until this governance packet completes its own tracked evidence and review.
+
+`CC_P2_M5_04_G: GOVERNANCE_CANDIDATE_PENDING_TRACKED_EVIDENCE`
+
+`CC_P2_M5_04_A_TO_E: CLOSED`
+
 ## CC02-C recovery-stop checkpoint remote-CI external blocker
 
 - Governance checkpoint `9a7a1f7ecaccafa5b187e41aac5563a447bc29c9` was normally pushed to
