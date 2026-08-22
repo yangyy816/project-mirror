@@ -1136,3 +1136,20 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - Principal accepts R08 and the driver blobs. This docs-only checkpoint records the pre-read disposition but performs
   no private read or replay; execution remains closed until the checkpoint's own same-SHA evidence is accepted.
 - `MEMORY.md` remains a protected pre-existing worktree modification and was not staged or overwritten.
+
+## 2026-08-20 — CC02-C pre-read acceptance and evidence-location stop
+
+- Pre-read checkpoint `d134517fa97132b180a82c69c617b8f65d3b282e` passed run `32345071728`, all three
+  jobs, eight exact-SHA artifacts and both independent reviews. Principal accepts the exact driver/test checkpoint.
+- Recovery used only the original Codex task receipt. It recovered the Stage B authority root, 12 normalized nodes,
+  12 Vision/landmark-log nodes, accepted Windows Vision/model nodes and the Windows legacy report. No private locator
+  is recorded.
+- The qualified Linux legacy-report capability was absent from all retained receipt/registry state. Current
+  PostgreSQL contained zero Asset rows and the accepted Debian 13 execution image was absent. Broad Docker-volume,
+  parent-directory and disk discovery remained prohibited and was not bypassed.
+- CC02-C stopped before any legacy-report/image/landmark/model byte replay, transform, Vision call or output creation.
+  The accepted outcome is `EVIDENCE_LOCATION_LOST` / `FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`.
+- Old Stage C remains `FURTHER_RESEARCH` with 0/4 eligibility. CC02-D/E, T06, MVR, M6, production geometry and
+  real-user processing remain closed. The next action is a separate forward recovery-failure change-control packet;
+  no legacy evidence may be regenerated or inferred.
+- `MEMORY.md`, OpenAPI and `.tmp/` remain protected pre-existing worktree changes and were not modified or staged.

@@ -334,3 +334,39 @@ deny must still be proven immediately before their respective reads.
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: VALIDATE_PRE_READ_ACCEPTANCE_CHECKPOINT_NO_PRIVATE_READ`
+
+## CC02-C accepted pre-read Gate and reconstruction stop
+
+Exact-SHA checkpoint `d134517fa97132b180a82c69c617b8f65d3b282e`, run `32345071728`, its eight
+artifacts and both independent reviews passed. This accepts the pre-read governance checkpoint only.
+
+Principal then performed the ADR-049 bounded recovery audit from the original task receipt. The Stage B normalized
+sources and Vision logs, Windows runtime/model and Windows legacy report remained recoverable. The exact qualified
+Linux legacy-report capability did not. No permitted receipt/registry source retained its locator, and its accepted
+execution image was absent. A later empty PostgreSQL authority cannot replace the immutable task-owned report.
+
+The protocol's stop rule applies: no parent/disk/volume discovery, no report regeneration, no aggregate substitution
+and no partial one-platform replay. The result is `FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`, classified as
+`EVIDENCE_LOCATION_LOST`. The old Stage C `FURTHER_RESEARCH` and 0/4 eligibility remain unchanged.
+
+`CC02_C_RUNNER_PRE_READ_GATE: PASS_AT_D134517_RUN_32345071728_ATTEMPT_1`
+
+`CC02_C_INPUT_RECOVERY: EVIDENCE_LOCATION_LOST`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED_FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`
+
+`CC02_C_PRIVATE_REPORTS_CREATED: ZERO`
+
+`CC02_C_REPORT_PAIR_VALIDATION: NOT_RUN`
+
+`CC02_C_TRACKED_RECEIPT: NOT_CREATED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: PREPARE_FORWARD_RECOVERY_FAILURE_CHANGE_CONTROL_NO_REGENERATION`

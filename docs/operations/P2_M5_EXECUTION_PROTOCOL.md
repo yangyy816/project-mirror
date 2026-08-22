@@ -463,3 +463,37 @@ independent review. CC02-C replay is not executed in this checkpoint.
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: VALIDATE_PRE_READ_ACCEPTANCE_CHECKPOINT_NO_PRIVATE_READ`
+
+## CC02-C pre-read acceptance and evidence-location stop
+
+Pre-read checkpoint `d134517fa97132b180a82c69c617b8f65d3b282e` passed run `32345071728`, all eight
+exact-SHA artifacts and both independent reviews. Principal accepts the checkpoint and the exact previously accepted
+driver/test blobs.
+
+Bounded recovery used the original Codex task receipt only. It recovered the exact Stage B authority root, 12
+normalized-source nodes, 12 Vision/landmark-log nodes, the accepted Windows Vision/model nodes and the Windows legacy
+report without recording a locator. The qualified Linux legacy-report capability was not recoverable from the retained
+receipt/registry state; prior environment references were absent, the accepted Debian 13 image was no longer present
+and current PostgreSQL contained no surviving Stage B Asset rows.
+
+ADR-049 forbids scanning parents, disks or Docker volumes to rediscover the missing capability. ADR-047 forbids
+rebuilding the legacy report or inferring it from the redacted aggregate. Recovery therefore stops before any platform
+private-byte read, transform, Vision call or output creation.
+
+`CC02_C_RUNNER_PRE_READ_GATE: PASS_AT_D134517_RUN_32345071728_ATTEMPT_1`
+
+`CC02_C_INPUT_RECOVERY: EVIDENCE_LOCATION_LOST`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED_FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`
+
+`CC02_C_TRACKED_RECEIPT: NOT_CREATED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: PREPARE_FORWARD_RECOVERY_FAILURE_CHANGE_CONTROL_NO_REGENERATION`

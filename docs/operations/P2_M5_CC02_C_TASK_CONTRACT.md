@@ -242,3 +242,45 @@ this tracked contract candidate
 `P2_MVR_V1_RESULT: NOT_EVALUATED`
 
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+## Principal pre-read acceptance and bounded recovery stop
+
+- Pre-read checkpoint `d134517fa97132b180a82c69c617b8f65d3b282e` passed exact-SHA run `32345071728`, all
+  three jobs, eight readable artifacts and both independent reviews. Principal accepts the exact tracked driver/test
+  blobs and records the governance pre-read Gate as passed.
+- Recovery then used only the original Codex task receipt and its exact task-owned capabilities. It recovered the
+  Stage B private authority root, all 12 normalized-source nodes, all 12 Vision/landmark-log nodes, the accepted
+  Windows Vision/model nodes and the Windows legacy-report node. No locator is recorded here.
+- The exact qualified Linux legacy-report capability was not present in the recovered receipt/registry state. The
+  prior environment references were absent, and the accepted Debian 13 execution image was no longer present.
+  PostgreSQL contained zero surviving Asset rows and therefore could not serve as replacement authority.
+- Broad disk, parent-directory or Docker-volume enumeration is prohibited by ADR-049 and was not used. Rebuilding the
+  Linux legacy report, rerunning Stage C or substituting an aggregate is also prohibited. Recovery therefore stops at
+  the contract's accepted outcome `FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE` with operational classification
+  `EVIDENCE_LOCATION_LOST`.
+- No legacy-report bytes, normalized image bytes, landmark bytes or model bytes were consumed by a platform replay.
+  No transform, Vision call, output root, private diagnostic report, report pair or tracked receipt was created.
+
+`CC_P2_M5_02_C_CONTRACT: PASS_AT_8213B40_RUN_32336519837_ATTEMPT_1`
+
+`CC_P2_M5_02_C_DRIVER: PASS_AT_410DCB9_RUN_32343563224_ATTEMPT_1`
+
+`CC02_C_RUNNER_PRE_READ_GATE: PASS_AT_D134517_RUN_32345071728_ATTEMPT_1`
+
+`CC02_C_INPUT_RECOVERY: EVIDENCE_LOCATION_LOST`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED_FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`
+
+`CC02_C_REPORT_PAIR_VALIDATION: NOT_RUN`
+
+`CC02_C_TRACKED_RECEIPT: NOT_CREATED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: PREPARE_FORWARD_RECOVERY_FAILURE_CHANGE_CONTROL_NO_REGENERATION`

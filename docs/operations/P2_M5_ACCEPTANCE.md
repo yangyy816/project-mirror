@@ -1175,3 +1175,44 @@ builder has now run exactly once under ADR-048 custody; local manifest digest is
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: VALIDATE_PRE_READ_ACCEPTANCE_CHECKPOINT_NO_PRIVATE_READ`
+
+## CC02-C pre-read checkpoint acceptance and bounded recovery result
+
+- Checkpoint `d134517fa97132b180a82c69c617b8f65d3b282e` passed exact-SHA run `32345071728`: quality,
+  Docker and secret scan all succeeded; eight artifacts were readable and unexpired. Full Python was `731 passed,
+1 skipped`, with only the existing optional private-runtime skip; Phase 1/M1/M2/M3 evidence remained
+  `1/98/52/46` with zero mandatory skip. Migration head remained `0014_m5_eval_authority`, OpenAPI remained unchanged,
+  Browser Integration passed 5/5 and Gitleaks returned zero results.
+- Independent security and final reviews passed. Principal accepts `d134517` as the CC02-C pre-read governance
+  checkpoint. This does not by itself prove containment, private replay or result validity.
+- Recovery from the original task receipt proved the exact Stage B authority root, 12 normalized-source nodes, 12
+  Vision/landmark-log nodes, Windows Vision/model nodes and the Windows legacy-report node remained present and
+  non-reparse. The exact qualified Linux legacy-report capability could not be recovered from any permitted receipt or
+  registry source.
+- Current PostgreSQL contained zero Asset rows and the accepted Debian 13 execution image was absent. Neither can be
+  treated as equivalent legacy authority. Broad storage discovery was rejected and not bypassed.
+- The accepted fail-closed stop is `EVIDENCE_LOCATION_LOST` /
+  `FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`. No report bytes or asset bytes were replayed; transforms, Vision
+  calls, output bytes, report-pair validation and tracked receipt all remain zero/not run.
+
+`CC02_C_RUNNER_PRE_READ_GATE: PASS_AT_D134517_RUN_32345071728_ATTEMPT_1`
+
+`CC02_C_INPUT_RECOVERY: EVIDENCE_LOCATION_LOST`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED_FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`
+
+`CC02_C_RESOURCE_USAGE: TRANSFORMS_0_VISION_0_OUTPUT_BYTES_0`
+
+`CC02_C_REPORT_PAIR_VALIDATION: NOT_RUN`
+
+`CC02_C_TRACKED_RECEIPT: NOT_CREATED`
+
+`CC_P2_M5_02_D_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: PREPARE_FORWARD_RECOVERY_FAILURE_CHANGE_CONTROL_NO_REGENERATION`
