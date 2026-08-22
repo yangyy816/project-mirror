@@ -95,7 +95,7 @@ acceptance evidence, ADR-051, relevant accepted service contracts and the curren
 - Validation commands: scoped Prettier, `pnpm.cmd format:check`, `git diff --check`, invariant/public-contract/dependency
   negative scan and same-SHA CI/artifact review.
 - Recommended agent / model: Principal / Sol High.
-- Current status: `PENDING_P2_M7_R01_CONTRACT_COMPLETENESS_REPAIR`.
+- Current status: `PENDING_P2_M7_R02_EVIDENCE_STATE_RECONCILIATION`.
 
 ## P2-M7-T02 — typed operation-service contract
 
@@ -200,7 +200,7 @@ acceptance evidence, ADR-051, relevant accepted service contracts and the curren
   same-SHA CI/artifact review.
 - Recommended agent / model: Principal / Sol High.
 
-`P2_M7_R01: READY_FOR_TRACKED_EVIDENCE`
+`P2_M7_R01: PASS_AT_78C6370_RUN_32588923032_ATTEMPT_1`
 
 ## Collision domains and entry rules
 
@@ -213,8 +213,8 @@ acceptance evidence, ADR-051, relevant accepted service contracts and the curren
 | Recovery integration             | T05       | Depends on T02–T04; real infrastructure only.                |
 | Tests/evidence/reviews           | T06–T08   | Sequential after implementation.                             |
 
-`P2_M7_T01: PENDING_ARTIFACT_CONTENT_INSPECTION`
+`P2_M7_T01: PENDING_P2_M7_R02_TRACKED_EVIDENCE`
 
 `P2_M7_STATE: COMMITTED`
 
-`P2_M7_NEXT_ACTION: RESTORE_READ_ONLY_ARTIFACT_ACCESS_THEN_INSPECT_T01_ARCHIVES`
+`P2_M7_NEXT_ACTION: P2_M7_R02_TRACKED_EVIDENCE`

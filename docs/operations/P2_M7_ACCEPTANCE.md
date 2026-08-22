@@ -64,3 +64,33 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_STATE: COMMITTED`
+
+## P2-M7-R02 / T01 evidence-state reconciliation
+
+- `P2-M7-R02` is a documentation-only repair for the stale evidence-state labels above. It does not change
+  ADR-051, a schema, public API, dependency, model, Provider, production capability, M5 research authority or M6
+  release/revoke authority.
+- Repair candidate `78c6370fa6b73491bf3ad0c705f6cf284982e3ee` completed GitHub Actions run `32588923032`, attempt 1,
+  with `quality-and-integration`, `secret-scan` and `docker-validation` successful on that exact SHA.
+- All eight expected artifacts were unexpired and service-side SHA-256 bound to that run. Principal performed an
+  authenticated, temporary content inspection of all eight archives: 11 files, candidate-SHA bindings in the retained
+  evidence JSON, zero credential-pattern or image files, and zero Gitleaks SARIF results. Temporary download material
+  was deleted after inspection.
+- The only skipped quality-job upload step is `playwright-failure-evidence`, guarded by `if: failure()`; Browser
+  Integration passed, so this conditional failure-only artifact is not a mandatory skip. The mandatory Playwright
+  install evidence was uploaded and content-inspected.
+- Independent security/privacy/data/supply-chain review of `6ecacf4^..78c6370` passed. The reviewer found no scope
+  bypass and did not reinterpret Principal's artifact-content inspection as independently performed evidence.
+- Principal has completed the evidence review, but this R02 candidate must receive its own same-SHA CI before a
+  separate T01 acceptance checkpoint can open T02. This is not M7 Gate evidence and does not open M5 fresh-study
+  execution, M6 release/revoke, production CLI enablement or a public interface.
+
+`P2_M7_R02: READY_FOR_TRACKED_EVIDENCE`
+
+`P2_M7_T01: PENDING_P2_M7_R02_TRACKED_EVIDENCE`
+
+`P2_M7_R01: PASS_AT_78C6370_RUN_32588923032_ATTEMPT_1`
+
+`P2_M7_STATE: COMMITTED`
+
+`P2_M7_NEXT_TASK: P2_M7_R02_TRACKED_EVIDENCE`

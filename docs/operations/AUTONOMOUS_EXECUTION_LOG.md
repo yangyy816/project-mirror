@@ -26,6 +26,13 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   docs-only `P2-M7-R01` repair adds that missing execution governance without changing architecture or opening M5/M6.
 - Next action: validate and track R01, then restore read-only artifact access, inspect the eight archives and
   independently review T01 before accepting it or changing M7 state.
+- `P2-M7-R02` records the completed follow-up without changing architecture: `78c6370fa6b73491bf3ad0c705f6cf284982e3ee`
+  / run `32588923032` passed all three jobs; all eight archives were authenticated, content-inspected and removed from
+  the temporary review root. The failure-only Playwright upload was correctly skipped because Browser Integration
+  passed; its mandatory install-evidence artifact was present and inspected. Independent review found no security,
+  privacy, data, supply-chain or phase-boundary finding. M5 fresh-study execution and M6 remain closed. R02 is the
+  same-SHA evidence-state reconciliation candidate; a separate acceptance checkpoint may open T02 only after R02 has
+  passed its own CI.
 
 ## 2026-08-18T01:45:05+08:00 — P2-M3 recovery and V01 authority closure
 
