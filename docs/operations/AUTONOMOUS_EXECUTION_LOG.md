@@ -1153,3 +1153,14 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   real-user processing remain closed. The next action is a separate forward recovery-failure change-control packet;
   no legacy evidence may be regenerated or inferred.
 - `MEMORY.md`, OpenAPI and `.tmp/` remain protected pre-existing worktree changes and were not modified or staged.
+
+## 2026-08-22 — CC02-C recovery-stop remote CI blocked before repository execution
+
+- Governance checkpoint `9a7a1f7ecaccafa5b187e41aac5563a447bc29c9` was normally pushed. Same-SHA run
+  `32579711338` marked all three jobs failed before their first steps, with no job log or artifact.
+- The public GitHub check annotation reports recent account-payment failure or a spending-limit requirement. This is
+  recorded as `DEFERRED_EXTERNAL_DEPENDENCY`, not a Project Mirror test, code, migration, Docker, secret-scan or
+  Playwright result.
+- No remote acceptance is claimed. After the external account condition is resolved, the same SHA must be rerun and
+  its three jobs plus artifacts inspected. The blocker does not authorize replay, evidence regeneration or any
+  downstream Gate opening.

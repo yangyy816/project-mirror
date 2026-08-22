@@ -1216,3 +1216,23 @@ builder has now run exactly once under ADR-048 custody; local manifest digest is
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: PREPARE_FORWARD_RECOVERY_FAILURE_CHANGE_CONTROL_NO_REGENERATION`
+
+## CC02-C recovery-stop checkpoint remote-CI external blocker
+
+- Governance checkpoint `9a7a1f7ecaccafa5b187e41aac5563a447bc29c9` was normally pushed to
+  `codex/phase2-m5-failure-mechanism-isolation`. Same-SHA run `32579711338` did not execute any repository step:
+  `quality-and-integration`, `secret-scan` and `docker-validation` each failed before their first step.
+- GitHub check annotations classify all three failures as an account billing/spending-limit condition. This is
+  `DEFERRED_EXTERNAL_DEPENDENCY`, not a product, migration, test, Playwright, dependency or security-scan result.
+  No CI artifact was created, so no new artifact evidence is claimed or inspected.
+- The recovery-stop content remains locally validated and independently reviewed, but this checkpoint has no
+  acceptance-level same-SHA CI evidence. When the external account condition is resolved, rerun the same SHA before
+  any acceptance claim; do not replay, regenerate or replace lost CC01-C/CC02-C evidence to work around the blocker.
+
+`CC02_C_RECOVERY_STOP_REMOTE_CI: BLOCKED_EXTERNAL_BILLING_RUN_32579711338`
+
+`CC02_C_RECOVERY_STOP_ARTIFACTS: NOT_CREATED_CI_JOBS_NOT_STARTED`
+
+`CC02_C_RECOVERY_STOP_ACCEPTANCE: PENDING_SAME_SHA_RERUN_AFTER_EXTERNAL_REMEDIATION`
+
+`P2_M5_NEXT_ACTION: PREPARE_FORWARD_RECOVERY_FAILURE_CHANGE_CONTROL_NO_REGENERATION`
