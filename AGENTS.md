@@ -25,6 +25,7 @@
 - Terra 的 PASS 只是证据。只有 Principal 审查实际 diff、验证输出、安全影响和集成结果后才能给出 `TASK_ACCEPTED`，并且只有 Principal 能决定 Milestone Gate。
 - 模型路由使用 Sol High 做规划/架构/最终审查，Terra Medium 做默认 bounded implementation，`pm_terra_high_worker` / Terra High 只做契约已冻结但实现困难的仓库推理、多文件控制流、并发或事务任务，`pm_luna_worker` / Luna Medium 做规则明确的机械批处理，`pm_fast_worker` / GPT-5.3-Codex-Spark 做小、精确、原子、可逆且验证明确的即时 micro task；不确定时先选 Terra Medium，再按证据升级。
 - Spark 任务必须明示 `OBJECTIVE / ALLOWED AREA / EXPECTED CHANGE / FORBIDDEN / VALIDATION`，不得自主决定架构、安全/隐私、认证、数据库/迁移、敏感人脸领域或产品 invariant；发现边界扩大时立即 `ESCALATION_REQUIRED`。Spark 未执行指定验证时只能报 `IMPLEMENTED_NOT_VERIFIED`。完整规则见 `docs/operations/MODEL_ROUTING_POLICY.md`。
+- `codex/p3-p7-core-demo` 额外受 `docs/operations/P3_P7_PROTOTYPE_AGENT_ROUTING.md` 约束：逻辑主进程为 task-scoped Terra High Principal，默认一个、硬上限两个 active sub-agents，每个 packet 固定 `CAN_DELEGATE=false`，中央 migration/ORM/OpenAPI/client/Celery/private-registry/MEMORY/acceptance 所有权不得委派。项目配置继续不覆盖 Owner 在 Codex UI 选择的 Principal model；requested/static/runtime-verified model evidence 必须分开。
 
 ## A. 不可违反的产品 Invariants
 

@@ -2,7 +2,10 @@
 # interactive conversation model remains user-selectable in the Codex UI.
 [agents]
 enabled = true
-max_concurrent_threads_per_session = 4
+# OpenAI's config reference defines this value as spawned-agent threads and
+# excludes the primary thread. The Demo Track therefore caps active subagents
+# at the Owner-authorized hard limit of two; normal execution still uses one.
+max_concurrent_threads_per_session = 2
 default_subagent_model = "gpt-5.6-terra"
 default_subagent_reasoning_effort = "medium"
 interrupt_message = true

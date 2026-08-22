@@ -117,6 +117,25 @@ Future bounded-task plans should also record `RECOMMENDED_AGENT`, `RECOMMENDED_M
 - Difficult bounded implementation agent: `pm_terra_high_worker` in `.codex/agents/pm-terra-high-worker.toml` using `gpt-5.6-terra` with high reasoning.
 - The default subagent is `gpt-5.6-terra` with medium reasoning. Backend, data, frontend, infrastructure and test workers use Terra Medium; the security reviewer remains Terra High; planning and final review remain Sol High.
 - Project `.codex/config.toml` intentionally does not define a top-level `model`, `model_reasoning_effort` or plan-mode model. The user remains free to select and change the Principal model from the conversation UI; project routing only binds delegated roles.
-- Project concurrency is capped at four threads, but the default remains single-agent execution.
+- General Project Mirror routing historically capped spawned Agent concurrency at four, but the isolated P3–P7 Demo
+  Track supersedes that value with a hard maximum of two spawned Agent threads and normally uses one. OpenAI's current
+  config reference defines `agents.max_concurrent_threads_per_session` as excluding the primary thread.
 - Python 3.13 `tomllib` parses every project TOML, verifies unique agent names, and asserts that Principal model keys are absent.
 - The current desktop sandbox cannot execute the ACL-protected WindowsApps `codex.exe`, so discovery of newly added named agents requires a fresh conversation and remains the only unexecuted smoke check.
+
+## P3–P7 Demo Track overlay
+
+ADR-050 and `P3_P7_PROTOTYPE_AGENT_ROUTING.md` are the authority for
+`codex/p3-p7-core-demo`. They add a task-scoped logical `TERRA_HIGH_PRINCIPAL`, default one/hard two active sub-agents,
+`CAN_DELEGATE=false` in every bounded packet, explicit collision domains, central single ownership and independent Sol
+review at D00, D01-A/B, D04, D09, D10 and D12.
+
+This overlay does not add a top-level project `model` or `model_reasoning_effort`: the Owner retains interactive model
+choice. Reports must distinguish requested role/model, static role config and runtime-verified metadata; when the
+runtime does not expose current-thread metadata, it remains `NOT_EXPOSED`.
+
+Network authority is task-scoped. D00-A may perform a single pre-registered approved-source acquisition when an
+accepted artifact is missing. D00-B and deterministic P3–P7 core runtime use
+`PUBLIC_INTERNET_EGRESS_DISABLED`, not `ALL_NETWORK_DISABLED`; localhost and Docker internal PostgreSQL/Redis/Celery/
+Web/API/object-storage paths remain enabled. A hidden public runtime dependency is
+`EXTERNAL_RUNTIME_DEPENDENCY_FOUND` and fails closed.

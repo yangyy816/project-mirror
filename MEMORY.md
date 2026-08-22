@@ -519,3 +519,13 @@
   可读、未过期且 exact-SHA bound，独立安全与 Sol final review 均 PASS。Principal 接受 contract 并仅将冻结的
   新 diagnostic harness 实现设为 `EXECUTION_READY`；harness 尚未实现或执行，private input、CC02-B–E、Stage
   D/E、T06–T08、MVR、M6 继续关闭，旧 Stage C `FURTHER_RESEARCH` 与 0/4 eligibility 不变。
+
+- 2026-08-23：P3–P7 Algorithmically Faithful Prototype Platform 在固定 Demo base
+  `d134517fa97132b180a82c69c617b8f65d3b282e` 完成 D00 并由独立 Sol High 建议 `GO`，只开放 D01-A；M3 三次
+  exactly-one-face/478-landmark replay、M4 deterministic transform、三项 geometry candidate、五服务本地拓扑与
+  public-egress denial 均有脱敏 evidence。网络语义冻结为 `PUBLIC_INTERNET_EGRESS_DISABLED`，保留 localhost 和
+  Docker internal PostgreSQL/Redis/Celery/Web/API/private object storage；缺失的 accepted artifact 只允许在 D00-A
+  做一次批准来源、checksum-bound acquisition，核心运行时发现公网依赖则
+  `EXTERNAL_RUNTIME_DEPENDENCY_FOUND`。Demo Track 使用 branch-local `demo_0001_p3_p7_core`、task-scoped Terra
+  High Principal、默认一/硬上限二 active sub-agents、`CAN_DELEGATE=false`、中央单一所有权和 Principal-managed
+  private handoff；不改变 formal migration/P3–P7 Gate 或 production authorization。
