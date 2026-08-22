@@ -172,6 +172,38 @@ def test_operation_contract_rejects_nonallowlisted_result_code_without_echoing_i
     assert unsafe_code not in str(raised.value)
 
 
+def test_operation_contract_rejects_nonallowlisted_projection_status_without_echoing_it() -> None:
+    unsafe_status = "SECRET_LIKE_TOKEN"
+    with pytest.raises(DatasetOperationRejected) as raised:
+        DatasetOperationProjection(target_status=unsafe_status)
+    assert raised.value.code == "operation_projection_status_invalid"
+    assert unsafe_status not in str(raised.value)
+
+
+@pytest.mark.asyncio
+async def test_operation_contract_redacts_forged_backend_projection_status() -> None:
+    value = command()
+    forged_projection = object.__new__(DatasetOperationProjection)
+    object.__setattr__(forged_projection, "target_status", "SECRET_LIKE_TOKEN")
+    object.__setattr__(forged_projection, "event_count", 0)
+    object.__setattr__(forged_projection, "currency", None)
+    object.__setattr__(forged_projection, "amount_micros", None)
+    forged_result = object.__new__(DatasetOperationResult)
+    object.__setattr__(forged_result, "operation", value.operation)
+    object.__setattr__(forged_result, "outcome", DatasetOperationOutcome.SUCCEEDED)
+    object.__setattr__(forged_result, "code", "operation_completed")
+    object.__setattr__(forged_result, "target_id", value.target_id)
+    object.__setattr__(forged_result, "request_id", value.request_id)
+    object.__setattr__(forged_result, "projection", forged_projection)
+
+    result = await SyntheticDatasetOperationService(
+        backends={DatasetOperationKind.BATCH_STATUS: Backend(result=forged_result)}
+    ).execute(value)
+
+    assert result.code == "operation_projection_status_invalid"
+    assert "SECRET_LIKE_TOKEN" not in str(result)
+
+
 def test_operation_contract_has_no_database_or_provider_import_boundary() -> None:
     source = inspect.getsource(SyntheticDatasetOperationService)
     module_source = inspect.getsource(inspect.getmodule(SyntheticDatasetOperationService))

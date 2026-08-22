@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal, Protocol
 
+from .domain import GenerationBatchState, GenerationItemState
+
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 _CODE = re.compile(r"[a-z][a-z0-9_]{2,63}\Z")
 _REFERENCE = re.compile(r"[a-z][a-z0-9._:-]{2,63}\Z")
@@ -20,6 +22,9 @@ _STATE = re.compile(r"[A-Z][A-Z0-9_]{2,63}\Z")
 
 OperationEnvironment = Literal["development", "test", "ci", "production"]
 _OPERATION_ENVIRONMENTS = frozenset({"development", "test", "ci", "production"})
+_PROJECTION_TARGET_STATUSES = frozenset(
+    state.value for state in (*GenerationBatchState, *GenerationItemState)
+)
 _RESULT_CODES = frozenset(
     {
         "dataset_operation_rejected",
@@ -106,7 +111,7 @@ class DatasetOperationProjection:
     amount_micros: int | None = None
 
     def __post_init__(self) -> None:
-        if _STATE.fullmatch(self.target_status) is None:
+        if self.target_status not in _PROJECTION_TARGET_STATUSES:
             raise DatasetOperationRejected("operation_projection_status_invalid")
         if self.event_count < 0:
             raise DatasetOperationRejected("operation_projection_count_invalid")
@@ -136,6 +141,8 @@ class DatasetOperationResult:
             raise DatasetOperationRejected("operation_result_projection_missing")
         if self.outcome is not DatasetOperationOutcome.SUCCEEDED and self.projection is not None:
             raise DatasetOperationRejected("operation_result_projection_forbidden")
+        if self.projection is not None:
+            self.projection.__post_init__()
 
     @classmethod
     def rejected(cls, command: DatasetOperationCommand, code: str) -> DatasetOperationResult:
@@ -192,4 +199,8 @@ class SyntheticDatasetOperationService:
             return DatasetOperationResult.rejected(command, "operation_result_kind_mismatch")
         if result.target_id != command.target_id or result.request_id != command.request_id:
             return DatasetOperationResult.rejected(command, "operation_result_correlation_mismatch")
+        try:
+            result.__post_init__()
+        except DatasetOperationRejected as error:
+            return DatasetOperationResult.rejected(command, error.code)
         return result
