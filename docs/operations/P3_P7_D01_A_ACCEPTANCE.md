@@ -146,6 +146,9 @@ GITLEAKS_8_28_0_DIRECTORY_SCAN: PASS
 GITLEAKS_FINDINGS: 0
 GITLEAKS_ARCHIVE_SHA256: da6458e8864af553807de1c46a7a8eac0880bd6b99ba56288e87e86a45af884f
 GITLEAKS_TEMP_CLEANUP: PASS
+D01_A_ACCEPTANCE_CLOSURE_SHA: 67be11331ab8eacf8a8be31bc823dae7be1ef392
+D01_A_SAME_SHA_CI_RUN: 32589849854
+D01_A_SAME_SHA_CI_CONCLUSION: SUCCESS
 ```
 
 Gitleaks was acquired only as ephemeral D01-A tooling from the official `gitleaks/gitleaks` v8.28.0 GitHub release,
@@ -158,6 +161,12 @@ The acceptance-closure recheck also retained its negative evidence: one retry ex
 target and therefore reported two matches from the scanner's own bundled `README.md`, not from repository files. That
 temporary directory was removed. The corrected run placed checksum-identical tooling outside the target, scanned
 approximately 5.71 MB, reported zero findings and removed the exact temporary directory.
+
+GitHub Actions run `32589849854` completed successfully against exact acceptance-closure SHA
+`67be11331ab8eacf8a8be31bc823dae7be1ef392`. Its `secret-scan`, `docker-validation` and
+`quality-and-integration` jobs all succeeded, including PostgreSQL migration lifecycle, Python suites, TypeScript
+quality/build, browser integration, contract drift, dependency/license audit and SBOM generation. This is closure-SHA
+regression evidence for the unchanged product baseline; it does not verify D01-B schema work or any D02-D12 feature.
 
 Not run because this checkpoint changes no product/schema/API code: Python product suites, PostgreSQL migration
 lifecycle, OpenAPI generation/drift, TypeScript build and Playwright. They remain mandatory in their owning checkpoints.
