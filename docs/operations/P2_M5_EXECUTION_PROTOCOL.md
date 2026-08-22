@@ -664,3 +664,19 @@ execution path.
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: OWNER_DECISION_REQUIRED_BEFORE_ANY_CC04_A_STUDY_EXECUTION`
+
+## CC-P2-M5-04-A-D01 — Owner Decision Closure contract candidate
+
+The supplied Owner decision is first encoded through the Principal-owned D01 governance contract. Before D01 obtains
+its own exact-SHA acceptance, no decision pack, fresh study, image generation, private-input access, cohort, runtime
+qualification, measurement, transform, threshold, holdout, MVR evaluation, or `04-B` contract may begin.
+
+`CC_P2_M5_04_A_D01_CONTRACT: LOCAL_CANDIDATE_PENDING_VALIDATION`
+
+`CC04_A_OWNER_DECISION_CLOSURE: CLOSED_PENDING_D01_CONTRACT_ACCEPTANCE`
+
+`CC04_B_CONTRACT_WRITING: CLOSED_PENDING_OWNER_DECISION_CLOSURE`
+
+`CC04_B_CONTRACT: NOT_CREATED`
+
+`CC04_B_EXECUTION: CLOSED_PENDING_SEPARATE_CONTRACT_ACCEPTANCE`

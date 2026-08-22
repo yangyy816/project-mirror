@@ -1410,3 +1410,22 @@ MVR, M6, production geometry or real-user processing.
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: OWNER_DECISION_REQUIRED_BEFORE_ANY_CC04_A_STUDY_EXECUTION`
+
+## CC04-A D01 Owner Decision Closure contract local candidate
+
+`OD-P2-M5-CC04-001` is supplied Owner authority to record a fresh, synthetic-only research-line boundary. This D01
+candidate is governance only: it neither executes a study nor changes immutable CC01-C/CC02 historical evidence. It
+does not call image generation, access private input, create an Asset/identity/cohort, or select a threshold, formula,
+runtime, model, or downstream Gate result.
+
+`CC_P2_M5_04_A_D01_CONTRACT: LOCAL_CANDIDATE_PENDING_VALIDATION`
+
+`CC04_A_OWNER_DECISION_CLOSURE: CLOSED_PENDING_D01_CONTRACT_ACCEPTANCE`
+
+`CC04_B_CONTRACT_WRITING: CLOSED_PENDING_OWNER_DECISION_CLOSURE`
+
+`CC04_B_CONTRACT: NOT_CREATED`
+
+`CC04_B_EXECUTION: CLOSED_PENDING_SEPARATE_CONTRACT_ACCEPTANCE`
+
+`SHARED_SUMMARY_SYNC: DEFERRED_PENDING_CONTROLLED_M5_M7_INTEGRATION`
