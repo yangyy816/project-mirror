@@ -1236,3 +1236,24 @@ builder has now run exactly once under ADR-048 custody; local manifest digest is
 `CC02_C_RECOVERY_STOP_ACCEPTANCE: PENDING_SAME_SHA_RERUN_AFTER_EXTERNAL_REMEDIATION`
 
 `P2_M5_NEXT_ACTION: PREPARE_FORWARD_RECOVERY_FAILURE_CHANGE_CONTROL_NO_REGENERATION`
+
+## P2-M5-R09 acceptance and recovery-stop CI coverage
+
+- Repair `b179c193b3a719142139b6d42e5be0c22ef4b225` passed exact-SHA run `32580630760`: quality,
+  Docker and secret scan all succeeded. The repair changed only `pip==26.1.2` to `pip==26.2.1` in the exact lock and
+  the R09 protocol record. The lock installed in an isolated Python 3.13 environment and `pip-audit --local` returned
+  no known vulnerabilities; `pip` remains MIT.
+- All eight artifacts were readable and unexpired. Their CI evidence binds `b179c19` to migration head
+  `0014_m5_eval_authority` and the unchanged OpenAPI digest; the SBOM records `pip 26.2.1`, Gitleaks contains zero
+  results, Docker/Celery evidence has no error marker, and both Playwright install phases succeeded on attempt 1/3.
+- Independent security and final review passed. Principal accepts R09 and accepts the CC02-C recovery-stop checkpoint
+  as covered by this exact descendant SHA. This accepts only the fail-closed stop record, not private replay or a
+  result. CC02-D/E, T06, MVR, M6, production geometry and real-user processing remain closed.
+
+`P2_M5_R09: REPAIR_ACCEPTED_AT_B179C19_RUN_32580630760_ATTEMPT_1`
+
+`CC02_C_RECOVERY_STOP_ACCEPTANCE: ACCEPTED_AT_B179C19_RUN_32580630760_ATTEMPT_1`
+
+`CC_P2_M5_02_C_REPLAY: NOT_EXECUTED_FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`
+
+`P2_M5_NEXT_ACTION: PREPARE_FORWARD_RECOVERY_FAILURE_CHANGE_CONTROL_NO_REGENERATION`

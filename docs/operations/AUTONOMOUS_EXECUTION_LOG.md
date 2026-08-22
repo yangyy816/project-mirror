@@ -1164,3 +1164,16 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - No remote acceptance is claimed. After the external account condition is resolved, the same SHA must be rerun and
   its three jobs plus artifacts inspected. The blocker does not authorize replay, evidence regeneration or any
   downstream Gate opening.
+
+## 2026-08-22 — P2-M5-R09 supply-chain repair accepted
+
+- The later run `32579872468` showed the external account condition had cleared but `pip-audit --local` correctly
+  rejected locked `pip 26.1.2` under `PYSEC-2026-3721`. R09 changed only that exact CI/build-tool pin to `26.2.1` and
+  recorded the bounded repair in the M5 protocol.
+- Candidate `b179c193b3a719142139b6d42e5be0c22ef4b225` passed same-SHA run `32580630760`: quality, Docker and secret
+  scan all succeeded; eight artifacts were readable, unexpired and exact-SHA bound. Its SBOM recorded `pip 26.2.1`,
+  Gitleaks had zero results and the Playwright attempts were each 1/3 success.
+- Independent security and final reviews passed. Principal accepts R09 and the carried recovery-stop checkpoint only.
+  Replay remains `NOT_EXECUTED_FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`; CC02-D/E, T06, MVR, M6, production
+  geometry and real-user processing remain closed. `MEMORY.md` remains a protected pre-existing modification and was
+  not staged or overwritten.

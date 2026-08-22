@@ -513,3 +513,8 @@ to any P2 algorithm, policy, private input, model, schema, API, runtime or accep
   data download, private replay, threshold/research change, or reclassification of the CC02-C recovery stop.
 - Gate effect: until the repair receives its own same-SHA CI evidence, the recovery-stop checkpoint remains
   `PENDING_SAME_SHA_RERUN_AFTER_EXTERNAL_REMEDIATION`; CC02-D/E, T06, MVR and M6 remain closed.
+
+R09 completed its exact-SHA run `32580630760` on `b179c193b3a719142139b6d42e5be0c22ef4b225`: all three jobs and
+eight artifacts passed inspection, the SBOM records `pip 26.2.1`, and independent security/final reviews passed.
+Principal accepts this bounded repair and the unchanged recovery-stop content carried by the same SHA. It does not
+open private replay, CC02-D/E, T06, MVR, M6, production geometry or real-user processing.
