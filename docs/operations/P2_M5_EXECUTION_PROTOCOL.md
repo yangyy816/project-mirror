@@ -563,3 +563,32 @@ explicit decision authority; it does not open proposal execution or any later CC
 `CC_P2_M5_04_A_EXECUTION: CLOSED`
 
 `CC_P2_M5_04_B_TO_E: CLOSED`
+
+## P2-M5-R11 — CC04-A contract-disposition ordering correction
+
+Independent final review of `e61ae7dbe3e81636237cb615a53cd29989869d9c` found that the latest
+machine-readable next action could be read as direct preparation of the CC04-A proposal even though the new contract
+correctly kept proposal writing closed pending Principal disposition. This repair changes no contract field, ADR,
+research decision, source, candidate, resource count, algorithm, runtime, policy, ontology, threshold, split, budget,
+custody, schema, API, workflow, dependency, model or private evidence.
+
+R11 makes the contract-disposition checkpoint the sole current next action. It does not accept the contract itself and
+does not open proposal writing, 04-A execution, 04-B–E, T06, MVR, M6, production geometry or real-user processing.
+
+`P2_M5_R11: READY_FOR_TRACKED_EVIDENCE`
+
+`CC_P2_M5_04_A_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+
+`CC_P2_M5_04_A_PROPOSAL_WRITING: CLOSED_PENDING_CONTRACT_ACCEPTANCE`
+
+`CC_P2_M5_04_A_EXECUTION: CLOSED`
+
+`CC_P2_M5_04_B_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: COMPLETE_CC04_A_CONTRACT_DISPOSITION_BEFORE_PROPOSAL_WRITING_NO_EXECUTION`

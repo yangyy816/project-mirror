@@ -1300,3 +1300,33 @@ complete, it is not accepted and opens nothing.
 `CC_P2_M5_02_C_REPLAY: NOT_EXECUTED_FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`
 
 `P2_M5_NEXT_ACTION: PREPARE_FORWARD_RECOVERY_FAILURE_CHANGE_CONTROL_NO_REGENERATION`
+
+## P2-M5-R11 CC04-A contract-disposition ordering candidate
+
+Independent final review of `e61ae7dbe3e81636237cb615a53cd29989869d9c` found that the candidate's latest
+machine-readable next action did not explicitly require Principal contract disposition before proposal writing. R11
+adds only the current ordering/closure record. It does not modify the CC04-A contract, ADRs, research protocol,
+resource/candidate/algorithm/runtime/policy/ontology/threshold/split/budget/custody decisions, legacy evidence,
+schema, API, workflow, dependencies, models or any production capability.
+
+Until this repair completes its own local/remote review, the CC04-A contract remains unaccepted and proposal writing
+remains closed. The repair cannot open 04-A execution, 04-B–E, T06, MVR, M6, production geometry or real-user
+processing.
+
+`P2_M5_R11: READY_FOR_TRACKED_EVIDENCE`
+
+`CC_P2_M5_04_A_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+
+`CC_P2_M5_04_A_PROPOSAL_WRITING: CLOSED_PENDING_CONTRACT_ACCEPTANCE`
+
+`CC_P2_M5_04_A_EXECUTION: CLOSED`
+
+`CC_P2_M5_04_B_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: COMPLETE_CC04_A_CONTRACT_DISPOSITION_BEFORE_PROPOSAL_WRITING_NO_EXECUTION`
