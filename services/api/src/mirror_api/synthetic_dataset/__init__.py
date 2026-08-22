@@ -46,6 +46,16 @@ from .landmark_warp_plan_authority import (
     LandmarkWarpPlanAuthority,
     LandmarkWarpPlanOrigin,
 )
+from .operations import (
+    DatasetOperationBackend,
+    DatasetOperationCommand,
+    DatasetOperationKind,
+    DatasetOperationOutcome,
+    DatasetOperationProjection,
+    DatasetOperationRejected,
+    DatasetOperationResult,
+    SyntheticDatasetOperationService,
+)
 from .similarity import (
     PHASH_ALGORITHM_VERSION,
     PHASH_BITS,
@@ -96,6 +106,13 @@ __all__ = [
     "ControlDelta",
     "DenseRemap",
     "DeterminismLevel",
+    "DatasetOperationBackend",
+    "DatasetOperationCommand",
+    "DatasetOperationKind",
+    "DatasetOperationOutcome",
+    "DatasetOperationProjection",
+    "DatasetOperationRejected",
+    "DatasetOperationResult",
     "DomainValidationError",
     "EvaluationDimensionRule",
     "EvaluationSplit",
@@ -125,6 +142,7 @@ __all__ = [
     "SimilaritySignature",
     "SimilarityValidationError",
     "SyntheticEvaluationPolicy",
+    "SyntheticDatasetOperationService",
     "TechnicalGateResult",
     "TransformDirection",
     "TransformRunState",
