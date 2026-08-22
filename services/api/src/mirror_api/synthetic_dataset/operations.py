@@ -25,6 +25,7 @@ _OPERATION_ENVIRONMENTS = frozenset({"development", "test", "ci", "production"})
 _PROJECTION_TARGET_STATUSES = frozenset(
     state.value for state in (*GenerationBatchState, *GenerationItemState)
 )
+_PROJECTION_CURRENCIES = frozenset({"CNY", "USD"})
 _RESULT_CODES = frozenset(
     {
         "dataset_operation_rejected",
@@ -36,6 +37,7 @@ _RESULT_CODES = frozenset(
         "operation_expected_state_invalid",
         "operation_projection_amount_invalid",
         "operation_projection_count_invalid",
+        "operation_projection_currency_invalid",
         "operation_projection_currency_missing",
         "operation_projection_status_invalid",
         "operation_production_disabled",
@@ -44,7 +46,9 @@ _RESULT_CODES = frozenset(
         "operation_request_id_invalid",
         "operation_result_code_invalid",
         "operation_result_correlation_mismatch",
+        "operation_result_invalid",
         "operation_result_kind_mismatch",
+        "operation_result_outcome_invalid",
         "operation_result_projection_forbidden",
         "operation_result_projection_missing",
         "operation_result_request_id_invalid",
@@ -111,14 +115,7 @@ class DatasetOperationProjection:
     amount_micros: int | None = None
 
     def __post_init__(self) -> None:
-        if self.target_status not in _PROJECTION_TARGET_STATUSES:
-            raise DatasetOperationRejected("operation_projection_status_invalid")
-        if self.event_count < 0:
-            raise DatasetOperationRejected("operation_projection_count_invalid")
-        if self.currency is None and self.amount_micros is not None:
-            raise DatasetOperationRejected("operation_projection_currency_missing")
-        if self.amount_micros is not None and self.amount_micros < 0:
-            raise DatasetOperationRejected("operation_projection_amount_invalid")
+        _validate_projection(self)
 
 
 @dataclass(frozen=True)
@@ -131,18 +128,22 @@ class DatasetOperationResult:
     projection: DatasetOperationProjection | None = None
 
     def __post_init__(self) -> None:
-        if self.code not in _RESULT_CODES:
+        if type(self.code) is not str or self.code not in _RESULT_CODES:
             raise DatasetOperationRejected("operation_result_code_invalid")
-        if _ID.fullmatch(self.target_id) is None:
+        if type(self.target_id) is not str or _ID.fullmatch(self.target_id) is None:
             raise DatasetOperationRejected("operation_result_target_invalid")
-        if _ID.fullmatch(self.request_id) is None:
+        if type(self.request_id) is not str or _ID.fullmatch(self.request_id) is None:
             raise DatasetOperationRejected("operation_result_request_id_invalid")
+        if not isinstance(self.operation, DatasetOperationKind):
+            raise DatasetOperationRejected("operation_result_kind_mismatch")
+        if not isinstance(self.outcome, DatasetOperationOutcome):
+            raise DatasetOperationRejected("operation_result_outcome_invalid")
         if self.outcome is DatasetOperationOutcome.SUCCEEDED and self.projection is None:
             raise DatasetOperationRejected("operation_result_projection_missing")
         if self.outcome is not DatasetOperationOutcome.SUCCEEDED and self.projection is not None:
             raise DatasetOperationRejected("operation_result_projection_forbidden")
         if self.projection is not None:
-            self.projection.__post_init__()
+            _validate_projection(self.projection)
 
     @classmethod
     def rejected(cls, command: DatasetOperationCommand, code: str) -> DatasetOperationResult:
@@ -171,6 +172,44 @@ class DatasetOperationBackend(Protocol):
     async def execute(self, command: DatasetOperationCommand) -> DatasetOperationResult: ...
 
 
+def _validate_projection(projection: DatasetOperationProjection) -> None:
+    if type(projection) is not DatasetOperationProjection:
+        raise DatasetOperationRejected("operation_result_invalid")
+    if (
+        type(projection.target_status) is not str
+        or projection.target_status not in _PROJECTION_TARGET_STATUSES
+    ):
+        raise DatasetOperationRejected("operation_projection_status_invalid")
+    if type(projection.event_count) is not int or projection.event_count < 0:
+        raise DatasetOperationRejected("operation_projection_count_invalid")
+    if projection.currency is not None and (
+        type(projection.currency) is not str or projection.currency not in _PROJECTION_CURRENCIES
+    ):
+        raise DatasetOperationRejected("operation_projection_currency_invalid")
+    if projection.currency is None and projection.amount_micros is not None:
+        raise DatasetOperationRejected("operation_projection_currency_missing")
+    if projection.amount_micros is not None and (
+        type(projection.amount_micros) is not int or projection.amount_micros < 0
+    ):
+        raise DatasetOperationRejected("operation_projection_amount_invalid")
+
+
+def _canonicalize_backend_result(result: DatasetOperationResult) -> DatasetOperationResult:
+    try:
+        return DatasetOperationResult(
+            operation=result.operation,
+            outcome=result.outcome,
+            code=result.code,
+            target_id=result.target_id,
+            request_id=result.request_id,
+            projection=result.projection,
+        )
+    except DatasetOperationRejected:
+        raise
+    except Exception:
+        raise DatasetOperationRejected("operation_result_invalid") from None
+
+
 class SyntheticDatasetOperationService:
     """Dispatch approved internal operations through registered application-service backends.
 
@@ -195,12 +234,15 @@ class SyntheticDatasetOperationService:
             return DatasetOperationResult.rejected(command, error.code)
         except Exception:
             return DatasetOperationResult.unavailable(command, "operation_execution_unavailable")
-        if result.operation is not command.operation:
-            return DatasetOperationResult.rejected(command, "operation_result_kind_mismatch")
-        if result.target_id != command.target_id or result.request_id != command.request_id:
-            return DatasetOperationResult.rejected(command, "operation_result_correlation_mismatch")
         try:
-            result.__post_init__()
+            canonical_result = _canonicalize_backend_result(result)
         except DatasetOperationRejected as error:
             return DatasetOperationResult.rejected(command, error.code)
-        return result
+        if canonical_result.operation is not command.operation:
+            return DatasetOperationResult.rejected(command, "operation_result_kind_mismatch")
+        if (
+            canonical_result.target_id != command.target_id
+            or canonical_result.request_id != command.request_id
+        ):
+            return DatasetOperationResult.rejected(command, "operation_result_correlation_mismatch")
+        return canonical_result

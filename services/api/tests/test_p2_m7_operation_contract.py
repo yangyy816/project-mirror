@@ -180,13 +180,91 @@ def test_operation_contract_rejects_nonallowlisted_projection_status_without_ech
     assert unsafe_status not in str(raised.value)
 
 
+def test_operation_contract_rejects_nonallowlisted_projection_currency_without_echoing_it() -> None:
+    unsafe_currency = "SECRET_CURRENCY"
+    with pytest.raises(DatasetOperationRejected) as raised:
+        DatasetOperationProjection(target_status="QUEUED", currency=unsafe_currency)
+    assert raised.value.code == "operation_projection_currency_invalid"
+    assert unsafe_currency not in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "code"),
+    [
+        ("event_count", True, "operation_projection_count_invalid"),
+        ("event_count", 1.5, "operation_projection_count_invalid"),
+        ("event_count", "SECRET_COUNT", "operation_projection_count_invalid"),
+        ("amount_micros", True, "operation_projection_amount_invalid"),
+        ("amount_micros", 1.5, "operation_projection_amount_invalid"),
+        ("amount_micros", "SECRET_AMOUNT", "operation_projection_amount_invalid"),
+    ],
+)
+def test_operation_contract_rejects_noninteger_projection_numbers_without_echoing_it(
+    field: str, value: object, code: str
+) -> None:
+    values: dict[str, object] = {"target_status": "QUEUED", "currency": "CNY"}
+    values[field] = value
+    with pytest.raises(DatasetOperationRejected) as raised:
+        DatasetOperationProjection(**values)  # type: ignore[arg-type]
+    assert raised.value.code == code
+    assert str(value) not in str(raised.value)
+
+
+def test_operation_contract_rejects_nonenum_result_outcome_without_echoing_it() -> None:
+    unsafe_outcome = "SECRET_OUTCOME"
+    with pytest.raises(DatasetOperationRejected) as raised:
+        DatasetOperationResult(
+            operation=DatasetOperationKind.BATCH_STATUS,
+            outcome=unsafe_outcome,  # type: ignore[arg-type]
+            code="operation_completed",
+            target_id="a" * 32,
+            request_id="b" * 32,
+        )
+    assert raised.value.code == "operation_result_outcome_invalid"
+    assert unsafe_outcome not in str(raised.value)
+
+
 @pytest.mark.asyncio
 async def test_operation_contract_redacts_forged_backend_projection_status() -> None:
     value = command()
-    forged_projection = object.__new__(DatasetOperationProjection)
+
+    class ForgedProjection(DatasetOperationProjection):
+        def __post_init__(self) -> None:  # pragma: no cover - must never be dynamically dispatched.
+            return None
+
+    class ForgedResult(DatasetOperationResult):
+        def __post_init__(self) -> None:  # pragma: no cover - must never be dynamically dispatched.
+            return None
+
+    forged_projection = object.__new__(ForgedProjection)
     object.__setattr__(forged_projection, "target_status", "SECRET_LIKE_TOKEN")
     object.__setattr__(forged_projection, "event_count", 0)
-    object.__setattr__(forged_projection, "currency", None)
+    object.__setattr__(forged_projection, "currency", "SECRET_CURRENCY")
+    object.__setattr__(forged_projection, "amount_micros", None)
+    forged_result = object.__new__(ForgedResult)
+    object.__setattr__(forged_result, "operation", value.operation)
+    object.__setattr__(forged_result, "outcome", DatasetOperationOutcome.SUCCEEDED)
+    object.__setattr__(forged_result, "code", "operation_completed")
+    object.__setattr__(forged_result, "target_id", value.target_id)
+    object.__setattr__(forged_result, "request_id", value.request_id)
+    object.__setattr__(forged_result, "projection", forged_projection)
+
+    result = await SyntheticDatasetOperationService(
+        backends={DatasetOperationKind.BATCH_STATUS: Backend(result=forged_result)}
+    ).execute(value)
+
+    assert result.code == "operation_result_invalid"
+    assert "SECRET_LIKE_TOKEN" not in str(result)
+    assert "SECRET_CURRENCY" not in str(result)
+
+
+@pytest.mark.asyncio
+async def test_operation_contract_redacts_forged_backend_projection_currency_and_count() -> None:
+    value = command()
+    forged_projection = object.__new__(DatasetOperationProjection)
+    object.__setattr__(forged_projection, "target_status", "QUEUED")
+    object.__setattr__(forged_projection, "event_count", "SECRET_COUNT")
+    object.__setattr__(forged_projection, "currency", "SECRET_CURRENCY")
     object.__setattr__(forged_projection, "amount_micros", None)
     forged_result = object.__new__(DatasetOperationResult)
     object.__setattr__(forged_result, "operation", value.operation)
@@ -200,8 +278,67 @@ async def test_operation_contract_redacts_forged_backend_projection_status() -> 
         backends={DatasetOperationKind.BATCH_STATUS: Backend(result=forged_result)}
     ).execute(value)
 
-    assert result.code == "operation_projection_status_invalid"
-    assert "SECRET_LIKE_TOKEN" not in str(result)
+    assert result.code == "operation_projection_count_invalid"
+    assert "SECRET_COUNT" not in str(result)
+    assert "SECRET_CURRENCY" not in str(result)
+
+
+@pytest.mark.asyncio
+async def test_operation_contract_redacts_forged_backend_outcome() -> None:
+    value = command()
+    forged_result = object.__new__(DatasetOperationResult)
+    object.__setattr__(forged_result, "operation", value.operation)
+    object.__setattr__(forged_result, "outcome", "SECRET_OUTCOME")
+    object.__setattr__(forged_result, "code", "operation_completed")
+    object.__setattr__(forged_result, "target_id", value.target_id)
+    object.__setattr__(forged_result, "request_id", value.request_id)
+    object.__setattr__(forged_result, "projection", None)
+
+    result = await SyntheticDatasetOperationService(
+        backends={DatasetOperationKind.BATCH_STATUS: Backend(result=forged_result)}
+    ).execute(value)
+
+    assert result.code == "operation_result_outcome_invalid"
+    assert "SECRET_OUTCOME" not in str(result)
+
+
+@pytest.mark.asyncio
+async def test_operation_contract_redacts_forged_backend_projection_shape() -> None:
+    value = command()
+    forged_result = object.__new__(DatasetOperationResult)
+    object.__setattr__(forged_result, "operation", value.operation)
+    object.__setattr__(forged_result, "outcome", DatasetOperationOutcome.SUCCEEDED)
+    object.__setattr__(forged_result, "code", "operation_completed")
+    object.__setattr__(forged_result, "target_id", value.target_id)
+    object.__setattr__(forged_result, "request_id", value.request_id)
+    object.__setattr__(forged_result, "projection", object())
+
+    result = await SyntheticDatasetOperationService(
+        backends={DatasetOperationKind.BATCH_STATUS: Backend(result=forged_result)}
+    ).execute(value)
+
+    assert result.code == "operation_result_invalid"
+
+
+@pytest.mark.asyncio
+async def test_operation_contract_redacts_backend_result_attribute_failure() -> None:
+    value = command()
+
+    class ExplosiveResult:
+        @property
+        def operation(self) -> DatasetOperationKind:
+            raise RuntimeError("SECRET_RESULT_ATTRIBUTE")
+
+    result = await SyntheticDatasetOperationService(
+        backends={
+            DatasetOperationKind.BATCH_STATUS: Backend(
+                result=cast(DatasetOperationResult, ExplosiveResult())
+            )
+        }
+    ).execute(value)
+
+    assert result.code == "operation_result_invalid"
+    assert "SECRET_RESULT_ATTRIBUTE" not in str(result)
 
 
 def test_operation_contract_has_no_database_or_provider_import_boundary() -> None:
