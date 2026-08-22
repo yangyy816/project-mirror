@@ -2,14 +2,14 @@
 
 ## Status and authority
 
-- Status: `READY_FOR_TRACKED_CONTRACT_EVIDENCE`.
+- Status: `ACCEPTED_PROPOSAL_WRITING_EXECUTION_READY`.
 - Task: `CC-P2-M5-04-A`.
 - Change-control authority: ADR-041, ADR-047, ADR-049, ADR-050,
   `P2_M5_CC04_FRESH_EVIDENCE_PROTOCOL.md`, and the active P2-M5 execution and acceptance records.
 - Predecessor: `CC_P2_M5_04_G: GOVERNANCE_ACCEPTED_AT_3AC41C3_RUN_32582621932_ATTEMPT_1`.
 - Current milestone: P2-M5 remains `EXECUTING`; `P2_MVR_V1_RESULT: NOT_EVALUATED`.
 
-This is a proposal-only contract candidate. It does not select an actual source, Asset, identity, resource count,
+This is an accepted proposal-only contract. It does not select an actual source, Asset, identity, resource count,
 candidate family, algorithm, model/runtime, policy, ontology, split, threshold, budget, provider, or private input/output
 locator. It does not authorize any execution under `04-A`, and it does not open `04-B` through `04-E`.
 
@@ -137,9 +137,20 @@ this tracked contract candidate
 → no execution unless a later bounded task is independently accepted
 ```
 
-`CC_P2_M5_04_A_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+## Principal acceptance
 
-`CC_P2_M5_04_A_PROPOSAL_WRITING: CLOSED_PENDING_CONTRACT_ACCEPTANCE`
+R11 `10931438912410b235977bf79debde7d980a7e70` closed the independently found next-action ambiguity without modifying
+this contract. Its exact-SHA run `32584548148` passed all three jobs and supplied eight readable, unexpired artifacts.
+Principal artifact inspection confirmed the four committed evidence documents bind the same SHA and migration head
+`0014_m5_eval_authority`, while Gitleaks reports zero results. Independent security and final reviews both passed.
+
+Principal therefore accepts this contract only. The one next ready task is its proposal-writing scope: it may create the
+versioned proposal and decision register described above, or return an explicit stop. It cannot select/execute a study,
+acquire any resource, access private input, or open `04-B` through `04-E`.
+
+`CC_P2_M5_04_A_CONTRACT: PASS_AT_1093143_RUN_32584548148_ATTEMPT_1`
+
+`CC_P2_M5_04_A_PROPOSAL_WRITING: EXECUTION_READY_PROPOSAL_ONLY`
 
 `CC_P2_M5_04_A_EXECUTION: CLOSED`
 
@@ -150,3 +161,5 @@ this tracked contract candidate
 `P2_MVR_V1_RESULT: NOT_EVALUATED`
 
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: EXECUTE_CC04_A_PROPOSAL_WRITING_PER_ACCEPTED_CONTRACT_NO_STUDY_EXECUTION`

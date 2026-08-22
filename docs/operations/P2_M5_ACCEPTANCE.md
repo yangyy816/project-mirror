@@ -1330,3 +1330,34 @@ processing.
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: COMPLETE_CC04_A_CONTRACT_DISPOSITION_BEFORE_PROPOSAL_WRITING_NO_EXECUTION`
+
+## P2-M5-R11 accepted and CC04-A contract disposition
+
+R11 `10931438912410b235977bf79debde7d980a7e70` passed exact-SHA run `32584548148`, including successful
+`quality-and-integration`, `secret-scan` and `docker-validation` jobs. All eight artifacts were readable and unexpired;
+Principal inspected their public content and confirmed the Phase 1 and P2-M1/M2/M3 evidence binds the same SHA and
+`0014_m5_eval_authority`, with zero Gitleaks results. Independent security and final review both passed.
+
+Principal accepts R11 and the CC04-A proposal-only contract. This acceptance opens only its separately bounded
+proposal-writing task, which can create a versioned fresh-study proposal/decision register or return an explicit stop.
+It is not authority to select/execute a fresh study, acquire a source/model/runtime, use private input, change a
+threshold/split/budget/custody arrangement, or open 04-A execution, 04-B–E, T06, MVR, M6, production geometry or
+real-user processing.
+
+`P2_M5_R11: REPAIR_ACCEPTED_AT_1093143_RUN_32584548148_ATTEMPT_1`
+
+`CC_P2_M5_04_A_CONTRACT: PASS_AT_1093143_RUN_32584548148_ATTEMPT_1`
+
+`CC_P2_M5_04_A_PROPOSAL_WRITING: EXECUTION_READY_PROPOSAL_ONLY`
+
+`CC_P2_M5_04_A_EXECUTION: CLOSED`
+
+`CC_P2_M5_04_B_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: EXECUTE_CC04_A_PROPOSAL_WRITING_PER_ACCEPTED_CONTRACT_NO_STUDY_EXECUTION`

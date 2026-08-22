@@ -592,3 +592,32 @@ does not open proposal writing, 04-A execution, 04-B–E, T06, MVR, M6, producti
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: COMPLETE_CC04_A_CONTRACT_DISPOSITION_BEFORE_PROPOSAL_WRITING_NO_EXECUTION`
+
+## CC04-A contract acceptance after P2-M5-R11
+
+R11 `10931438912410b235977bf79debde7d980a7e70` passed exact-SHA run `32584548148`: all three jobs succeeded and all
+eight artifacts were readable and unexpired. Principal inspected the artifact evidence and accepted both independent
+R11 reviews. Principal accepts the CC04-A proposal-only contract, not a fresh study or execution authority.
+
+This opens exactly one governance-writing task: create its versioned fresh-study proposal and decision register, or
+return an explicit stop. The task remains prohibited from selecting or executing a source/candidate/resource envelope,
+algorithm/runtime, policy/ontology, threshold/split, budget or private custody. It opens neither `04-A` study execution
+nor `04-B` through `04-E`.
+
+`P2_M5_R11: REPAIR_ACCEPTED_AT_1093143_RUN_32584548148_ATTEMPT_1`
+
+`CC_P2_M5_04_A_CONTRACT: PASS_AT_1093143_RUN_32584548148_ATTEMPT_1`
+
+`CC_P2_M5_04_A_PROPOSAL_WRITING: EXECUTION_READY_PROPOSAL_ONLY`
+
+`CC_P2_M5_04_A_EXECUTION: CLOSED`
+
+`CC_P2_M5_04_B_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: EXECUTE_CC04_A_PROPOSAL_WRITING_PER_ACCEPTED_CONTRACT_NO_STUDY_EXECUTION`
