@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal, Protocol
 
-
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 _CODE = re.compile(r"[a-z][a-z0-9_]{2,63}\Z")
 _REFERENCE = re.compile(r"[a-z][a-z0-9._:-]{2,63}\Z")
