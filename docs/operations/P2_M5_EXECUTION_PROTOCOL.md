@@ -497,3 +497,19 @@ private-byte read, transform, Vision call or output creation.
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: PREPARE_FORWARD_RECOVERY_FAILURE_CHANGE_CONTROL_NO_REGENERATION`
+
+## P2-M5-R09 — CI pip security correction
+
+Same-SHA run `32579872468` exposed a new supply-chain finding after its repository, migration, Python, TypeScript,
+Docker, Playwright and browser steps had proceeded: `pip-audit --local` reported `PYSEC-2026-3721` for the locked
+CI/build tool `pip==26.1.2`, with a minimum fixed version of `26.2`. This is a bounded forward repair, not a change
+to any P2 algorithm, policy, private input, model, schema, API, runtime or acceptance threshold.
+
+- Allowed change: replace only the exact existing `pip` pin in `requirements.lock` with the current official fixed
+  release `26.2.1`, and update that lock's reviewed date.
+- Required evidence: official-index availability, unchanged MIT license classification, requirements audit with no
+  known vulnerability, `git diff --check`, locked-install compatibility and exact-SHA CI/artifact inspection.
+- Forbidden: broad dependency upgrade, `--no-deps` CI bypass, audit suppression/ignore, workflow weakening, model or
+  data download, private replay, threshold/research change, or reclassification of the CC02-C recovery stop.
+- Gate effect: until the repair receives its own same-SHA CI evidence, the recovery-stop checkpoint remains
+  `PENDING_SAME_SHA_RERUN_AFTER_EXTERNAL_REMEDIATION`; CC02-D/E, T06, MVR and M6 remain closed.
