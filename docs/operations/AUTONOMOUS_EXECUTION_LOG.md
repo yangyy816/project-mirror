@@ -3,6 +3,23 @@
 This append-only operational summary records bounded autonomous checkpoints. It intentionally excludes
 credentials, Prompt plaintext, image bytes, private object keys, signed URLs and raw Provider responses.
 
+## 2026-08-23 — P2-M7 rolling-wave governance local candidate
+
+- Repository truth was rechecked from `fd64a313c3f2da534e3e019991f1cdb8352f5a74`; origin matched that SHA and
+  run `32586638200` completed all three jobs successfully with eight unexpired artifacts.
+- P2-M5 remains `EXECUTING`, but CC04-A fresh-study execution is
+  `CLOSED_PENDING_SEPARATE_DECISION_AUTHORITY`; P2-M6 remains closed. No M5 research action was started.
+- Because P2-M2 contracts are frozen and MILESTONES permits M7 refinement after them, Principal created the isolated
+  branch `codex/phase2-m7-internal-operations` and added only ADR-051, M7 protocol/acceptance skeleton and milestone
+  status alignment.
+- The candidate freezes an internal CLI/application-service boundary, payload-free cost/observability projection and
+  fail-closed operator expectations. It adds no implementation, schema, dependency, model, private input, image,
+  Provider call, public API, M5 execution or M6 release/revoke capability.
+- Scoped Prettier and `git diff --check` passed. Full workspace formatting remains blocked only by the pre-existing
+  user-modified `AGENTS.md` and `MODEL_ROUTING_POLICY.md`; those files remain outside this checkpoint.
+- Next action: validate the T01 governance candidate, then create/push a normal candidate commit and inspect its
+  same-SHA CI before accepting M7 T01 or changing M7 state.
+
 ## 2026-08-18T01:45:05+08:00 — P2-M3 recovery and V01 authority closure
 
 - Phase/Milestone: Phase 2 / P2-M3 (`EXECUTING`)
