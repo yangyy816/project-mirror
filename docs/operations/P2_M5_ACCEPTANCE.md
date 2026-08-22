@@ -1383,3 +1383,30 @@ authorization occurred.
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
 
 `P2_M5_NEXT_ACTION: VALIDATE_CC04_A_PROPOSAL_ONLY_CANDIDATE_NO_STUDY_EXECUTION`
+
+## CC04-A proposal-writing accepted
+
+Candidate `ae8abd30b7de11e27ba9b7af04c53b2f79afef2a` passed its exact-SHA run `32585964173`: all three jobs succeeded,
+eight artifacts were readable and unexpired, and their evidence bound the same SHA and migration head. Independent
+security and final reviews found no boundary drift. Principal accepts the proposal-only output as a governance artifact;
+it does not accept a study, source, resource envelope, algorithm/runtime, policy/ontology, threshold/split, budget or
+custody decision.
+
+All decision-register entries remain `UNDECIDED`. A later task must obtain explicit authority for any one of them; no
+value may be inherited from legacy history, a runtime, an upstream claim or this acceptance. Therefore the next state
+is `OWNER_DECISION_REQUIRED` before any `04-A` execution. This acceptance does not open `04-B` through `04-E`, T06,
+MVR, M6, production geometry or real-user processing.
+
+`CC_P2_M5_04_A_PROPOSAL_WRITING: PASS_AT_AE8ABD3_RUN_32585964173_ATTEMPT_1`
+
+`CC_P2_M5_04_A_EXECUTION: CLOSED_PENDING_SEPARATE_DECISION_AUTHORITY`
+
+`CC_P2_M5_04_B_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: OWNER_DECISION_REQUIRED_BEFORE_ANY_CC04_A_STUDY_EXECUTION`

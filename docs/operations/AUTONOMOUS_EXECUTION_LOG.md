@@ -1205,3 +1205,12 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   transform, threshold, MVR or QuestionBank action occurred. `04-A` execution, `04-B–E`, T06, MVR, M6, production
   geometry and real-user processing remain closed pending this candidate's validation and review.
 - `MEMORY.md`, OpenAPI and `.tmp/` remain protected pre-existing worktree changes and were not modified or staged.
+
+## 2026-08-23 — CC04-A proposal-only accepted
+
+- Candidate `ae8abd3` passed same-SHA run `32585964173`: quality, Docker and secret scan succeeded, and all eight
+  artifacts were inspected as exact-SHA evidence. Independent security and final reviews passed.
+- Principal accepts only the versioned proposal and unresolved-decision register. All concrete study inputs and
+  controls remain undecided; `04-A` execution, `04-B–E`, T06, MVR, M6, production geometry and real-user processing
+  remain closed. The durable next state is `OWNER_DECISION_REQUIRED` before any separate decision task can be opened.
+- `MEMORY.md`, OpenAPI and `.tmp/` remain protected pre-existing worktree changes and were not modified or staged.

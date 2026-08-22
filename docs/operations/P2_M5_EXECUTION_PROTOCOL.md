@@ -637,3 +637,30 @@ downstream Gate is involved.
 `CC_P2_M5_04_B_TO_E: CLOSED`
 
 `P2_M5_NEXT_ACTION: VALIDATE_CC04_A_PROPOSAL_ONLY_CANDIDATE_NO_STUDY_EXECUTION`
+
+## CC04-A proposal-writing accepted
+
+Candidate `ae8abd30b7de11e27ba9b7af04c53b2f79afef2a` passed local scoped governance validation, Python/static and
+TypeScript/contract/build checks, and same-SHA run `32585964173` with all three jobs and eight inspected artifacts.
+Independent security and final reviews both passed. Principal accepts only the versioned proposal and unresolved-decision
+register: they provide a reviewable fresh-study planning boundary, not a resource, candidate, technical or execution
+decision.
+
+No currently unresolved register item has inherited authority. Any attempt to select a source, candidate, resource
+envelope, algorithm/runtime, policy/ontology, threshold/split, budget or custody arrangement requires a new bounded
+decision task and explicit authority. Until then, the honest next state is `OWNER_DECISION_REQUIRED`, not a default
+execution path.
+
+`CC_P2_M5_04_A_PROPOSAL_WRITING: PASS_AT_AE8ABD3_RUN_32585964173_ATTEMPT_1`
+
+`CC_P2_M5_04_A_EXECUTION: CLOSED_PENDING_SEPARATE_DECISION_AUTHORITY`
+
+`CC_P2_M5_04_B_TO_E: CLOSED`
+
+`P2_M5_T06_ENTRY: CLOSED`
+
+`P2_MVR_V1_RESULT: NOT_EVALUATED`
+
+`P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+`P2_M5_NEXT_ACTION: OWNER_DECISION_REQUIRED_BEFORE_ANY_CC04_A_STUDY_EXECUTION`
