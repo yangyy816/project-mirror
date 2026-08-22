@@ -1239,6 +1239,27 @@ separation contract. It does not accept a new study, evidence, disposition, MVR 
 
 `CC_P2_M5_04_B_TO_E: CLOSED`
 
+## CC04-A proposal contract local candidate
+
+The local candidate `P2_M5_CC04_A_PROPOSAL_TASK_CONTRACT.md` packages the only eligible next CC04 action without
+changing its authority: it is a Principal-owned proposal-only contract, not a study proposal or execution approval.
+It makes no source, candidate, resource, algorithm, runtime, policy, ontology, threshold, split, budget, provider or
+private-custody decision; it also creates no asset, identity, private output, model/download, generation, Vision,
+transform, threshold or downstream Gate.
+
+The candidate requires every such future decision to occur in a separately bounded, accepted task and preserves legacy
+CC01-C/CC02 exclusion, fresh authority/digest/custody, the `04-E` versus later-M5-disposition boundary and all existing
+synthetic-only/adult/privacy/license safeguards. Until same-SHA CI, eight-artifact inspection and independent reviews
+complete, it is not accepted and opens nothing.
+
+`CC_P2_M5_04_A_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+
+`CC_P2_M5_04_A_PROPOSAL_WRITING: CLOSED_PENDING_CONTRACT_ACCEPTANCE`
+
+`CC_P2_M5_04_A_EXECUTION: CLOSED`
+
+`CC_P2_M5_04_B_TO_E: CLOSED`
+
 ## CC02-C recovery-stop checkpoint remote-CI external blocker
 
 - Governance checkpoint `9a7a1f7ecaccafa5b187e41aac5563a447bc29c9` was normally pushed to

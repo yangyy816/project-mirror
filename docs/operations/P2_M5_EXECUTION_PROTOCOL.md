@@ -544,3 +544,22 @@ that future evidence must have new authority/digest/custody. It does not generat
 `CC_P2_M5_04_B_TO_E: CLOSED`
 
 `P2_M5_NEXT_ACTION: PREPARE_CC04_A_PROPOSAL_NO_EXECUTION_OR_LEGACY_REUSE`
+
+## CC-P2-M5-04-A — Fresh study proposal contract candidate
+
+`P2_M5_CC04_A_PROPOSAL_TASK_CONTRACT.md` is the only current candidate work item under the accepted CC04-G boundary.
+It is a Principal-owned, governance-only bounded-task contract. It contains no actual candidate, source, resource
+count, algorithm, runtime, policy, ontology, threshold, split, budget, provider or private custody locator, and it
+does not authorize execution, acquisition, generation, private-input access, model/download/install or `04-B` work.
+
+The contract can be accepted only after its own local validation, normal non-force push, exact-SHA CI/eight-artifact
+inspection and independent security/final review. Acceptance opens only a separate proposal-writing task with its own
+explicit decision authority; it does not open proposal execution or any later CC04/M5 Gate.
+
+`CC_P2_M5_04_A_CONTRACT: READY_FOR_TRACKED_CONTRACT_EVIDENCE`
+
+`CC_P2_M5_04_A_PROPOSAL_WRITING: CLOSED_PENDING_CONTRACT_ACCEPTANCE`
+
+`CC_P2_M5_04_A_EXECUTION: CLOSED`
+
+`CC_P2_M5_04_B_TO_E: CLOSED`
