@@ -33,6 +33,10 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   privacy, data, supply-chain or phase-boundary finding. M5 fresh-study execution and M6 remain closed. R02 is the
   same-SHA evidence-state reconciliation candidate; a separate acceptance checkpoint may open T02 only after R02 has
   passed its own CI.
+- R02 candidate `aead7961d9ab9a062a88e8177f785dc1730dfc5f` then passed exact-SHA run `32589829490`, attempt 1, with
+  three successful jobs and eight unexpired artifacts. Principal content inspection again found only the expected
+  non-image evidence files, no credential-pattern hit and zero Gitleaks results. Principal accepts T01/R01/R02 and
+  changes only M7 to `EXECUTION_READY`; T02 is authorized, while M5 fresh-study execution and M6 remain closed.
 
 ## 2026-08-18T01:45:05+08:00 — P2-M3 recovery and V01 authority closure
 

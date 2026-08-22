@@ -95,7 +95,7 @@ acceptance evidence, ADR-051, relevant accepted service contracts and the curren
 - Validation commands: scoped Prettier, `pnpm.cmd format:check`, `git diff --check`, invariant/public-contract/dependency
   negative scan and same-SHA CI/artifact review.
 - Recommended agent / model: Principal / Sol High.
-- Current status: `PENDING_P2_M7_R02_EVIDENCE_STATE_RECONCILIATION`.
+- Current status: `PASS_AT_AEAD796_RUN_32589829490_ATTEMPT_1`.
 
 ## P2-M7-T02 — typed operation-service contract
 
@@ -213,8 +213,8 @@ acceptance evidence, ADR-051, relevant accepted service contracts and the curren
 | Recovery integration             | T05       | Depends on T02–T04; real infrastructure only.                |
 | Tests/evidence/reviews           | T06–T08   | Sequential after implementation.                             |
 
-`P2_M7_T01: PENDING_P2_M7_R02_TRACKED_EVIDENCE`
+`P2_M7_T01: PASS_AT_AEAD796_RUN_32589829490_ATTEMPT_1`
 
-`P2_M7_STATE: COMMITTED`
+`P2_M7_STATE: EXECUTION_READY`
 
-`P2_M7_NEXT_ACTION: P2_M7_R02_TRACKED_EVIDENCE`
+`P2_M7_NEXT_ACTION: P2_M7_T02_CONTRACT_IMPLEMENTATION`

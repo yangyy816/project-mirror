@@ -30,3 +30,5 @@ state would incorrectly keep T02 closed despite the required evidence being avai
 - confirm the independent review report contains no unresolved finding.
 
 `P2_M7_R02: READY_FOR_TRACKED_EVIDENCE`
+
+`P2_M7_R02_TRACKED_ACCEPTANCE: PASS_AT_AEAD796_RUN_32589829490_ATTEMPT_1`

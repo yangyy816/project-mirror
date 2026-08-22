@@ -94,3 +94,22 @@
 `P2_M7_STATE: COMMITTED`
 
 `P2_M7_NEXT_TASK: P2_M7_R02_TRACKED_EVIDENCE`
+
+## P2-M7-R02 tracked acceptance / T01 closure
+
+- Candidate `aead7961d9ab9a062a88e8177f785dc1730dfc5f` completed GitHub Actions run `32589829490`, attempt 1, with
+  `quality-and-integration`, `secret-scan` and `docker-validation` successful on that exact SHA.
+- All eight expected artifacts were unexpired, service-side SHA-256 bound and authenticated/content-inspected. The
+  inspection found 11 files, candidate-SHA bindings in retained evidence JSON, zero credential-pattern or image files,
+  and zero Gitleaks SARIF results; its temporary download root was deleted.
+- Principal accepts T01, R01 and R02. M7 enters `EXECUTION_READY`; T02 is the sole authorized next implementation task.
+  This remains governance-only evidence: M7 Gate is not evaluated, production CLI remains `NOT_DEPLOYED`, M5 fresh
+  study remains closed and M6 release/revoke remains closed.
+
+`P2_M7_R02: PASS_AT_AEAD796_RUN_32589829490_ATTEMPT_1`
+
+`P2_M7_T01: PASS_AT_AEAD796_RUN_32589829490_ATTEMPT_1`
+
+`P2_M7_STATE: EXECUTION_READY`
+
+`P2_M7_NEXT_TASK: T02_AUTHORIZED`
