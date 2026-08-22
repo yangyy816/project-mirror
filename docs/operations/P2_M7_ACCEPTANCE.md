@@ -47,6 +47,9 @@
   treated as a replacement for content inspection.
 - T01 remains unaccepted and M7 remains `COMMITTED` until a read-only authenticated artifact inspection proves the
   archived contents are readable, exact-SHA bound and free of contradictory mandatory evidence.
+- Principal review found that the initial T01 protocol abbreviated the required per-task bounded contracts. `P2-M7-R01`
+  is a docs-only completeness repair: it must retain the same architecture and closed boundaries, then receive its own
+  same-SHA CI/artifact evidence before T01 is reconsidered.
 
 `P2_M7_T01_REMOTE_CI: PASS_AT_6ECACF4_RUN_32587937578_ATTEMPT_1`
 
@@ -54,7 +57,9 @@
 
 `P2_M7_T01_ARTIFACT_CONTENT: NOT_VERIFIED_AUTH_REQUIRED`
 
-`P2_M7_T01: PENDING_ARTIFACT_CONTENT_INSPECTION`
+`P2_M7_T01: PENDING_P2_M7_R01_AND_ARTIFACT_CONTENT_INSPECTION`
+
+`P2_M7_R01: READY_FOR_TRACKED_EVIDENCE`
 
 `P2_M7_GATE: NOT_EVALUATED`
 

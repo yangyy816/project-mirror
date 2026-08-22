@@ -62,78 +62,145 @@ No task may modify public API, generated TypeScript, historic migrations, M5 res
 production enablement. A new persistence authority, role model, dependency, model, Provider, public contract or
 schema requirement is a change-control boundary, not a repair.
 
-## T01 — governance and operating contract
+## Common bounded-task safety baseline
 
-- Objective: encode the approved internal-CLI, audit, cost and observability boundary before implementation.
-- Scope: ADR-051, this protocol, acceptance skeleton, MILESTONES and durable autonomous log only.
-- Acceptance: M7 has explicit scope, ownership, task DAG, collision domains, redaction rules, fail-closed behavior,
-  validation sequence and a clear M5/M6 exclusion.
-- Validation: Markdown formatting, `pnpm.cmd format:check`, `git diff --check`, invariant / public-contract / dependency
-  negative scan.
-- Status: `READY_FOR_TRACKED_EVIDENCE`.
+Every task begins with `BOOTSTRAP_STATUS: OK` only after it rereads the current branch/HEAD/status, this protocol,
+acceptance evidence, ADR-051, relevant accepted service contracts and the current dependency/supply-chain record.
 
-## T02 — typed operation-service contract
+- Inputs and assumptions: P2-M2/M3/M4 accepted authorities are immutable inputs; M5 fresh-study and P2-M6 release
+  remain closed. Missing evidence is never inferred or recreated.
+- Security/privacy/data: synthetic-only; no User relation, real-person fixture, Prompt, object key, URL, bytes,
+  provider payload, credential or private path in code output, logs, CI evidence or task message. PostgreSQL and
+  append-only audit/evidence retain authority.
+- License: no new package, model, weight, SDK or remote service is permitted unless a separate qualification/change
+  control has passed. Existing deterministic Mock and numeric/JSON fixtures remain zero-network.
+- Rollback: disable the unaccepted command path and preserve authoritative evidence. Schema downgrade is not an M7
+  fallback; any necessary schema change is separately authorized.
+- Output format: `TASK_ID; STATUS; SUMMARY; FILES_CHANGED; TESTS_RUN; TEST_RESULTS; ACCEPTANCE_CRITERIA; SECURITY_NOTES; PRIVACY_NOTES; DATA_NOTES; OSS_LICENSE_NOTES; ASSUMPTIONS; BLOCKERS; RISKS_FOUND; HANDOFF_NOTES; NEXT_READY_TASK`.
+- Escalation: any new authority/schema, public API, role/authentication model, dependency, Provider/model, M5/M6
+  behavior, production enablement, direct private-input requirement or invariant conflict stops the task and returns
+  `ESCALATION_REQUIRED` to Principal.
 
-- Objective: define first-party command request/result, actor/reason/expectation and redaction types around already
-  accepted services.
-- Scope: new P2 operations domain/application modules and tests.
-- Forbidden: direct database writes, CLI parsing, schema/migration, Provider calls, M5/M6 behavior and public API.
-- Acceptance: invalid environment, missing actor/reason/expectation, secret-like output and unavailable target services
-  fail closed and deterministically.
-- Validation: Ruff, strict mypy and targeted deterministic negative tests.
+## P2-M7-T01 — governance and operating contract
 
-## T03 — internal CLI adapter
+- Why delegated: Principal-owned architecture/governance refinement; no worker may choose its control-plane boundary.
+- Scope / allowed files: ADR-051, this protocol, acceptance skeleton, MILESTONES and autonomous log only.
+- Expected change: encode the already approved internal CLI/application-service, audit, cost, redaction and M5/M6
+  exclusion boundary.
+- Forbidden scope: all product code, migration, dependency/model acquisition, public API, Provider call, M5 research
+  execution and M6 release/revoke.
+- Dependencies: P2-M2 frozen contracts and current repository truth.
+- Acceptance criteria: explicit scope, ownership, task DAG, collision domains, redaction/fail-closed rules, validation
+  sequence and every bounded-task contract field are present without creating new authority.
+- Validation commands: scoped Prettier, `pnpm.cmd format:check`, `git diff --check`, invariant/public-contract/dependency
+  negative scan and same-SHA CI/artifact review.
+- Recommended agent / model: Principal / Sol High.
+- Current status: `PENDING_P2_M7_R01_CONTRACT_COMPLETENESS_REPAIR`.
 
-- Objective: implement `mirror-dataset` command parsing and rendering solely through T02 services.
-- Scope: package entry point, CLI adapter and CLI tests.
-- Forbidden: direct SQL, HTTP, object storage reads, Prompt/image output, release/revoke command, interactive credential
+## P2-M7-T02 — typed operation-service contract
+
+- Why delegated: a bounded first-party domain/application contract can be implemented after Principal accepts T01.
+- Scope / allowed files: new P2 operations domain/application modules and targeted API/Worker tests; no existing M2/M3/M5
+  authority owner changes.
+- Expected change: typed command request/result, actor/reason/expectation, redacted rendering and stable fail-closed
+  error taxonomy around accepted services.
+- Forbidden scope: direct database writes, CLI parsing, schema/migration, Provider calls, M5/M6 behavior and public API.
+- Dependencies: accepted T01 and ADR-051.
+- Acceptance criteria: invalid environment, missing actor/reason/expectation, secret-like output and unavailable target
+  services fail closed and deterministically.
+- Validation commands: Ruff, strict mypy and targeted deterministic positive/negative tests.
+- Recommended agent / model: backend worker / Terra Medium.
+
+## P2-M7-T03 — internal CLI adapter
+
+- Why delegated: adapter implementation is separable only after T02 freezes the first-party service contract.
+- Scope / allowed files: CLI entry point/adapter, command help and CLI tests.
+- Expected change: `mirror-dataset` parses explicit non-secret environment/actor/reason/expected-state inputs and calls
+  T02 services without direct SQL.
+- Forbidden scope: HTTP, object-storage reads, Prompt/image output, release/revoke command, interactive credential
   acquisition or production enablement.
-- Acceptance: explicit environment is required; outputs are redacted; commands return stable error codes and do not
-  mutate authority on validation failure.
-- Validation: Ruff, strict mypy, CLI unit tests, source scan and deterministic no-network test.
+- Dependencies: accepted T02.
+- Acceptance criteria: outputs are redacted, error codes stable and validation failure has no authority mutation.
+- Validation commands: Ruff, strict mypy, CLI tests, source scan and deterministic no-network test.
+- Recommended agent / model: backend worker / Terra Medium.
 
-## T04 — cost and payload-free observability projection
+## P2-M7-T04 — cost and payload-free observability projection
 
-- Objective: expose bounded aggregate cost/status and allowlisted events from accepted authority.
-- Scope: operations projection/event modules, tests and a P2 operations runbook.
-- Forbidden: new monetary inference, dashboard/collector, raw payload logging and Provider SDK.
-- Acceptance: actual/estimated/unavailable remain distinct; aggregation is reproducible from authority; unsafe fields are
-  rejected; audit/event correlation is preserved.
-- Validation: targeted unit/integration tests, redaction scan and PostgreSQL-backed read-model tests.
+- Why delegated: read-only aggregate and event work is isolated once the operation contract is frozen.
+- Scope / allowed files: operations projection/event modules, tests and a P2 operations runbook.
+- Expected change: reproducible aggregates over accepted cost authority and allowlisted operational-event projection.
+- Forbidden scope: monetary inference, dashboard/collector, raw payload logging, Provider SDK and new data authority.
+- Dependencies: accepted T02; T03 may proceed independently once its contract is frozen.
+- Acceptance criteria: actual/estimated/unavailable remain distinct, unsafe fields are rejected and audit/event correlation
+  is preserved.
+- Validation commands: targeted unit/integration tests, redaction scan and PostgreSQL-backed read-model tests.
+- Recommended agent / model: backend worker / Terra Medium.
 
-## T05 — recovery and concurrency integration
+## P2-M7-T05 — recovery and concurrency integration
 
-- Objective: prove commands preserve PostgreSQL/Job authority through duplicate submission, cancellation, stale
-  expectation, crash and concurrent operator paths.
-- Scope: application/repository integration and real PostgreSQL/Redis/Celery tests only.
-- Forbidden: changing M2 budget semantics, M5 research execution, M6 release/revoke, public API or a new Provider.
-- Acceptance: one valid authority transition or one stable terminal evidence outcome; no orphaned command effect or
-  unredacted diagnostic.
-- Validation: real PostgreSQL, Redis/Celery, duplicate/concurrency/recovery tests and full affected regression.
+- Why delegated: recovery and locking behavior are difficult but bounded by the accepted command/service contracts.
+- Scope / allowed files: application/repository integration plus real PostgreSQL/Redis/Celery tests.
+- Expected change: duplicate, cancellation, stale-expectation, crash and concurrent operator paths preserve one
+  authoritative outcome or stable terminal evidence.
+- Forbidden scope: M2 budget semantics, M5 research execution, M6 release/revoke, public API and new Provider.
+- Dependencies: accepted T02–T04.
+- Acceptance criteria: no orphaned command effect, lock-order violation or unredacted diagnostic.
+- Validation commands: real PostgreSQL, Redis/Celery, duplicate/concurrency/recovery tests and full affected regression.
+- Recommended agent / model: Terra High worker / Terra High.
 
-## T06 — independent deterministic evaluation
+## P2-M7-T06 — independent deterministic evaluation
 
-- Objective: independently prove synthetic-only, operator authorization, redaction, production fail-closed and no
-  contract/dependency drift.
-- Scope: tests, numeric/JSON fixtures and source scans.
-- Forbidden: production repair, private input, image fixture, live network and policy/threshold changes.
-- Acceptance: every M7 hard boundary has positive and negative deterministic evidence with zero mandatory skip.
-- Validation: targeted + full Python/TypeScript/contract tests, migration check, Docker/Compose and Gitleaks.
+- Why delegated: independent test ownership prevents implementer-only proof of redaction and fail-closed behavior.
+- Scope / allowed files: tests, numeric/JSON fixtures and source scans.
+- Expected change: deterministic positive/negative evidence for every M7 hard boundary.
+- Forbidden scope: production repair, private input, image fixture, live network and policy/threshold changes.
+- Dependencies: accepted T02–T05.
+- Acceptance criteria: zero mandatory skip; synthetic-only, authorization, redaction, production fail-closed and no
+  contract/dependency drift are all directly covered.
+- Validation commands: targeted plus full Python/TypeScript/contract tests, migration check, Docker/Compose and Gitleaks.
+- Recommended agent / model: test worker / Terra Medium.
 
-## T07 — CI evidence
+## P2-M7-T07 — CI evidence
 
-- Objective: add machine-readable `mirror.p2-m7.ci-evidence/v1` and obtain same-SHA three-job evidence.
-- Scope: CI evidence generator/tests and acceptance evidence only.
-- Forbidden: weakening existing gates, artifact payload/path leakage or live service dependency.
-- Acceptance: evidence binds SHA, migration head, OpenAPI digest, M7 summary, zero mandatory skip and redacted
-  aggregates; eight CI artifacts are present and readable.
+- Why delegated: CI evidence is isolated from implementation and must preserve prior Gates.
+- Scope / allowed files: CI evidence generator/tests, workflow wiring if necessary and acceptance evidence only.
+- Expected change: machine-readable `mirror.p2-m7.ci-evidence/v1` with allowlisted aggregates.
+- Forbidden scope: weakening existing Gates, artifact payload/path leakage, live service dependency and product behavior.
+- Dependencies: accepted T06.
+- Acceptance criteria: evidence binds SHA, migration head, OpenAPI digest, M7 summary and zero mandatory skip; all eight
+  artifacts are readable and content-inspected.
+- Validation commands: full existing CI matrix, artifact inspection, source scan and `git diff --check`.
+- Recommended agent / model: infra worker / Terra Medium.
 
-## T08 — independent review and closure
+## P2-M7-T08 — independent review and closure
 
-- Objective: security/privacy/license and final review of the complete M7 candidate, then acceptance closure.
-- Scope: read-only review reports and bounded repair records.
-- Acceptance: no direct-SQL/API/secret/private-payload/M5-M6 scope bypass; every unverified item is stated; final
-  disposition is evidence-backed.
+- Why delegated: Gate judgment must be separated from implementation.
+- Scope / allowed files: read-only review reports, acceptance evidence and bounded repair records only.
+- Expected change: evidence-backed security/privacy/license and final dispositions; no implementation in review tasks.
+- Forbidden scope: Gate weakening, unreviewed repair, M5/M6 scope change or production enablement.
+- Dependencies: accepted T07 and readable same-SHA artifacts.
+- Acceptance criteria: no direct-SQL/API/secret/private-payload/M5-M6 bypass; every unverified item remains explicit;
+  closure may occur only after Principal reviews actual evidence.
+- Validation commands: diff/schema/source/evidence/artifact review; unexecuted checks must read `NOT VERIFIED`.
+- Recommended agent / model: security reviewer / Terra High, then final reviewer / Sol High.
+
+## P2-M7-R01 — bounded-task contract completeness repair
+
+- Objective: make the T01 candidate conform to the standing bounded-task contract without changing M7 architecture.
+- Why delegated: Principal-owned governance repair; it is not a substitute for a new T09/T10 task.
+- Scope / allowed files: this protocol, acceptance evidence and autonomous log only.
+- Expected change: add the missing task-level objective/rationale/scope/dependency/validation/security/data/license/rollback/
+  model/escalation/output fields, and retain every prior M5/M6/production boundary.
+- Forbidden scope: ADR decision change, schema, code, migration, dependency, Provider/model, public API, M5 execution or
+  M6 release/revoke.
+- Dependencies: current unaccepted T01 candidate and the goal objective's bounded-task requirements.
+- Acceptance criteria: each T01–T08 card contains all required fields or explicitly inherits a named common baseline;
+  no contract authorizes work previously closed.
+- Validation commands: scoped Prettier, `pnpm.cmd format:check`, `git diff --check`, contract-field completeness scan and
+  same-SHA CI/artifact review.
+- Recommended agent / model: Principal / Sol High.
+
+`P2_M7_R01: READY_FOR_TRACKED_EVIDENCE`
 
 ## Collision domains and entry rules
 

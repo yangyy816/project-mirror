@@ -22,8 +22,10 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   artifacts are unexpired and service-side metadata-bound to the candidate SHA.
 - Current-session archive content download returned HTTP 401. The artifact metadata is preserved as evidence, but it
   cannot substitute for content inspection; T01 remains unaccepted, M7 remains `COMMITTED`, and T02 remains closed.
-- Next action: restore read-only artifact access, inspect the eight archives, then independently review T01 before
-  accepting it or changing M7 state.
+- Principal then found the T01 task cards did not explicitly contain every required bounded-task contract field. The
+  docs-only `P2-M7-R01` repair adds that missing execution governance without changing architecture or opening M5/M6.
+- Next action: validate and track R01, then restore read-only artifact access, inspect the eight archives and
+  independently review T01 before accepting it or changing M7 state.
 
 ## 2026-08-18T01:45:05+08:00 — P2-M3 recovery and V01 authority closure
 
