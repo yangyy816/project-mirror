@@ -4,26 +4,26 @@
 
 - Register version: `p2-m5-cc04-decision-register/v1`.
 - Scope: `CC-P2-M5-04-A` proposal-only governance.
-- Overall disposition: `ALL_CONCRETE_DECISIONS_UNDECIDED`.
+- Overall disposition: `OWNER_DECISION_RECORDED_REVIEW_AND_EVIDENCE_GATES_OPEN`.
 
 This register is intentionally a list of unresolved decisions. An `UNDECIDED` row is not a provisional approval,
 default, inherited value or permission to begin work. No row may be implemented until its own bounded decision task has
 the required authority, validation, same-SHA CI, artifact inspection and independent review.
 
-| ID          | Decision category                           | Current disposition | Evidence required before a later decision                                                          | Stop if missing or conflicting |
-| ----------- | ------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------ |
-| `CC04-A-01` | Fresh source/origin and rights              | `UNDECIDED`         | synthetic-only origin, rights/retention/provenance facts, fresh digest and non-legacy separation   | `LICENSE_REVIEW_REQUIRED`      |
-| `CC04-A-02` | Adult and safety admission                  | `UNDECIDED`         | adult-boundary and hard-failure review evidence without age estimation or a bypass                 | `SECURITY_REVIEW_REQUIRED`     |
-| `CC04-A-03` | Candidate-family admission                  | `UNDECIDED`         | fresh-family evidence, no real/User input and no legacy selection/reuse                            | `OWNER_DECISION_REQUIRED`      |
-| `CC04-A-04` | Resource, retry, cost and storage envelope  | `UNDECIDED`         | independent justification and bounded operational evidence                                         | `OWNER_DECISION_REQUIRED`      |
-| `CC04-A-05` | Algorithm/runtime/Provider qualification    | `UNDECIDED`         | exact provenance, license, security, telemetry, platform and fail-closed evidence                  | `LICENSE_REVIEW_REQUIRED`      |
-| `CC04-A-06` | Policy and ontology authority               | `UNDECIDED`         | versioned content, digest, transition and validation authority                                     | `OWNER_DECISION_REQUIRED`      |
-| `CC04-A-07` | Calibration/holdout split                   | `UNDECIDED`         | fresh identity-disjoint split evidence and sealed-access process                                   | `OWNER_DECISION_REQUIRED`      |
-| `CC04-A-08` | Negative-control protocol                   | `UNDECIDED`         | controls for legacy reuse, real/User data, malformed inputs, hidden network and unsupported claims | `SECURITY_REVIEW_REQUIRED`     |
-| `CC04-A-09` | Private evidence custody                    | `UNDECIDED`         | ADR-049 recoverable custody, opaque locator, digest/type/scope and cleanup evidence                | `PRIVACY_REVIEW_REQUIRED`      |
-| `CC04-A-10` | Reproducibility/platform variance           | `UNDECIDED`         | version capture, repeatability and platform-variance evidence                                      | `FURTHER_RESEARCH`             |
-| `CC04-A-11` | Diversity, duplicate and isolation evidence | `UNDECIDED`         | non-sensitive diversity, duplicate and mode-collapse evidence                                      | `FURTHER_RESEARCH`             |
-| `CC04-A-12` | M5 disposition boundary                     | `UNDECIDED`         | proof that any technical/MVR disposition is separately decided after `04-E`                        | `OWNER_DECISION_REQUIRED`      |
+| ID          | Decision category                           | Current disposition                                           | Evidence required before a later decision                                | Stop if missing or conflicting                       |
+| ----------- | ------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------- |
+| `CC04-A-01` | Fresh source/origin and rights              | `OWNER_SOURCE_SELECTED_PENDING_LICENSE_AND_PROVENANCE_REVIEW` | rights, retention, provenance, fresh digest, non-legacy separation       | `LICENSE_REVIEW_REQUIRED`                            |
+| `CC04-A-02` | Adult and safety admission                  | `SECURITY_AND_PRIVACY_REVIEW_REQUIRED`                        | adult hard-fail review without age estimation or bypass                  | `SECURITY_AND_PRIVACY_REVIEW_REQUIRED`               |
+| `CC04-A-03` | Candidate-family admission                  | `OWNER_ACCEPTED_FRESH_CANDIDATE_FAMILY_CONSTRAINTS`           | fresh four-bidirectional-dimension minimum across three region groups    | `FURTHER_RESEARCH_INSUFFICIENT_CANDIDATE_DIMENSIONS` |
+| `CC04-A-04` | Resource envelope                           | `OWNER_ACCEPTED_BOUNDED_RESOURCE_ENVELOPE`                    | later envelope compliance; no consumption here                           | `FURTHER_RESEARCH_RESOURCE_ENVELOPE_EXHAUSTED`       |
+| `CC04-A-05` | Algorithm/runtime/Provider qualification    | `LICENSE_AND_SECURITY_REVIEW_REQUIRED`                        | fresh provenance, license, security, telemetry, platform evidence        | `LICENSE_AND_SECURITY_REVIEW_REQUIRED`               |
+| `CC04-A-06` | Policy and ontology authority               | `OWNER_ACCEPTED_NEW_VERSIONED_POLICY_ONTOLOGY_AUTHORITY`      | fresh digest-bearing versioned authority                                 | `OWNER_DECISION_REQUIRED`                            |
+| `CC04-A-07` | Calibration/holdout split                   | `OWNER_ACCEPTED_SEALED_IDENTITY_DISJOINT_SPLIT_RULE`          | fresh 24 plus 24 isolated and sealed split                               | `OWNER_DECISION_REQUIRED`                            |
+| `CC04-A-08` | Negative-control protocol                   | `SECURITY_REVIEW_REQUIRED`                                    | all required reuse, input, network, digest, leakage, and bypass controls | `SECURITY_REVIEW_REQUIRED`                           |
+| `CC04-A-09` | Private evidence custody                    | `PRIVACY_REVIEW_REQUIRED`                                     | ADR-049 recoverable Principal custody and cleanup                        | `PRIVACY_REVIEW_REQUIRED`                            |
+| `CC04-A-10` | Reproducibility/platform variance           | `EVIDENCE_GATED_NOT_PREAPPROVED`                              | fresh repeatability and platform evidence                                | `FURTHER_RESEARCH`                                   |
+| `CC04-A-11` | Diversity, duplicate and isolation evidence | `EVIDENCE_GATED_NOT_PREAPPROVED`                              | fresh diversity, duplicate, mode-collapse, and sealed-holdout evidence   | `FURTHER_RESEARCH`                                   |
+| `CC04-A-12` | M5 disposition boundary                     | `OWNER_ACCEPTED_SEPARATE_TECHNICAL_AND_MVR_DISPOSITION`       | separate post-`04-E` technical and MVR tasks                             | `OWNER_DECISION_REQUIRED`                            |
 
 ## Register invariants
 
@@ -39,5 +39,5 @@ the required authority, validation, same-SHA CI, artifact inspection and indepen
 
 ## Next permitted action
 
-The next permitted action is validation and review of this proposal-only documentation. It is not fresh-study
-execution and does not open `04-B` or a later stage.
+After this Owner Decision Closure receives its own exact-SHA acceptance, the next permitted action is only `04-B`
+contract writing at `ELIGIBLE_NOT_EXECUTION_AUTHORIZATION`; it neither creates nor executes `04-B`.

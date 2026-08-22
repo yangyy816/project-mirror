@@ -9,10 +9,11 @@
   proposal-task contract.
 - Current milestone: P2-M5 is `EXECUTING`; `P2_MVR_V1_RESULT: NOT_EVALUATED`.
 
-This is a versioned planning artifact, not a study specification or execution approval. It records the independent
-decision and admission-evidence categories that a later bounded task must resolve before any fresh calibration can be
-considered. It selects no source, candidate, quantity, algorithm, runtime, provider, model, policy, ontology,
-threshold, split, budget, custody locator, schedule or implementation path.
+This remains a planning artifact, not a study specification or execution approval. `OD-P2-M5-CC04-001` now records its
+source scope, envelope, candidate-family, versioning, split, control, custody, and disposition constraints in the Owner
+Decision Pack. License, provenance, security, privacy, runtime qualification, reproducibility, diversity, duplicate,
+and isolation outcomes remain open or evidence-gated; no candidate, threshold, tolerance, formula, runtime result,
+custody locator, schedule, or implementation path is selected.
 
 ## Purpose
 
@@ -75,5 +76,6 @@ The table states requirements only. It does not freeze a value, select a resourc
 
 ## Current result
 
-`04-A` has produced this proposal and its decision register only. No execution authority exists, and `04-B` through
-`04-E`, T06, MVR, M6, production geometry and real-user facial processing remain closed.
+`04-A` now has a proposal, decision register, and Owner Decision Pack only. Once this closure receives exact-SHA
+acceptance, only `04-B` contract writing becomes eligible; the contract remains uncreated and execution remains closed.
+`04-B` through `04-E`, T06, MVR, M6, production geometry, QuestionBank release, and real-user processing remain closed.

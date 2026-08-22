@@ -1429,3 +1429,27 @@ runtime, model, or downstream Gate result.
 `CC04_B_EXECUTION: CLOSED_PENDING_SEPARATE_CONTRACT_ACCEPTANCE`
 
 `SHARED_SUMMARY_SYNC: DEFERRED_PENDING_CONTROLLED_M5_M7_INTEGRATION`
+
+## CC04-A D01 accepted; Owner Decision Closure local candidate
+
+Principal accepts D01 at `7659eed48917b1491fd5fc8d18180c28f35944ec`: exact-SHA run `32592430642` passed quality, Docker, and secret scan; eight readable unexpired artifacts bind the SHA and `0014_m5_eval_authority`; Gitleaks reports zero results; and independent Security and Sol High final reviews passed. The acceptance opens only this Owner Decision Closure documentation candidate, not fresh-study execution.
+
+The candidate records `OD-P2-M5-CC04-001` in a decision pack and updates only the CC04 register/proposal/protocol and P2-M5 status records. It creates no source, image, Asset, identity, cohort, private output, runtime, dependency, model, threshold, holdout, MVR result, production capability, or `04-B` contract. Legacy CC01-C/CC02 evidence remains immutable and excluded.
+
+`CC_P2_M5_04_A_D01_CONTRACT: PASS_AT_7659EED_RUN_32592430642`
+
+`CC04_A_OWNER_DECISION_CLOSURE: LOCAL_CANDIDATE_PENDING_VALIDATION`
+
+`CC04_A_CONCRETE_OWNER_DECISIONS: RECORDED_PENDING_CLOSURE_ACCEPTANCE`
+
+`CC04_A_REVIEW_REQUIRED_DECISIONS: OPEN_AS_EXPLICIT_REVIEW_GATES`
+
+`CC04_A_EVIDENCE_GATED_DECISIONS: OPEN_PENDING_FRESH_EVIDENCE`
+
+`CC04_B_CONTRACT_WRITING: CLOSED_PENDING_OWNER_DECISION_CLOSURE`
+
+`CC04_B_CONTRACT: NOT_CREATED`
+
+`CC04_B_EXECUTION: CLOSED_PENDING_SEPARATE_CONTRACT_ACCEPTANCE`
+
+`SHARED_SUMMARY_SYNC: DEFERRED_PENDING_CONTROLLED_M5_M7_INTEGRATION`

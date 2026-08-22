@@ -3,7 +3,7 @@
 ## Authority and status
 
 - Change control: `CC-P2-M5-04` / ADR-050.
-- Current bounded stage: `04-G — governance and separation contract`.
+- Current bounded stage: `04-A — Owner Decision Closure, no study execution`.
 - Legacy status: CC02-C is `EVIDENCE_LOCATION_LOST` / `FURTHER_RESEARCH_EVIDENCE_NOT_RECONSTRUCTABLE`.
 - M5 status: `EXECUTING`; `P2_MVR_V1_RESULT: NOT_EVALUATED`.
 
@@ -63,3 +63,17 @@ transform, threshold, report, private-input read or output root.
 `P2_MVR_V1_RESULT: NOT_EVALUATED`
 
 `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
+
+## CC04-A Owner Decision Closure
+
+`OD-P2-M5-CC04-001` is recorded through D01 and the Owner Decision Pack only. It supplies future source, adult-boundary, candidate-family, resource-envelope, versioning, split, negative-control, custody, and separate-disposition constraints; it does not authorize acquisition, generation, private input, cohort/Asset/identity creation, measurement, transform, threshold, holdout, runtime adoption, Provider use, or production enablement.
+
+`CC_P2_M5_04_A_D01_CONTRACT: PASS_AT_7659EED_RUN_32592430642`
+
+`CC04_A_OWNER_DECISION_CLOSURE: LOCAL_CANDIDATE_PENDING_VALIDATION`
+
+`CC04_B_CONTRACT_WRITING: CLOSED_PENDING_OWNER_DECISION_CLOSURE`
+
+`CC04_B_CONTRACT: NOT_CREATED`
+
+`CC04_B_EXECUTION: CLOSED_PENDING_SEPARATE_CONTRACT_ACCEPTANCE`
