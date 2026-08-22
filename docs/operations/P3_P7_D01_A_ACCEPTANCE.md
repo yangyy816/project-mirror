@@ -7,9 +7,10 @@ TASK: D01-A — Worktree and Demo authority
 TRACK: DEMO_PROTOTYPE
 BASE_SHA: d134517fa97132b180a82c69c617b8f65d3b282e
 BRANCH: codex/p3-p7-core-demo
-STATUS: READY_FOR_INDEPENDENT_REVIEW
-PRINCIPAL_TASK_ACCEPTANCE: NOT_DECIDED
-D01_B: CLOSED
+STATUS: TASK_ACCEPTED
+PRINCIPAL_TASK_ACCEPTANCE: ACCEPTED
+REVIEWED_CANDIDATE_SHA: 68771e2aa2b36e10044c64017015c2885f34f9e1
+D01_B: OPEN
 ```
 
 This checkpoint implements governance and entry boundaries only. It contains no migration, ORM, public Demo API, Web,
@@ -67,9 +68,10 @@ DEMO_TASK_FORMAL_WRITE_COUNT: 0
 FORMAL_WORKTREE_UNCHANGED_BY_DEMO_TASK: PASS
 ```
 
-The formal checkout advanced externally during D01-A from P2-M5 HEAD `fd64a313...` to P2-M7 HEAD `8816047a...`.
-Tracked/untracked dirty path sets stayed unchanged and no Git operation was active. This evidence does not claim
-literal formal HEAD stability; the exact before/after attribution is preserved in the manifest.
+The formal checkout advanced externally during D01-A from P2-M5 HEAD `fd64a313...` to P2-M7 HEAD `8816047a...`, and
+then to P2-M7 HEAD `78c6370...` before Principal acceptance. Tracked/untracked dirty path sets stayed unchanged and no
+Git operation was active. This evidence does not claim literal formal HEAD stability; the exact before/after
+attribution is preserved in the manifest.
 
 ## Network and private-runtime result
 
@@ -152,24 +154,35 @@ execution, and no binary/artifact entered Git. The first archive attempt passed 
 `--source` flag; it produced no scan conclusion and cleaned its temporary directory. The corrected positional command
 scanned approximately 5.70 MB and found no leaks.
 
+The acceptance-closure recheck also retained its negative evidence: one retry extracted the scanner inside the scan
+target and therefore reported two matches from the scanner's own bundled `README.md`, not from repository files. That
+temporary directory was removed. The corrected run placed checksum-identical tooling outside the target, scanned
+approximately 5.71 MB, reported zero findings and removed the exact temporary directory.
+
 Not run because this checkpoint changes no product/schema/API code: Python product suites, PostgreSQL migration
 lifecycle, OpenAPI generation/drift, TypeScript build and Playwright. They remain mandatory in their owning checkpoints.
 
 ## Claims and remaining Gate
 
 ```text
-D01_A_INDEPENDENT_REVIEW: NOT_VERIFIED
-DEMO_CANDIDATE_COMMIT_SHA: NOT_CREATED
-DEMO_WORKTREE_CLEAN_AFTER_CANDIDATE_COMMIT: NOT_VERIFIED
-FIRST_PUSH_REPOSITORY_VISIBILITY: NOT_VERIFIED
+D01_A_INDEPENDENT_REVIEW: PASS
+D01_A_REVIEW_RECOMMENDATION: ACCEPT
+DEMO_REVIEWED_CANDIDATE_COMMIT_SHA: 68771e2aa2b36e10044c64017015c2885f34f9e1
+DEMO_WORKTREE_CLEAN_AFTER_REVIEWED_CANDIDATE_COMMIT: PASS
+FIRST_PUSH_REMOTE_REPOSITORY: yangyy816/project-mirror
+FIRST_PUSH_REPOSITORY_VISIBILITY: PUBLIC_VERIFIED
 FORMAL_MAINLINE_IMPACT: NONE_ATTRIBUTABLE_TO_DEMO_D01_A
 
-D01_A: NOT_ACCEPTED
-D01_B: CLOSED
+D01_A: TASK_ACCEPTED
+D01_B: OPEN
 D01_D12_IMPLEMENTATION: NOT_VERIFIED
 FORMAL_P3_P7_STATUS: UNCHANGED
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```
 
-An independent Sol High review must bind the candidate SHA and this evidence. Principal accepts or repairs D01-A only
-after reviewing that report and rerunning affected checks.
+The independent Sol High reviewer bound the exact candidate SHA, found no mandatory issue, confirmed the eleven-path
+scope, clean worktree, exact base parent, configuration invariants, complete entity/API/risk preservation and zero
+private/secret scan findings, and recommended `ACCEPT`. Principal reviewed that result and the actual diff, rechecked
+formal isolation and remote visibility, and accepts D01-A. The repository is public; this is a known residual risk, so
+every push still requires a current visibility check plus private-byte and Gitleaks checks. This acceptance opens only
+D01-B and does not upgrade any D01-B–D12, formal P3–P7 or production claim.

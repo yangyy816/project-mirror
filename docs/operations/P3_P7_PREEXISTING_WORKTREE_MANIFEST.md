@@ -95,6 +95,23 @@ DEMO_TASK_FORMAL_WRITE_COUNT: 0
 Therefore a literal machine-wide `FORMAL_HEAD_UNCHANGED` claim is false. The checkpoint uses the narrower, auditable
 Gate `FORMAL_WORKTREE_UNCHANGED_BY_DEMO_TASK`; the external advance is preserved rather than reverted or copied.
 
+### Formal snapshot before Principal acceptance
+
+At `2026-08-22T18:01:06Z`, the formal task had advanced again without any Demo write:
+
+```text
+FORMAL_BRANCH_AT_PRINCIPAL_ACCEPTANCE: codex/phase2-m7-internal-operations
+FORMAL_HEAD_AT_PRINCIPAL_ACCEPTANCE: 78c6370fa6b73491bf3ad0c705f6cf284982e3ee
+FORMAL_HEAD_CHANGED_EXTERNALLY_SINCE_PRIOR_SNAPSHOT: TRUE
+FORMAL_TRACKED_DIRTY_PATH_SET_CHANGED: FALSE
+FORMAL_UNTRACKED_PATH_SET_CHANGED: FALSE
+FORMAL_GIT_OPERATION: NONE
+FIXED_DEMO_BASE_IS_ACCEPTANCE_FORMAL_HEAD_ANCESTOR: PASS
+DEMO_TASK_FORMAL_WRITE_COUNT: 0
+```
+
+The Demo task did not checkout, reset, copy, stage or edit the formal worktree during either external advance.
+
 ## Demo worktree at D01-A entry
 
 ```text
@@ -134,13 +151,15 @@ Running Docker services are local feasibility evidence, not another Agent and no
 These fields are completed only after implementation and validation:
 
 ```text
-DEMO_WORKTREE_CLEAN_AFTER_CHECKPOINT_COMMIT: NOT_VERIFIED
+DEMO_WORKTREE_CLEAN_AFTER_REVIEWED_CANDIDATE_COMMIT: PASS
 FORMAL_WORKTREE_UNCHANGED_BY_DEMO_TASK: PASS
 FORMAL_HEAD_UNCHANGED_DURING_D01_A: FAIL_EXTERNAL_ADVANCE_RECORDED
-BASE_SHA_EXACT_AFTER_CHANGES: NOT_VERIFIED
+BASE_SHA_EXACT_AFTER_CHANGES: PASS
 PRIVATE_RUNTIME_LOAD_FROM_OFFICIAL_WORKTREE: PASS
-SCOPED_DIFF: NOT_VERIFIED
-D01_A_INDEPENDENT_REVIEW: NOT_VERIFIED
+SCOPED_DIFF: PASS
+D01_A_INDEPENDENT_REVIEW: PASS
+D01_A_PRINCIPAL_ACCEPTANCE: TASK_ACCEPTED
+D01_B_ENTRY: OPEN
 ```
 
 The official-worktree replay resolved the M4 handle only from the original D00 task receipt/registry, verified the

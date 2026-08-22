@@ -529,3 +529,10 @@
   `EXTERNAL_RUNTIME_DEPENDENCY_FOUND`。Demo Track 使用 branch-local `demo_0001_p3_p7_core`、task-scoped Terra
   High Principal、默认一/硬上限二 active sub-agents、`CAN_DELEGATE=false`、中央单一所有权和 Principal-managed
   private handoff；不改变 formal migration/P3–P7 Gate 或 production authorization。
+
+- 2026-08-23：D01-A candidate `68771e2aa2b36e10044c64017015c2885f34f9e1` 经独立 Sol High 只读审查
+  `PASS` 且无 mandatory finding；Principal 复核 exact-base 单提交 diff、clean worktree、11 个授权路径、零
+  migration/ORM/API/Web 变更、Gitleaks 零 findings、private locator 零命中与正式工作树外部前进证据后，将
+  `D01_A` 置为 `TASK_ACCEPTED` 并只开放 `D01_B`。远端 `yangyy816/project-mirror` 在首次推送前只读核验为
+  `PUBLIC`，因此每次 push 必须继续重验 visibility、private bytes 和 Gitleaks；D01-B–D12、formal P3–P7 与
+  production authorization 均未因此通过。

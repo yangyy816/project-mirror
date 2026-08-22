@@ -177,7 +177,9 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 - **D:** exact remote/repository identity and visibility response captured without credentials.
 - **R:** keep work local and resolve repository authority/visibility with Owner; never work around an unknown state.
 - **S:** unknown or changed visibility means no push.
-- **Owner / status / blocked:** Principal / `OPEN` / first and later pushes.
+- **Current evidence:** `yangyy816/project-mirror` was read-only verified as `PUBLIC` immediately before the D01-A
+  acceptance closure; the reviewed candidate had no private locator/bytes and Gitleaks reported zero findings.
+- **Owner / status / blocked:** Principal / `MITIGATED_MONITORED` / every later push requires the same recheck.
 
 ## R-DEMO-16 — Formal Job cannot express Demo ownership
 
