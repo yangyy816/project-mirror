@@ -96,7 +96,9 @@ async def test_operation_contract_redacts_backend_failure_and_mismatch() -> None
     assert failure.code == "operation_execution_unavailable"
     assert "secret-value" not in str(failure)
 
-    mismatch = DatasetOperationResult.rejected(command(operation=DatasetOperationKind.QA_STATUS), "qa_rejected")
+    mismatch = DatasetOperationResult.rejected(
+        command(operation=DatasetOperationKind.QA_STATUS), "qa_rejected"
+    )
     result = await SyntheticDatasetOperationService(
         backends={DatasetOperationKind.BATCH_STATUS: Backend(result=mismatch)}
     ).execute(value)

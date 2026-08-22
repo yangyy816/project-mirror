@@ -149,7 +149,9 @@ class SyntheticDatasetOperationService:
     gaining authority before the relevant accepted service has an audit-safe implementation.
     """
 
-    def __init__(self, *, backends: dict[DatasetOperationKind, DatasetOperationBackend] | None = None) -> None:
+    def __init__(
+        self, *, backends: dict[DatasetOperationKind, DatasetOperationBackend] | None = None
+    ) -> None:
         self._backends = dict(backends or {})
 
     async def execute(self, command: DatasetOperationCommand) -> DatasetOperationResult:
