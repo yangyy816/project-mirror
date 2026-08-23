@@ -231,3 +231,24 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 - **R:** classify `EXTERNAL_RUNTIME_DEPENDENCY_FOUND`, remove or vendor only through approved bounded acquisition/change control, then rerun offline Gate.
 - **S:** stop the affected core Gate immediately; never silently enable egress. Generative Provider remains unavailable without blocking deterministic core.
 - **Owner / status / blocked:** Principal + infra/runtime owners / `MITIGATED_MONITORED` / D03–D12 affected core path.
+
+## R-DEMO-20 — Synchronous semantic idempotency authority missing
+
+- **Probability / impact:** High / High
+- **Description:** a synchronous creating API uses transient formal coordination, memory state, JSONB-only keys or a
+  fake asynchronous Job, so replay/concurrency can create multiple durable responses or lose owner/session authority.
+- **Early signal:** a creating POST has no immutable target binding, `DemoJobBinding.job_id` is proposed as nullable,
+  an expiring `idempotency_records` row is called permanent authority, or concurrent retries create two targets.
+- **P:** separate immutable `demo_command_bindings` from asynchronous `demo_job_bindings`; freeze six operation/typed
+  response mappings, actor/session ownership, request digest and response status in `CC-P3-P7-DEMO-D01B-02`.
+- **D:** real PostgreSQL same-key concurrency, same/different digest replay, wrong owner/session/type/status/target,
+  immutable update/delete, typed response uniqueness and migration lifecycle tests.
+- **R:** keep D01-C closed, add only the branch-local forward prototype migration, repair target/application
+  transaction integration and rerun D01-B from the new exact Demo head.
+- **S:** no synchronous creating Demo route may return success or be included in contract freeze until CC02 is
+  Principal-accepted; no fake Job or in-memory fallback is permitted.
+- **Current evidence:** D01-C stopped before implementation; CC02 now has a forward prototype migration, immutable
+  typed-response authority, 63 focused schema tests, full API/Worker replay, migration lifecycle, concurrency and zero
+  formal-DDL drift evidence. Independent implementation review remains pending.
+- **Owner / status / blocked:** Principal + data/backend owners / `MITIGATED_PENDING_INDEPENDENT_REVIEW` / D01-C and all
+  synchronous creating routes.

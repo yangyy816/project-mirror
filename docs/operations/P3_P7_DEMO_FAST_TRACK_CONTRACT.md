@@ -9,8 +9,9 @@ TRACK: DEMO_PROTOTYPE
 STATUS: ACCEPTED
 D00_STATUS: GO
 D01_A_STATUS: TASK_ACCEPTED
-D01_B_STATUS: EXECUTING_SCHEMA_AUTHORITY
-D01_C_D12_STATUS: NOT_STARTED
+D01_B_STATUS: READY_FOR_INDEPENDENT_CC02_REVIEW
+D01_C_STATUS: BLOCKED_BY_SYNCHRONOUS_IDEMPOTENCY_AUTHORITY
+D02_D12_STATUS: NOT_STARTED
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```
 
@@ -24,15 +25,15 @@ Authority: Project Owner revision, ADR-050 and the accepted D00 decision. This c
 The Demo Track preserves every logical entity below. D01-B may prove physical reuse, but it may not remove logical
 capability, evidence, API, rebuildability or create competing formal/Demo authorities.
 
-| Domain        | Logical entities                                                                                                                                   |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Session/asset | `demo_actor`, `demo_session`, `demo_synthetic_identity`                                                                                            |
-| P3            | `demo_face_observation`, `demo_face_observation_repeat`, `demo_baseline_face_model`, `demo_self_state`                                             |
-| P4            | `demo_question_bank`, `demo_question_pair`, `demo_questionnaire_run`, `demo_questionnaire_step`                                                    |
-| P5            | `demo_desired_delta_profile`, `demo_style_profile`, `demo_identity_constraints`, `demo_self_transfer_run`, `demo_reference_profile`                |
-| P6            | `demo_editing_session`, `demo_image_version`, `demo_edit_plan`, `demo_edit_operation`, `demo_tool_run`, `demo_verification_result`                 |
-| P7            | `demo_preference_event`, `demo_accepted_visual_episode`, `demo_aesthetic_profile`, `demo_context_compilation`                                      |
-| Cross-cutting | `demo_job_binding`; stable formal `Asset`, `AssetVariant`, `Job` and `JobAttempt` may be reused without becoming Demo preference/profile authority |
+| Domain        | Logical entities                                                                                                                                                           |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session/asset | `demo_actor`, `demo_session`, `demo_synthetic_identity`                                                                                                                    |
+| P3            | `demo_face_observation`, `demo_face_observation_repeat`, `demo_baseline_face_model`, `demo_self_state`                                                                     |
+| P4            | `demo_question_bank`, `demo_question_pair`, `demo_questionnaire_run`, `demo_questionnaire_step`                                                                            |
+| P5            | `demo_desired_delta_profile`, `demo_style_profile`, `demo_identity_constraints`, `demo_self_transfer_run`, `demo_reference_profile`                                        |
+| P6            | `demo_editing_session`, `demo_image_version`, `demo_edit_plan`, `demo_edit_operation`, `demo_tool_run`, `demo_verification_result`                                         |
+| P7            | `demo_preference_event`, `demo_accepted_visual_episode`, `demo_aesthetic_profile`, `demo_context_compilation`                                                              |
+| Cross-cutting | `demo_job_binding`, `demo_command_binding`; stable formal `Asset`, `AssetVariant`, `Job` and `JobAttempt` may be reused without becoming Demo preference/profile authority |
 
 All authorities preserve append-only evidence, immutable originals, versioning, canonical digest, source/result lineage,
 strict JSONB payload validation, actor/session ownership, PostgreSQL authority and derived-state rebuildability.
@@ -169,8 +170,10 @@ No migration, ORM, public Demo API or Web implementation may begin before Princi
 ### D01-B — Schema authority
 
 Freeze `DEMO_SCHEMA_REUSE_MATRIX`, then implement `demo_0001_p3_p7_core`, ORM, `demo_job_binding`, ownership,
-append-only and migration lifecycle. Migration and central models have one writer. Populated evidence downgrade fails
-closed.
+append-only and migration lifecycle. The post-acceptance D01-C review reopened D01-B through
+`CC-P3-P7-DEMO-D01B-02`: the forward prototype migration `demo_0002_p3_p7_command_authority.py` adds immutable
+`demo_command_binding` authority for synchronous creating commands. Migration and central models have one writer.
+Populated evidence downgrade fails closed at every prototype revision.
 
 ### D01-C — API contract skeleton
 
@@ -215,8 +218,10 @@ access. If least privilege cannot be proven, Principal executes the sensitive st
 
 ## Actor ownership, idempotency and async state
 
-`demo_job_binding` is the immutable bridge from formal Job to Demo actor/session/entity authority. GET and mutation
-routes verify actor/session ownership; unguessable IDs are not authorization.
+`demo_job_binding` is the immutable bridge from formal Job to Demo actor/session/entity authority for asynchronous
+commands. `demo_command_binding` is the distinct immutable response/idempotency bridge for synchronous persistence
+commands and never creates a fake Job. GET and mutation routes verify actor/session ownership; unguessable IDs are not
+authorization.
 
 Idempotency uniqueness is:
 
@@ -225,8 +230,9 @@ Idempotency uniqueness is:
 ```
 
 Same key/same semantic digest returns the same authority; same key/different digest returns
-`409 IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`. PostgreSQL unique constraints decide concurrent winners; Worker
-redelivery cannot duplicate Event, ToolRun, Verification, ImageVersion or Profile.
+`409 IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`. PostgreSQL unique constraints in the matching asynchronous or
+synchronous binding authority decide concurrent winners; Worker redelivery cannot duplicate Event, ToolRun,
+Verification, ImageVersion or Profile.
 
 ```text
 PENDING -> RUNNING | CANCELLED

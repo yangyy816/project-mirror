@@ -25,6 +25,7 @@ from mirror_api.demo_models import (
     DemoActor,
     DemoAestheticProfile,
     DemoBaselineFaceModel,
+    DemoCommandBinding,
     DemoContextCompilation,
     DemoDesiredDeltaProfile,
     DemoEditingSession,
@@ -60,7 +61,8 @@ from mirror_api.models import (
     utcnow,
 )
 
-DEMO_REVISION = "demo_0001_p3_p7_core"
+DEMO_REVISION = "demo_0002_p3_p7_command_auth"
+BASE_DEMO_REVISION = "demo_0001_p3_p7_core"
 FORMAL_DOWN_REVISION = "0014_m5_eval_authority"
 GENESIS_DIGEST = "0" * 64
 _NON_AUTHORITY_COLUMNS = {
@@ -211,6 +213,34 @@ def _insert_job_binding(
         target_id=target_id,
     )
     return job, binding
+
+
+def _insert_command_binding(
+    session: Session,
+    actor: DemoActor,
+    *,
+    endpoint_operation: str,
+    response_type: str,
+    response_id: str,
+    response_status: int,
+    demo_session: DemoSession | None,
+    idempotency_key_hash: str | None = None,
+    request_digest: str | None = None,
+) -> DemoCommandBinding:
+    return _insert_demo_row(
+        session,
+        DemoCommandBinding,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id if demo_session is not None else None,
+        endpoint_operation=endpoint_operation,
+        idempotency_key_hash=(
+            idempotency_key_hash or hashlib.sha256(new_id().encode()).hexdigest()
+        ),
+        request_digest=request_digest or hashlib.sha256(new_id().encode()).hexdigest(),
+        response_type=response_type,
+        response_id=response_id,
+        response_status=response_status,
+    )
 
 
 def _truncate_demo_authority(session: Session) -> None:
@@ -954,6 +984,31 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         posterior_after={"jaw_width_ppm": 0},
         scheduler_version="fixture-scheduler-v1",
     )
+    questionnaire_response_step = _insert_demo_row(
+        session,
+        DemoQuestionnaireStep,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        questionnaire_run_id=questionnaire_run.id,
+        event_sequence=2,
+        step_number=1,
+        event_type="RESPONDED",
+        question_pair_id=question_pair.id,
+        routing_snapshot={"selected": 1},
+        response_snapshot={"choice": "RIGHT"},
+        posterior_before={"jaw_width_ppm": 0},
+        posterior_after={"jaw_width_ppm": 1_000},
+        scheduler_version="fixture-scheduler-v1",
+    )
+    response_command_binding = _insert_command_binding(
+        session,
+        actor,
+        endpoint_operation="questionnaire.response.create",
+        response_type="QUESTIONNAIRE_STEP",
+        response_id=questionnaire_response_step.id,
+        response_status=201,
+        demo_session=demo_session,
+    )
     source_event = _insert_preference_event(
         session,
         actor,
@@ -1312,6 +1367,8 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         "question_pair": question_pair,
         "questionnaire_run": questionnaire_run,
         "questionnaire_step": questionnaire_step,
+        "questionnaire_response_step": questionnaire_response_step,
+        "response_command_binding": response_command_binding,
         "source_event": source_event,
         "compiler_binding": compiler_binding,
         "desired_delta": desired_delta,
@@ -2517,7 +2574,7 @@ def test_accepted_episode_requires_exact_root_to_leaf_trajectory(
 
 
 def test_demo_metadata_and_database_objects_match(session: Session) -> None:
-    assert len(DEMO_TABLE_NAMES) == 27
+    assert len(DEMO_TABLE_NAMES) == 28
     database_tables = set(
         session.scalars(
             text(
@@ -2534,7 +2591,7 @@ def test_demo_metadata_and_database_objects_match(session: Session) -> None:
                 "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_authority_%'"
             )
         )
-        == 27
+        == 28
     )
     assert (
         session.scalar(
@@ -2608,7 +2665,7 @@ def test_demo_orm_and_database_foreign_keys_match(session: Session) -> None:
         actual_count += len(actual)
         assert actual == expected, table_name
 
-    assert expected_count == actual_count == 85
+    assert expected_count == actual_count == 87
 
 
 def test_canonical_json_digest_and_integer_numeric_authority(session: Session) -> None:
@@ -3199,6 +3256,258 @@ def test_concurrent_job_binding_idempotency_has_one_canonical_winner(session: Se
     )
 
 
+def test_command_binding_accepts_all_six_synchronous_operations(session: Session) -> None:
+    graph = _insert_full_demo_graph(session)
+    actor = graph["actor"]
+    demo_session = graph["session"]
+    style_event = _insert_preference_event(
+        session,
+        actor,
+        sequence=3,
+        previous_digest=graph["accepted_event"].content_digest,
+        signal={"style_context": "editorial"},
+        demo_session=demo_session,
+        event_type="EXPLICIT_STYLE_SELECTION",
+    )
+    session_command = _insert_command_binding(
+        session,
+        actor,
+        endpoint_operation="session.create",
+        response_type="DEMO_SESSION",
+        response_id=demo_session.id,
+        response_status=201,
+        demo_session=demo_session,
+    )
+    style_command = _insert_command_binding(
+        session,
+        actor,
+        endpoint_operation="style_feedback.create",
+        response_type="PREFERENCE_EVENT",
+        response_id=style_event.id,
+        response_status=201,
+        demo_session=demo_session,
+    )
+    constraint_command = _insert_command_binding(
+        session,
+        actor,
+        endpoint_operation="constraint.create",
+        response_type="IDENTITY_CONSTRAINTS",
+        response_id=graph["constraints"].id,
+        response_status=201,
+        demo_session=demo_session,
+    )
+    feedback_command = _insert_command_binding(
+        session,
+        actor,
+        endpoint_operation="image_version.feedback",
+        response_type="PREFERENCE_EVENT",
+        response_id=graph["accepted_event"].id,
+        response_status=201,
+        demo_session=demo_session,
+    )
+
+    cancelled_job = session.get(Job, graph["compiler_binding"].job_id)
+    assert cancelled_job is not None
+    cancelled_job.status = "CANCELLED"
+    cancelled_job.finalized_at = utcnow()
+    cancelled_job.result_code = "CANCELLED_BY_USER"
+    session.commit()
+    cancel_command = _insert_command_binding(
+        session,
+        actor,
+        endpoint_operation="job.cancel",
+        response_type="JOB",
+        response_id=cancelled_job.id,
+        response_status=200,
+        demo_session=demo_session,
+    )
+
+    commands = {
+        graph["response_command_binding"].endpoint_operation,
+        session_command.endpoint_operation,
+        style_command.endpoint_operation,
+        constraint_command.endpoint_operation,
+        feedback_command.endpoint_operation,
+        cancel_command.endpoint_operation,
+    }
+    assert commands == {
+        "session.create",
+        "questionnaire.response.create",
+        "style_feedback.create",
+        "constraint.create",
+        "image_version.feedback",
+        "job.cancel",
+    }
+
+
+@pytest.mark.parametrize(
+    ("response_type", "response_status"),
+    (("JOB", 201), ("DEMO_SESSION", 200)),
+)
+def test_command_binding_rejects_operation_type_or_status_mismatch(
+    session: Session, response_type: str, response_status: int
+) -> None:
+    actor = _insert_actor(session)
+    demo_session = _insert_session(session, actor, config={"command": 1})
+    with pytest.raises(DBAPIError, match="operation and typed response disagree"):
+        _insert_command_binding(
+            session,
+            actor,
+            endpoint_operation="session.create",
+            response_type=response_type,
+            response_id=demo_session.id,
+            response_status=response_status,
+            demo_session=demo_session,
+        )
+    session.rollback()
+
+
+def test_command_binding_rejects_wrong_owner_and_target_lifecycle(session: Session) -> None:
+    actor = _insert_actor(session)
+    other_actor = _insert_actor(session)
+    other_session = _insert_session(session, other_actor, config={"other": 1})
+    with pytest.raises(DBAPIError):
+        _insert_command_binding(
+            session,
+            actor,
+            endpoint_operation="session.create",
+            response_type="DEMO_SESSION",
+            response_id=other_session.id,
+            response_status=201,
+            demo_session=other_session,
+        )
+    session.rollback()
+
+    graph = _insert_full_demo_graph(session)
+    with pytest.raises(DBAPIError, match="response ownership or lifecycle mismatch"):
+        _insert_command_binding(
+            session,
+            graph["actor"],
+            endpoint_operation="questionnaire.response.create",
+            response_type="QUESTIONNAIRE_STEP",
+            response_id=graph["questionnaire_step"].id,
+            response_status=201,
+            demo_session=graph["session"],
+        )
+    session.rollback()
+    with pytest.raises(DBAPIError, match="response ownership or lifecycle mismatch"):
+        _insert_command_binding(
+            session,
+            graph["actor"],
+            endpoint_operation="image_version.feedback",
+            response_type="PREFERENCE_EVENT",
+            response_id=graph["source_event"].id,
+            response_status=201,
+            demo_session=graph["session"],
+        )
+    session.rollback()
+    pending_job = session.get(Job, graph["context_binding"].job_id)
+    assert pending_job is not None
+    with pytest.raises(DBAPIError, match="response ownership or lifecycle mismatch"):
+        _insert_command_binding(
+            session,
+            graph["actor"],
+            endpoint_operation="job.cancel",
+            response_type="JOB",
+            response_id=pending_job.id,
+            response_status=200,
+            demo_session=graph["session"],
+        )
+    session.rollback()
+
+
+def test_command_binding_response_cannot_be_claimed_by_two_keys(session: Session) -> None:
+    actor = _insert_actor(session)
+    demo_session = _insert_session(session, actor, config={"typed-response": 1})
+    _insert_command_binding(
+        session,
+        actor,
+        endpoint_operation="session.create",
+        response_type="DEMO_SESSION",
+        response_id=demo_session.id,
+        response_status=201,
+        demo_session=demo_session,
+        idempotency_key_hash="1" * 64,
+    )
+    with pytest.raises(IntegrityError):
+        _insert_command_binding(
+            session,
+            actor,
+            endpoint_operation="session.create",
+            response_type="DEMO_SESSION",
+            response_id=demo_session.id,
+            response_status=201,
+            demo_session=demo_session,
+            idempotency_key_hash="2" * 64,
+        )
+    session.rollback()
+
+
+def test_concurrent_command_binding_has_one_atomic_canonical_winner(session: Session) -> None:
+    actor = _insert_actor(session)
+    database_url = os.environ["TEST_DATABASE_URL"]
+    actor_id = actor.id
+    client_key_hash = "c" * 64
+    barrier = Barrier(2)
+
+    def create_session_command(marker: str) -> str:
+        engine = create_engine(database_url)
+        try:
+            with Session(engine) as worker_session:
+                worker_actor = worker_session.get(DemoActor, actor_id)
+                assert worker_actor is not None
+                target_session = _build_demo_row(
+                    DemoSession,
+                    created_at=worker_actor.created_at,
+                    demo_actor_id=actor_id,
+                    config={"marker": marker},
+                    context_seed=hashlib.sha256(marker.encode()).hexdigest(),
+                    expires_at=datetime(2026, 8, 24, 0, 0, tzinfo=UTC),
+                    closed_at=None,
+                    tombstoned_at=None,
+                )
+                command_binding = _build_demo_row(
+                    DemoCommandBinding,
+                    demo_actor_id=actor_id,
+                    demo_session_id=target_session.id,
+                    endpoint_operation="session.create",
+                    idempotency_key_hash=client_key_hash,
+                    request_digest=hashlib.sha256(marker.encode()).hexdigest(),
+                    response_type="DEMO_SESSION",
+                    response_id=target_session.id,
+                    response_status=201,
+                )
+                worker_session.add(target_session)
+                worker_session.flush()
+                worker_session.add(command_binding)
+                barrier.wait(timeout=10)
+                try:
+                    worker_session.commit()
+                except (DBAPIError, IntegrityError):
+                    worker_session.rollback()
+                    return "conflict"
+                return "created"
+        finally:
+            engine.dispose()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = sorted(executor.map(create_session_command, ("left", "right")))
+    assert results == ["conflict", "created"]
+    session.expire_all()
+    assert (
+        session.scalar(
+            text(
+                "SELECT count(*) FROM demo_command_bindings "
+                "WHERE demo_actor_id=:actor_id AND endpoint_operation='session.create' "
+                "AND idempotency_key_hash=:key_hash"
+            ),
+            {"actor_id": actor_id, "key_hash": client_key_hash},
+        )
+        == 1
+    )
+    assert session.scalar(text("SELECT count(*) FROM demo_sessions")) == 1
+
+
 def test_empty_downgrade_and_reupgrade_lifecycle(
     session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3207,6 +3516,13 @@ def test_empty_downgrade_and_reupgrade_lifecycle(
     monkeypatch.setenv("DATABASE_URL", database_url)
     config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
     config.set_main_option("sqlalchemy.url", database_url)
+
+    command.downgrade(config, BASE_DEMO_REVISION)
+    assert session.scalar(text("SELECT version_num FROM alembic_version")) == BASE_DEMO_REVISION
+    assert session.scalar(text("SELECT to_regclass('demo_command_bindings') IS NULL"))
+    command.upgrade(config, DEMO_REVISION)
+    assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+    assert session.scalar(text("SELECT to_regclass('demo_command_bindings') IS NOT NULL"))
 
     command.downgrade(config, FORMAL_DOWN_REVISION)
     try:
@@ -3220,6 +3536,43 @@ def test_empty_downgrade_and_reupgrade_lifecycle(
     finally:
         command.upgrade(config, DEMO_REVISION)
     assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+
+
+def test_populated_command_authority_blocks_downgrade_to_demo_base(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    actor = _insert_actor(session)
+    demo_session = _insert_session(session, actor, config={"downgrade": 2})
+    binding = _insert_command_binding(
+        session,
+        actor,
+        endpoint_operation="session.create",
+        response_type="DEMO_SESSION",
+        response_id=demo_session.id,
+        response_status=201,
+        demo_session=demo_session,
+    )
+    binding_id = binding.id
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", database_url)
+    session.close()
+
+    with pytest.raises(DBAPIError, match="command authority downgrade blocked"):
+        command.downgrade(config, BASE_DEMO_REVISION)
+
+    engine = create_engine(database_url)
+    with engine.connect() as connection:
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+        assert (
+            connection.scalar(
+                text("SELECT count(*) FROM demo_command_bindings WHERE id=:binding_id"),
+                {"binding_id": binding_id},
+            )
+            == 1
+        )
+    engine.dispose()
 
 
 def test_populated_downgrade_fails_closed(
@@ -3253,7 +3606,7 @@ def test_populated_downgrade_fails_closed(
                     "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_authority_%'"
                 )
             )
-            == 27
+            == 28
         )
         assert (
             connection.scalar(
@@ -3367,7 +3720,7 @@ def test_populated_formal_demo_authority_blocks_downgrade(
                     "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_authority_%'"
                 )
             )
-            == 27
+            == 28
         )
         assert (
             connection.scalar(

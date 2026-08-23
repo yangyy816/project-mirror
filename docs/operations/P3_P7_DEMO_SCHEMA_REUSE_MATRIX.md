@@ -8,19 +8,20 @@ TRACK: DEMO_PROTOTYPE
 PLAN_VERSION: P3_P7_ALGORITHMIC_PROTOTYPE_PLATFORM_PLAN_V1_1
 BASE_SHA: d134517fa97132b180a82c69c617b8f65d3b282e
 D01_A: TASK_ACCEPTED
-D01_B: READY_FOR_INDEPENDENT_IMPLEMENTATION_REVIEW
+D01_B: READY_FOR_INDEPENDENT_CC02_REVIEW
 INDEPENDENT_SOL_SCHEMA_REVIEW: PASS
 INDEPENDENT_SOL_REVIEWED_MATRIX_SHA256: 382fb6ba3ef5059d4089fcb4f3b149ba0d65fedd43d5e4b11c3e4e55054544bc
 PRINCIPAL_MATRIX_DISPOSITION: ACCEPTED_FOR_D01_B_IMPLEMENTATION
 MIGRATION_ORM_WRITES_AT_MATRIX_ACCEPTANCE: NOT_STARTED
-MIGRATION_ORM_IMPLEMENTATION: COMPLETE
+MIGRATION_ORM_IMPLEMENTATION: CC02_COMPLETE_REVIEW_PENDING
 INDEPENDENT_SOL_IMPLEMENTATION_REVIEW: PASS_FOR_dd39b37
 FORMAL_SCHEMA_CHANGE: FORBIDDEN
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```
 
 This matrix freezes physical authority before any Demo migration or ORM implementation. It preserves all 26 planned
-logical entities and adds `demo_job_binding`. Similar formal names are not semantic equivalence. The Demo track may
+logical entities and adds `demo_job_binding` plus `demo_command_binding`. Similar formal names are not semantic
+equivalence. The Demo track may
 reference stable formal byte, lineage and execution authorities, but it may not turn formal P3–P7 profile,
 questionnaire, editing or preference tables into prototype authority.
 
@@ -28,8 +29,8 @@ questionnaire, editing or preference tables into prototype authority.
 
 ```text
 DEMO_LOGICAL_ENTITY_COUNT: 26
-CROSS_CUTTING_ENTITY_COUNT: 1
-NEW_PROTOTYPE_TABLE_COUNT: 27
+CROSS_CUTTING_ENTITY_COUNT: 2
+NEW_PROTOTYPE_TABLE_COUNT: 28
 
 FORMAL_ASSET_AUTHORITY_REUSE: Asset, AssetVariant
 FORMAL_EXECUTION_AUTHORITY_REUSE: Job, JobAttempt
@@ -40,18 +41,19 @@ FORMAL_TABLE_DDL_CHANGE: FORBIDDEN
 
 `Asset` continues to own immutable bytes and storage facts. `AssetVariant` continues to own formal source/result byte
 lineage. `Job` and `JobAttempt` continue to own execution, attempt, lease and terminal result facts. A Demo table owns
-all Demo actor/session/entity, semantic idempotency and P3–P7 evidence facts. No formal table receives a Demo-only
-column, trigger, constraint, index, current pointer or preference/profile payload.
+all Demo actor/session/entity, semantic idempotency and P3–P7 evidence facts. Asynchronous semantic idempotency is owned
+by `demo_job_bindings`; synchronous semantic idempotency is owned by `demo_command_bindings`. No formal table receives
+a Demo-only column, trigger, constraint, index, current pointer or preference/profile payload.
 
 ## Five mandatory preservation proofs
 
-| Proof                           | Design result | Implementation result            | Reason                                                                                      |
-| ------------------------------- | ------------- | -------------------------------- | ------------------------------------------------------------------------------------------- |
-| `NO_CAPABILITY_LOSS`            | `PASS`        | `PASS_FOR_REMEDIATION_CANDIDATE` | All 26 entities plus the Job bridge retain one tested authority.                            |
-| `NO_EVIDENCE_LOSS`              | `PASS`        | `PASS_FOR_REMEDIATION_CANDIDATE` | Admission snapshots and the complete image execution chain are enforced.                    |
-| `NO_API_LOSS`                   | `PASS`        | `PASS_FOR_REMEDIATION_CANDIDATE` | The physical graph represents every frozen API authority without implementing D01-C routes. |
-| `NO_REBUILDABILITY_LOSS`        | `PASS`        | `PASS_FOR_REMEDIATION_CANDIDATE` | Append-only evidence, lineage, watermarks and exact digests remain reconstructable.         |
-| `NO_FORMAL_AUTHORITY_POLLUTION` | `PASS`        | `PASS_FOR_REMEDIATION_CANDIDATE` | Non-Demo table DDL is byte-identical at 0014 and Demo head.                                 |
+| Proof                           | Design result | Implementation result     | Reason                                                                                      |
+| ------------------------------- | ------------- | ------------------------- | ------------------------------------------------------------------------------------------- |
+| `NO_CAPABILITY_LOSS`            | `PASS`        | `PASS_FOR_CC02_CANDIDATE` | All 26 entities plus both command bridges retain one authority.                             |
+| `NO_EVIDENCE_LOSS`              | `PASS`        | `PASS_FOR_CC02_CANDIDATE` | Admission, image execution and synchronous response bindings remain immutable.              |
+| `NO_API_LOSS`                   | `PASS`        | `PASS_FOR_CC02_CANDIDATE` | The physical graph represents every frozen API authority without implementing D01-C routes. |
+| `NO_REBUILDABILITY_LOSS`        | `PASS`        | `PASS_FOR_CC02_CANDIDATE` | Append-only evidence, lineage, watermarks and exact digests remain reconstructable.         |
+| `NO_FORMAL_AUTHORITY_POLLUTION` | `PASS`        | `PASS_FOR_CC02_CANDIDATE` | Non-Demo table DDL is byte-identical at 0014 and the new Demo head.                         |
 
 Design `PASS` authorizes implementation only. D01-B remains incomplete until real PostgreSQL migration, invariants,
 concurrency, populated downgrade, ORM consistency and independent review pass.
@@ -89,7 +91,7 @@ installs an immutable, recursive `mirror_demo_canonical_json(jsonb) -> text` fun
   `schema_version || E'\\n' || mirror_demo_canonical_json(canonical_payload)`;
 - `content_digest` must equal lowercase `encode(sha256(digest_bytes), 'hex')`.
 
-A shared `BEFORE INSERT OR UPDATE OR DELETE` trigger recomputes and compares that digest on all 27 tables, rejects
+A shared `BEFORE INSERT OR UPDATE OR DELETE` trigger recomputes and compares that digest on all 28 tables, rejects
 `UPDATE`/`DELETE` according to the table classification below, and rejects a non-object payload. Table-specific insert
 guards additionally require the canonical payload to contain every digest-authoritative scalar/FK and to equal the
 corresponding structured columns. Direct-SQL tests must prove that a valid-shaped payload with a wrong digest, a
@@ -110,12 +112,12 @@ persisted canonical payload and digest as integer `0` rather than a second autho
 
 Every table has one frozen mutation class:
 
-| Mutation class                            | Logical entities                                                                                                                                                                                                                                                                                                                                                                                              | PostgreSQL behavior                                                                                                                                                       |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TERMINAL_TRANSITION_HEADER`              | `demo_actor`, `demo_session`, `demo_editing_session`                                                                                                                                                                                                                                                                                                                                                          | Reject `DELETE`; permit only one-way `NULL -> timestamp` terminal fields while every other authority column remains byte-equivalent.                                      |
-| `IMMUTABLE_EVIDENCE_OR_CONFIG`            | `demo_synthetic_identity`, `demo_face_observation`, `demo_face_observation_repeat`, `demo_question_bank`, `demo_question_pair`, `demo_questionnaire_run`, `demo_questionnaire_step`, `demo_identity_constraints`, `demo_self_transfer_run`, `demo_edit_plan`, `demo_edit_operation`, `demo_tool_run`, `demo_verification_result`, `demo_preference_event`, `demo_accepted_visual_episode`, `demo_job_binding` | Reject every `UPDATE` and `DELETE`; correction, revocation, retry, rollback and deletion intent are new immutable rows/events.                                            |
-| `IMMUTABLE_DERIVED_TOMBSTONED`            | `demo_baseline_face_model`, `demo_self_state`, `demo_desired_delta_profile`, `demo_style_profile`, `demo_reference_profile`, `demo_image_version`, `demo_aesthetic_profile`, `demo_context_compilation`                                                                                                                                                                                                       | Reject every `UPDATE` and `DELETE`; an append-only `demo_preference_event` invalidates the target and a rebuild creates a new version/generation.                         |
-| `REPLACEABLE_DERIVED_WITH_GUARDED_DELETE` | none in prototype schema v1                                                                                                                                                                                                                                                                                                                                                                                   | No v1 table may use an implicit wall clock or unrecorded cleanup as delete authority. Any future physical cleanup requires explicit change control and conversion policy. |
+| Mutation class                            | Logical entities                                                                                                                                                                                                                                                                                                                                                                                                                      | PostgreSQL behavior                                                                                                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TERMINAL_TRANSITION_HEADER`              | `demo_actor`, `demo_session`, `demo_editing_session`                                                                                                                                                                                                                                                                                                                                                                                  | Reject `DELETE`; permit only one-way `NULL -> timestamp` terminal fields while every other authority column remains byte-equivalent.                                      |
+| `IMMUTABLE_EVIDENCE_OR_CONFIG`            | `demo_synthetic_identity`, `demo_face_observation`, `demo_face_observation_repeat`, `demo_question_bank`, `demo_question_pair`, `demo_questionnaire_run`, `demo_questionnaire_step`, `demo_identity_constraints`, `demo_self_transfer_run`, `demo_edit_plan`, `demo_edit_operation`, `demo_tool_run`, `demo_verification_result`, `demo_preference_event`, `demo_accepted_visual_episode`, `demo_job_binding`, `demo_command_binding` | Reject every `UPDATE` and `DELETE`; correction, revocation, retry, rollback and deletion intent are new immutable rows/events.                                            |
+| `IMMUTABLE_DERIVED_TOMBSTONED`            | `demo_baseline_face_model`, `demo_self_state`, `demo_desired_delta_profile`, `demo_style_profile`, `demo_reference_profile`, `demo_image_version`, `demo_aesthetic_profile`, `demo_context_compilation`                                                                                                                                                                                                                               | Reject every `UPDATE` and `DELETE`; an append-only `demo_preference_event` invalidates the target and a rebuild creates a new version/generation.                         |
+| `REPLACEABLE_DERIVED_WITH_GUARDED_DELETE` | none in prototype schema v1                                                                                                                                                                                                                                                                                                                                                                                                           | No v1 table may use an implicit wall clock or unrecorded cleanup as delete authority. Any future physical cleanup requires explicit change control and conversion policy. |
 
 For `demo_session` and `demo_editing_session`, `closed_at` may transition once and `tombstoned_at` may transition once
 at or after closure; `demo_actor` permits only `tombstoned_at`. These timestamps are audit/terminal evidence and must be
@@ -138,10 +140,12 @@ DEMO_ASSET_VARIANT_TYPE_PREFIX: demo_p3_p7_
 FORMAL_JOB_PAYLOAD: EMPTY_OR_REFERENCE_ONLY
 ```
 
-`demo_job_bindings` uniquely owns `(demo_actor_id, endpoint_operation, idempotency_key_hash)`, request semantic digest
-and typed target binding. The corresponding formal Job idempotency hash is derived with the actor and operation
-namespace so the existing global uniqueness constraint cannot collide across Demo actors/operations. Same key and
-same digest reloads the winner; same key and different digest is a 409 conflict.
+`demo_job_bindings` uniquely owns asynchronous `(demo_actor_id, endpoint_operation, idempotency_key_hash)`, request
+semantic digest and typed target binding. The corresponding formal Job idempotency hash is derived with the actor and
+operation namespace so the existing global uniqueness constraint cannot collide across Demo actors/operations.
+`demo_command_bindings` owns the same key namespace for synchronous operations but binds a durable typed response
+instead of fabricating a Job. Within each fixed endpoint operation, same key and same digest reloads the winner; same
+key and different digest is a 409 conflict.
 
 The target-kind allowlist and physical ownership resolution are frozen as follows. A target must exist before the
 binding becomes visible; a newly created request target, formal Job and binding are inserted atomically in one
@@ -788,6 +792,27 @@ PROMOTION_STRATEGY: FWD_CONVERSION; operational rows are reused only under expli
 DECISION_EVIDENCE: ADR-050, Fast Track Contract idempotency/job contract, formal Job/JobAttempt
 ```
 
+#### `demo_command_binding`
+
+```text
+LOGICAL_ENTITY: demo_command_binding
+EXISTING_FORMAL_ENTITY: IdempotencyRecord
+SEMANTIC_EQUIVALENCE: NO; formal record is transient and has no typed Demo response ownership
+REUSE_POSSIBLE: NO FOR DURABLE DEMO SEMANTIC AUTHORITY
+EXTENSION_REQUIRED: actor/session/operation/key/request digest plus immutable typed response and status
+NEW_PROTOTYPE_TABLE_REQUIRED: YES
+DEMO_AUTHORITATIVE_SOURCE: demo_command_bindings
+AUTHORITY_OWNER: Demo synchronous command replay and response authority
+OWNER_BINDING: actor, optional composite session and typed response target
+APPEND_ONLY_MECHANISM: immutable; correction or retry uses new evidence while the same key reloads the winner
+DIGEST_INPUTS: actor/session/operation/key hash/request digest/response type/id/status
+DELETE_OR_TOMBSTONE_SEMANTICS: retained while target evidence exists; populated downgrade fails closed
+FORMAL_AUTHORITY_POLLUTION_RISK: HIGH IF TRANSIENT FORMAL RECORD OR FAKE JOB IS USED
+MIGRATION_OBJECT: demo_command_bindings with typed response-integrity trigger
+PROMOTION_STRATEGY: FWD_CONVERSION from the then-current formal head; prototype revision is never promoted directly
+DECISION_EVIDENCE: CC-P3-P7-DEMO-D01B-02 and D01-C independent contract review
+```
+
 ## D01-B implementation entry gates
 
 The migration/ORM writer may begin only with all of the following frozen:
@@ -797,13 +822,14 @@ D01_A_TASK_ACCEPTED: PASS
 SCHEMA_MATRIX_TRACKED: SATISFIED_BY_THIS_CHECKPOINT_COMMIT
 INDEPENDENT_SOL_SCHEMA_DESIGN_REVIEW: PASS
 INDEPENDENT_SOL_SCHEMA_FILE_REVIEW: PASS
-ALL_27_AUTHORITATIVE_SOURCES_UNIQUE: PASS
+ALL_28_AUTHORITATIVE_SOURCES_UNIQUE: PASS_FOR_CC02_CANDIDATE
 CANONICAL_JSON_VERSION: demo-canonical-json-v1
 NEW_DEMO_PAYLOAD_TYPE: POSTGRESQL_JSONB
 FORMAL_TABLE_DDL_CHANGE: FORBIDDEN
 POPULATED_DOWNGRADE_NAMESPACE_CHECK: REQUIRED
 DB_LEVEL_IMMUTABILITY: REQUIRED
 DEMO_JOB_TYPED_TARGET_INTEGRITY: REQUIRED
+DEMO_COMMAND_TYPED_RESPONSE_INTEGRITY: REQUIRED
 ```
 
 The independent Sol file review bound candidate hash
@@ -815,12 +841,13 @@ that follows this document; it does not assert implementation or PostgreSQL succ
 After implementation, an independent Sol review must verify the actual diff and real PostgreSQL evidence. Until then:
 
 ```text
-D01_B_IMPLEMENTATION: TASK_ACCEPTED
-D01_C: EXECUTION_READY
-DEMO_MIGRATION_LIFECYCLE: PASS_FOR_REMEDIATION_CANDIDATE
-POSTGRESQL_AUTHORITY: PASS_FOR_REMEDIATION_CANDIDATE
+D01_B_BASELINE_IMPLEMENTATION: TASK_ACCEPTED_AT_76bb18d
+D01_B_CC02_IMPLEMENTATION: READY_FOR_INDEPENDENT_REVIEW
+D01_C: BLOCKED_BY_SYNCHRONOUS_IDEMPOTENCY_AUTHORITY
+DEMO_MIGRATION_LIFECYCLE: PASS_FOR_CC02_CANDIDATE
+POSTGRESQL_AUTHORITY: PASS_FOR_CC02_CANDIDATE
 INDEPENDENT_SOL_IMPLEMENTATION_REVIEW: PASS_FOR_dd39b37
-PRINCIPAL_TASK_ACCEPTANCE: TASK_ACCEPTED
+PRINCIPAL_TASK_ACCEPTANCE: PENDING_INDEPENDENT_CC02_REVIEW
 FORMAL_P3_P7_STATUS: UNCHANGED
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```

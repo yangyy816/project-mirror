@@ -1689,6 +1689,59 @@ class DemoJobBinding(DemoAuthorityMixin, Base):
     )
 
 
+class DemoCommandBinding(DemoAuthorityMixin, Base):
+    __tablename__ = "demo_command_bindings"
+
+    demo_actor_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_actors.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    demo_session_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    endpoint_operation: Mapped[str] = mapped_column(String(64), nullable=False)
+    idempotency_key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    response_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    response_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    response_status: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        ForeignKeyConstraint(
+            ["demo_session_id", "demo_actor_id"],
+            ["demo_sessions.id", "demo_sessions.demo_actor_id"],
+            name="fk_demo_command_bindings_session_actor",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "demo_actor_id",
+            "endpoint_operation",
+            "idempotency_key_hash",
+            name="uq_demo_command_bindings_actor_operation_key",
+        ),
+        UniqueConstraint(
+            "response_type",
+            "response_id",
+            name="uq_demo_command_bindings_typed_response",
+        ),
+        CheckConstraint(
+            "endpoint_operation IN ('session.create','questionnaire.response.create',"
+            "'style_feedback.create','constraint.create','image_version.feedback','job.cancel')",
+            name="endpoint_operation",
+        ),
+        CheckConstraint(
+            "idempotency_key_hash ~ '^[0-9a-f]{64}$'",
+            name="idempotency_key_hash_shape",
+        ),
+        CheckConstraint("request_digest ~ '^[0-9a-f]{64}$'", name="request_digest_shape"),
+        CheckConstraint(
+            "response_type IN ('DEMO_SESSION','QUESTIONNAIRE_STEP',"
+            "'PREFERENCE_EVENT','IDENTITY_CONSTRAINTS','JOB')",
+            name="response_type",
+        ),
+        CheckConstraint("response_id ~ '^[0-9a-f]{32}$'", name="response_id_shape"),
+        CheckConstraint("response_status IN (200,201)", name="response_status"),
+    )
+
+
 DEMO_TABLE_NAMES = frozenset(
     {
         "demo_actors",
@@ -1718,5 +1771,6 @@ DEMO_TABLE_NAMES = frozenset(
         "demo_aesthetic_profiles",
         "demo_context_compilations",
         "demo_job_bindings",
+        "demo_command_bindings",
     }
 )

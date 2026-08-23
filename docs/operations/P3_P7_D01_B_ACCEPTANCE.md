@@ -12,15 +12,19 @@ REVISION: demo_0001_p3_p7_core
 DOWN_REVISION: 0014_m5_eval_authority
 REMEDIATION_CANDIDATE: dd39b37f5cf9286be0153dd034737865ebf3e0cd
 REMEDIATION_CANDIDATE_TREE: 13b2b09aa507194fa4a5da15cb1c81213dfb0f60
-STATUS: TASK_ACCEPTED
-PRINCIPAL_TASK_ACCEPTANCE: TASK_ACCEPTED
+BASELINE_STATUS_AT_76bb18d: TASK_ACCEPTED
+CURRENT_STATUS: READY_FOR_INDEPENDENT_CC02_REVIEW
+PRINCIPAL_TASK_ACCEPTANCE: PENDING_INDEPENDENT_CC02_REVIEW
 INDEPENDENT_SOL_IMPLEMENTATION_REVIEW: PASS
-D01_C: EXECUTION_READY
+D01_C: BLOCKED_BY_SYNCHRONOUS_IDEMPOTENCY_AUTHORITY
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```
 
-This checkpoint implements only the frozen Demo persistence authority. It does not implement or accept the D01-C API
-skeleton, any P3–P7 runtime/domain algorithm, Worker registration, Web, OpenAPI generation or D02–D12 behavior.
+This document preserves the exact historical acceptance evidence for `76bb18d`. A later independent D01-C contract
+review found a synchronous semantic-idempotency authority gap and reopened D01-B through
+`CC-P3-P7-DEMO-D01B-02`. The baseline remains valid evidence, but it is not the current Demo schema head or current
+D01-B task acceptance until CC02 is implemented and reaccepted. This checkpoint does not implement or accept the D01-C
+API skeleton, any P3–P7 runtime/domain algorithm, Worker registration, Web, OpenAPI generation or D02–D12 behavior.
 
 ## Candidate scope
 
@@ -290,5 +294,110 @@ D02_D12: NOT_VERIFIED
 ```
 
 Independent Sol High reviewed exact SHA, parent, tree, seven-file scope, migration, ORM, tests and governance evidence
-and recommended `ACCEPT` with no finding. Principal accepts D01-B and opens only D01-C implementation. This does not open
-D02 or upgrade any formal P3–P7 Gate.
+and recommended `ACCEPT` with no finding. At that historical checkpoint, Principal accepted D01-B and opened only D01-C
+implementation. The post-acceptance section below supersedes only the current readiness disposition; it does not erase
+that evidence or open D02 or any formal P3–P7 Gate.
+
+## Post-acceptance blocker and D01-B reopening
+
+The D01-C independent contract review classified six creating POST operations as synchronous durable mutations:
+
+```text
+session.create
+questionnaire.response.create
+style_feedback.create
+constraint.create
+image_version.feedback
+job.cancel
+```
+
+`demo_job_bindings` cannot represent them because `job_id` is correctly non-null and bound to a real formal Job.
+The expiring formal `idempotency_records` authority cannot prove a durable Demo response target or owner/session
+integrity. D01-C therefore stopped before route/OpenAPI implementation instead of using an in-memory cache, JSONB key
+stash, nullable Job binding or fake synchronous Job.
+
+```text
+CHANGE_CONTROL: CC-P3-P7-DEMO-D01B-02
+FORWARD_MIGRATION_MODULE: demo_0002_p3_p7_command_authority.py
+FORWARD_REVISION: demo_0002_p3_p7_command_auth
+DOWN_REVISION: demo_0001_p3_p7_core
+NEW_AUTHORITY: demo_command_bindings
+RISK: R-DEMO-20
+
+D01_B_BASELINE_ACCEPTANCE: HISTORICAL_VALID_EVIDENCE
+D01_B_CURRENT_ACCEPTANCE: READY_FOR_INDEPENDENT_CC02_REVIEW
+D01_C: BLOCKED_BY_SYNCHRONOUS_IDEMPOTENCY_AUTHORITY
+D02_D12: NOT_VERIFIED
+PRODUCTION_RELEASE: NOT_AUTHORIZED
+```
+
+The original `demo_0001` migration and `76bb18d` acceptance commit remain immutable. CC02 must pass its own real
+PostgreSQL lifecycle, typed-target, owner/session, concurrency, immutability, formal-DDL and independent review Gates
+before Principal can reaccept D01-B and reopen D01-C.
+
+## CC02 implementation candidate and validation
+
+The branch-local forward migration and ORM authority are implemented without modifying `demo_0001` or any formal
+table. Validation used the byte-faithful LF source volume, fresh task-scoped PostgreSQL databases and Docker internal
+network with all proxy variables empty.
+
+```text
+CC02_IMPLEMENTATION: COMPLETE
+CC02_REVIEW: PENDING_INDEPENDENT_SOL_HIGH
+MIGRATION_HEAD: demo_0002_p3_p7_command_auth
+DEMO_AUTHORITY_TABLES: 28
+DEMO_AUTHORITY_TRIGGERS: 28
+ORM_DATABASE_FOREIGN_KEYS: 87/87
+
+FRESH_TO_DEMO_0002: PASS
+DEMO_0002_TO_DEMO_0001_TO_DEMO_0002: PASS
+POPULATED_DEMO_0002_TO_DEMO_0001: FAIL_CLOSED_AS_REQUIRED
+ALEMBIC_CHECK: ZERO_DRIFT
+SIX_OPERATION_TYPED_RESPONSE_MATRIX: PASS
+WRONG_OWNER_SESSION_TYPE_STATUS_TARGET: REJECTED
+CONCURRENT_COMMAND_WINNER: EXACTLY_ONE
+UPDATE_DELETE: REJECTED
+
+DEMO_SCHEMA_AUTHORITY_FILE: 63 PASS
+AFFECTED_M3_M4_M5_MIGRATION_REGRESSION: 34 PASS
+FULL_API_RESULT: 757 PASS, 4 ENVIRONMENT_SCOPED_SKIP
+FULL_WORKER_RESULT: 30 PASS, 4 ENVIRONMENT_SCOPED_SKIP
+RUFF_FORMAT_CHECK: 223 files formatted
+RUFF_CHECK: PASS
+STRICT_MYPY: PASS, 125 source files
+
+FORMAL_NON_DEMO_TABLE_DDL_DIFF: 0
+FORMAL_NON_DEMO_TABLE_DDL_SHA256: 3e82eb6c0e6f1ff66d2a8c1502671d08db52a09d20334e386b6123f7bc62331a
+FORMAL_BRANCH_OBSERVED_DURING_CC02: codex/phase2-m7-internal-operations
+FORMAL_HEAD_OBSERVED_DURING_CC02: e804a48aef97faa299d55926d07037ed7f922307
+FORMAL_WORKTREE_STATE: DIRTY_PREEXISTING_CONCURRENT_WORK_ONLY
+FORMAL_WORKTREE_WRITE_BY_CC02: NONE
+SCOPED_PRIVATE_LOCATOR_AND_NUL_SCAN: PASS, 12 files
+GITLEAKS_8_28_0_DIRECTORY_SCAN: PASS, 6.20 MB, 0 findings
+GITLEAKS_ARCHIVE_SHA256: da6458e8864af553807de1c46a7a8eac0880bd6b99ba56288e87e86a45af884f
+GITLEAKS_TEMP_CLEANUP: PASS
+PUBLIC_INTERNET_EGRESS: DENIED
+PROXY_IN_CORE_TEST_ENVIRONMENT: ABSENT
+PRODUCTION_PROVIDER_CALLS: 0
+```
+
+The API skips retain the existing Redis HTTP and private M3/M4 Celery boundaries. The Worker skips retain the existing
+Redis/Celery integration boundary. They are not reclassified as PASS and do not verify D01-C or runtime integration.
+
+Two continuation harness errors are preserved as negative evidence: one API launch omitted the CI-required
+`TASK_RUNNER=celery` and exited during import before database access; one Worker launch used a fresh but unmigrated
+database and failed two setup `TRUNCATE` statements with `UndefinedTable`. The corrected offline replays above used the
+same frozen source, explicit CI settings and a database at `demo_0002`; no checksum, product logic or Gate was weakened.
+
+The accepted Gitleaks tool had previously been removed under its cleanup contract. The final scoped scan therefore used
+one bounded D00-A reacquisition from the same fixed official v8.28.0 release through the Owner-provided local proxy,
+enforced a 10 MiB ceiling, verified the pre-registered checksum, removed proxy variables before execution and deleted
+the exact task temporary directory afterward. No proxy value, scanner binary, report or private locator entered Git.
+
+```text
+D01_B_CC02: READY_FOR_INDEPENDENT_IMPLEMENTATION_REVIEW
+D01_C: BLOCKED_PENDING_CC02_REACCEPTANCE
+D02_D12: NOT_VERIFIED
+FORMAL_P3_P7_STATUS: UNCHANGED
+PRODUCTION_RELEASE: NOT_AUTHORIZED
+```
