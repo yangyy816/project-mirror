@@ -398,3 +398,24 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_TASK: T07_ACCEPTANCE_CLOSURE_CI`
+
+## P2-M7-T07 acceptance closure CI confirmation
+
+- The acceptance closure commit `7b86cd5f06a3c7fa1e1f99aac7fee4995b7c1586` completed GitHub Actions run
+  `32627947161`, attempt 1, with all three mandatory jobs successful on that exact SHA.
+- Principal reauthenticated and inspected all eight unexpired artifacts. Their 12 fixed-relative members include
+  `mirror.p2-m7.ci-evidence/v1`, binding the closure SHA, migration `0014_m5_eval_authority`, 62 tests with zero
+  failure/error/skip and eight passed checks. SARIF has zero results; no image, signed URL, raw Provider payload or
+  absolute runner/private path was found. The task-created inspection root was deleted after review.
+- T07 acceptance is effective. T08 is execution-ready for independent security/privacy/license and final review only;
+  M7 Gate remains unevaluated, production remains disabled, and M5/M6 remain closed.
+
+`P2_M7_T07_ACCEPTANCE_CLOSURE: PASS_AT_7B86CD5_RUN_32627947161_ATTEMPT_1`
+
+`P2_M7_T08: EXECUTION_READY`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_TASK: T08_INDEPENDENT_REVIEW_AND_CLOSURE`

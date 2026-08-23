@@ -1306,3 +1306,11 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   credential scans are zero. The task-created inspection root was deleted after review.
 - Principal records R12 and T07 as pending T07 acceptance closure CI. T08 remains closed; M7 Gate stays
   `NOT_EVALUATED`, production remains disabled, and M5/M6 remain closed.
+
+## 2026-08-23 — P2-M7-T07 acceptance closure CI confirmed
+
+- Closure `7b86cd5` completed same-SHA run `32627947161` with all three mandatory jobs successful. Its eight
+  unexpired artifacts contain 12 fixed-relative members; P2-M7 evidence binds the exact SHA, `0014`, 62 zero-skip
+  tests and eight passed checks. SARIF and protected path/payload/image/credential scans are zero.
+- T07 acceptance is effective. T08 is `EXECUTION_READY` for independent review only; M7 Gate remains
+  `NOT_EVALUATED`, production remains disabled, and M5/M6 remain closed.
