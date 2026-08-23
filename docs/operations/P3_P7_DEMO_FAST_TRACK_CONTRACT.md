@@ -181,6 +181,26 @@ Implement all schemas/routes as real contracts, `x-demo-only`, idempotency/job/s
 TypeScript. Principal is the only OpenAPI/client integrator. Routes may remain 501 until their owning D03–D10 task is
 implemented; D11 waits for `DEMO_API_CONTRACT_FREEZE`.
 
+### Demo CI evidence isolation
+
+Formal Phase 1 and P2 evidence generators keep `0014_m5_eval_authority` as their single expected migration head. They
+must not be weakened to accept a branch-local prototype revision and must not emit formal evidence from the Demo head.
+On the fixed `codex/p3-p7-core-demo` branch, and on pull requests whose head is that branch, CI instead verifies the
+single Demo head and its two explicit ancestry edges, then uploads a separate boundary artifact containing:
+
+```text
+TRACK: DEMO_PROTOTYPE
+DEMO_MIGRATION_HEAD: demo_0002_p3_p7_command_auth
+FORMAL_EVIDENCE_GENERATORS: NOT_RUN_ON_PROTOTYPE_HEAD
+FORMAL_HEAD_AUTHORITY: 0014_m5_eval_authority
+PRODUCTION_RELEASE: NOT_AUTHORIZED
+```
+
+All Python, PostgreSQL lifecycle, Celery, TypeScript, browser, contract-drift, dependency, SBOM, Docker and Gitleaks
+Gates continue to run. This conditional evidence routing is branch-local CI compatibility, not a formal Gate waiver.
+The first same-SHA run exposing the mismatch was `32631450833`: all executable quality/integration jobs before the
+formal evidence generator passed, while the generator correctly rejected the Demo head.
+
 ## Task DAG and collision rules
 
 ```text

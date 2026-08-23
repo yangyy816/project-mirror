@@ -52,6 +52,7 @@ jobs:
       SENSITIVE_PROCESSING_ENABLED: "false"
       CI: "true"
       PYTHONPATH: services/api/src:services/worker/src
+      DEMO_PROTOTYPE_TRACK: ${{ (github.ref == 'refs/heads/codex/p3-p7-core-demo') || (github.event_name == 'pull_request' && github.head_ref == 'codex/p3-p7-core-demo') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -267,7 +268,32 @@ jobs:
           python -m mirror_api.scripts.export_openapi
           pnpm contracts:generate
           git diff --exit-code -- packages/contracts/openapi.json packages/contracts/src/schema.ts
+      - name: Validate Demo prototype evidence boundary
+        if: env.DEMO_PROTOTYPE_TRACK == 'true'
+        run: |
+          python -m alembic -c services/api/alembic.ini heads > demo-prototype-migration-head.txt
+          test "$(tr -d '\r\n' < demo-prototype-migration-head.txt)" = "demo_0002_p3_p7_command_auth (head)"
+          python -m alembic -c services/api/alembic.ini history > demo-prototype-migration-history.txt
+          grep -Fqx "demo_0001_p3_p7_core -> demo_0002_p3_p7_command_auth (head), Branch-local synchronous Demo command authority." demo-prototype-migration-history.txt
+          grep -Fqx "0014_m5_eval_authority -> demo_0001_p3_p7_core, Branch-local P3-P7 algorithmic prototype authority." demo-prototype-migration-history.txt
+          printf '%s\n' \
+            "TRACK: DEMO_PROTOTYPE" \
+            "COMMIT_SHA: $GITHUB_SHA" \
+            "DEMO_MIGRATION_HEAD: demo_0002_p3_p7_command_auth" \
+            "FORMAL_EVIDENCE_GENERATORS: NOT_RUN_ON_PROTOTYPE_HEAD" \
+            "FORMAL_HEAD_AUTHORITY: 0014_m5_eval_authority" \
+            "PRODUCTION_RELEASE: NOT_AUTHORIZED" \
+            > demo-prototype-ci-boundary.txt
+      - uses: actions/upload-artifact@v4
+        if: env.DEMO_PROTOTYPE_TRACK == 'true'
+        with:
+          name: demo-prototype-ci-boundary
+          path: |
+            demo-prototype-ci-boundary.txt
+            demo-prototype-migration-head.txt
+            demo-prototype-migration-history.txt
       - name: Generate Phase 1 CI evidence
+        if: env.DEMO_PROTOTYPE_TRACK != 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > phase1-migration-head.txt
           python -m mirror_api.scripts.phase1_ci_evidence \
@@ -278,10 +304,12 @@ jobs:
             --test-results phase1-integration-results.xml \
             --output phase1-ci-evidence.json
       - uses: actions/upload-artifact@v4
+        if: env.DEMO_PROTOTYPE_TRACK != 'true'
         with:
           name: phase1-ci-evidence
           path: phase1-ci-evidence.json
       - name: Generate P2-M1 CI evidence
+        if: env.DEMO_PROTOTYPE_TRACK != 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > p2-m1-migration-head.txt
           python -m mirror_api.scripts.p2_m1_ci_evidence \
@@ -292,10 +320,12 @@ jobs:
             --test-results p2-m1-results.xml \
             --output p2-m1-ci-evidence.json
       - uses: actions/upload-artifact@v4
+        if: env.DEMO_PROTOTYPE_TRACK != 'true'
         with:
           name: p2-m1-ci-evidence
           path: p2-m1-ci-evidence.json
       - name: Generate P2-M2 CI evidence
+        if: env.DEMO_PROTOTYPE_TRACK != 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > p2-m2-migration-head.txt
           python -m mirror_api.scripts.p2_m2_ci_evidence \
@@ -306,10 +336,12 @@ jobs:
             --test-results p2-m2-results.xml \
             --output p2-m2-ci-evidence.json
       - uses: actions/upload-artifact@v4
+        if: env.DEMO_PROTOTYPE_TRACK != 'true'
         with:
           name: p2-m2-ci-evidence
           path: p2-m2-ci-evidence.json
       - name: Generate P2-M3 CI evidence
+        if: env.DEMO_PROTOTYPE_TRACK != 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > p2-m3-migration-head.txt
           python -m mirror_api.scripts.p2_m3_ci_evidence \
@@ -324,6 +356,7 @@ jobs:
             --v01-correction docs/operations/P2_M3_V01_MIGRATION_HEAD_CORRECTION.json \
             --output p2-m3-ci-evidence.json
       - uses: actions/upload-artifact@v4
+        if: env.DEMO_PROTOTYPE_TRACK != 'true'
         with:
           name: p2-m3-ci-evidence
           path: p2-m3-ci-evidence.json

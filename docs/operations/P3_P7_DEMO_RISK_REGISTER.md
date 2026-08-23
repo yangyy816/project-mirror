@@ -252,3 +252,22 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
   formal-DDL drift and independent Sol High `PASS / ACCEPT` for exact candidate `6981a88`.
 - **Owner / status / blocked:** Principal + data/backend owners / `MITIGATED_MONITORED` / no schema blocker; D01-C must
   still implement and test replay, conflict reload and transaction integration before contract freeze.
+
+## R-DEMO-21 — Formal CI evidence generator rejects prototype migration head
+
+- **Probability / impact:** High / High
+- **Description:** shared CI asks a formal Phase 1/P2 evidence generator to accept the branch-local Demo migration head,
+  either failing every Demo run after valid tests or tempting implementation to weaken the formal `0014` authority.
+- **Early signal:** executable Python/PostgreSQL/Celery/Web/contract Gates pass, then evidence generation reports that
+  migration head evidence does not contain the single expected formal head.
+- **P:** keep formal evidence generators and their `0014_m5_eval_authority` threshold unchanged; route only the fixed
+  Demo branch/head PR to a separate prototype-boundary witness.
+- **D:** same-SHA CI asserts the exact single Demo head, both formal-to-demo ancestry edges, a separately named artifact
+  and continued execution of dependency/SBOM/Docker/Gitleaks Gates.
+- **R:** add branch-local CI conditionals and rerun the exact repair SHA; never relabel Demo migration evidence as
+  Phase 1/P2 evidence.
+- **S:** any condition that suppresses formal evidence on main/formal branches, accepts a Demo head as formal, or skips
+  executable quality/integration Gates is rejected.
+- **Current evidence:** run `32631450833` failed only at `Generate Phase 1 CI evidence`; the generator correctly expected
+  `0014_m5_eval_authority` while Alembic correctly reported `demo_0002_p3_p7_command_auth` on the Demo branch.
+- **Owner / status / blocked:** Principal + CI owner / `REPAIR_EXECUTING` / same-SHA Demo CI acceptance closure.
