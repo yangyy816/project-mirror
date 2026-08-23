@@ -7,9 +7,10 @@ CHANGE_CONTROL_ID: P3_P7_D02_CC_01
 TRACK: DEMO_PROTOTYPE
 PLAN_VERSION: P3_P7_ALGORITHMIC_PROTOTYPE_PLATFORM_PLAN_V1_1
 DISCOVERED_BY: D02 independent authority review
-REVISION: 6
+REVISION: 7
 STATUS: PENDING_INDEPENDENT_SOL_REVIEW
-PRIOR_SOL_DECISION: REVISION_5_ACCEPTED_FOR_IMPLEMENTATION
+PRIOR_SOL_DECISION: REVISION_6_REVISE
+REJECTED_REVISION_6_SHA: 8ab35f4e7d762069eb338c9e4a09a5d632c502c6
 REJECTED_IMPLEMENTATION_SHA: cc56fc144d23d0b8109c1ef231b6afcfb7eb67c1
 REJECTED_IMPLEMENTATION_DECISION: FAIL_REVISE_REQUIRED
 D02_PRIVATE_SCREENING: CLOSED
@@ -1005,3 +1006,137 @@ PRODUCTION_RELEASE: NOT_AUTHORIZED
 
 Only an independent Sol acceptance of the exact two Revision 6 document blobs may reopen the bounded schema remediation.
 That review does not accept the rejected implementation and does not grant `D02 TASK_ACCEPTED`.
+
+## Revision 7 closure contract
+
+This section is normative and supersedes every conflicting Revision 1–6 sentence. Revision 6 exact-SHA
+`8ab35f4e7d762069eb338c9e4a09a5d632c502c6` remains `REVISE_REQUIRED` negative evidence. It is not amended or
+reinterpreted as an accepted contract.
+
+The exact companion authority is:
+
+```text
+PATH: docs/research/P3_P7_D02_PAIR_SCREENING_PREREGISTRATION.md
+PREREGISTRATION_ID: P3_P7_D02_PAIR_SCREENING_V7
+POLICY_SCHEMA: mirror.demo/D02PairScreeningPolicy/v6
+TRACKED_FILE_SHA256: 5887fd5085cb495f85e11d196cd4e257db4ab60daa7214451180088eed72e92b
+```
+
+Revision 7 retains the top-level `mirror.demo/D02PairScreeningReport/v1` schema and advances only the ambiguous nested
+schemas:
+
+```text
+mirror.demo/D02GeometryCaseManifestEntry/v3
+mirror.demo/D02MeasurementGateRecord/v3
+mirror.demo/D02PairScreeningRecord/v3
+mirror.demo/D02DimensionEligibilityRecord/v3
+mirror.demo/D02SelectionTraceRecord/v2
+```
+
+The preregistration's Revision 7 section is incorporated into this change control. It is the exact authority for the
+canonical JSON type system, integer ranges and enum allowlists; every array element, cardinality and order; all derived
+configuration/deterministic-ID/specification/digest preimages; all Gate conjunctions; the eight-state selection trace;
+and the mandatory negative tests. A migration implementation that omits any such rule is out of scope and cannot be
+accepted as a partial closure.
+
+### Type and coercion boundary
+
+PostgreSQL must validate `jsonb_typeof` before every extraction or cast. JSON strings cannot stand in for integer or
+boolean authority, and JSON numbers cannot stand in for fixed18 decimal strings. Signed fixed18 authority uses the
+explicit `[-1,1]` grammar and rejects negative zero. JSONB object equality uses structural comparison:
+
+```sql
+left_jsonb IS NOT DISTINCT FROM right_jsonb
+```
+
+Canonical digest recomputation separately proves deterministic serialization. The obsolete phrase “byte-equivalent
+JSONB” is not an implementation requirement because PostgreSQL JSONB does not retain original input byte spelling.
+
+### Unique derived authority
+
+The migration must recompute, using the exact Revision 7 domains and preimages:
+
+- `execution_config_digest`, `case_id` and `case_specification_digest`;
+- source-M3, M4, result-M3, source/result image and pair record IDs;
+- every generic record digest, manual/image/signature/comparison/selected-entry digest;
+- automated side, sixteen-side and eight-pair Gate digests;
+- the v3 pair-screening-record digest;
+- source, case and selected-pair manifest digests plus report/canonical/content digests.
+
+Caller-chosen 32-hex IDs or 64-hex aggregate values are invalid even when every enclosing digest is recomputed. The
+same semantic slot with different observed payload is a collision and fails closed.
+
+### Exact outcome and selection semantics
+
+The sole report-global outcome Gate is `EXACT_SHA_UNIQUENESS`. pHash is observation-only. Valid local source authority,
+network/runtime preflight, all fixed evidence universes, all source-M3 repeats, all M4 executions, deterministic replays,
+cross-record linkage and digest validity are report-admission preconditions; they cannot be represented as a `FAILED`
+outcome to bypass execution requirements.
+
+Result-repeat, measurement, structure, automated side, manual side, pair, empty-lock and dimension Gate formulas are the
+exact conjunctions in the Revision 7 preregistration. Unsupported measurement and pair-side evidence use mutually
+exclusive schemas and cannot carry fabricated raw deltas or evaluated Gate booleans.
+
+The fixed trace covers all eight jaw/chin/eye eligibility patterns. Zero or one eligible dimension produces a unique
+`FAILED` trace with no selected slot; two or three eligible dimensions produce a unique `PASSED` first-two selection;
+the third eligible candidate uses `ELIGIBLE_NOT_SELECTED_CAPACITY`. A false exact-SHA Gate makes all three dimensions
+ineligible and maps to `000`. No `FAILED` report with two or three eligible dimensions is legal.
+
+### Bank and pair binding
+
+Bank Gate values remain exact projections of their selected report dimension records, but those values now use the
+domain-separated sixteen-side and eight-pair aggregate preimages rather than arbitrary SHA strings.
+
+The pair row remains `mirror.demo/DemoQuestionPair/v2` with
+`mirror.demo/D02QuestionPairQAPayload/v2`. The embedded report record is now
+`mirror.demo/D02PairScreeningRecord/v3`. PostgreSQL resolves exactly one record by digest, requires:
+
+```sql
+qa.pair_screening_record_payload IS NOT DISTINCT FROM
+  report_record.pair_screening_record_payload
+```
+
+recomputes the v3 canonical digest, and derives every pair column and Asset/AssetVariant binding from the structural
+payload. Digest membership alone remains insufficient.
+
+### Revision 7 mandatory validation additions
+
+In addition to the Revision 6 matrix, real PostgreSQL tests must cover every Revision 7 negative case listed in the
+preregistration. Mandatory categories are:
+
+```text
+JSON scalar type/coercion and signed-fixed18 grammar
+all nested array cardinality/order/natural-key universes
+control-delta arithmetic and ppm derivation
+all deterministic ID domains and exact preimages
+case specification and execution-config completeness
+automated/sixteen-side/eight-pair digest preimages
+supported-versus-unsupported union exclusivity
+all repeat/measurement/structure/side/pair/dimension Gate conjunctions
+quality-state and ppm implications
+all eight selection patterns and forbidden status projections
+report-admission-precondition bypass attempts
+pHash observation-only semantics
+QA JSONB structural equality versus authoritative array ordering
+bound-version-token equality to execution configuration and receipt authority
+```
+
+Every mutation test must recompute all enclosing digests and IDs so rejection proves the database authority rather than
+a stale checksum. One complete legal graph must continue to prove deterministic replay, lifecycle round-trip, populated
+downgrade fail-closed, single head, zero Alembic drift and byte-identical non-Demo formal DDL.
+
+### Revision 7 review and execution gate
+
+```text
+D02_REVISION_6_DOCUMENTS: REVISE_REQUIRED
+D02_REVISION_7_DOCUMENTS: PENDING_INDEPENDENT_SOL_REVIEW
+D02_SCHEMA_IMPLEMENTATION: CLOSED
+D02_PRIVATE_SCREENING: CLOSED
+D02_RESULT: NOT_VERIFIED
+D03_D12: DEPENDENCY_GATED
+FORMAL_PHASE_AUTHORITY: FALSE
+PRODUCTION_RELEASE: NOT_AUTHORIZED
+```
+
+Only an independent Sol acceptance of the exact two Revision 7 document blobs may reopen bounded schema remediation.
+That review does not accept `cc56fc1`, does not execute private screening and does not grant `D02 TASK_ACCEPTED`.
