@@ -113,3 +113,46 @@
 `P2_M7_STATE: EXECUTION_READY`
 
 `P2_M7_NEXT_TASK: T02_AUTHORIZED`
+
+## P2-M7-R03 to R07 / T02 Principal acceptance
+
+- The linear T02 repair chain `17fdecb` -> `f127cb8` -> `4e13c86` -> `fa6f7b2` ->
+  `5be883049d8eda2e4f32a6820e1380aa8a189397` is accepted only through its final R07
+  candidate. R03-R06 remain historical repair evidence; their individual same-SHA success does not replace the R07
+  evidence.
+- Candidate `5be883049d8eda2e4f32a6820e1380aa8a189397` completed GitHub Actions run `32595984817`, attempt 1, with
+  `quality-and-integration`, `secret-scan` and `docker-validation` successful on that exact SHA. The quality job
+  completed Ruff, strict mypy, PostgreSQL migration lifecycle, Linux Celery, 759 Python passes with one existing
+  non-mandatory skip, retained Phase 1/P2-M1/P2-M2/P2-M3 evidence, TypeScript, Playwright, contract drift,
+  dependency/license audit and SBOM generation.
+- Principal content-inspected all eight unexpired artifacts in a unique system temporary directory and removed it
+  afterward. All artifact metadata and retained JSON evidence bind the exact candidate SHA and migration head
+  `0014_m5_eval_authority`; SARIF has zero results, and the artifact content scan found zero image files and zero
+  credential-pattern matches.
+- Independent security/privacy/data/supply-chain review and independent final review both passed for the exact R07
+  object and same-SHA evidence. They confirmed that backend result reconstruction does not dispatch forged subclasses,
+  projection status and currency are closed, numeric values are exact non-negative integers, outcome is typed, malformed
+  objects fail closed, and unsafe values are never echoed.
+- Principal reviewed the actual R07 diff, local targeted/static evidence, same-SHA CI/artifacts and both independent
+  reviews. Principal accepts `P2-M7-R03` through `P2-M7-R07` and `P2-M7-T02`. This does not accept T03 or any M7
+  milestone Gate, enable production, alter M5, or open M6.
+
+`P2_M7_R03: PASS_AT_5BE8830_RUN_32595984817_ATTEMPT_1`
+
+`P2_M7_R04: PASS_AT_5BE8830_RUN_32595984817_ATTEMPT_1`
+
+`P2_M7_R05: PASS_AT_5BE8830_RUN_32595984817_ATTEMPT_1`
+
+`P2_M7_R06: PASS_AT_5BE8830_RUN_32595984817_ATTEMPT_1`
+
+`P2_M7_R07: PASS_AT_5BE8830_RUN_32595984817_ATTEMPT_1`
+
+`P2_M7_T02: PASS_AT_5BE8830_RUN_32595984817_ATTEMPT_1`
+
+`P2_M7_T03: EXECUTION_READY`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_TASK: T03_AUTHORIZED`
