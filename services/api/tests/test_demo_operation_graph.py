@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
@@ -17,6 +19,7 @@ from mirror_api.demo_operation_graph import (
     PreserveKey,
     build_operation_graph,
     canonical_json_bytes,
+    capability_state,
     graph_canonical_json,
     graph_content_digest,
     hydrate_operation_graph,
@@ -155,9 +158,9 @@ def test_frozen_golden_digest_and_replay_are_byte_identical() -> None:
         for _ in range(100)
     }
     graph = build_operation_graph(INPUT_ID, INPUT_DIGEST, [spec])
-    assert GRAPH_SCHEMA_VERSION == "mirror.demo/OperationGraph/v1"
+    assert GRAPH_SCHEMA_VERSION == "mirror.demo/OperationGraph/v2"
     assert GRAPH_ALGORITHM_VERSION == "demo-operation-graph-linear-v1"
-    assert digests == {"122a169c0f29ad3b156b3c2355f9a3f035201959277b7a0c00462eff302ce90a"}
+    assert digests == {"22e06819de362dac62ffc244b2945ced614858331102a70902c8fa74a22cacb5"}
     assert graph_canonical_json(graph) == (
         b'{"algorithm_version":"demo-operation-graph-linear-v1","input_image_version_digest":"'
         + b"b" * 64
@@ -166,11 +169,40 @@ def test_frozen_golden_digest_and_replay_are_byte_identical() -> None:
         + b'","nodes":[{"depends_on":[],"node_id":"op-00000000","operation_index":0,'
         + b'"spec":{"engine":"RASTER","expected_effect":{"effect_type":"EXPOSURE",'
         + b'"exposure_ev_milli":250,"target_region":"FULL_IMAGE"},"operation_type":"EXPOSURE",'
-        + b'"parameters":{"exposure_ev_milli":250},"preserve":["IDENTITY_REFERENCE_FRAME"]}}]}'
+        + b'"parameters":{"exposure_ev_milli":250},"preserve":["IDENTITY_REFERENCE_FRAME"]}}],'
+        + b'"schema_version":"mirror.demo/OperationGraph/v2"}'
     )
 
 
-def test_key_order_and_preserve_input_order_do_not_change_digest_but_node_order_does() -> None:
+def test_tracked_v2_golden_vector_matches_python_authority() -> None:
+    fixture_path = Path(__file__).parent / "fixtures" / "demo_operation_graph_v2_golden.json"
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    assert set(fixture) == {
+        "canonical_json_utf8_hex",
+        "digest_algorithm",
+        "digest_domain",
+        "graph_digest_sha256",
+        "graph_schema_version",
+        "input_image_version_digest",
+        "input_image_version_id",
+        "operation_specs",
+        "vector_schema_version",
+    }
+    assert fixture["vector_schema_version"] == "mirror.demo/OperationGraphGoldenVector/v1"
+    assert fixture["graph_schema_version"] == GRAPH_SCHEMA_VERSION
+    assert fixture["digest_algorithm"] == "SHA-256"
+    assert fixture["digest_domain"] == f"{GRAPH_SCHEMA_VERSION}\n"
+    graph = build_operation_graph(
+        fixture["input_image_version_id"],
+        fixture["input_image_version_digest"],
+        fixture["operation_specs"],
+    )
+    canonical = graph_canonical_json(graph)
+    assert canonical.hex() == fixture["canonical_json_utf8_hex"]
+    assert graph_content_digest(graph) == fixture["graph_digest_sha256"]
+
+
+def test_key_and_preserve_order_canonicalize_but_operation_order_remains_semantic() -> None:
     left = _spec("CONTRAST", {"contrast_delta_ppm": 10}, ["POSE", "IDENTITY_REFERENCE_FRAME"])
     right = {
         "expected_effect": {
@@ -186,13 +218,29 @@ def test_key_order_and_preserve_input_order_do_not_change_digest_but_node_order_
     first = build_operation_graph(INPUT_ID, INPUT_DIGEST, [left, _spec("EXPOSURE")])
     second = build_operation_graph(INPUT_ID, INPUT_DIGEST, [right, _spec("EXPOSURE")])
     assert graph_content_digest(first) == graph_content_digest(second)
-    reordered = type(first)(
+    reordered = build_operation_graph(
+        INPUT_ID,
+        INPUT_DIGEST,
+        [_spec("EXPOSURE"), left],
+    )
+    assert graph_content_digest(first) != graph_content_digest(reordered)
+    noncanonical_nodes = type(first)(
         first.algorithm_version,
         first.input_image_version_digest,
         first.input_image_version_id,
         tuple(reversed(first.nodes)),
     )
-    assert graph_content_digest(first) != graph_content_digest(reordered)
+    _assert_code(
+        "NON_CANONICAL_NODE_ORDER",
+        lambda: graph_content_digest(noncanonical_nodes),
+    )
+
+
+def test_node_id_is_graph_local_and_not_a_global_execution_identity() -> None:
+    first = build_operation_graph(INPUT_ID, INPUT_DIGEST, [_spec("EXPOSURE")])
+    second = build_operation_graph("c" * 32, "d" * 64, [_spec("EXPOSURE")])
+    assert first.nodes[0].node_id == second.nodes[0].node_id == "op-00000000"
+    assert graph_content_digest(first) != graph_content_digest(second)
 
 
 @pytest.mark.parametrize(
@@ -468,9 +516,30 @@ def test_manual_spec_rejects_non_json_and_preserve_mutation_at_construction() ->
     )
 
 
-def test_canonical_json_rejects_float_set_wall_clock_and_non_string_key() -> None:
-    for value in ({"float": 1.0}, {"set": {"x"}}, {"time": object()}, {1: "key"}):
+def test_canonical_json_rejects_non_interoperable_values() -> None:
+    for value in (
+        {"float": 1.0},
+        {"set": {"x"}},
+        {"time": object()},
+        {1: "key"},
+        {"null": None},
+        {"large": 9_007_199_254_740_992},
+        {"small": -9_007_199_254_740_992},
+        {"non_nfc": "e\u0301"},
+        {"surrogate": "\ud800"},
+        {"nested": {"items": [None]}},
+        {"nested": {"large": 9_007_199_254_740_992}},
+        {"nested": {"non_nfc": "e\u0301"}},
+    ):
         _assert_code("NON_CANONICAL_JSON", lambda value=value: canonical_json_bytes(value))
+
+
+def test_canonical_json_uses_utf8_key_order_and_preserves_bool_int_distinction() -> None:
+    assert canonical_json_bytes({"中": True, "é": 1, "a": False}) == (
+        '{"a":false,"é":1,"中":true}'.encode()
+    )
+    assert canonical_json_bytes({"maximum": 9_007_199_254_740_991})
+    assert canonical_json_bytes({"minimum": -9_007_199_254_740_991})
 
 
 def test_graph_limits_and_hydrated_topology_reason_codes() -> None:
@@ -527,6 +596,9 @@ def test_hydration_validates_explicit_metadata_and_keeps_duplicate_specs_distinc
     bad = graph.canonical_payload()
     bad["algorithm_version"] = "other"
     _assert_code("UNSUPPORTED_ALGORITHM_VERSION", lambda: hydrate_operation_graph(bad))
+    wrong_schema = graph.canonical_payload()
+    wrong_schema["schema_version"] = "mirror.demo/OperationGraph/v1"
+    _assert_code("UNSUPPORTED_SCHEMA_VERSION", lambda: hydrate_operation_graph(wrong_schema))
 
 
 def test_unavailable_nodes_parse_but_execution_fails_before_any_callback() -> None:
@@ -545,6 +617,19 @@ def test_unavailable_nodes_parse_but_execution_fails_before_any_callback() -> No
     assert error.value.code == CapabilityState.DEFERRED_WITH_EXPLICIT_REASON.value
     assert str(error.value) == "MAKEUP_DEFERRED_NO_APPROVED_ENGINE"
     assert callback_calls == 0
+
+
+@pytest.mark.parametrize("dimension_key", ["not_screened", "jaw_width"])
+def test_geometry_is_structurally_parseable_but_execution_registry_gated(
+    dimension_key: str,
+) -> None:
+    spec = parse_operation_spec(_spec("GEOMETRY", {"dimension_key": dimension_key, "delta_ppm": 1}))
+    assert capability_state(spec) is CapabilityState.CAPABILITY_GATED
+    graph = build_operation_graph(INPUT_ID, INPUT_DIGEST, [spec])
+    with pytest.raises(OperationExecutionUnavailable) as error:
+        validate_for_execution(graph)
+    assert error.value.code == CapabilityState.CAPABILITY_GATED.value
+    assert str(error.value) == "GEOMETRY_EXECUTION_REGISTRY_REQUIRED"
 
 
 def _version(
@@ -620,6 +705,10 @@ def test_restore_and_rollback_transition_intents_are_append_only_and_bound() -> 
     _assert_lineage(
         "RESULT_ASSET_NOT_DISTINCT",
         lambda: validate_result_asset_id(restore, current.result_asset_id),
+    )
+    _assert_lineage(
+        "RESULT_ASSET_NOT_DISTINCT",
+        lambda: validate_result_asset_id(restore, original.result_asset_id),
     )
     validate_result_asset_id(restore, "9" * 32)
 

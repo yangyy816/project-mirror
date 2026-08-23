@@ -5,15 +5,17 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Any, Final
 
-GRAPH_SCHEMA_VERSION: Final = "mirror.demo/OperationGraph/v1"
+GRAPH_SCHEMA_VERSION: Final = "mirror.demo/OperationGraph/v2"
 GRAPH_ALGORITHM_VERSION: Final = "demo-operation-graph-linear-v1"
 MAX_OPERATIONS: Final = 64
+MAX_SAFE_INTEGER: Final = 9_007_199_254_740_991
 
 _ID = re.compile(r"^[0-9a-f]{32}$")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
@@ -43,6 +45,7 @@ class OperationType(StrEnum):
 
 class CapabilityState(StrEnum):
     AVAILABLE = "AVAILABLE"
+    CAPABILITY_GATED = "CAPABILITY_GATED"
     DEFERRED_WITH_EXPLICIT_REASON = "DEFERRED_WITH_EXPLICIT_REASON"
     CAPABILITY_UNAVAILABLE = "CAPABILITY_UNAVAILABLE"
 
@@ -128,6 +131,8 @@ class OperationSpec:
 
 @dataclass(frozen=True)
 class OperationNode:
+    """One graph-local address; ``node_id`` is never an execution idempotency key."""
+
     depends_on: tuple[str, ...]
     node_id: str
     operation_index: int
@@ -217,6 +222,9 @@ _UNAVAILABLE_REASONS: Final = {
         "GENERATIVE_PROVIDER_UNAVAILABLE",
     ),
 }
+_EXECUTION_GATES: Final = {
+    OperationType.GEOMETRY: "GEOMETRY_EXECUTION_REGISTRY_REQUIRED",
+}
 _EFFECT_TARGETS: Final = {
     OperationType.CROP: TargetRegion.CANVAS,
     OperationType.ROTATE: TargetRegion.CANVAS,
@@ -298,9 +306,19 @@ def hydrate_operation_graph(value: Mapping[str, Any]) -> OperationGraph:
 
     _require_mapping_keys(
         value,
-        {"algorithm_version", "input_image_version_digest", "input_image_version_id", "nodes"},
+        {
+            "algorithm_version",
+            "input_image_version_digest",
+            "input_image_version_id",
+            "nodes",
+            "schema_version",
+        },
         "operation graph",
     )
+    if value["schema_version"] != GRAPH_SCHEMA_VERSION:
+        raise DemoOperationGraphError(
+            "UNSUPPORTED_SCHEMA_VERSION", "unsupported graph schema version"
+        )
     if value["algorithm_version"] != GRAPH_ALGORITHM_VERSION:
         raise DemoOperationGraphError(
             "UNSUPPORTED_ALGORITHM_VERSION", "unsupported graph algorithm version"
@@ -374,6 +392,10 @@ def validate_operation_graph(graph: OperationGraph) -> None:
         raise DemoOperationGraphError(
             "INVALID_GRAPH", "operation indexes must be contiguous from zero"
         )
+    if tuple(node.operation_index for node in graph.nodes) != tuple(range(count)):
+        raise DemoOperationGraphError(
+            "NON_CANONICAL_NODE_ORDER", "nodes must be ordered by operation index"
+        )
     for node in graph.nodes:
         if len(set(node.depends_on)) != len(node.depends_on):
             raise DemoOperationGraphError("DUPLICATE_EDGE", "duplicate dependency edge")
@@ -412,6 +434,7 @@ def graph_canonical_payload(graph: OperationGraph) -> dict[str, Any]:
         "input_image_version_digest": graph.input_image_version_digest,
         "input_image_version_id": graph.input_image_version_id,
         "nodes": [node.canonical_payload() for node in graph.nodes],
+        "schema_version": GRAPH_SCHEMA_VERSION,
     }
 
 
@@ -429,14 +452,22 @@ def canonical_json_bytes(value: Any) -> bytes:
     """Encode the restricted JSON authority format, refusing non-canonical Python values."""
 
     _validate_json_value(value)
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode(
-        "utf-8"
-    )
+    canonical_value = _canonicalize_json_value(value)
+    return json.dumps(
+        canonical_value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=False,
+    ).encode("utf-8")
 
 
 def capability_state(spec: OperationSpec) -> CapabilityState:
+    """Return the D07-A structural state, not D07-B ExecutionRegistry authority."""
+
     if spec.operation_type in _UNAVAILABLE_REASONS:
         return _UNAVAILABLE_REASONS[spec.operation_type][0]
+    if spec.operation_type in _EXECUTION_GATES:
+        return CapabilityState.CAPABILITY_GATED
     return CapabilityState.AVAILABLE
 
 
@@ -447,7 +478,12 @@ def validate_for_execution(graph: OperationGraph) -> None:
     for node in graph.nodes:
         state = capability_state(node.spec)
         if state is not CapabilityState.AVAILABLE:
-            reason = _UNAVAILABLE_REASONS[node.spec.operation_type][1]
+            unavailable = _UNAVAILABLE_REASONS.get(node.spec.operation_type)
+            reason = (
+                unavailable[1]
+                if unavailable is not None
+                else _EXECUTION_GATES[node.spec.operation_type]
+            )
             raise OperationExecutionUnavailable(state.value, reason)
 
 
@@ -477,9 +513,12 @@ def validate_result_asset_id(intent: TransitionIntent, result_asset_id: str) -> 
     """Require the future persistence layer to allocate a distinct immutable asset id."""
 
     _require_id(result_asset_id, "result asset id")
-    if intent.requires_distinct_result_asset_id and result_asset_id == intent.source_asset_id:
+    if intent.requires_distinct_result_asset_id and result_asset_id in {
+        intent.source_asset_id,
+        intent.target_result_asset_id,
+    }:
         raise OperationLineageError(
-            "RESULT_ASSET_NOT_DISTINCT", "result asset id must differ from source"
+            "RESULT_ASSET_NOT_DISTINCT", "result asset id must differ from source and target"
         )
 
 
@@ -849,11 +888,40 @@ def _thaw_json_value(value: Any) -> Any:
     return value
 
 
+def _canonicalize_json_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            key: _canonicalize_json_value(item)
+            for key, item in sorted(value.items(), key=lambda pair: pair[0].encode("utf-8"))
+        }
+    if isinstance(value, list):
+        return [_canonicalize_json_value(item) for item in value]
+    return value
+
+
 def _validate_json_value(value: Any) -> None:
-    if value is None or isinstance(value, (bool, str)):
+    if isinstance(value, bool):
         return
     if _is_int(value):
+        if value < -MAX_SAFE_INTEGER or value > MAX_SAFE_INTEGER:
+            raise DemoOperationGraphError(
+                "NON_CANONICAL_JSON", "integers must be within the interoperable safe range"
+            )
         return
+    if isinstance(value, str):
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise DemoOperationGraphError(
+                "NON_CANONICAL_JSON", "strings must be valid UTF-8"
+            ) from exc
+        if unicodedata.normalize("NFC", value) != value:
+            raise DemoOperationGraphError(
+                "NON_CANONICAL_JSON", "strings must use Unicode NFC normalization"
+            )
+        return
+    if value is None:
+        raise DemoOperationGraphError("NON_CANONICAL_JSON", "null is not permitted")
     if isinstance(value, float):
         raise DemoOperationGraphError("NON_CANONICAL_JSON", "floats are not permitted")
     if isinstance(value, list):
@@ -866,6 +934,7 @@ def _validate_json_value(value: Any) -> None:
                 raise DemoOperationGraphError(
                     "NON_CANONICAL_JSON", "JSON object keys must be strings"
                 )
+            _validate_json_value(key)
             _validate_json_value(item)
         return
     raise DemoOperationGraphError("NON_CANONICAL_JSON", "unsupported canonical JSON value")
