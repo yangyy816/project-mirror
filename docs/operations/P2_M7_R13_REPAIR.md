@@ -2,7 +2,7 @@
 
 ## Status
 
-`PASS_PENDING_ACCEPTANCE_CLOSURE_CI_AT_E804A48_RUN_32629699282_ATTEMPT_1`
+`PASS_AT_690DD78_RUN_32630571003_ATTEMPT_1`
 
 ## Finding
 
@@ -74,3 +74,22 @@ No CLI composition, migration, dependency, public contract, production, M5 or M6
 
 R13 is accepted subject to a separate documentation-only acceptance closure checkpoint and its own same-SHA CI and
 artifact inspection. R14 remains closed until that checkpoint succeeds.
+
+## Acceptance closure confirmation
+
+- The documentation-only acceptance closure `690dd78ff90d5e88119213614ef0b38595f6bb9b` completed GitHub Actions run
+  `32630571003`, attempt 1. `quality-and-integration`, `secret-scan`, and `docker-validation` all succeeded on that
+  exact SHA.
+- Principal authenticated and content-inspected all eight unexpired artifacts and their 12 fixed-relative members.
+  Retained evidence binds the closure SHA, migration head `0014_m5_eval_authority`, and OpenAPI SHA-256
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`. The M7 evidence records `65` tests,
+  zero failure/error/skip, and eight passed operation-boundary checks.
+- Gitleaks SARIF has zero results. Docker evidence reports all five services running and healthy. Playwright 1.62.1
+  installed system dependencies and Chromium on attempt 1 in 21 and 11 seconds. Celery evidence contains INFO-level
+  task records only and no traceback, exception, error, critical record, or task failure.
+- Archive-path escape, image extension/magic, runner/private absolute path, credential assignment, signed URL,
+  Prompt field, object-key field, and raw Provider payload scans all returned zero. The exact task-owned inspection
+  directory was deleted and its absence verified.
+
+R13 is now accepted. This confirmation opens only the bounded R14 real CLI composition repair; T08 remains failed at
+`9584177`, the M7 Gate remains unevaluated, production remains disabled, and M5/M6 remain closed.

@@ -475,3 +475,34 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_TASK: R13_ACCEPTANCE_CLOSURE_CI`
+
+## P2-M7-R13 acceptance closure CI confirmation / R14 entry
+
+- The acceptance closure commit `690dd78ff90d5e88119213614ef0b38595f6bb9b` completed GitHub Actions run
+  `32630571003`, attempt 1, with `quality-and-integration`, `secret-scan`, and `docker-validation` successful on the
+  exact closure SHA.
+- Principal authenticated and content-inspected all eight unexpired artifacts and their 12 fixed-relative members.
+  The retained evidence binds `690dd78`, migration head `0014_m5_eval_authority`, and OpenAPI SHA-256
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`. The M7 evidence contains 65 tests,
+  zero failure/error/skip, and eight passed operation-boundary checks.
+- Gitleaks SARIF has zero results. Docker evidence reports five running and healthy services. Playwright system
+  dependencies and Chromium completed on attempt 1 in 21 and 11 seconds. Celery contains INFO-level task records only
+  and no traceback, exception, error, critical record, or task failure.
+- The artifact set contains no path escape, image extension or image magic, runner/private absolute path, credential
+  assignment, signed URL, Prompt field, object-key field, or raw Provider payload. The exact task-owned inspection
+  directory was deleted and verified absent.
+- R13 acceptance is now effective. R14 becomes execution-ready only for real non-production CLI composition through
+  accepted application services. T08 remains failed pending R14 evidence and independent re-review; the M7 Gate is not
+  evaluated, production remains disabled, and M5/M6 remain closed.
+
+`P2_M7_R13: PASS_AT_690DD78_RUN_32630571003_ATTEMPT_1`
+
+`P2_M7_R14: EXECUTION_READY`
+
+`P2_M7_T08: FAIL_AT_9584177_FINAL_REVIEW`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_TASK: R14_REAL_CLI_COMPOSITION`

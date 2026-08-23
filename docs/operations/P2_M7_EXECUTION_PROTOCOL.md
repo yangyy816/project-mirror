@@ -366,3 +366,29 @@ acceptance evidence, ADR-051, relevant accepted service contracts and the curren
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_ACTION: P2_M7_R13_ACCEPTANCE_CLOSURE_CI`
+
+## R13 acceptance closure confirmation / R14 entry
+
+- Acceptance closure `690dd78ff90d5e88119213614ef0b38595f6bb9b` completed run `32630571003`, attempt 1, with all three
+  mandatory jobs successful on that exact SHA.
+- Principal inspected all eight unexpired artifacts and 12 fixed-relative members. Retained evidence binds the exact
+  closure SHA, `0014_m5_eval_authority`, and the unchanged OpenAPI digest. The M7 evidence records 65 tests, zero
+  failure/error/skip, and eight passed boundary checks; Gitleaks has zero results and all five Docker services are
+  healthy.
+- Playwright system dependencies and Chromium completed on attempt 1. Celery contains no failure record, and all
+  protected path/payload/image/credential scans are zero. The task-owned inspection root was deleted and verified
+  absent.
+- R13 acceptance is effective. R14 is execution-ready only for the frozen real CLI composition repair in
+  `P2_M7_R14_REPAIR.md`; it does not reopen T08, evaluate the M7 Gate, enable production, alter M5, or open M6.
+
+`P2_M7_R13: PASS_AT_690DD78_RUN_32630571003_ATTEMPT_1`
+
+`P2_M7_R14: EXECUTION_READY`
+
+`P2_M7_T08: FAIL_AT_9584177_FINAL_REVIEW`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_ACTION: P2_M7_R14_REAL_CLI_COMPOSITION`

@@ -1338,3 +1338,15 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   protected path/payload/image/credential scans were zero. The task-owned inspection root was deleted.
 - Principal reviewed the transaction/concurrency diff and accepts R13 subject to a separate acceptance closure CI.
   R14 real CLI composition, T08 and the M7 Gate remain closed until that checkpoint succeeds.
+
+## 2026-08-23 — P2-M7-R13 acceptance closure confirmed / R14 opened
+
+- Closure `690dd78` completed exact-SHA run `32630571003`, attempt 1, with quality/integration, secret scan, and Docker
+  validation successful.
+- Principal inspected eight unexpired artifacts with 12 fixed-relative members. Exact SHA, `0014_m5_eval_authority`,
+  unchanged OpenAPI digest, 65 zero-skip M7 tests, eight boundary checks, zero Gitleaks results, five healthy Docker
+  services, first-attempt Playwright acquisition, and clean Celery evidence were confirmed.
+- Path escape, private/runner path, image extension/magic, credential assignment, signed URL, Prompt, object-key, and
+  raw Provider payload scans were zero. The task-owned artifact directory was deleted and verified absent.
+- R13 is `PASS_AT_690DD78_RUN_32630571003_ATTEMPT_1`. R14 real CLI composition is `EXECUTION_READY`; T08 remains
+  failed at `9584177`, the M7 Gate remains `NOT_EVALUATED`, production remains disabled, and M5/M6 remain closed.
