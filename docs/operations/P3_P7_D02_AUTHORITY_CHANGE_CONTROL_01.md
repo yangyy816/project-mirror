@@ -7,9 +7,11 @@ CHANGE_CONTROL_ID: P3_P7_D02_CC_01
 TRACK: DEMO_PROTOTYPE
 PLAN_VERSION: P3_P7_ALGORITHMIC_PROTOTYPE_PLATFORM_PLAN_V1_1
 DISCOVERED_BY: D02 independent authority review
-REVISION: 5
+REVISION: 6
 STATUS: PENDING_INDEPENDENT_SOL_REVIEW
-PRIOR_SOL_DECISION: REVISION_4_REVISE
+PRIOR_SOL_DECISION: REVISION_5_ACCEPTED_FOR_IMPLEMENTATION
+REJECTED_IMPLEMENTATION_SHA: cc56fc144d23d0b8109c1ef231b6afcfb7eb67c1
+REJECTED_IMPLEMENTATION_DECISION: FAIL_REVISE_REQUIRED
 D02_PRIVATE_SCREENING: CLOSED
 D02_SCHEMA_IMPLEMENTATION: CLOSED
 D03_D12: DEPENDENCY_GATED
@@ -533,10 +535,11 @@ content_digest = mirror_demo_digest(schema_version, canonical_payload)
 canonical authority.
 
 PostgreSQL permits a report insert only after all fixed-cardinality evidence is present. For `PASSED`, the counts are
-exactly `4, 48, 12, 96, 144, 48, 52, 1326, 24, 16, 32` in the column order above, selected dimensions are exactly two,
-and the selected manifest is non-null. For `FAILED`, the first nine counts are still exactly `4, 48, 12, 96, 144, 48,
-52, 1326, 24`; selected-pair and selected-result-side counts are zero, selected dimensions are empty, and no bank may
-bind it. `FAILED` therefore means full execution completed and at least one Gate failed. Any early stop—including public
+exactly `4, 48, 12, 96, 144, 48, 52, 1326, 24, 16, 32` in the column order above, all report-global Gates pass, at least
+two dimensions are eligible, exactly the first two eligible dimensions are selected, and the selected manifest is
+non-null. For `FAILED`, the first nine counts are still exactly `4, 48, 12, 96, 144, 48, 52, 1326, 24`; a report-global
+Gate fails or fewer than two dimensions are eligible; selected-pair and selected-result-side counts are zero, selected
+dimensions are empty, and no bank may bind it. Any early stop—including public
 egress, runtime/model/digest mismatch, repeat disagreement or missing source—creates no database report and imports no
 result, bank or pair; it is retained only as append-only Principal private-registry negative evidence/receipt.
 After source/preflight admission, an ordinary case or dimension Gate failure is recorded but does not truncate the
@@ -547,9 +550,9 @@ produce registry-only negative evidence.
 `mirror.demo/D02QuestionBankDimensionManifest/v1` and bind report ID/digest, ordered selected dimensions, priority,
 16-side/eight-pair Gate digest per dimension, source manifest digest and selected pair-manifest digest.
 
-`DemoQuestionPair.qa_payload` must use `mirror.demo/D02QuestionPairQAPayload/v1` and bind report ID/digest, pair record
-digest, source authority key/admission event, source Asset, dimension/magnitude, both case/specification/result/manual
-digests, raw/ppm Gate outcomes, both quality components, final quality and both exact AssetVariant lineages.
+`DemoQuestionPair.qa_payload` must use `mirror.demo/D02QuestionPairQAPayload/v2`, embed the non-circular exact
+`mirror.demo/D02PairScreeningRecord/v2` payload and digest, and bind that payload field-for-field to the immutable report
+record. Pair/source/Asset/Variant, dimension, magnitude, delta, Gate and quality facts are projections of that payload.
 
 `demo_0003` adds the nullable-for-v1-only bank/pair report FK and digest columns above, then PostgreSQL functions and
 deferred commit-time triggers enforce the version/null matrix, report-digest equality, `PASSED` status, exactly two
@@ -595,9 +598,9 @@ DIRECT_SQL_MODE_SHAPE_AND_DIGEST_ATTACKS: REJECTED
 PRIVATE_LOCATOR_OR_BYTES_IN_TRACKED_DIFF: 0
 ```
 
-An independent Sol schema/authority review of Revision 5 is mandatory before migration, ORM or importer implementation. After
-implementation, real PostgreSQL lifecycle/invariant tests and a second independent review are mandatory before D02 may
-be accepted.
+Revision 5 was reviewed before the rejected implementation. Revision 6 now requires a new independent Sol
+schema/authority review before migration remediation, ORM or importer implementation. After implementation, real
+PostgreSQL lifecycle/invariant tests and a second independent review are mandatory before D02 may be accepted.
 
 ## Revision 5 closure authority
 
@@ -737,22 +740,18 @@ array and v2 object rather than pretending both have one shape.
 New `mirror.demo/DemoQuestionPair/v2` rows require object-valued `qa_payload` with exactly:
 
 ```text
-schema_version: mirror.demo/D02QuestionPairQAPayload/v1
-screening_report_id / screening_report_digest
+schema_version: mirror.demo/D02QuestionPairQAPayload/v2
+screening_report_id
+screening_report_digest
+pair_screening_record_schema_version
 pair_screening_record_digest
-source_authority_key / source_admission_event_id
-source_asset: id / sha256
-dimension_key / magnitude_ppm
-left: case/specification/result/variant/requested/measured/gate/manual/quality fields
-right: case/specification/result/variant/requested/measured/gate/manual/quality fields
-pair_quality_ppm
-lock_conclusion / lock_policy_digest
+pair_screening_record_payload
 ```
 
 There is no `qa_payload_digest` inside `qa_payload`; such a field would be cyclic and is forbidden. The immutable pair
-row's shared `content_digest` covers the full QA object, while `pair_screening_record_digest` binds the corresponding
-screening-report record. PostgreSQL enforces the exact top-level and side-object keys plus all report/Asset/Variant
-bindings. Downgrade is allowed only after the existing preflight proves no v2 bank or pair, then restores the exact v1
+row's shared `content_digest` covers the full QA object. PostgreSQL recomputes the non-circular record digest, requires
+the embedded payload to equal the report record, and then validates every pair/source/side/Asset/Variant projection.
+Downgrade is allowed only after the existing preflight proves no v2 bank or pair, then restores the exact v1
 array/object checks and the original ORM-visible nullability.
 
 ### Exact source-key serialization and concurrency
@@ -853,3 +852,156 @@ PRODUCTION_RELEASE: NOT_AUTHORIZED
 
 PostgreSQL and private object storage may use localhost/Docker internal networking. No proxy enters the importer or
 screening environment. Any attempted public runtime dependency is `EXTERNAL_RUNTIME_DEPENDENCY_FOUND` and fails closed.
+
+## Revision 6 closure contract
+
+This section is normative and supersedes every conflicting Revision 1–5 sentence. It closes the authority gaps found by
+the independent exact-SHA review of rejected implementation
+`cc56fc144d23d0b8109c1ef231b6afcfb7eb67c1`. That SHA remains negative evidence; it must not be amended, integrated or
+reported as accepted.
+
+The exact nested-evidence contract is jointly owned by this change control and:
+
+```text
+PATH: docs/research/P3_P7_D02_PAIR_SCREENING_PREREGISTRATION.md
+PREREGISTRATION_ID: P3_P7_D02_PAIR_SCREENING_V6
+POLICY_SCHEMA: mirror.demo/D02PairScreeningPolicy/v5
+TRACKED_FILE_SHA256: 2a1681ba9eedefe1a3a69be6e63bdbe76a387ab57cf4b1ce92fa9e273a337231
+```
+
+The preregistration's Revision 6 section freezes all sixteen group schemas, exact key sets, array order, cardinalities,
+non-circular record and manifest digest preimages, cross-record foreign linkage, Gate derivations, selection semantics,
+pair-QA content binding and private/tracked evidence boundary. A regex-valid digest or cardinality-only array is never
+sufficient authority.
+
+### Principal decisions
+
+The following decisions are accepted for independent Sol review:
+
+1. The complete report payload is local private PostgreSQL authority. Tracked acceptance evidence contains only the
+   redacted aggregate projection listed in the preregistration.
+2. `PASSED` requires all report-global Gates plus at least two eligible dimensions. A third candidate may fail without
+   invalidating the first-two-eligible selection. `FAILED` is not valid when all global Gates pass and at least two
+   dimensions are eligible.
+3. PostgreSQL validates structure, current database facts, linkage, mathematics and digests. Principal-controlled
+   receipts and manual-review custody validate that private M3/M4 execution and visual review actually occurred. No new
+   signature, production attestation or formal authority is invented.
+4. `mirror.demo/D02PairScreeningReport/v1` accepts only `DEMO_LOCAL_IMPORTED_COPY` sources in Revision 6. A
+   `FORMAL_REFERENCE` without the same six-dimensional raw authority fails closed.
+
+### PostgreSQL implementation authority
+
+The `demo_0003_d02_import_authority.py` revision identifier and prototype-only table scope remain unchanged because the
+rejected revision has never entered the integration branch. Remediation is a new child commit, not a history rewrite.
+The migration and tests must implement the accepted Revision 6 contract before private screening can open.
+
+The migration must use bounded validator helpers instead of treating `report_payload` as opaque JSONB. At minimum the
+validation graph separately checks source entries, case entries, M3 records, M4 records, measurement records, image and
+pHash records, pair records, dimension records and fixed-priority selection before the enclosing report validator
+accepts a row. Every helper must:
+
+- require the exact key set and exact `schema_version`;
+- check `jsonb_typeof` before every cast;
+- accept only canonical integer and fixed18 grammars, never coercing JSON strings such as `"0"` or `"true"` into typed
+  authority;
+- validate array ordinality, continuous indexes, natural-key uniqueness and the complete Cartesian universe;
+- recompute every record, manifest, report and content digest from its frozen non-circular preimage;
+- re-read the current local admission, Asset, recovered facts, pair Assets and AssetVariants where database authority
+  exists;
+- recompute deterministic IDs, fixed18-to-ppm values, deltas, maximum drift, quality, exact-SHA booleans, pHash Hamming
+  distance, dimension eligibility, first-two selection and selected-manifest projection;
+- reject raw float, JSON null, exponent, negative zero, wall clock, locator-like key or value, arbitrary nested key and
+  any private path/object key/Prompt/secret field.
+
+`PASSED + exact_sha_gate_passed=false` is always rejected. The report must validate all 52 image records, all 52 pHash
+signatures and all 1,326 comparisons rather than accepting the expected count alone. A report item digest must match its
+recomputed payload and every parent projection.
+
+### Bank and pair repair requirements
+
+For each selected dimension, `DemoQuestionBank.dimension_manifest` must copy `sixteen_side_gate_digest` and
+`eight_pair_gate_digest` exactly from the same ordered `dimension_eligibility` record in its immutable report. SHA-256
+syntax alone is not authority.
+
+New pair rows continue to use `mirror.demo/DemoQuestionPair/v2`, but `qa_payload` advances to
+`mirror.demo/D02QuestionPairQAPayload/v2` and contains only:
+
+```text
+schema_version
+screening_report_id
+screening_report_digest
+pair_screening_record_schema_version
+pair_screening_record_digest
+pair_screening_record_payload
+```
+
+The pair-screening wrapper uses `mirror.demo/D02PairScreeningRecord/v2` with the non-circular preimage frozen by the
+preregistration. PostgreSQL must find exactly one matching report wrapper, recompute its digest and require the embedded
+payload to equal the report payload field-for-field. Pair columns and all source/result Asset, AssetVariant, lineage,
+dimension, magnitude, delta, Gate and quality facts are derived from and compared with that payload. Digest membership
+without payload equality, swapped valid digests, or a consistent digest/payload pair that disagrees with the pair row
+must all fail.
+
+### Report status and canonical payload
+
+The report's fixed full-cardinality universe is exactly:
+
+```text
+4 sources / 48 cases / 12 source M3 / 96 M4 / 144 result M3
+48 measurement / 48 decode-structure / 48 manual
+52 image / 52 pHash signature / 1326 pHash comparison
+24 pair / 3 dimension / 3 selection records
+```
+
+`PASSED` has exactly two selected dimensions, 16 selected pairs and 32 selected sides. `FAILED` has zero selected
+dimensions/pairs/sides. For `PASSED`, `selected_pair_manifest_digest` is included in `canonical_payload`; for `FAILED`,
+that key is absent and the structured column is SQL NULL. JSON null is forbidden in both variants. The shared
+`content_digest` rule remains unchanged.
+
+### Mandatory negative test matrix
+
+The implementation is not reviewable without PostgreSQL tests that re-canonicalize every mutated fixture and prove the
+database—not a stale digest—rejects all of the following:
+
+1. a typed evidence record replaced by a 64-hex string;
+2. missing/extra keys or wrong nested schema;
+3. array order changed with cardinality retained;
+4. broken/duplicate ordinals or one Cartesian item duplicated to hide an omission;
+5. raw float, JSON null, exponent, negative zero, wall clock or locator-like key/value;
+6. a wrong record digest or self-referential preimage attempt;
+7. a source entry not equal to the current latest local `ADMIT`, Asset or recovered fact authority;
+8. a `FORMAL_REFERENCE` source in report v1;
+9. `PASSED + exact_sha_gate_passed=false`;
+10. duplicate image SHA with submitted exact-SHA booleans set true;
+11. missing, duplicate, reversed or mathematically wrong pHash comparisons;
+12. tampered measurement delta or maximum drift with all enclosing digests recomputed;
+13. manual verdict inconsistent with its four boolean criteria;
+14. a valid pair digest whose embedded payload changes one field;
+15. two pair digests swapped without their full payloads;
+16. digest and payload swapped together while pair row/source/Assets remain inconsistent;
+17. selected manifest references a failed pair, unselected dimension or wrong side Asset/Variant;
+18. selection differs from the frozen first-two eligible result;
+19. `PASSED` exposes fewer than two eligible dimensions, 16 pairs or 32 unique sides;
+20. `FAILED` exposes a selected dimension, pair, side or manifest digest;
+21. `FAILED` when global Gates pass and at least two dimensions are eligible;
+22. a v2 bank or pair bound to a `FAILED` report;
+23. direct report `UPDATE` or `DELETE`;
+24. JSON strings substituted for integer or boolean authority in recovered identity facts or unsupported ppm fields.
+
+One complete legal graph must pass and prove deterministic replay, populated downgrade fail-closed, lifecycle
+round-trip, single head, zero Alembic drift and byte-identical non-Demo formal DDL.
+
+### Revision 6 review and execution gate
+
+```text
+D02_REVISION_6_DOCUMENTS: PENDING_INDEPENDENT_SOL_REVIEW
+D02_SCHEMA_IMPLEMENTATION: CLOSED
+D02_PRIVATE_SCREENING: CLOSED
+D02_RESULT: NOT_VERIFIED
+D03_D12: DEPENDENCY_GATED
+FORMAL_PHASE_AUTHORITY: FALSE
+PRODUCTION_RELEASE: NOT_AUTHORIZED
+```
+
+Only an independent Sol acceptance of the exact two Revision 6 document blobs may reopen the bounded schema remediation.
+That review does not accept the rejected implementation and does not grant `D02 TASK_ACCEPTED`.

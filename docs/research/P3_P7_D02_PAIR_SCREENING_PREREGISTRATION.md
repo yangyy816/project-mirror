@@ -3,12 +3,14 @@
 ## Status
 
 ```text
-PREREGISTRATION_ID: P3_P7_D02_PAIR_SCREENING_V5
-REVISION: 5
+PREREGISTRATION_ID: P3_P7_D02_PAIR_SCREENING_V6
+REVISION: 6
 TRACK: DEMO_PROTOTYPE
-SCHEMA: mirror.demo/D02PairScreeningPolicy/v4
+SCHEMA: mirror.demo/D02PairScreeningPolicy/v5
 STATUS: PENDING_INDEPENDENT_SOL_REVIEW
-PRIOR_SOL_DECISION: REVISION_4_REVISE
+PRIOR_SOL_DECISION: REVISION_5_ACCEPTED_FOR_IMPLEMENTATION
+REJECTED_IMPLEMENTATION_SHA: cc56fc144d23d0b8109c1ef231b6afcfb7eb67c1
+REJECTED_IMPLEMENTATION_DECISION: FAIL_REVISE_REQUIRED
 PRIVATE_EXECUTION: NOT_STARTED
 D02_PRIVATE_SCREENING: CLOSED
 D02_SCHEMA_IMPLEMENTATION: CLOSED
@@ -25,7 +27,7 @@ face validity or biometric identity preservation.
 ## Frozen versions and canonicalization
 
 ```text
-screening_algorithm_version: demo-pair-screening-v4
+screening_algorithm_version: demo-pair-screening-v5
 measurement_version: demo-d02-face-height-normalized-measurement-v1
 decimal_serialization_version: demo-d02-decimal-fixed18-v1
 quantization_version: demo-d02-round-half-even-ppm-v1
@@ -261,9 +263,10 @@ uses integer luma `(77R + 150G + 29B + 128) >> 8`, a fixed-point 8x8 DCT table s
 the 63 non-DC coefficients, strict `coefficient > median`, vertical-frequency then horizontal-frequency ordering, first
 coefficient as the most-significant bit, and 16 lowercase hexadecimal characters. The exact tracked implementation
 digest is listed above. The report records bit width, implementation digest, ordered record universe, exact unordered
-record-pair set and Hamming distances. Its threshold is exactly `null`; it cannot reject, rank, select or trigger a
-threshold chosen after results. An exact duplicate is a full-cardinality Gate failure after all 52 records exist; it
-does not truncate the 1,326 pHash observations.
+record-pair set and Hamming distances. Revision 5 encoded the observation-only threshold as JSON null; Revision 6
+replaces that representation with the exact string `OBSERVATION_ONLY_NO_THRESHOLD` and still forbids rejection,
+ranking, selection or post-result threshold choice. An exact duplicate is a full-cardinality Gate failure after all 52
+records exist; it does not truncate the 1,326 pHash observations.
 
 ## Empty neutral lock policy
 
@@ -422,8 +425,10 @@ routing values are round-half-even integer ppm. Both representations and the com
 The report status is:
 
 ```text
-PASSED -> full fixed cardinality, exactly two selected dimensions, 16 selected pairs and 32 selected result sides
-FAILED -> full fixed cardinality, at least one Gate failed, zero selected dimensions/pairs/result sides and no import
+PASSED -> full fixed cardinality, all report-global Gates pass, at least two dimensions are eligible, exactly the first
+          two eligible dimensions are selected, with 16 selected pairs and 32 selected result sides
+FAILED -> full fixed cardinality, a report-global Gate fails or fewer than two dimensions are eligible, with zero
+          selected dimensions/pairs/result sides and no import
 ```
 
 The inherited `schema_version` column is the exact report schema version. `report_digest` is SHA-256 of the canonical
@@ -475,30 +480,21 @@ type deliberately represents that union. The bank's enclosing canonical payload/
 payload digest, so no nested self-digest exists.
 
 Existing `mirror.demo/DemoQuestionPair/v1` rows preserve their current object payload. New
-`mirror.demo/DemoQuestionPair/v2` rows require object-valued `qa_payload` with exactly:
+`mirror.demo/DemoQuestionPair/v2` rows require the Revision 6 object-valued `qa_payload` with exactly:
 
 ```text
-schema_version: mirror.demo/D02QuestionPairQAPayload/v1
-screening_report_id / screening_report_digest
+schema_version: mirror.demo/D02QuestionPairQAPayload/v2
+screening_report_id
+screening_report_digest
+pair_screening_record_schema_version
 pair_screening_record_digest
-source_authority_key / source_admission_event_id
-source_asset: id / sha256
-dimension_key / magnitude_ppm
-left and right:
-  case_id / case_specification_digest
-  result_asset_id / result_asset_sha256
-  asset_variant_id / exact variant_type / lineage digest
-  requested direction and magnitude
-  raw signed target delta / target absolute delta / max control drift
-  measured signed delta ppm / drift ppm
-  automated Gate digest / manual decision digest / side quality component ppm
-pair_quality_ppm
-lock conclusion and lock policy digest
+pair_screening_record_payload
 ```
 
 There is no `qa_payload_digest` inside `qa_payload`; such a field would be cyclic and is forbidden. The immutable pair
-row's shared `content_digest` covers the complete QA object, while `pair_screening_record_digest` binds the exact record
-inside the screening report. PostgreSQL enforces exact top-level and left/right object keys.
+row's shared `content_digest` covers the complete QA object. PostgreSQL recomputes the non-circular pair-record digest,
+requires the embedded payload to equal the exact report record, then projects every pair/source/side/Asset/Variant fact
+from that payload as specified by the Revision 6 section below.
 
 At commit, PostgreSQL resolves the bank and pair `screening_report_id`/`screening_report_digest`, requires they match
 each other and the immutable `PASSED` report, resolves source admission, all Assets and all AssetVariants, requires exact
@@ -535,6 +531,763 @@ magnitude, measurement-support, drift, result-QA, artifact, exact-duplicate or l
 with an explicit unsupported measurement is a full-cardinality failure, while a missing receipt or undecodable result
 that prevents the fixed evidence universe is a cardinality stop. Neither outcome is silently retried or re-thresholded.
 
-Independent Sol review of Revision 5 of this preregistration, the dimension authority manifest and
-`P3_P7_D02_CC_01` is mandatory before migration,
-importer or private execution. A review recommendation is evidence; Principal acceptance is still required.
+Revision 5 was reviewed before the rejected implementation. Revision 6 of this preregistration and
+`P3_P7_D02_CC_01` now requires a new independent Sol review before migration remediation, importer or private
+execution. A review recommendation is evidence; Principal acceptance is still required.
+
+## Revision 6 exact nested-evidence authority
+
+This section is normative and supersedes every conflicting Revision 1–5 sentence. It responds to the independent
+exact-SHA review of rejected implementation `cc56fc144d23d0b8109c1ef231b6afcfb7eb67c1`. That SHA remains negative
+evidence and is not an accepted implementation baseline. Revision 6 freezes the element schemas, ordering identities,
+cross-record linkage, Gate implications and non-circular digest preimages that Revision 5 left underspecified.
+
+### Canonical record and digest rules
+
+The top-level report schema remains `mirror.demo/D02PairScreeningReport/v1`. Its sixteen top-level groups remain the
+same and are all mandatory. JSON objects are canonicalized by UTF-8 codepoint-ascending keys; every array below has the
+explicit semantic order stated in this section. Canonical leaves are limited to JSON integers, booleans, allowlisted or
+grammar-constrained strings, ordered arrays and exact-key objects. Raw binary float, JSON null, NaN, Infinity, exponent
+decimal, negative zero, wall clock, path, locator, object key, Prompt, secret and private bytes are forbidden.
+
+An inapplicable value uses an explicit discriminated record variant. It is never represented by null or by a fabricated
+sentinel. Every stored evidence record follows this non-circular rule unless a more specific digest name is stated:
+
+```text
+stored_record = {
+  schema_version,
+  ...payload,
+  record_digest
+}
+
+record_digest =
+  mirror_demo_digest(schema_version, payload_without_schema_version_and_record_digest)
+```
+
+No digest preimage may contain its own digest, a parent report digest, an identifier derived from that digest or a wall
+clock. Manifest and report digests are exactly:
+
+```text
+source_manifest_digest = mirror_demo_digest(
+  "mirror.demo/D02SourceAuthorityManifest/v1",
+  ordered_source_manifest
+)
+
+case_manifest_digest = mirror_demo_digest(
+  "mirror.demo/D02GeometryCaseManifest/v1",
+  ordered_case_manifest
+)
+
+selected_pair_manifest_digest = mirror_demo_digest(
+  "mirror.demo/D02SelectedPairManifest/v2",
+  selected_pair_manifest
+)
+
+report_digest = mirror_demo_digest(
+  "mirror.demo/D02PairScreeningReport/v1",
+  report_payload
+)
+```
+
+The report table's `canonical_payload` is status-discriminated. Common fields are always present. `PASSED` adds
+`selected_pair_manifest_digest`; `FAILED` omits that key entirely while the structured database column is SQL NULL.
+`content_digest = mirror_demo_digest(schema_version, canonical_payload)`. No JSON null is accepted in either status.
+
+### Exact group schemas
+
+#### `schema_and_policy`
+
+Schema `mirror.demo/D02SchemaAndPolicyBinding/v1`, exact keys:
+
+```text
+schema_version
+source_manifest_digest
+case_manifest_digest
+screening_policy_digest
+runtime_manifest_digest
+vision_model_manifest_digest
+topology_digest
+measurement_config_digest
+manual_review_policy_digest
+duplicate_policy_digest
+phash_implementation_digest
+```
+
+Every digest must equal its structured report column.
+
+#### `ordered_source_manifest`
+
+Exactly four `mirror.demo/D02SourceAuthorityManifestEntry/v2` records. Exact keys:
+
+```text
+schema_version
+source_ordinal
+source_authority_kind
+source_authority_key
+source_admission_event_id
+source_admission_content_digest
+source_output_id
+source_asset_id
+source_asset_sha256
+source_asset_byte_size
+source_asset_mime_type
+source_asset_width
+source_asset_height
+source_receipt_digest
+source_authority_digest
+source_qa_snapshot_digest
+source_landmark_digest
+source_measurement_digest
+source_provenance_digest
+source_fact_snapshot_digest
+raw_measurement_authority_digest
+source_measurement_projection_digest
+adult_synthetic_attested
+original_formal_identity_id_status
+source_p2_candidate_manifest_content_digest
+dimension_authority_manifest_content_digest
+ordered_supported_measurements
+record_digest
+```
+
+`ordered_supported_measurements` contains exactly six `mirror.demo/D02SupportedSourceMeasurement/v1` objects, in this
+order: `cheekbone_width`, `chin_height`, `eye_spacing`, `jaw_width`, `mouth_width`, `nose_width`. Each has exactly:
+
+```text
+schema_version
+dimension_key
+raw_value_fixed18
+raw_confidence_fixed18
+raw_reliability_fixed18
+value_ppm
+confidence_ppm
+reliability_ppm
+unit
+```
+
+For report v1, all four sources must be `DEMO_LOCAL_IMPORTED_COPY`, `adult_synthetic_attested=true`,
+`original_formal_identity_id_status=UNKNOWN_REDACTED_NOT_RECOVERED`, and `unit=FACE_HEIGHT_PPM`. A
+`FORMAL_REFERENCE` lacks the required recovered six-dimensional raw authority and is rejected rather than completed by
+digest-only evidence or inferred values. PostgreSQL must re-read the latest local `ADMIT`, live Asset, recovered facts,
+raw authority and projection and compare every field. The order is
+`source_authority_key ASC, source_admission_event_id ASC`, with `source_ordinal=1..4`.
+
+#### `ordered_case_manifest`
+
+Exactly 48 `mirror.demo/D02GeometryCaseManifestEntry/v2` records. Exact keys:
+
+```text
+schema_version
+case_ordinal
+case_id
+source_ordinal
+source_authority_key
+source_admission_event_id
+source_asset_id
+source_asset_sha256
+source_manifest_digest
+source_qa_snapshot_digest
+source_measurement_projection_digest
+source_p2_candidate_manifest_content_digest
+dimension_authority_manifest_content_digest
+geometry_ontology_version_digest
+dimension_key
+priority_index
+direction
+direction_index
+magnitude_ppm
+magnitude_index
+ordered_control_dimensions
+warp_plan_digest
+geometry_algorithm_version
+runtime_manifest_digest
+runtime_config_digest
+output_policy_version
+output_width
+output_height
+determinism_level
+case_specification_digest
+record_digest
+```
+
+Order is source ordinal; priority `jaw_width=1`, `chin_height=2`, `eye_spacing=3`; direction
+`DECREASE=1`, `INCREASE=2`; magnitude `15000=1`, `30000=2`. PostgreSQL recomputes both `case_id` and
+`case_specification_digest` from the complete semantic payload.
+
+#### `source_m3_repeat_evidence`
+
+Exactly 12 `mirror.demo/D02SourceM3RepeatRecord/v1` records, ordered by source ordinal then `repeat_index=1..3`:
+
+```text
+schema_version
+source_m3_record_id
+source_ordinal
+source_authority_key
+source_admission_event_id
+source_asset_id
+source_asset_sha256
+repeat_index
+execution_receipt_digest
+vision_model_manifest_digest
+runtime_manifest_digest
+topology_digest
+canonical_output_digest
+landmark_digest
+measurement_digest
+face_count
+landmark_count
+coordinates_finite
+coordinates_in_bounds
+repeat_gate_passed
+record_digest
+```
+
+Each source's three canonical-output, landmark and measurement digests must be identical and each repeat must pass.
+
+#### `m4_repeat_evidence`
+
+Exactly 96 `mirror.demo/D02M4ExecutionRecord/v1` records, in case-manifest order then `replay_index=1,2`:
+
+```text
+schema_version
+m4_execution_record_id
+case_id
+case_specification_digest
+replay_index
+source_output_id
+source_asset_id
+source_asset_sha256
+result_output_id
+result_sha256
+result_byte_size
+result_mime_type
+result_width
+result_height
+changed_pixel_count
+warp_plan_digest
+geometry_algorithm_version
+runtime_manifest_digest
+runtime_config_digest
+determinism_level
+execution_receipt_digest
+execution_succeeded
+record_digest
+```
+
+The two records for each case must agree on result SHA, size, MIME, dimensions and changed-pixel count. Failure or a
+missing record is an execution-cardinality stop and cannot produce a database report.
+
+#### `result_m3_repeat_evidence`
+
+Exactly 144 `mirror.demo/D02ResultM3RepeatRecord/v1` records, in case-manifest order then `repeat_index=1..3`:
+
+```text
+schema_version
+result_m3_record_id
+case_id
+case_specification_digest
+result_output_id
+result_sha256
+repeat_index
+execution_receipt_digest
+vision_model_manifest_digest
+runtime_manifest_digest
+topology_digest
+canonical_output_digest
+landmark_digest
+measurement_observation_digest
+face_count
+landmark_count
+coordinates_finite
+coordinates_in_bounds
+observation_state
+repeat_gate_passed
+record_digest
+```
+
+`observation_state` is `SUPPORTED` or `UNSUPPORTED_EXPLICIT`. Missing receipts/records or decode failure are cardinality
+stops. An explicit unsupported measurement may enter a full-cardinality `FAILED` report.
+
+#### `measurement_gate_evidence`
+
+Exactly 48 `mirror.demo/D02MeasurementGateRecord/v2` records in case-manifest order. Exact keys:
+
+```text
+schema_version
+case_id
+case_specification_digest
+dimension_key
+requested_direction
+requested_magnitude_ppm
+monotonicity_peer_case_id
+source_target_measurement
+ordered_source_control_measurements
+ordered_result_repeat_measurements
+direction_gate_passed
+target_min_gate_passed
+target_max_gate_passed
+control_drift_gate_passed
+magnitude_monotonicity_gate_passed
+measurement_gate_passed
+record_digest
+```
+
+The source target and five ordered controls use the supported source-measurement schema. Each of the three result items
+is exactly one discriminated variant:
+
+```text
+mirror.demo/D02SupportedResultMeasurement/v1:
+  schema_version
+  repeat_index
+  result_m3_record_digest
+  raw_result_target_fixed18
+  raw_signed_target_delta_fixed18
+  raw_target_absolute_delta_fixed18
+  ordered_control_deltas
+  max_control_dimension_key
+  raw_max_control_drift_fixed18
+  measured_signed_delta_ppm
+  target_absolute_delta_ppm
+  drift_ppm
+  direction_gate_passed
+  target_min_gate_passed
+  target_max_gate_passed
+  control_drift_gate_passed
+
+mirror.demo/D02UnsupportedResultMeasurement/v1:
+  schema_version
+  repeat_index
+  result_m3_record_digest
+  unsupported_dimension_key
+  unsupported_reason
+  measurement_gate_passed
+```
+
+The unsupported variant must have `measurement_gate_passed=false`. PostgreSQL derives every delta, maximum control,
+ppm and Gate boolean from the fixed18 authority and linked result-M3 records.
+
+#### `decode_structure_immutability_evidence`
+
+Exactly 48 `mirror.demo/D02DecodeStructureImmutabilityRecord/v1` records in case-manifest order. Exact keys:
+
+```text
+schema_version
+case_id
+case_specification_digest
+source_asset_id
+source_asset_sha256
+m4_execution_record_digests
+result_output_id
+result_sha256
+result_byte_size
+result_mime_type
+result_width
+result_height
+result_image_record_id
+source_decode_valid
+result_decode_valid
+bounded_dimensions_passed
+source_checksum_unchanged
+m4_replay_bytes_equal
+m4_replay_dimensions_equal
+changed_pixel_count_equal
+changed_pixel_count_positive
+immutable_result_binding_passed
+exact_lineage_passed
+target_and_controls_complete
+structure_gate_passed
+record_digest
+```
+
+`m4_execution_record_digests` contains replay 1 then replay 2. PostgreSQL derives the booleans from linked records.
+
+#### `manual_review_evidence`
+
+Exactly 48 records ordered by `case_id ASC`, `decision_sequence=1..48`. The stored
+`mirror.demo/D02ManualArtifactDecision/v1` shape is:
+
+```text
+schema_version
+case_id
+result_sha256
+manual_review_version
+manual_review_policy_digest
+decision_sequence
+background_seam
+disconnected_contour
+duplicated_feature
+warp_tear
+verdict
+review_authority_digest
+manual_decision_digest
+```
+
+`manual_decision_digest` excludes `schema_version` and itself. `verdict=PASS` if and only if all four criteria are false.
+
+#### `exact_duplicate_evidence`
+
+Schema `mirror.demo/D02ExactDuplicateEvidence/v2`, exact keys:
+
+```text
+schema_version
+image_records
+all_record_sha_unique
+source_sha_unique
+result_sha_unique
+source_result_sha_disjoint
+exact_sha_gate_passed
+```
+
+`image_records` contains exactly 52 discriminated records, ordered by `sha256 ASC, image_record_id ASC`, with
+`image_record_ordinal=1..52`:
+
+```text
+mirror.demo/D02SourceImageAuthorityRecord/v2:
+  schema_version
+  image_record_ordinal
+  image_record_id
+  authority_role
+  source_ordinal
+  source_authority_key
+  source_admission_event_id
+  source_asset_id
+  sha256
+  byte_size
+  mime_type
+  width
+  height
+  image_record_digest
+
+mirror.demo/D02ResultImageAuthorityRecord/v2:
+  schema_version
+  image_record_ordinal
+  image_record_id
+  authority_role
+  source_ordinal
+  source_authority_key
+  source_admission_event_id
+  case_id
+  case_specification_digest
+  result_output_id
+  deterministic_result_asset_id
+  sha256
+  byte_size
+  mime_type
+  width
+  height
+  image_record_digest
+```
+
+`exact_sha_gate_passed` is exactly the conjunction of the four preceding booleans. A `PASSED` report requires it to be
+true; `PASSED + false` is invalid even when cardinality and digest syntax are otherwise correct.
+
+#### `phash_observation_evidence`
+
+Schema `mirror.demo/D02PHashObservationEvidence/v2`, exact keys:
+
+```text
+schema_version
+implementation_digest
+bit_width
+threshold_policy
+ordered_record_signatures
+comparisons
+```
+
+`bit_width=64` and `threshold_policy=OBSERVATION_ONLY_NO_THRESHOLD`; Revision 5's JSON-null threshold is forbidden.
+There are exactly 52 `mirror.demo/D02PHashSignatureRecord/v1` items:
+
+```text
+schema_version
+image_record_ordinal
+image_record_id
+image_record_digest
+image_sha256
+phash_hex
+signature_digest
+```
+
+There are exactly 1,326 `mirror.demo/D02PHashComparisonRecord/v1` items:
+
+```text
+schema_version
+comparison_ordinal
+left_image_record_ordinal
+left_image_record_id
+left_signature_digest
+right_image_record_ordinal
+right_image_record_id
+right_signature_digest
+hamming_distance
+comparison_digest
+```
+
+Each comparison has `left ordinal < right ordinal`; order is `(left ordinal, right ordinal)`. PostgreSQL validates the
+complete `52 choose 2` universe and recomputes Hamming distance from both 64-bit hexadecimal signatures.
+
+#### `pair_quality_evidence`
+
+Exactly 24 `mirror.demo/D02PairScreeningRecord/v2` wrappers, ordered by source ordinal, priority index and magnitude
+ascending. Wrapper exact keys:
+
+```text
+schema_version
+pair_screening_record_payload
+pair_screening_record_digest
+```
+
+The digest is non-circular:
+
+```text
+pair_screening_record_digest = mirror_demo_digest(
+  "mirror.demo/D02PairScreeningRecord/v2",
+  pair_screening_record_payload
+)
+```
+
+Payload exact keys:
+
+```text
+pair_record_id
+source_ordinal
+source_authority_key
+source_admission_event_id
+source_asset_id
+source_asset_sha256
+dimension_key
+priority_index
+magnitude_ppm
+left
+right
+same_source_gate_passed
+opposed_direction_gate_passed
+equal_magnitude_gate_passed
+pair_side_gates_passed
+pair_quality_state
+pair_quality_ppm
+lock_conclusion
+lock_policy_digest
+pair_gate_passed
+```
+
+Both `left` and `right` have exactly:
+
+```text
+case_id
+case_specification_digest
+requested_direction
+requested_magnitude_ppm
+result_output_id
+result_asset_id
+result_asset_sha256
+result_asset_byte_size
+result_asset_mime_type
+result_asset_width
+result_asset_height
+asset_variant_id
+asset_variant_type
+lineage_digest
+image_record_id
+image_record_digest
+result_m3_record_digests
+measurement_gate_record_digest
+decode_structure_record_digest
+manual_decision_digest
+raw_signed_target_delta_fixed18
+raw_target_absolute_delta_fixed18
+raw_max_control_drift_fixed18
+measured_signed_delta_ppm
+drift_ppm
+automated_gate_digest
+automated_gate_passed
+manual_gate_passed
+side_gate_passed
+side_quality_state
+side_quality_component_ppm
+```
+
+Left is `DECREASE`, right is `INCREASE`. A failed side uses
+`side_quality_state=NOT_COMPUTED_GATE_FAILED` and component zero; a passing side uses `COMPUTED` and a component in
+`1..1_000_000`. Pair quality uses the same explicit computed/not-computed state and never uses null.
+
+#### `dimension_eligibility`
+
+Exactly three `mirror.demo/D02DimensionEligibilityRecord/v2` items in fixed jaw/chin/eye order:
+
+```text
+schema_version
+dimension_key
+priority_index
+ordered_pair_screening_record_digests
+ordered_side_automated_gate_digests
+sixteen_side_gate_digest
+eight_pair_gate_digest
+all_sixteen_side_gates_passed
+all_eight_pair_gates_passed
+all_manual_gates_passed
+global_exact_sha_gate_passed
+empty_lock_policy_gate_passed
+eligible
+failure_reasons
+record_digest
+```
+
+Each dimension binds exactly eight pair records and sixteen sides. `eligible` is the conjunction of the five booleans.
+`failure_reasons` is duplicate-free, follows a frozen enumeration order and exactly explains the false booleans.
+
+#### `fixed_priority_selection_trace`
+
+Exactly three `mirror.demo/D02SelectionTraceRecord/v1` items:
+
+```text
+schema_version
+selection_step
+dimension_key
+priority_index
+dimension_eligibility_record_digest
+eligible
+eligible_rank
+selection_decision
+selection_slot
+selected
+record_digest
+```
+
+Zero for rank or slot explicitly means not applicable. `selection_decision` is one of `SELECTED_SLOT_1`,
+`SELECTED_SLOT_2`, `ELIGIBLE_NOT_SELECTED`, `INELIGIBLE`. PostgreSQL recomputes the first two eligible dimensions by
+frozen priority; technical quality cannot reorder them.
+
+#### `selected_pair_manifest`
+
+For `PASSED`, exactly 16 `mirror.demo/D02SelectedPairManifestEntry/v2` records; for `FAILED`, an empty array. Exact keys:
+
+```text
+schema_version
+selected_pair_ordinal
+selected_dimension_slot
+dimension_key
+priority_index
+source_ordinal
+source_authority_key
+source_admission_event_id
+magnitude_ppm
+pair_record_id
+pair_screening_record_digest
+left_case_id
+left_result_asset_id
+left_result_asset_sha256
+left_asset_variant_id
+right_case_id
+right_result_asset_id
+right_result_asset_sha256
+right_asset_variant_id
+entry_digest
+```
+
+Order is selected dimension slot, source ordinal, magnitude ascending. Every field is an exact projection of one
+`pair_gate_passed=true` record in a selected dimension; digest-format or membership-only validation is insufficient.
+
+#### `network_and_runtime_boundary`
+
+Schema `mirror.demo/D02NetworkRuntimeBoundary/v2`, exact keys and required values:
+
+```text
+schema_version
+public_internet_egress = DENIED
+localhost_and_docker_internal_network = true
+proxy_environment_present = false
+production_provider_calls = 0
+runtime_generation_calls = 0
+boundary_receipt_digest
+```
+
+If this boundary is not established, the run stops before report insertion.
+
+### Report status and Gate derivation
+
+All reports require the complete universe:
+
+```text
+4 sources
+48 cases
+12 source M3 records
+96 M4 records
+144 result M3 records
+48 measurement records
+48 decode/structure records
+48 manual decisions
+52 image records
+52 pHash signatures
+1326 pHash comparisons
+24 pair records
+3 dimension records
+3 selection records
+```
+
+Status is exactly:
+
+```text
+PASSED iff
+  the full fixed universe exists
+  AND all report-global boundary and integrity Gates pass
+  AND exact_sha_gate_passed = true
+  AND at least two dimensions are eligible
+  AND selected dimensions are the first two eligible by frozen priority
+  AND selected manifest is the exact 16-record projection of those dimensions.
+
+FAILED iff
+  the full fixed universe exists
+  AND (a report-global full-cardinality Gate fails OR fewer than two dimensions are eligible)
+  AND selected dimensions, pairs and sides are empty
+  AND selected_pair_manifest_digest is SQL NULL and absent from canonical_payload.
+```
+
+The third dimension may fail while a report is `PASSED` if all global Gates pass and the first two eligible dimensions
+can be selected. This is the intended three-candidate/two-selection contract. A false `FAILED` report when every global
+Gate passes and at least two dimensions are eligible is rejected. `PREFLIGHT_AUTHORITY_STOP` and
+`EXECUTION_CARDINALITY_STOP` still create no database report.
+
+### Pair QA exact-content binding
+
+`DemoQuestionPair` remains row schema v2, but its QA schema becomes
+`mirror.demo/D02QuestionPairQAPayload/v2` with exactly:
+
+```text
+schema_version
+screening_report_id
+screening_report_digest
+pair_screening_record_schema_version
+pair_screening_record_digest
+pair_screening_record_payload
+```
+
+At insert, PostgreSQL resolves the unique report record by digest and requires schema equality, digest equality,
+byte-equivalent JSONB payload equality and successful digest recomputation. It then derives and compares every pair
+column, source admission and Asset, left/right result Asset and AssetVariant, lineage, dimension, magnitude, delta and
+quality field from that embedded exact payload. The report record must have `pair_gate_passed=true` and must appear in
+the selected manifest. Swapping two valid digests, changing one embedded field, or swapping both digest and payload
+while leaving the pair row inconsistent must all be rejected.
+
+### Private authority and tracked redaction
+
+The complete report payload is local private database authority. It contains source/result identifiers, per-image
+digests, raw fixed18 measurements and pHash observations and must not enter Git, ordinary CI artifacts, API responses or
+MEMORY. Tracked acceptance evidence is limited to report schema/status/report/content digests, ten policy/config/manifest
+digests, fixed counts, eligible and selected dimension names, aggregate dimension Gate digests, selected-pair manifest
+digest and the explicit non-production boundary. PostgreSQL proves structure, current database authority, mathematics,
+linkage and digest consistency; Principal-controlled runtime receipts and review authority prove private M3/M4 execution
+and human visual review. Revision 6 does not invent a new signing or production-attestation authority.
+
+### Revision 6 implementation gate
+
+```text
+D02_SCHEMA_IMPLEMENTATION: CLOSED_PENDING_REVISION_6_SOL_ACCEPT
+D02_PRIVATE_SCREENING: CLOSED
+D02_RESULT: NOT_VERIFIED
+D03_D12: DEPENDENCY_GATED
+FORMAL_PHASE_AUTHORITY: FALSE
+PRODUCTION_RELEASE: NOT_AUTHORIZED
+```
+
+An independent Sol architecture/schema review must accept the exact Revision 6 change-control and preregistration
+digests before migration, ORM or PostgreSQL tests may be revised. Review evidence is not `D02 TASK_ACCEPTED`.
