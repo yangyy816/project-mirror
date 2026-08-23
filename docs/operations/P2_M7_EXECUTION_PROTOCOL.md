@@ -9,7 +9,8 @@
 - Migration head: `0014_m5_eval_authority`
 - Architecture authority: ADR-022, ADR-025, ADR-043, ADR-049 and ADR-051.
 - Public API impact: none.
-- State: `COMMITTED`; this document is a T01 local governance candidate, not an implementation authorization.
+- State: `EXECUTING`; T01–T07 and R13 are accepted, while R14/T08 are accepted pending the milestone acceptance
+  closure's own same-SHA Gate.
 
 ## Objective
 
@@ -417,3 +418,35 @@ acceptance evidence, ADR-051, relevant accepted service contracts and the curren
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_ACTION: P2_M7_R14_CANDIDATE_COMMIT_AND_SAME_SHA_CI`
+
+## R14 tracked evidence / T08 recovery / milestone closure entry
+
+- Candidate `c15fd29340552f7c4d4b3348f862da6deb242986` completed run `32636243642`, attempt 1, with all three
+  mandatory jobs successful. The remote and local branch tips match the candidate with zero divergence.
+- Principal inspected all eight unexpired same-SHA artifacts and 12 fixed-relative members. Retained evidence binds
+  `0014_m5_eval_authority`, the unchanged OpenAPI digest, 75 zero-skip targeted M7 tests and eight passed boundary
+  checks. The exact-SHA full Python collection reports 814 passes plus one existing optional private-runtime skip and
+  includes the two real PostgreSQL subprocess composition tests.
+- Gitleaks SARIF has zero results; Docker reports five running/healthy services; Playwright 1.62.1 dependency and
+  Chromium acquisition plus five Browser Integration tests passed; Celery has no failure record. Protected path,
+  image, credential, signed-URL, Prompt, object-key and raw-Provider-payload scans are zero. The task-owned inspection
+  directory was deleted and verified absent.
+- Independent security/privacy/data/supply-chain review returned `PASS`. Independent Sol final review returned
+  `PASS_FOR_R14_EXACT_SHA_PREREQUISITE` and closed both prior T08 findings. Principal reviewed the actual composition,
+  replay/audit, redaction, cost and production fail-closed behavior and accepts R14/T08 subject to the documentation-
+  only acceptance closure's own same-SHA CI and artifact inspection.
+- The fixed targeted M7 JUnit artifact does not enumerate the two new composition tests, but the exact-SHA full Python
+  collection executed them. Both independent reviewers classified this as non-blocking evidence granularity, not a
+  missing execution or permission to weaken the Gate.
+- The milestone remains `EXECUTING`; production remains `NOT_DEPLOYED`, provenance/QA remain unavailable, and M5/M6
+  boundaries are unchanged. A separate freeze-state commit and exact-SHA Gate remain mandatory after closure CI.
+
+`P2_M7_R14: PASS_PENDING_ACCEPTANCE_CLOSURE_CI_AT_C15FD29_RUN_32636243642_ATTEMPT_1`
+
+`P2_M7_T08: PASS_PENDING_ACCEPTANCE_CLOSURE_CI_AT_C15FD29_RUN_32636243642_ATTEMPT_1`
+
+`P2_M7_GATE: PASS_PENDING_ACCEPTANCE_CLOSURE_CI`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_NEXT_ACTION: ACCEPTANCE_CLOSURE_CI`

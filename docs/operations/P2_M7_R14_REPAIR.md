@@ -2,7 +2,7 @@
 
 ## Status
 
-`EXECUTION_READY`
+`PASS_PENDING_ACCEPTANCE_CLOSURE_CI`
 
 ## Finding
 
@@ -93,3 +93,33 @@ independent security/privacy/license review, independent Sol final review, and P
 `P2_M7_T08: FAIL_AT_9584177_FINAL_REVIEW`
 
 `P2_M7_GATE: NOT_EVALUATED`
+
+## Tracked evidence and independent review
+
+- Candidate `c15fd29340552f7c4d4b3348f862da6deb242986` completed exact-SHA GitHub Actions run `32636243642`,
+  attempt 1. `quality-and-integration`, `secret-scan` and `docker-validation` all succeeded.
+- The quality job passed Ruff, strict mypy over 130 source files, PostgreSQL migration lifecycle/check, Linux Celery,
+  full Python (`814 passed` and one existing optional private-runtime skip), TypeScript/build, five Browser Integration
+  tests, unchanged contracts, dependency/license audits and CycloneDX 1.6 SBOM generation. The fixed M7 evidence slice
+  records 75 passes, zero failure/error/skip and eight passed boundary checks.
+- Principal inspected all eight unexpired artifacts and 12 fixed-relative members. They bind the exact candidate,
+  migration head `0014_m5_eval_authority` and unchanged OpenAPI digest. SARIF has zero results; Docker has five
+  running/healthy services; Playwright acquisition succeeded on attempt 1; Celery has no failure record. Protected
+  path/payload/image/credential scans are zero, and the task-owned inspection directory was deleted.
+- Independent security/privacy/data/supply-chain review returned `PASS` with no repair. Independent Sol final review
+  returned `PASS_FOR_R14_EXACT_SHA_PREREQUISITE` and closed the prior real-composition and replay/audit findings.
+  Principal independently reviewed and accepts the actual R14 diff subject to the milestone acceptance closure's own
+  same-SHA Gate.
+- The two new real PostgreSQL subprocess composition tests ran in the exact-SHA full Python collection but are not
+  enumerated by the fixed six-file targeted M7 JUnit slice. Both reviewers treated this as non-blocking evidence
+  granularity; no missing execution or Gate waiver is claimed.
+
+`P2_M7_R14: PASS_PENDING_ACCEPTANCE_CLOSURE_CI_AT_C15FD29_RUN_32636243642_ATTEMPT_1`
+
+`P2_M7_T08: PASS_PENDING_ACCEPTANCE_CLOSURE_CI_AT_C15FD29_RUN_32636243642_ATTEMPT_1`
+
+`P2_M7_GATE: PASS_PENDING_ACCEPTANCE_CLOSURE_CI`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_NEXT_ACTION: ACCEPTANCE_CLOSURE_CI`

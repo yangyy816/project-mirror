@@ -1369,3 +1369,24 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   `READY_FOR_TRACKED_EVIDENCE`, but remains unaccepted pending candidate commit, same-SHA three-job CI,
   eight-artifact inspection and new independent security/final reviews. T08 remains failed at `9584177`; the M7 Gate
   remains `NOT_EVALUATED`.
+
+## 2026-08-23 — P2-M7-R14 tracked evidence and T08 recovery pending closure CI
+
+- Candidate `c15fd29340552f7c4d4b3348f862da6deb242986` completed exact-SHA run `32636243642`, attempt 1, with
+  quality/integration, secret scan and Docker validation successful. A fresh command-scoped-proxy fetch confirmed the
+  local and remote branch tips match with zero ahead/behind divergence.
+- Principal inspected eight unexpired artifacts with 12 fixed-relative members. They bind the candidate,
+  `0014_m5_eval_authority` and unchanged OpenAPI digest. The fixed M7 slice has 75 zero-skip tests and eight passed
+  checks; the exact-SHA full Python collection has 814 passes and one existing optional private-runtime skip. Gitleaks
+  has zero results, Docker has five healthy services, Playwright acquisition passed on attempt 1, Celery has no failure
+  record, and protected path/payload/image/credential scans are zero. The inspection root was deleted.
+- Independent security/privacy/data/supply-chain review returned PASS. Independent Sol final review returned
+  `PASS_FOR_R14_EXACT_SHA_PREREQUISITE`, closing the prior real-composition and replay/audit findings. Principal reviewed
+  the actual R13/R14 diff and accepts R14/T08 subject to this docs-only acceptance closure's own same-SHA Gate.
+- The two new real PostgreSQL subprocess composition tests ran in the full exact-SHA Python collection but are not
+  enumerated in the fixed targeted M7 JUnit slice; both reviewers classified this as non-blocking evidence granularity.
+- P2-M7 remains `EXECUTING`; its technical Gate is `PASS_PENDING_ACCEPTANCE_CLOSURE_CI`. Production remains
+  `NOT_DEPLOYED`, provenance/QA remain unavailable, and M5/M6 states are unchanged. A separate freeze-state commit and
+  same-SHA Gate remain mandatory after closure CI.
+- Protected pre-existing `MEMORY.md` changes were not modified or staged. Durable-memory reconciliation is deferred
+  until they can be integrated without overwrite or adoption.

@@ -2,9 +2,11 @@
 
 ## Status and boundary
 
-`NOT_DEPLOYED`. This runbook covers the accepted internal P2 operation contract and the R14 candidate composition of
-accepted batch operations plus the read-only cost projection. R14 is not accepted until exact-SHA CI, artifact
-inspection and independent review complete. This is not an admin API, dashboard, collector, Provider integration or
+`NOT_DEPLOYED`. This runbook covers the accepted internal P2 operation contract and the R14 composition of accepted
+batch operations plus the read-only cost projection. Candidate `c15fd293` passed exact-SHA run `32636243642`, all
+eight artifacts were inspected, and the independent security and final reviews passed. R14/T08 and the technical Gate
+are accepted pending the documentation-only milestone acceptance closure CI; P2-M7 remains `EXECUTING` and a separate
+freeze-state Gate is still mandatory. This is not an admin API, dashboard, collector, Provider integration or
 production approval. P2-M5 fresh study and P2-M6 release/revoke remain closed.
 
 ## Cost projection meaning
@@ -31,7 +33,7 @@ converted without a new approved pricing/FX authority.
    construction.
 2. Request a batch cost summary through the T04 read port. It only reads accepted `GenerationBatch`,
    `GenerationItem`, and immutable `ProviderCostEvent` rows; it cannot create or modify evidence.
-   The R14 candidate exposes this projection only in configured non-production environments. Actual and estimated
+   The accepted R14 composition exposes this projection only in configured non-production environments. Actual and estimated
    amounts stay grouped by their own currency; pending and unavailable are counts rather than inferred money.
 3. Emit the fixed `synthetic_dataset.cost_summary.projected` event only after the read succeeds. The event contains
    opaque batch/policy/request references, actor, reason and allowlisted category counts. It contains no Prompt,

@@ -3,26 +3,26 @@
 ## Status
 
 - Milestone: `P2-M7 — Internal Operations, Cost and Observability`
-- State: `COMMITTED`
+- State: `EXECUTING`
 - Planning baseline: `fd64a313c3f2da534e3e019991f1cdb8352f5a74`
 - Migration head: `0014_m5_eval_authority`
-- Public API / OpenAPI: unchanged by T01.
+- Public API / OpenAPI: unchanged by P2-M7.
 - Production telemetry / CLI enablement: `NOT_DEPLOYED`.
 
 ## Mandatory evidence matrix
 
-| Gate               | Required evidence                                                   | Current status      |
-| ------------------ | ------------------------------------------------------------------- | ------------------- |
-| Scope              | internal CLI/application boundary; no public API/M5/M6 bypass       | T01 local candidate |
-| Authority          | PostgreSQL + accepted services remain source of truth               | pending T02–T05     |
-| Operator safety    | actor/reason/expected state and explicit environment                | pending T02–T06     |
-| Redaction          | no Prompt, key, URL, bytes, payload, path, secret or user data      | pending T02–T06     |
-| Cost               | actual/estimated/unavailable distinction and reproducible aggregate | pending T04–T06     |
-| Observability      | fixed allowlist, correlation, no collector overclaim                | pending T04–T06     |
-| Recovery           | duplicate, stale, cancel/crash/concurrency evidence                 | pending T05–T06     |
-| Contracts          | OpenAPI/generated TypeScript unchanged                              | pending T06–T07     |
-| CI                 | exact SHA, three jobs, eight readable artifacts                     | pending T07         |
-| Independent review | security/privacy/license and final review                           | pending T08         |
+| Gate               | Required evidence                                                   | Current status                           |
+| ------------------ | ------------------------------------------------------------------- | ---------------------------------------- |
+| Scope              | internal CLI/application boundary; no public API/M5/M6 bypass       | PASS at `c15fd293`; closure CI pending   |
+| Authority          | PostgreSQL + accepted services remain source of truth               | PASS at `c15fd293`; closure CI pending   |
+| Operator safety    | actor/reason/expected state and explicit environment                | PASS at `c15fd293`; closure CI pending   |
+| Redaction          | no Prompt, key, URL, bytes, payload, path, secret or user data      | PASS at `c15fd293`; closure CI pending   |
+| Cost               | actual/estimated/unavailable distinction and reproducible aggregate | PASS at `c15fd293`; closure CI pending   |
+| Observability      | fixed allowlist, correlation, no collector overclaim                | PASS at `c15fd293`; closure CI pending   |
+| Recovery           | duplicate, stale, cancel/crash/concurrency evidence                 | PASS at `c15fd293`; closure CI pending   |
+| Contracts          | OpenAPI/generated TypeScript unchanged                              | PASS at `c15fd293`; closure CI pending   |
+| CI                 | exact SHA, three jobs, eight readable artifacts                     | PASS — run `32636243642`, attempt 1      |
+| Independent review | security/privacy/license and final review                           | PASS for R14/T08 acceptance prerequisite |
 
 ## T01 local candidate
 
@@ -534,3 +534,46 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_TASK: R14_CANDIDATE_COMMIT_AND_SAME_SHA_CI`
+
+## P2-M7-R14 tracked evidence, T08 recovery and Principal acceptance
+
+- Candidate `c15fd29340552f7c4d4b3348f862da6deb242986` completed GitHub Actions run `32636243642`, attempt 1,
+  with `quality-and-integration`, `secret-scan` and `docker-validation` successful on that exact SHA. The fetched
+  remote branch and local branch both point to the candidate with zero ahead/behind divergence.
+- The quality job completed Ruff, strict mypy over 130 source files, PostgreSQL migration lifecycle and Alembic check,
+  Linux Celery, full Python (`814 passed`, one existing optional private-runtime skip), retained Phase 1 and P2-M1–M3
+  evidence, TypeScript quality/build, Playwright 1.62.1 and five Browser Integration tests, contract drift,
+  dependency/license audits and CycloneDX 1.6 SBOM generation. The fixed P2-M7 evidence slice records `75 passed`,
+  zero failure/error/skip and eight passed boundary checks.
+- Principal authenticated and content-inspected all eight unexpired artifacts and their 12 fixed-relative members.
+  Retained evidence binds the exact candidate, migration head `0014_m5_eval_authority` and unchanged OpenAPI digest
+  `a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`. Gitleaks SARIF contains zero
+  results; Docker evidence reports five running/healthy services; Playwright dependency and Chromium acquisition both
+  succeeded on attempt 1; Celery contains no failure record.
+- Artifact scans found no path escape, runner/private absolute path, image extension or image magic, credential
+  assignment, signed URL, Prompt field, object-key field or raw Provider payload. The task-owned inspection directory
+  was deleted and its absence verified.
+- The independent security/privacy/data/supply-chain review returned `PASS` and found no required repair. The
+  independent Sol final review returned `PASS_FOR_R14_EXACT_SHA_PREREQUISITE`, closing both findings from the earlier
+  `9584177` review. Principal independently reviewed the actual R13/R14 diff, application-service composition,
+  production fail-closed ordering, exact cancellation replay and cost-category/currency semantics.
+- The two real PostgreSQL subprocess composition tests are part of the exact-SHA full Python collection but are not
+  enumerated in the fixed six-file P2-M7 JUnit slice. Both independent reviewers classified this as non-blocking
+  evidence granularity rather than missing execution; no test or Gate is reinterpreted or skipped.
+- Principal accepts R14 and recovers T08 subject to this documentation-only acceptance closure receiving its own
+  same-SHA three-job CI and eight-artifact inspection. The technical M7 Gate is therefore PASS pending closure CI,
+  while the milestone remains `EXECUTING`. Production stays `NOT_DEPLOYED`; provenance/QA remain unavailable; M5 and
+  M6 states are unchanged.
+- `MEMORY.md` contains protected pre-existing user changes and is intentionally not modified or staged by this
+  closure. Durable-memory reconciliation is deferred until those changes can be safely integrated without adoption or
+  overwrite.
+
+`P2_M7_R14: PASS_PENDING_ACCEPTANCE_CLOSURE_CI_AT_C15FD29_RUN_32636243642_ATTEMPT_1`
+
+`P2_M7_T08: PASS_PENDING_ACCEPTANCE_CLOSURE_CI_AT_C15FD29_RUN_32636243642_ATTEMPT_1`
+
+`P2_M7_GATE: PASS_PENDING_ACCEPTANCE_CLOSURE_CI`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_NEXT_ACTION: ACCEPTANCE_CLOSURE_CI`
