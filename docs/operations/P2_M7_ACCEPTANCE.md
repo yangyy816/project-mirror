@@ -156,3 +156,35 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_TASK: T03_AUTHORIZED`
+
+## P2-M7-T03 internal CLI adapter acceptance
+
+- Candidate `5bca39236e2a77c03ea3c8dbeb81e0a9eb6a26a0` completed GitHub Actions run `32617351123`, attempt 1, with
+  `quality-and-integration`, `secret-scan` and `docker-validation` successful on that exact SHA. The quality job
+  completed Ruff, strict mypy, PostgreSQL migration lifecycle, Linux Celery, Python, retained Phase 1/P2-M1/P2-M2/P2-M3
+  evidence, TypeScript, Playwright install/download, Browser Integration, contract drift, dependency/license audit and
+  SBOM generation.
+- The candidate adds only the `mirror-dataset` package entrypoint, a thin first-party CLI adapter and deterministic
+  CLI tests. It has no SQL, HTTP, storage, Provider, task-runner, migration, public API/OpenAPI, dependency, model,
+  M5 research or M6 release/revoke behavior. Missing backends return a typed unavailable result; production is rejected
+  before dispatch; malformed or unknown arguments never echo their supplied value; rendered output is canonicalized to
+  the T02 allowlist.
+- Principal locally verified scoped T03 tests plus the full Python regression using a task-owned temporary root,
+  then deleted that root. The local result was `602 passed`, `162 skipped` and one existing dependency deprecation
+  warning; Ruff, strict mypy, contract drift and source scans were also successful. The normal Windows pytest temp root
+  remains ACL-blocked and was not modified.
+- Principal content-inspected all eight unexpired artifacts in a temporary directory and deleted it afterward. Every
+  artifact binds the exact candidate SHA and migration head `0014_m5_eval_authority`; SARIF has zero results, and the
+  content scan found zero image files, signed/private-path matches or credential-assignment matches.
+- Principal reviewed the actual candidate diff and evidence. `P2-M7-T03` is accepted. This accepts neither the M7
+  milestone Gate nor any T04–T08 behavior, enables no production operation and does not alter M5 or open M6.
+
+`P2_M7_T03: PASS_AT_5BCA392_RUN_32617351123_ATTEMPT_1`
+
+`P2_M7_T04: EXECUTION_READY`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_TASK: T04_AUTHORIZED`
