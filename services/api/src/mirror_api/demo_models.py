@@ -5,7 +5,9 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
+    Computed,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -24,11 +26,13 @@ from mirror_api.models import new_id, utcnow
 
 def _authority_constraints(
     table_name: str,
+    *,
+    schema_version_expression: str = "schema_version ~ '^mirror[.]demo/[A-Za-z0-9]+/v1$'",
 ) -> tuple[CheckConstraint | UniqueConstraint, ...]:
     return (
         CheckConstraint("id ~ '^[0-9a-f]{32}$'", name="id_shape"),
         CheckConstraint(
-            "schema_version ~ '^mirror[.]demo/[A-Za-z0-9]+/v1$'",
+            schema_version_expression,
             name="schema_version_shape",
         ),
         CheckConstraint(
@@ -127,32 +131,73 @@ class DemoSession(DemoAuthorityMixin, Base):
 class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
     __tablename__ = "demo_synthetic_identities"
 
-    formal_synthetic_identity_id: Mapped[str] = mapped_column(
+    formal_synthetic_identity_id: Mapped[str | None] = mapped_column(
         ForeignKey("synthetic_identities.id", ondelete="RESTRICT"),
         index=True,
-        nullable=False,
     )
     formal_canonical_asset_id: Mapped[str] = mapped_column(
         ForeignKey("assets.id", ondelete="RESTRICT"), index=True, nullable=False
     )
     formal_canonical_asset_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    formal_accepted_qa_run_id: Mapped[str] = mapped_column(
-        ForeignKey("synthetic_qa_runs.id", ondelete="RESTRICT"), index=True, nullable=False
+    formal_accepted_qa_run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("synthetic_qa_runs.id", ondelete="RESTRICT"), index=True
     )
-    formal_accepted_qa_snapshot_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    formal_accepted_qa_snapshot_digest: Mapped[str | None] = mapped_column(String(64))
     admission_sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     admission_action: Mapped[str] = mapped_column(String(16), nullable=False)
     admission_config_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     supersedes_id: Mapped[str | None] = mapped_column(
         ForeignKey("demo_synthetic_identities.id", ondelete="RESTRICT"), index=True
     )
+    source_output_id: Mapped[str | None] = mapped_column(String(128))
+    source_receipt_digest: Mapped[str | None] = mapped_column(String(64))
+    source_authority_digest: Mapped[str | None] = mapped_column(String(64))
+    source_qa_snapshot_digest: Mapped[str | None] = mapped_column(String(64))
+    source_landmark_digest: Mapped[str | None] = mapped_column(String(64))
+    source_measurement_digest: Mapped[str | None] = mapped_column(String(64))
+    source_provenance_digest: Mapped[str | None] = mapped_column(String(64))
+    source_fact_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    source_fact_snapshot_digest: Mapped[str | None] = mapped_column(String(64))
+    source_measurement_projection: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    source_measurement_projection_digest: Mapped[str | None] = mapped_column(String(64))
+    original_formal_identity_id_status: Mapped[str | None] = mapped_column(String(48))
+    adult_synthetic_attested: Mapped[bool | None] = mapped_column(Boolean)
+    importer_version: Mapped[str | None] = mapped_column(String(64))
+    import_config_digest: Mapped[str | None] = mapped_column(String(64))
+    source_authority_kind: Mapped[str] = mapped_column(
+        String(32),
+        Computed(
+            "CASE WHEN formal_synthetic_identity_id IS NOT NULL "
+            "THEN 'FORMAL_REFERENCE' ELSE 'DEMO_LOCAL_IMPORTED_COPY' END",
+            persisted=True,
+        ),
+        nullable=False,
+    )
+    source_authority_key: Mapped[str] = mapped_column(
+        String(64),
+        Computed(
+            "CASE WHEN formal_synthetic_identity_id IS NOT NULL "
+            "THEN mirror_demo_formal_source_authority_key(formal_synthetic_identity_id) "
+            "ELSE mirror_demo_local_source_authority_key(source_output_id, "
+            "formal_canonical_asset_id, formal_canonical_asset_sha256, "
+            "source_receipt_digest) END",
+            persisted=True,
+        ),
+        nullable=False,
+    )
 
     __table_args__ = (
-        *_authority_constraints(__tablename__),
+        *_authority_constraints(
+            __tablename__,
+            schema_version_expression=(
+                "schema_version IN ('mirror.demo/DemoSyntheticIdentity/v1',"
+                "'mirror.demo/DemoSyntheticIdentity/v2')"
+            ),
+        ),
         UniqueConstraint(
-            "formal_synthetic_identity_id",
+            "source_authority_key",
             "admission_sequence",
-            name="uq_demo_synthetic_identities_formal_sequence",
+            name="uq_demo_synthetic_identities_source_sequence",
         ),
         UniqueConstraint(
             "supersedes_id",
@@ -172,8 +217,78 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
             name="formal_canonical_asset_sha_shape",
         ),
         CheckConstraint(
+            "formal_accepted_qa_snapshot_digest IS NULL OR "
             "formal_accepted_qa_snapshot_digest ~ '^[0-9a-f]{64}$'",
             name="qa_snapshot_digest_shape",
+        ),
+        CheckConstraint(
+            "source_authority_kind IN ('FORMAL_REFERENCE','DEMO_LOCAL_IMPORTED_COPY')",
+            name="source_authority_kind",
+        ),
+        CheckConstraint(
+            "source_authority_key ~ '^[0-9a-f]{64}$'",
+            name="source_authority_key_shape",
+        ),
+        CheckConstraint(
+            "source_output_id IS NULL OR source_output_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'",
+            name="source_output_id_shape",
+        ),
+        CheckConstraint(
+            "(source_receipt_digest IS NULL OR source_receipt_digest ~ '^[0-9a-f]{64}$') "
+            "AND (source_authority_digest IS NULL OR source_authority_digest ~ '^[0-9a-f]{64}$') "
+            "AND (source_qa_snapshot_digest IS NULL OR "
+            "source_qa_snapshot_digest ~ '^[0-9a-f]{64}$') "
+            "AND (source_landmark_digest IS NULL OR source_landmark_digest ~ '^[0-9a-f]{64}$') "
+            "AND (source_measurement_digest IS NULL OR "
+            "source_measurement_digest ~ '^[0-9a-f]{64}$') "
+            "AND (source_provenance_digest IS NULL OR source_provenance_digest ~ '^[0-9a-f]{64}$') "
+            "AND (source_fact_snapshot_digest IS NULL OR "
+            "source_fact_snapshot_digest ~ '^[0-9a-f]{64}$') "
+            "AND (source_measurement_projection_digest IS NULL OR "
+            "source_measurement_projection_digest ~ '^[0-9a-f]{64}$') "
+            "AND (import_config_digest IS NULL OR import_config_digest ~ '^[0-9a-f]{64}$')",
+            name="local_digest_shapes",
+        ),
+        CheckConstraint(
+            "(source_fact_snapshot IS NULL OR jsonb_typeof(source_fact_snapshot) = 'object') "
+            "AND (source_measurement_projection IS NULL OR "
+            "jsonb_typeof(source_measurement_projection) = 'object')",
+            name="local_json_objects",
+        ),
+        CheckConstraint(
+            "(source_authority_kind = 'FORMAL_REFERENCE' "
+            "AND formal_synthetic_identity_id IS NOT NULL "
+            "AND formal_accepted_qa_run_id IS NOT NULL "
+            "AND formal_accepted_qa_snapshot_digest IS NOT NULL "
+            "AND source_output_id IS NULL AND source_receipt_digest IS NULL "
+            "AND source_authority_digest IS NULL AND source_qa_snapshot_digest IS NULL "
+            "AND source_landmark_digest IS NULL AND source_measurement_digest IS NULL "
+            "AND source_provenance_digest IS NULL AND source_fact_snapshot IS NULL "
+            "AND source_fact_snapshot_digest IS NULL "
+            "AND source_measurement_projection IS NULL "
+            "AND source_measurement_projection_digest IS NULL "
+            "AND original_formal_identity_id_status IS NULL "
+            "AND adult_synthetic_attested IS NULL AND importer_version IS NULL "
+            "AND import_config_digest IS NULL) OR "
+            "(source_authority_kind = 'DEMO_LOCAL_IMPORTED_COPY' "
+            "AND formal_synthetic_identity_id IS NULL "
+            "AND formal_accepted_qa_run_id IS NULL "
+            "AND formal_accepted_qa_snapshot_digest IS NULL "
+            "AND source_output_id IS NOT NULL AND source_receipt_digest IS NOT NULL "
+            "AND source_authority_digest IS NOT NULL "
+            "AND source_qa_snapshot_digest IS NOT NULL "
+            "AND source_landmark_digest IS NOT NULL "
+            "AND source_measurement_digest IS NOT NULL "
+            "AND source_provenance_digest IS NOT NULL "
+            "AND source_fact_snapshot IS NOT NULL "
+            "AND source_fact_snapshot_digest IS NOT NULL "
+            "AND source_measurement_projection IS NOT NULL "
+            "AND source_measurement_projection_digest IS NOT NULL "
+            "AND original_formal_identity_id_status = 'UNKNOWN_REDACTED_NOT_RECOVERED' "
+            "AND adult_synthetic_attested IS TRUE "
+            "AND importer_version = 'demo-d02-identity-importer-v2' "
+            "AND import_config_digest IS NOT NULL)",
+            name="source_mode_null_matrix",
         ),
         CheckConstraint(
             "supersedes_id IS NULL OR supersedes_id <> id", name="not_self_superseding"
@@ -373,6 +488,86 @@ class DemoSelfState(DemoAuthorityMixin, Base):
     )
 
 
+class DemoPairScreeningReport(DemoAuthorityMixin, Base):
+    __tablename__ = "demo_pair_screening_reports"
+
+    source_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    case_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    screening_policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    runtime_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    vision_model_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    topology_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    measurement_config_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    manual_review_policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    duplicate_policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    phash_implementation_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    report_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    report_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    case_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_m3_repeat_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    m4_execution_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    result_m3_repeat_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    manual_decision_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    exact_sha_record_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    phash_comparison_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    candidate_pair_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    selected_pair_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    selected_result_side_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    eligible_dimension_keys: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    selected_dimension_keys: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    selected_pair_manifest_digest: Mapped[str | None] = mapped_column(String(64))
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        UniqueConstraint("report_digest", name="uq_demo_pair_screening_reports_report_digest"),
+        CheckConstraint(
+            "schema_version = 'mirror.demo/D02PairScreeningReport/v1'",
+            name="exact_schema_version",
+        ),
+        CheckConstraint(
+            "source_manifest_digest ~ '^[0-9a-f]{64}$' "
+            "AND case_manifest_digest ~ '^[0-9a-f]{64}$' "
+            "AND screening_policy_digest ~ '^[0-9a-f]{64}$' "
+            "AND runtime_manifest_digest ~ '^[0-9a-f]{64}$' "
+            "AND vision_model_manifest_digest ~ '^[0-9a-f]{64}$' "
+            "AND topology_digest ~ '^[0-9a-f]{64}$' "
+            "AND measurement_config_digest ~ '^[0-9a-f]{64}$' "
+            "AND manual_review_policy_digest ~ '^[0-9a-f]{64}$' "
+            "AND duplicate_policy_digest ~ '^[0-9a-f]{64}$' "
+            "AND phash_implementation_digest ~ '^[0-9a-f]{64}$' "
+            "AND report_digest ~ '^[0-9a-f]{64}$' "
+            "AND (selected_pair_manifest_digest IS NULL OR "
+            "selected_pair_manifest_digest ~ '^[0-9a-f]{64}$')",
+            name="digest_shapes",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(report_payload) = 'object' "
+            "AND jsonb_typeof(eligible_dimension_keys) = 'array' "
+            "AND jsonb_typeof(selected_dimension_keys) = 'array'",
+            name="json_shapes",
+        ),
+        CheckConstraint("status IN ('PASSED','FAILED')", name="status"),
+        CheckConstraint(
+            "source_count = 4 AND case_count = 48 "
+            "AND source_m3_repeat_count = 12 AND m4_execution_count = 96 "
+            "AND result_m3_repeat_count = 144 AND manual_decision_count = 48 "
+            "AND exact_sha_record_count = 52 AND phash_comparison_count = 1326 "
+            "AND candidate_pair_count = 24 AND ("
+            "(status = 'PASSED' AND selected_pair_count = 16 "
+            "AND selected_result_side_count = 32 "
+            "AND jsonb_array_length(selected_dimension_keys) = 2 "
+            "AND selected_pair_manifest_digest IS NOT NULL) OR "
+            "(status = 'FAILED' AND selected_pair_count = 0 "
+            "AND selected_result_side_count = 0 "
+            "AND jsonb_array_length(selected_dimension_keys) = 0 "
+            "AND selected_pair_manifest_digest IS NULL))",
+            name="fixed_cardinality",
+        ),
+    )
+
+
 class DemoQuestionBank(DemoAuthorityMixin, Base):
     __tablename__ = "demo_question_banks"
 
@@ -382,10 +577,20 @@ class DemoQuestionBank(DemoAuthorityMixin, Base):
     stopping_version: Mapped[str] = mapped_column(String(64), nullable=False)
     neighborhood_version: Mapped[str] = mapped_column(String(64), nullable=False)
     pair_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    dimension_manifest: Mapped[list[Any]] = mapped_column(JSONB, nullable=False)
+    dimension_manifest: Mapped[list[Any] | dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    screening_report_id: Mapped[str | None] = mapped_column(
+        ForeignKey("demo_pair_screening_reports.id", ondelete="RESTRICT"), index=True
+    )
+    screening_report_digest: Mapped[str | None] = mapped_column(String(64))
 
     __table_args__ = (
-        *_authority_constraints(__tablename__),
+        *_authority_constraints(
+            __tablename__,
+            schema_version_expression=(
+                "schema_version IN ('mirror.demo/DemoQuestionBank/v1',"
+                "'mirror.demo/DemoQuestionBank/v2')"
+            ),
+        ),
         UniqueConstraint("version", name="uq_demo_question_banks_version"),
         CheckConstraint(
             "algorithm_config_digest ~ '^[0-9a-f]{64}$'",
@@ -396,8 +601,17 @@ class DemoQuestionBank(DemoAuthorityMixin, Base):
             name="pair_manifest_digest_shape",
         ),
         CheckConstraint(
-            "jsonb_typeof(dimension_manifest) = 'array'",
-            name="dimension_manifest_array",
+            "(schema_version = 'mirror.demo/DemoQuestionBank/v1' "
+            "AND jsonb_typeof(dimension_manifest) = 'array' "
+            "AND screening_report_id IS NULL AND screening_report_digest IS NULL) OR "
+            "(schema_version = 'mirror.demo/DemoQuestionBank/v2' "
+            "AND jsonb_typeof(dimension_manifest) = 'object' "
+            "AND screening_report_id IS NOT NULL AND screening_report_digest IS NOT NULL)",
+            name="versioned_dimension_manifest",
+        ),
+        CheckConstraint(
+            "screening_report_digest IS NULL OR screening_report_digest ~ '^[0-9a-f]{64}$'",
+            name="screening_report_digest_shape",
         ),
     )
 
@@ -437,9 +651,19 @@ class DemoQuestionPair(DemoAuthorityMixin, Base):
     right_delta_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
     pair_quality_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
     qa_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    screening_report_id: Mapped[str | None] = mapped_column(
+        ForeignKey("demo_pair_screening_reports.id", ondelete="RESTRICT"), index=True
+    )
+    screening_report_digest: Mapped[str | None] = mapped_column(String(64))
 
     __table_args__ = (
-        *_authority_constraints(__tablename__),
+        *_authority_constraints(
+            __tablename__,
+            schema_version_expression=(
+                "schema_version IN ('mirror.demo/DemoQuestionPair/v1',"
+                "'mirror.demo/DemoQuestionPair/v2')"
+            ),
+        ),
         UniqueConstraint(
             "question_bank_id",
             "demo_synthetic_identity_id",
@@ -465,6 +689,17 @@ class DemoQuestionPair(DemoAuthorityMixin, Base):
             name="pair_quality_range",
         ),
         CheckConstraint("jsonb_typeof(qa_payload) = 'object'", name="qa_payload_object"),
+        CheckConstraint(
+            "(schema_version = 'mirror.demo/DemoQuestionPair/v1' "
+            "AND screening_report_id IS NULL AND screening_report_digest IS NULL) OR "
+            "(schema_version = 'mirror.demo/DemoQuestionPair/v2' "
+            "AND screening_report_id IS NOT NULL AND screening_report_digest IS NOT NULL)",
+            name="versioned_report_binding",
+        ),
+        CheckConstraint(
+            "screening_report_digest IS NULL OR screening_report_digest ~ '^[0-9a-f]{64}$'",
+            name="screening_report_digest_shape",
+        ),
         Index(
             "ix_demo_question_pairs_routing",
             "question_bank_id",
@@ -1751,6 +1986,7 @@ DEMO_TABLE_NAMES = frozenset(
         "demo_face_observation_repeats",
         "demo_baseline_face_models",
         "demo_self_states",
+        "demo_pair_screening_reports",
         "demo_question_banks",
         "demo_question_pairs",
         "demo_questionnaire_runs",

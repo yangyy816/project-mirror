@@ -36,6 +36,7 @@ from mirror_api.demo_models import (
     DemoIdentityConstraints,
     DemoImageVersion,
     DemoJobBinding,
+    DemoPairScreeningReport,
     DemoPreferenceEvent,
     DemoQuestionBank,
     DemoQuestionnaireRun,
@@ -61,7 +62,8 @@ from mirror_api.models import (
     utcnow,
 )
 
-DEMO_REVISION = "demo_0002_p3_p7_command_auth"
+DEMO_REVISION = "demo_0003_d02_import_auth"
+D02_DOWN_REVISION = "demo_0002_p3_p7_command_auth"
 BASE_DEMO_REVISION = "demo_0001_p3_p7_core"
 FORMAL_DOWN_REVISION = "0014_m5_eval_authority"
 GENESIS_DIGEST = "0" * 64
@@ -80,7 +82,7 @@ def _canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
 
-def _digest(schema_version: str, payload: dict[str, Any]) -> str:
+def _digest(schema_version: str, payload: Any) -> str:
     authority = f"{schema_version}\n{_canonical_json(payload)}".encode()
     return hashlib.sha256(authority).hexdigest()
 
@@ -95,10 +97,15 @@ def _build_demo_row(
     *,
     row_id: str | None = None,
     created_at: datetime | None = None,
+    authority_schema_version: str | None = None,
     **authority_fields: Any,
 ) -> Any:
     authority_created_at = created_at or datetime(2026, 8, 23, 3, 0, tzinfo=UTC)
-    schema_version = f"mirror.demo/{model.__name__}/v1"
+    schema_version = authority_schema_version or (
+        "mirror.demo/DemoSyntheticIdentity/v2"
+        if model is DemoSyntheticIdentity
+        else f"mirror.demo/{model.__name__}/v1"
+    )
     row = model(
         id=row_id or new_id(),
         schema_version=schema_version,
@@ -116,8 +123,46 @@ def _build_demo_row(
             payload[column.name] = None
         else:
             payload[column.name] = _authority_time(value) if isinstance(value, datetime) else value
+    if model is DemoSyntheticIdentity and schema_version.endswith("/v2"):
+        formal_identity_id = authority_fields.get("formal_synthetic_identity_id")
+        if formal_identity_id is not None:
+            source_authority_kind = "FORMAL_REFERENCE"
+            source_authority_key = _digest(
+                "mirror.demo/SourceAuthorityKey/v1",
+                {
+                    "formal_synthetic_identity_id": formal_identity_id,
+                    "source_authority_kind": source_authority_kind,
+                },
+            )
+        else:
+            source_authority_kind = "DEMO_LOCAL_IMPORTED_COPY"
+            source_authority_key = _digest(
+                "mirror.demo/SourceAuthorityKey/v1",
+                {
+                    "formal_canonical_asset_id": authority_fields["formal_canonical_asset_id"],
+                    "source_asset_sha256": authority_fields["formal_canonical_asset_sha256"],
+                    "source_authority_kind": source_authority_kind,
+                    "source_output_id": authority_fields["source_output_id"],
+                    "source_receipt_digest": authority_fields["source_receipt_digest"],
+                },
+            )
+        payload["source_authority_kind"] = source_authority_kind
+        payload["source_authority_key"] = source_authority_key
     row.canonical_payload = payload
     row.content_digest = _digest(schema_version, payload)
+    if model is DemoSyntheticIdentity and schema_version.endswith("/v2") and row_id is None:
+        row.id = _digest(
+            "mirror.demo/DemoSyntheticIdentityAdmissionEventId/v2",
+            {
+                "admission_action": authority_fields["admission_action"],
+                "admission_config_digest": authority_fields["admission_config_digest"],
+                "admission_sequence": authority_fields["admission_sequence"],
+                "canonical_payload_digest": row.content_digest,
+                "source_authority_key": source_authority_key,
+                "source_authority_kind": source_authority_kind,
+                "supersedes_id": authority_fields.get("supersedes_id"),
+            },
+        )[:32]
     return row
 
 
@@ -244,8 +289,17 @@ def _insert_command_binding(
 
 
 def _truncate_demo_authority(session: Session) -> None:
-    table_list = ", ".join(sorted(DEMO_TABLE_NAMES))
-    session.execute(text(f"TRUNCATE TABLE {table_list} CASCADE"))
+    existing_demo_tables = set(
+        session.scalars(
+            text(
+                "SELECT tablename FROM pg_tables "
+                "WHERE schemaname='public' AND tablename LIKE 'demo_%'"
+            )
+        )
+    )
+    table_list = ", ".join(sorted(DEMO_TABLE_NAMES & existing_demo_tables))
+    if table_list:
+        session.execute(text(f"TRUNCATE TABLE {table_list} CASCADE"))
     session.execute(
         text("DELETE FROM asset_variants WHERE variant_type LIKE 'demo_p3_p7\\_%' ESCAPE '\\'")
     )
@@ -418,6 +472,532 @@ def _result_variant(
     session.add(variant)
     session.commit()
     return result_asset, variant
+
+
+def _d02_result_variant(
+    session: Session, source_asset: Asset, *, marker: str
+) -> tuple[Asset, AssetVariant]:
+    result_asset = Asset(
+        id=new_id(),
+        owner_user_id=None,
+        asset_role="synthetic",
+        internal_purpose="synthetic_dataset",
+        storage_key=f"demo-d02-selected/{marker}/{new_id()}",
+        mime_type=source_asset.mime_type,
+        byte_size=source_asset.byte_size,
+        width=source_asset.width,
+        height=source_asset.height,
+        sha256=hashlib.sha256(f"d02-result/{marker}/{new_id()}".encode()).hexdigest(),
+        synthetic=True,
+        is_ai_generated=False,
+        is_ai_modified=True,
+    )
+    variant = AssetVariant(
+        id=new_id(),
+        source_asset_id=source_asset.id,
+        result_asset_id=result_asset.id,
+        variant_type="demo_p3_p7_geometry_v1",
+    )
+    session.add_all((result_asset, variant))
+    return result_asset, variant
+
+
+def _insert_local_d02_identity(
+    session: Session, *, marker: str
+) -> tuple[Asset, DemoSyntheticIdentity]:
+    source_asset = Asset(
+        id=new_id(),
+        owner_user_id=None,
+        asset_role="synthetic",
+        internal_purpose="synthetic_dataset",
+        storage_key=f"demo-d02-recovered/{marker}/{new_id()}",
+        mime_type="image/png",
+        byte_size=68,
+        width=1,
+        height=1,
+        sha256=hashlib.sha256(f"d02-source/{marker}/{new_id()}".encode()).hexdigest(),
+        synthetic=True,
+        is_ai_generated=True,
+        is_ai_modified=False,
+    )
+    session.add(source_asset)
+    session.commit()
+
+    source_output_id = f"d02-source-{marker}"
+    source_receipt_digest = hashlib.sha256(f"receipt/{marker}".encode()).hexdigest()
+    source_authority_digest = hashlib.sha256(f"authority/{marker}".encode()).hexdigest()
+    source_qa_snapshot_digest = hashlib.sha256(f"qa/{marker}".encode()).hexdigest()
+    source_landmark_digest = hashlib.sha256(f"landmarks/{marker}".encode()).hexdigest()
+    source_provenance_digest = hashlib.sha256(f"provenance/{marker}".encode()).hexdigest()
+    qa_policy_digest = hashlib.sha256(f"qa-policy/{marker}".encode()).hexdigest()
+    dimensions = (
+        "cheekbone_width",
+        "chin_height",
+        "eye_spacing",
+        "jaw_width",
+        "mouth_width",
+        "nose_width",
+    )
+    raw_entries = [
+        {
+            "dimension_key": dimension_key,
+            "support_state": "SUPPORTED",
+            "raw_value_fixed18": "0.100000000000000000",
+            "raw_confidence_fixed18": "0.900000000000000000",
+            "raw_reliability_fixed18": "0.900000000000000000",
+            "unsupported_reason": None,
+        }
+        for dimension_key in dimensions
+    ]
+    projection_entries = [
+        {
+            "dimension_key": dimension_key,
+            "support_state": "SUPPORTED",
+            "value_ppm": 100_000,
+            "unit": "FACE_HEIGHT_PPM",
+            "confidence_ppm": 900_000,
+            "reliability_ppm": 900_000,
+            "unsupported_reason": None,
+        }
+        for dimension_key in dimensions
+    ]
+    source_manifest_digest = "eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4"
+    dimension_manifest_digest = "d4ffa375cf861ec6873270cd4b1c03c4270672f96dee4b8f71ae0678103ad33a"
+    raw_measurement_authority = {
+        "measurement_version": "demo-d02-face-height-normalized-measurement-v1",
+        "decimal_serialization_version": "demo-d02-decimal-fixed18-v1",
+        "source_p2_candidate_manifest_content_digest": source_manifest_digest,
+        "dimension_authority_manifest_content_digest": dimension_manifest_digest,
+        "ordered_entries": raw_entries,
+    }
+    raw_measurement_authority_digest = _digest(
+        "mirror.demo/D02RawMeasurementAuthority/v1", raw_measurement_authority
+    )
+    source_measurement_projection = {
+        "measurement_version": "demo-d02-face-height-normalized-measurement-v1",
+        "measurement_projection_version": "demo-d02-morphology-projection-v1",
+        "measurement_quantization_version": "demo-d02-round-half-even-ppm-v1",
+        "source_p2_candidate_manifest_content_digest": source_manifest_digest,
+        "dimension_authority_manifest_content_digest": dimension_manifest_digest,
+        "ordered_entries": projection_entries,
+    }
+    source_measurement_projection_digest = _digest(
+        "mirror.demo/D02MorphologyProjection/v1", source_measurement_projection
+    )
+    source_fact_snapshot = {
+        "source_output_id": source_output_id,
+        "source_asset_sha256": source_asset.sha256,
+        "source_asset_byte_size": source_asset.byte_size,
+        "source_asset_mime_type": source_asset.mime_type,
+        "source_asset_width": source_asset.width,
+        "source_asset_height": source_asset.height,
+        "source_receipt_digest": source_receipt_digest,
+        "source_authority_digest": source_authority_digest,
+        "qa_policy_digest": qa_policy_digest,
+        "source_qa_snapshot_digest": source_qa_snapshot_digest,
+        "source_landmark_digest": source_landmark_digest,
+        "source_measurement_digest": raw_measurement_authority_digest,
+        "source_provenance_digest": source_provenance_digest,
+        "source_measurement_projection": source_measurement_projection,
+        "source_measurement_projection_digest": source_measurement_projection_digest,
+        "raw_measurement_authority": raw_measurement_authority,
+        "raw_measurement_authority_digest": raw_measurement_authority_digest,
+        "adult_synthetic_attested": True,
+        "original_formal_identity_id_status": "UNKNOWN_REDACTED_NOT_RECOVERED",
+        "measurement_projection_version": "demo-d02-morphology-projection-v1",
+        "measurement_quantization_version": "demo-d02-round-half-even-ppm-v1",
+        "source_p2_candidate_manifest_content_digest": source_manifest_digest,
+        "dimension_authority_manifest_content_digest": dimension_manifest_digest,
+    }
+    source_fact_snapshot_digest = _digest(
+        "mirror.demo/RecoveredSyntheticIdentityFacts/v2", source_fact_snapshot
+    )
+    admission = _insert_demo_row(
+        session,
+        DemoSyntheticIdentity,
+        formal_synthetic_identity_id=None,
+        formal_canonical_asset_id=source_asset.id,
+        formal_canonical_asset_sha256=source_asset.sha256,
+        formal_accepted_qa_run_id=None,
+        formal_accepted_qa_snapshot_digest=None,
+        admission_sequence=1,
+        admission_action="ADMIT",
+        admission_config_digest=hashlib.sha256(f"admission-config/{marker}".encode()).hexdigest(),
+        supersedes_id=None,
+        source_output_id=source_output_id,
+        source_receipt_digest=source_receipt_digest,
+        source_authority_digest=source_authority_digest,
+        source_qa_snapshot_digest=source_qa_snapshot_digest,
+        source_landmark_digest=source_landmark_digest,
+        source_measurement_digest=raw_measurement_authority_digest,
+        source_provenance_digest=source_provenance_digest,
+        source_fact_snapshot=source_fact_snapshot,
+        source_fact_snapshot_digest=source_fact_snapshot_digest,
+        source_measurement_projection=source_measurement_projection,
+        source_measurement_projection_digest=source_measurement_projection_digest,
+        original_formal_identity_id_status="UNKNOWN_REDACTED_NOT_RECOVERED",
+        adult_synthetic_attested=True,
+        importer_version="demo-d02-identity-importer-v2",
+        import_config_digest=hashlib.sha256(f"import-config/{marker}".encode()).hexdigest(),
+    )
+    return source_asset, admission
+
+
+def _insert_d02_question_bank(
+    session: Session,
+    primary_source: Asset,
+    primary_admission: DemoSyntheticIdentity,
+) -> tuple[DemoQuestionBank, DemoQuestionPair]:
+    marker = new_id()
+
+    source_authorities: list[tuple[Asset, DemoSyntheticIdentity]] = [
+        (primary_source, primary_admission)
+    ]
+    for source_index in range(1, 4):
+        source_asset, admission = _insert_local_d02_identity(
+            session, marker=f"{marker}-{source_index}"
+        )
+        source_authorities.append((source_asset, admission))
+    source_authorities.sort(
+        key=lambda authority: (
+            str(authority[1].source_authority_key),
+            authority[1].id,
+        )
+    )
+
+    selected_dimensions = ("jaw_width", "chin_height")
+    magnitudes = (15_000, 30_000)
+
+    def evidence_digest(label: str) -> str:
+        return hashlib.sha256(f"d02/{marker}/{label}".encode()).hexdigest()
+
+    selected_records: list[dict[str, Any]] = []
+    for source_index, (_, admission) in enumerate(source_authorities):
+        for dimension_key in selected_dimensions:
+            for magnitude_ppm in magnitudes:
+                selected_records.append(
+                    {
+                        "dimension_key": dimension_key,
+                        "magnitude_ppm": magnitude_ppm,
+                        "pair_screening_record_digest": evidence_digest(
+                            f"pair/{source_index}/{dimension_key}/{magnitude_ppm}"
+                        ),
+                        "source_admission_event_id": admission.id,
+                    }
+                )
+
+    ordered_source_manifest = [
+        {
+            "source_admission_event_id": admission.id,
+            "source_asset_id": source_asset.id,
+            "source_asset_sha256": source_asset.sha256,
+            "source_authority_key": admission.source_authority_key,
+        }
+        for source_asset, admission in source_authorities
+    ]
+    ordered_case_manifest = [
+        {"case_index": index, "case_digest": evidence_digest(f"case/{index}")}
+        for index in range(48)
+    ]
+    dimension_eligibility = [
+        {
+            "dimension_key": dimension_key,
+            "priority_index": priority_index,
+            "eligible": priority_index <= 2,
+            "sixteen_side_gate_digest": evidence_digest(f"dimension/{dimension_key}/sixteen-side"),
+            "eight_pair_gate_digest": evidence_digest(f"dimension/{dimension_key}/eight-pair"),
+            "failure_reasons": [] if priority_index <= 2 else ["NOT_SELECTED"],
+        }
+        for priority_index, dimension_key in enumerate(
+            ("jaw_width", "chin_height", "eye_spacing"), start=1
+        )
+    ]
+    source_manifest_digest = _digest(
+        "mirror.demo/D02SourceAuthorityManifest/v1", ordered_source_manifest
+    )
+    case_manifest_digest = _digest("mirror.demo/D02GeometryCaseManifest/v1", ordered_case_manifest)
+    report_digests = {
+        "source_manifest_digest": source_manifest_digest,
+        "case_manifest_digest": case_manifest_digest,
+        "screening_policy_digest": evidence_digest("screening-policy"),
+        "runtime_manifest_digest": evidence_digest("runtime-manifest"),
+        "vision_model_manifest_digest": evidence_digest("vision-model-manifest"),
+        "topology_digest": evidence_digest("topology"),
+        "measurement_config_digest": evidence_digest("measurement-config"),
+        "manual_review_policy_digest": evidence_digest("manual-review-policy"),
+        "duplicate_policy_digest": evidence_digest("duplicate-policy"),
+        "phash_implementation_digest": evidence_digest("phash-implementation"),
+    }
+    report_payload: dict[str, Any] = {
+        "schema_and_policy": report_digests,
+        "ordered_source_manifest": ordered_source_manifest,
+        "ordered_case_manifest": ordered_case_manifest,
+        "source_m3_repeat_evidence": [evidence_digest(f"source-m3/{index}") for index in range(12)],
+        "m4_repeat_evidence": [evidence_digest(f"m4/{index}") for index in range(96)],
+        "result_m3_repeat_evidence": [
+            evidence_digest(f"result-m3/{index}") for index in range(144)
+        ],
+        "measurement_gate_evidence": [
+            evidence_digest(f"measurement-gate/{index}") for index in range(48)
+        ],
+        "decode_structure_immutability_evidence": [
+            evidence_digest(f"decode/{index}") for index in range(48)
+        ],
+        "manual_review_evidence": [evidence_digest(f"manual/{index}") for index in range(48)],
+        "exact_duplicate_evidence": {
+            "image_records": [evidence_digest(f"image-record/{index}") for index in range(52)],
+            "exact_sha_gate_passed": True,
+        },
+        "phash_observation_evidence": {
+            "implementation_digest": report_digests["phash_implementation_digest"],
+            "comparisons": [evidence_digest(f"phash/{index}") for index in range(1326)],
+        },
+        "pair_quality_evidence": [evidence_digest(f"pair-quality/{index}") for index in range(24)],
+        "dimension_eligibility": dimension_eligibility,
+        "fixed_priority_selection_trace": [
+            {"dimension_key": entry["dimension_key"], "selected": index < 2}
+            for index, entry in enumerate(dimension_eligibility)
+        ],
+        "selected_pair_manifest": selected_records,
+        "network_and_runtime_boundary": {
+            "public_internet_egress": "DENIED",
+            "localhost_and_docker_internal_network": True,
+            "production_provider_calls": 0,
+            "runtime_generation_calls": 0,
+        },
+    }
+    report_schema = "mirror.demo/D02PairScreeningReport/v1"
+    report_digest = _digest(report_schema, report_payload)
+    selected_pair_manifest_digest = _digest(
+        "mirror.demo/D02SelectedPairManifest/v1", selected_records
+    )
+    report = _build_demo_row(
+        DemoPairScreeningReport,
+        row_id=_digest(
+            "mirror.demo/D02PairScreeningReportId/v1",
+            {"report_digest": report_digest},
+        )[:32],
+        authority_schema_version=report_schema,
+        source_manifest_digest=report_digests["source_manifest_digest"],
+        case_manifest_digest=report_digests["case_manifest_digest"],
+        screening_policy_digest=report_digests["screening_policy_digest"],
+        runtime_manifest_digest=report_digests["runtime_manifest_digest"],
+        vision_model_manifest_digest=report_digests["vision_model_manifest_digest"],
+        topology_digest=report_digests["topology_digest"],
+        measurement_config_digest=report_digests["measurement_config_digest"],
+        manual_review_policy_digest=report_digests["manual_review_policy_digest"],
+        duplicate_policy_digest=report_digests["duplicate_policy_digest"],
+        phash_implementation_digest=report_digests["phash_implementation_digest"],
+        report_payload=report_payload,
+        report_digest=report_digest,
+        status="PASSED",
+        source_count=4,
+        case_count=48,
+        source_m3_repeat_count=12,
+        m4_execution_count=96,
+        result_m3_repeat_count=144,
+        manual_decision_count=48,
+        exact_sha_record_count=52,
+        phash_comparison_count=1326,
+        candidate_pair_count=24,
+        selected_pair_count=16,
+        selected_result_side_count=32,
+        eligible_dimension_keys=list(selected_dimensions),
+        selected_dimension_keys=list(selected_dimensions),
+        selected_pair_manifest_digest=selected_pair_manifest_digest,
+    )
+    session.add(report)
+    session.commit()
+
+    algorithm_config_digest = evidence_digest("algorithm-config")
+    dimension_manifest = {
+        "schema_version": "mirror.demo/D02QuestionBankDimensionManifest/v1",
+        "screening_report_id": report.id,
+        "screening_report_digest": report.report_digest,
+        "source_manifest_digest": report.source_manifest_digest,
+        "source_p2_candidate_manifest_content_digest": (
+            "eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4"
+        ),
+        "dimension_authority_manifest_content_digest": (
+            "d4ffa375cf861ec6873270cd4b1c03c4270672f96dee4b8f71ae0678103ad33a"
+        ),
+        "selected_pair_manifest_digest": selected_pair_manifest_digest,
+        "selected_dimensions": [
+            {
+                "dimension_key": entry["dimension_key"],
+                "priority_index": entry["priority_index"],
+                "sixteen_side_gate_digest": entry["sixteen_side_gate_digest"],
+                "eight_pair_gate_digest": entry["eight_pair_gate_digest"],
+            }
+            for entry in dimension_eligibility[:2]
+        ],
+    }
+    bank_id = _digest(
+        "mirror.demo/D02QuestionBankId/v1",
+        {
+            "algorithm_config_digest": algorithm_config_digest,
+            "screening_report_digest": report.report_digest,
+            "screening_report_id": report.id,
+            "selected_pair_manifest_digest": selected_pair_manifest_digest,
+        },
+    )[:32]
+    bank = _build_demo_row(
+        DemoQuestionBank,
+        row_id=bank_id,
+        authority_schema_version="mirror.demo/DemoQuestionBank/v2",
+        version=f"fixture-bank-{marker}",
+        algorithm_config_digest=algorithm_config_digest,
+        routing_version="fixture-route-v2",
+        stopping_version="fixture-stop-v2",
+        neighborhood_version="fixture-neighborhood-v2",
+        pair_manifest_digest=selected_pair_manifest_digest,
+        dimension_manifest=dimension_manifest,
+        screening_report_id=report.id,
+        screening_report_digest=report.report_digest,
+    )
+
+    pair_materials: list[tuple[dict[str, Any], Asset, AssetVariant, Asset, AssetVariant]] = []
+    for pair_index, selected_record in enumerate(selected_records):
+        source_asset, _ = source_authorities[pair_index // 4]
+        left_asset, left_variant = _d02_result_variant(
+            session, source_asset, marker=f"{marker}/{pair_index}/left"
+        )
+        right_asset, right_variant = _d02_result_variant(
+            session, source_asset, marker=f"{marker}/{pair_index}/right"
+        )
+        pair_materials.append(
+            (selected_record, left_asset, left_variant, right_asset, right_variant)
+        )
+    session.commit()
+
+    pairs: list[DemoQuestionPair] = []
+    for pair_index, material in enumerate(pair_materials):
+        selected_record, left_asset, left_variant, right_asset, right_variant = material
+        source_asset, admission = source_authorities[pair_index // 4]
+        dimension_key = str(selected_record["dimension_key"])
+        magnitude_ppm = int(selected_record["magnitude_ppm"])
+        magnitude_fixed18 = f"0.{magnitude_ppm:06d}{'0' * 12}"
+
+        def side_payload(
+            *,
+            side: str,
+            result_asset: Asset,
+            result_variant: AssetVariant,
+            pair_index_value: int,
+            source_asset_value: Asset,
+            magnitude_ppm_value: int,
+            magnitude_fixed18_value: str,
+        ) -> dict[str, Any]:
+            requested_direction = "DECREASE" if side == "left" else "INCREASE"
+            signed_delta = -magnitude_ppm_value if side == "left" else magnitude_ppm_value
+            return {
+                "case_id": new_id(),
+                "case_specification_digest": evidence_digest(
+                    f"case-spec/{pair_index_value}/{side}"
+                ),
+                "result_asset_id": result_asset.id,
+                "result_asset_sha256": result_asset.sha256,
+                "asset_variant_id": result_variant.id,
+                "asset_variant_type": "demo_p3_p7_geometry_v1",
+                "lineage_digest": _digest(
+                    "mirror.demo/D02AssetVariantLineage/v1",
+                    {
+                        "result_asset_id": result_asset.id,
+                        "result_asset_sha256": result_asset.sha256,
+                        "source_asset_id": source_asset_value.id,
+                        "source_asset_sha256": source_asset_value.sha256,
+                        "variant_type": "demo_p3_p7_geometry_v1",
+                    },
+                ),
+                "requested_direction": requested_direction,
+                "requested_magnitude_ppm": magnitude_ppm_value,
+                "raw_signed_target_delta_fixed18": (
+                    f"-{magnitude_fixed18_value}" if side == "left" else magnitude_fixed18_value
+                ),
+                "raw_target_absolute_delta_fixed18": magnitude_fixed18_value,
+                "raw_max_control_drift_fixed18": "0.000000000000000000",
+                "measured_signed_delta_ppm": signed_delta,
+                "drift_ppm": 0,
+                "automated_gate_digest": evidence_digest(
+                    f"automated-gate/{pair_index_value}/{side}"
+                ),
+                "manual_decision_digest": evidence_digest(
+                    f"manual-decision/{pair_index_value}/{side}"
+                ),
+                "side_quality_component_ppm": 900_000,
+            }
+
+        qa_payload = {
+            "schema_version": "mirror.demo/D02QuestionPairQAPayload/v1",
+            "screening_report_id": report.id,
+            "screening_report_digest": report.report_digest,
+            "pair_screening_record_digest": selected_record["pair_screening_record_digest"],
+            "source_authority_key": admission.source_authority_key,
+            "source_admission_event_id": admission.id,
+            "source_asset": {"id": source_asset.id, "sha256": source_asset.sha256},
+            "dimension_key": dimension_key,
+            "magnitude_ppm": magnitude_ppm,
+            "left": side_payload(
+                side="left",
+                result_asset=left_asset,
+                result_variant=left_variant,
+                pair_index_value=pair_index,
+                source_asset_value=source_asset,
+                magnitude_ppm_value=magnitude_ppm,
+                magnitude_fixed18_value=magnitude_fixed18,
+            ),
+            "right": side_payload(
+                side="right",
+                result_asset=right_asset,
+                result_variant=right_variant,
+                pair_index_value=pair_index,
+                source_asset_value=source_asset,
+                magnitude_ppm_value=magnitude_ppm,
+                magnitude_fixed18_value=magnitude_fixed18,
+            ),
+            "pair_quality_ppm": 900_000,
+            "lock_conclusion": "COMPATIBLE",
+            "lock_policy_digest": evidence_digest(f"lock-policy/{pair_index}"),
+        }
+        pair_id = _digest(
+            "mirror.demo/D02QuestionPairId/v1",
+            {
+                "dimension_key": dimension_key,
+                "magnitude_ppm": magnitude_ppm,
+                "pair_screening_record_digest": selected_record["pair_screening_record_digest"],
+                "question_bank_id": bank.id,
+                "source_admission_event_id": admission.id,
+            },
+        )[:32]
+        pairs.append(
+            _build_demo_row(
+                DemoQuestionPair,
+                row_id=pair_id,
+                authority_schema_version="mirror.demo/DemoQuestionPair/v2",
+                question_bank_id=bank.id,
+                demo_synthetic_identity_id=admission.id,
+                source_asset_id=source_asset.id,
+                source_asset_sha256=source_asset.sha256,
+                left_asset_id=left_asset.id,
+                left_asset_sha256=left_asset.sha256,
+                right_asset_id=right_asset.id,
+                right_asset_sha256=right_asset.sha256,
+                left_asset_variant_id=left_variant.id,
+                right_asset_variant_id=right_variant.id,
+                dimension_key=dimension_key,
+                magnitude_ppm=magnitude_ppm,
+                left_delta_ppm=-magnitude_ppm,
+                right_delta_ppm=magnitude_ppm,
+                pair_quality_ppm=900_000,
+                qa_payload=qa_payload,
+                screening_report_id=report.id,
+                screening_report_digest=report.report_digest,
+            )
+        )
+    session.add(bank)
+    session.add_all(pairs)
+    session.commit()
+    return bank, pairs[0]
 
 
 def _insert_episode(
@@ -919,43 +1499,9 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         uncertainty={"jaw_width_ppm": 0},
         routing_eligibility={"eligible": 1},
     )
-    bank = _insert_demo_row(
-        session,
-        DemoQuestionBank,
-        version=f"fixture-bank-{new_id()}",
-        algorithm_config_digest=digest("5"),
-        routing_version="fixture-route-v1",
-        stopping_version="fixture-stop-v1",
-        neighborhood_version="fixture-neighborhood-v1",
-        pair_manifest_digest=digest("6"),
-        dimension_manifest=[{"key": "jaw_width"}],
-    )
-    left_asset, left_variant = _result_variant(
-        session, source_asset, sha=digest("7"), variant_type="demo_p3_p7_question_left"
-    )
-    right_asset, right_variant = _result_variant(
-        session, source_asset, sha=digest("8"), variant_type="demo_p3_p7_question_right"
-    )
-    question_pair = _insert_demo_row(
-        session,
-        DemoQuestionPair,
-        question_bank_id=bank.id,
-        demo_synthetic_identity_id=synthetic_identity.id,
-        source_asset_id=source_asset.id,
-        source_asset_sha256=source_asset.sha256,
-        left_asset_id=left_asset.id,
-        left_asset_sha256=left_asset.sha256,
-        right_asset_id=right_asset.id,
-        right_asset_sha256=right_asset.sha256,
-        left_asset_variant_id=left_variant.id,
-        right_asset_variant_id=right_variant.id,
-        dimension_key="jaw_width",
-        magnitude_ppm=10_000,
-        left_delta_ppm=-10_000,
-        right_delta_ppm=10_000,
-        pair_quality_ppm=1_000_000,
-        qa_payload={"passed": 1},
-    )
+    bank, question_pair = _insert_d02_question_bank(session, source_asset, synthetic_identity)
+    pair_screening_report = session.get(DemoPairScreeningReport, bank.screening_report_id)
+    assert pair_screening_report is not None
     questionnaire_run = _insert_demo_row(
         session,
         DemoQuestionnaireRun,
@@ -1363,6 +1909,7 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         "repeats": repeats,
         "baseline": baseline,
         "self_state": self_state,
+        "pair_screening_report": pair_screening_report,
         "bank": bank,
         "question_pair": question_pair,
         "questionnaire_run": questionnaire_run,
@@ -1455,7 +2002,7 @@ def test_synthetic_admission_rejects_mismatched_formal_snapshot(session: Session
         fields = {**valid_fields, **mismatch}
         with pytest.raises(
             DBAPIError,
-            match="Demo synthetic identity snapshot does not match formal authority",
+            match="D02 formal source snapshot does not match live authority",
         ):
             _insert_demo_row(session, DemoSyntheticIdentity, **fields)
         session.rollback()
@@ -1556,7 +2103,7 @@ def test_synthetic_admission_rejects_invalid_successor_chain_and_snapshot(
         fields.update(chain_override)
         with pytest.raises(
             DBAPIError,
-            match="Demo synthetic identity admission chain is not latest",
+            match="D02 source admission chain is not the next alternating event",
         ):
             _insert_demo_row(session, DemoSyntheticIdentity, **fields)
         session.rollback()
@@ -1575,7 +2122,7 @@ def test_synthetic_admission_rejects_invalid_successor_chain_and_snapshot(
     ).hexdigest()
     with pytest.raises(
         DBAPIError,
-        match="Demo synthetic revocation must copy the frozen snapshot",
+        match="D02 revocation must copy source Asset authority",
     ):
         _insert_demo_row(session, DemoSyntheticIdentity, **wrong_snapshot)
     session.rollback()
@@ -1623,7 +2170,12 @@ def test_stale_synthetic_admission_cannot_create_observation_or_pair(
         )
     session.rollback()
 
-    pair = graph["question_pair"]
+    pair = session.scalar(
+        select(DemoQuestionPair)
+        .where(DemoQuestionPair.demo_synthetic_identity_id == stale_admit.id)
+        .order_by(DemoQuestionPair.id)
+    )
+    assert pair is not None
     with pytest.raises(
         DBAPIError,
         match="Demo synthetic admission is not the current eligible row",
@@ -1631,6 +2183,7 @@ def test_stale_synthetic_admission_cannot_create_observation_or_pair(
         _insert_demo_row(
             session,
             DemoQuestionPair,
+            authority_schema_version=pair.schema_version,
             question_bank_id=pair.question_bank_id,
             demo_synthetic_identity_id=stale_admit.id,
             source_asset_id=pair.source_asset_id,
@@ -1647,6 +2200,8 @@ def test_stale_synthetic_admission_cannot_create_observation_or_pair(
             right_delta_ppm=pair.right_delta_ppm,
             pair_quality_ppm=pair.pair_quality_ppm,
             qa_payload=pair.qa_payload,
+            screening_report_id=pair.screening_report_id,
+            screening_report_digest=pair.screening_report_digest,
         )
     session.rollback()
 
@@ -1703,7 +2258,7 @@ def test_revoke_can_capture_formal_asset_tombstone_but_readmit_fails_closed(
         session.add(readmit)
         with pytest.raises(
             DBAPIError,
-            match="Demo synthetic identity snapshot does not match formal authority",
+            match="D02 formal source snapshot does not match live authority",
         ):
             session.flush()
     finally:
@@ -1774,6 +2329,68 @@ def test_concurrent_synthetic_admission_successor_has_one_winner(
     assert latest is not None
     assert latest.admission_sequence == 2
     assert latest.admission_action == "REVOKE"
+
+
+def test_concurrent_local_synthetic_admission_successor_has_one_key_scoped_winner(
+    session: Session,
+) -> None:
+    _, first_admit = _insert_local_d02_identity(
+        session, marker=f"concurrent-local-admit-{new_id()}"
+    )
+    source_authority_key = first_admit.source_authority_key
+    assert isinstance(source_authority_key, str)
+    assert len(source_authority_key) == 64
+    database_url = os.environ["TEST_DATABASE_URL"]
+    base_fields = {
+        column.name: getattr(first_admit, column.name)
+        for column in first_admit.__table__.columns
+        if column.name
+        not in _NON_AUTHORITY_COLUMNS | {"source_authority_kind", "source_authority_key"}
+    }
+    base_fields.update(
+        admission_sequence=2,
+        admission_action="REVOKE",
+        supersedes_id=first_admit.id,
+    )
+    barrier = Barrier(2)
+
+    def append_successor(marker: str) -> str:
+        engine = create_engine(database_url)
+        try:
+            with Session(engine) as worker_session:
+                fields = {
+                    **base_fields,
+                    "admission_config_digest": hashlib.sha256(marker.encode()).hexdigest(),
+                }
+                worker_session.add(_build_demo_row(DemoSyntheticIdentity, **fields))
+                barrier.wait(timeout=10)
+                try:
+                    worker_session.commit()
+                except (DBAPIError, IntegrityError):
+                    worker_session.rollback()
+                    return "conflict"
+                return "created"
+        finally:
+            engine.dispose()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = sorted(executor.map(append_successor, ("local-left", "local-right")))
+    assert results == ["conflict", "created"]
+    session.expire_all()
+    authority_rows = list(
+        session.scalars(
+            select(DemoSyntheticIdentity)
+            .where(DemoSyntheticIdentity.source_authority_key == source_authority_key)
+            .order_by(
+                DemoSyntheticIdentity.admission_sequence,
+                DemoSyntheticIdentity.id,
+            )
+        )
+    )
+    assert len(authority_rows) == 2
+    assert [row.admission_sequence for row in authority_rows] == [1, 2]
+    assert authority_rows[-1].admission_action == "REVOKE"
+    assert authority_rows[-1].source_authority_key == source_authority_key
 
 
 def test_image_verification_matching_bidirectional_edge_commits(session: Session) -> None:
@@ -2574,7 +3191,7 @@ def test_accepted_episode_requires_exact_root_to_leaf_trajectory(
 
 
 def test_demo_metadata_and_database_objects_match(session: Session) -> None:
-    assert len(DEMO_TABLE_NAMES) == 28
+    assert len(DEMO_TABLE_NAMES) == 29
     database_tables = set(
         session.scalars(
             text(
@@ -2591,7 +3208,7 @@ def test_demo_metadata_and_database_objects_match(session: Session) -> None:
                 "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_authority_%'"
             )
         )
-        == 28
+        == 29
     )
     assert (
         session.scalar(
@@ -2665,7 +3282,7 @@ def test_demo_orm_and_database_foreign_keys_match(session: Session) -> None:
         actual_count += len(actual)
         assert actual == expected, table_name
 
-    assert expected_count == actual_count == 87
+    assert expected_count == actual_count == 89
 
 
 def test_canonical_json_digest_and_integer_numeric_authority(session: Session) -> None:
@@ -3517,15 +4134,26 @@ def test_empty_downgrade_and_reupgrade_lifecycle(
     config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
     config.set_main_option("sqlalchemy.url", database_url)
 
-    command.downgrade(config, BASE_DEMO_REVISION)
-    assert session.scalar(text("SELECT version_num FROM alembic_version")) == BASE_DEMO_REVISION
-    assert session.scalar(text("SELECT to_regclass('demo_command_bindings') IS NULL"))
-    command.upgrade(config, DEMO_REVISION)
-    assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
-    assert session.scalar(text("SELECT to_regclass('demo_command_bindings') IS NOT NULL"))
-
-    command.downgrade(config, FORMAL_DOWN_REVISION)
     try:
+        command.downgrade(config, D02_DOWN_REVISION)
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
+            D02_DOWN_REVISION
+        )
+        assert session.scalar(text("SELECT to_regclass('demo_pair_screening_reports') IS NULL"))
+        assert session.scalar(text("SELECT to_regclass('demo_command_bindings') IS NOT NULL"))
+        command.upgrade(config, DEMO_REVISION)
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+        assert session.scalar(text("SELECT to_regclass('demo_pair_screening_reports') IS NOT NULL"))
+
+        command.downgrade(config, BASE_DEMO_REVISION)
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
+            BASE_DEMO_REVISION
+        )
+        assert session.scalar(text("SELECT to_regclass('demo_command_bindings') IS NULL"))
+        command.upgrade(config, DEMO_REVISION)
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+
+        command.downgrade(config, FORMAL_DOWN_REVISION)
         assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
             FORMAL_DOWN_REVISION
         )
@@ -3559,20 +4187,25 @@ def test_populated_command_authority_blocks_downgrade_to_demo_base(
     config.set_main_option("sqlalchemy.url", database_url)
     session.close()
 
-    with pytest.raises(DBAPIError, match="command authority downgrade blocked"):
-        command.downgrade(config, BASE_DEMO_REVISION)
+    try:
+        with pytest.raises(DBAPIError, match="command authority downgrade blocked"):
+            command.downgrade(config, BASE_DEMO_REVISION)
 
-    engine = create_engine(database_url)
-    with engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
-        assert (
-            connection.scalar(
-                text("SELECT count(*) FROM demo_command_bindings WHERE id=:binding_id"),
-                {"binding_id": binding_id},
+        engine = create_engine(database_url)
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
+                DEMO_REVISION
             )
-            == 1
-        )
-    engine.dispose()
+            assert (
+                connection.scalar(
+                    text("SELECT count(*) FROM demo_command_bindings WHERE id=:binding_id"),
+                    {"binding_id": binding_id},
+                )
+                == 1
+            )
+        engine.dispose()
+    finally:
+        command.upgrade(config, DEMO_REVISION)
 
 
 def test_populated_downgrade_fails_closed(
@@ -3586,38 +4219,25 @@ def test_populated_downgrade_fails_closed(
     config.set_main_option("sqlalchemy.url", database_url)
     session.close()
 
-    with pytest.raises(DBAPIError, match="downgrade blocked by populated table"):
-        command.downgrade(config, FORMAL_DOWN_REVISION)
+    try:
+        with pytest.raises(DBAPIError, match="downgrade blocked by populated table"):
+            command.downgrade(config, FORMAL_DOWN_REVISION)
 
-    engine = create_engine(database_url)
-    with engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
-        assert (
-            connection.scalar(
-                text("SELECT count(*) FROM demo_actors WHERE id=:actor_id"),
-                {"actor_id": actor_id},
+        engine = create_engine(database_url)
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
+                DEMO_REVISION
             )
-            == 1
-        )
-        assert (
-            connection.scalar(
-                text(
-                    "SELECT count(*) FROM pg_trigger "
-                    "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_authority_%'"
+            assert (
+                connection.scalar(
+                    text("SELECT count(*) FROM demo_actors WHERE id=:actor_id"),
+                    {"actor_id": actor_id},
                 )
+                == 1
             )
-            == 28
-        )
-        assert (
-            connection.scalar(
-                text(
-                    "SELECT count(*) FROM pg_trigger "
-                    "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_terminal_binding_%'"
-                )
-            )
-            == 4
-        )
-    engine.dispose()
+        engine.dispose()
+    finally:
+        command.upgrade(config, DEMO_REVISION)
 
 
 @pytest.mark.parametrize(
@@ -3707,8 +4327,18 @@ def test_populated_formal_demo_authority_blocks_downgrade(
         "job_attempt": "Demo JobAttempt authority",
         "asset_variant": "Demo AssetVariant authority",
     }[populated_authority]
-    with pytest.raises(DBAPIError, match=expected_message):
-        command.downgrade(config, FORMAL_DOWN_REVISION)
+    try:
+        with pytest.raises(DBAPIError, match=expected_message):
+            command.downgrade(config, FORMAL_DOWN_REVISION)
+
+        engine = create_engine(database_url)
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
+                DEMO_REVISION
+            )
+        engine.dispose()
+    finally:
+        command.upgrade(config, DEMO_REVISION)
 
     engine = create_engine(database_url)
     with engine.connect() as connection:
@@ -3720,15 +4350,6 @@ def test_populated_formal_demo_authority_blocks_downgrade(
                     "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_authority_%'"
                 )
             )
-            == 28
-        )
-        assert (
-            connection.scalar(
-                text(
-                    "SELECT count(*) FROM pg_trigger "
-                    "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_terminal_binding_%'"
-                )
-            )
-            == 4
+            == 29
         )
     engine.dispose()
