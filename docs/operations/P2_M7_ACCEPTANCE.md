@@ -188,3 +188,44 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_TASK: T04_AUTHORIZED`
+
+## P2-M7-R08 to R11 / T04 Principal acceptance
+
+- The linear T04/CI-evidence repair chain `67d005e` -> `2110f33` -> `b6bbf0f` -> `dcb831a` ->
+  `8fdd24341a21899fd67393baa4b67e0df769181c` is accepted only through the final R11 candidate. R08–R10
+  remain historical repair evidence; their individual CI outcomes do not replace the exact R11 evidence.
+- Candidate `8fdd24341a21899fd67393baa4b67e0df769181c` completed GitHub Actions run `32622260268`, attempt 1, with
+  `quality-and-integration`, `secret-scan` and `docker-validation` successful on that exact SHA. The quality job
+  completed Ruff, strict mypy, PostgreSQL migration lifecycle, Linux Celery, 774 Python passes with one existing
+  non-mandatory skip, retained Phase 1/P2-M1/P2-M2/P2-M3 evidence, TypeScript, Playwright install/download,
+  Browser Integration, contract drift, dependency/license audit and SBOM generation.
+- Principal content-inspected all eight unexpired artifacts in a task-created temporary directory and deleted it
+  afterward. All eight are metadata-bound to the exact candidate SHA; the 11 archive members have no
+  runner/workspace/private path, image, credential, signed URL, Prompt, object-key or Provider-payload finding.
+  Four retained evidence JSON files bind the SHA and migration head `0014_m5_eval_authority`; the fixed-name
+  `gitleaks-results.sarif` member has zero results.
+- Independent security/privacy/data/supply-chain review and independent Sol final review both passed. They confirmed
+  that R11 retains the Gitleaks scan while replacing its artifact with a fixed staged member, malformed JSON/JSONL
+  sanitizer errors never echo raw input, and the T04 cost/operational-event read models remain payload-free,
+  PostgreSQL-authoritative and within the frozen M7 boundary.
+- Principal reviewed the complete T04/R08–R11 diff, local targeted/static evidence, same-SHA CI/artifacts and both
+  independent reviews. Principal accepts `P2-M7-R08` through `P2-M7-R11` and `P2-M7-T04`. This accepts neither the
+  M7 milestone Gate nor T06–T08 behavior, enables no production operation, does not alter M5 and does not open M6.
+
+`P2_M7_R08: PASS_THROUGH_FINAL_R11_8FDD243_RUN_32622260268_ATTEMPT_1`
+
+`P2_M7_R09: PASS_THROUGH_FINAL_R11_8FDD243_RUN_32622260268_ATTEMPT_1`
+
+`P2_M7_R10: PASS_THROUGH_FINAL_R11_8FDD243_RUN_32622260268_ATTEMPT_1`
+
+`P2_M7_R11: PASS_AT_8FDD243_RUN_32622260268_ATTEMPT_1`
+
+`P2_M7_T04: PASS_AT_8FDD243_RUN_32622260268_ATTEMPT_1`
+
+`P2_M7_T05: EXECUTION_READY_PENDING_T04_ACCEPTANCE_CLOSURE_CI`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_TASK: T04_ACCEPTANCE_CLOSURE_CI`
