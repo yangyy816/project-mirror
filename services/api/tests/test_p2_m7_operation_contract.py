@@ -8,6 +8,10 @@ import pytest
 
 from mirror_api.synthetic_dataset.operations import (
     DatasetOperationCommand,
+    DatasetOperationCostAggregate,
+    DatasetOperationCostAvailability,
+    DatasetOperationCostClassification,
+    DatasetOperationCostSummary,
     DatasetOperationKind,
     DatasetOperationOutcome,
     DatasetOperationProjection,
@@ -188,6 +192,105 @@ def test_operation_contract_rejects_nonallowlisted_projection_currency_without_e
     assert unsafe_currency not in str(raised.value)
 
 
+def test_operation_contract_keeps_cost_categories_and_currencies_separate() -> None:
+    summary = DatasetOperationCostSummary(
+        availability=DatasetOperationCostAvailability.MIXED,
+        actual=(
+            DatasetOperationCostAggregate(
+                classification=DatasetOperationCostClassification.ACTUAL,
+                currency="CNY",
+                amount_micros=11,
+                event_count=1,
+            ),
+        ),
+        estimated=(
+            DatasetOperationCostAggregate(
+                classification=DatasetOperationCostClassification.ESTIMATED,
+                currency="USD",
+                amount_micros=7,
+                event_count=1,
+            ),
+        ),
+        unavailable_item_count=1,
+        pending_item_count=2,
+        total_item_count=3,
+    )
+    projection = DatasetOperationProjection(
+        target_status="RUNNING",
+        event_count=2,
+        cost_summary=summary,
+    )
+
+    assert projection.currency is None
+    assert projection.amount_micros is None
+    assert projection.cost_summary == summary
+    assert summary.actual[0].currency == "CNY"
+    assert summary.estimated[0].currency == "USD"
+
+
+def test_operation_contract_rejects_inconsistent_or_duplicate_cost_summary() -> None:
+    actual = DatasetOperationCostAggregate(
+        classification=DatasetOperationCostClassification.ACTUAL,
+        currency="CNY",
+        amount_micros=11,
+        event_count=1,
+    )
+    with pytest.raises(DatasetOperationRejected) as inconsistent:
+        DatasetOperationCostSummary(
+            availability=DatasetOperationCostAvailability.ACTUAL,
+            actual=(actual,),
+            estimated=(),
+            unavailable_item_count=0,
+            pending_item_count=1,
+            total_item_count=1,
+        )
+    with pytest.raises(DatasetOperationRejected) as duplicate:
+        DatasetOperationCostSummary(
+            availability=DatasetOperationCostAvailability.ACTUAL,
+            actual=(actual, actual),
+            estimated=(),
+            unavailable_item_count=0,
+            pending_item_count=0,
+            total_item_count=1,
+        )
+
+    assert inconsistent.value.code == duplicate.value.code == "operation_result_invalid"
+
+
+def test_operation_contract_binds_typed_cost_summary_to_cost_operation() -> None:
+    summary = DatasetOperationCostSummary(
+        availability=DatasetOperationCostAvailability.UNAVAILABLE,
+        actual=(),
+        estimated=(),
+        unavailable_item_count=1,
+        pending_item_count=0,
+        total_item_count=1,
+    )
+    with pytest.raises(DatasetOperationRejected) as missing:
+        DatasetOperationResult(
+            operation=DatasetOperationKind.COST_SUMMARY,
+            outcome=DatasetOperationOutcome.SUCCEEDED,
+            code="operation_completed",
+            target_id="a" * 32,
+            request_id="b" * 32,
+            projection=DatasetOperationProjection(target_status="FAILED"),
+        )
+    with pytest.raises(DatasetOperationRejected) as wrong_kind:
+        DatasetOperationResult(
+            operation=DatasetOperationKind.BATCH_STATUS,
+            outcome=DatasetOperationOutcome.SUCCEEDED,
+            code="operation_completed",
+            target_id="a" * 32,
+            request_id="b" * 32,
+            projection=DatasetOperationProjection(
+                target_status="FAILED",
+                cost_summary=summary,
+            ),
+        )
+
+    assert missing.value.code == wrong_kind.value.code == "operation_result_invalid"
+
+
 @pytest.mark.parametrize(
     ("field", "value", "code"),
     [
@@ -281,6 +384,38 @@ async def test_operation_contract_redacts_forged_backend_projection_currency_and
     assert result.code == "operation_projection_count_invalid"
     assert "SECRET_COUNT" not in str(result)
     assert "SECRET_CURRENCY" not in str(result)
+
+
+@pytest.mark.asyncio
+async def test_operation_contract_redacts_forged_backend_cost_summary() -> None:
+    value = command(operation=DatasetOperationKind.COST_SUMMARY, expected_target_state="RUNNING")
+    forged_summary = object.__new__(DatasetOperationCostSummary)
+    object.__setattr__(forged_summary, "availability", "SECRET_AVAILABILITY")
+    object.__setattr__(forged_summary, "actual", ())
+    object.__setattr__(forged_summary, "estimated", ())
+    object.__setattr__(forged_summary, "unavailable_item_count", 0)
+    object.__setattr__(forged_summary, "pending_item_count", 1)
+    object.__setattr__(forged_summary, "total_item_count", 1)
+    forged_projection = object.__new__(DatasetOperationProjection)
+    object.__setattr__(forged_projection, "target_status", "RUNNING")
+    object.__setattr__(forged_projection, "event_count", 0)
+    object.__setattr__(forged_projection, "currency", None)
+    object.__setattr__(forged_projection, "amount_micros", None)
+    object.__setattr__(forged_projection, "cost_summary", forged_summary)
+    forged_result = object.__new__(DatasetOperationResult)
+    object.__setattr__(forged_result, "operation", value.operation)
+    object.__setattr__(forged_result, "outcome", DatasetOperationOutcome.SUCCEEDED)
+    object.__setattr__(forged_result, "code", "operation_completed")
+    object.__setattr__(forged_result, "target_id", value.target_id)
+    object.__setattr__(forged_result, "request_id", value.request_id)
+    object.__setattr__(forged_result, "projection", forged_projection)
+
+    result = await SyntheticDatasetOperationService(
+        backends={DatasetOperationKind.COST_SUMMARY: Backend(result=forged_result)}
+    ).execute(value)
+
+    assert result.code == "operation_result_invalid"
+    assert "SECRET_AVAILABILITY" not in str(result)
 
 
 @pytest.mark.asyncio

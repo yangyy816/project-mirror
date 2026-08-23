@@ -23,6 +23,9 @@ _ID = re.compile(r"[0-9a-f]{32}\Z")
 _CODE = re.compile(r"[a-z][a-z0-9_]{2,63}\Z")
 _ACTOR = re.compile(r"[a-z][a-z0-9._-]{2,63}\Z")
 _CURRENCIES = frozenset({"CNY", "USD"})
+_BATCH_STATUSES = frozenset(
+    {"DRAFT", "QUEUED", "RUNNING", "COMPLETED", "PARTIAL", "FAILED", "CANCELLED"}
+)
 _TERMINAL_ITEM_STATUSES = frozenset({"RAW_STORED", "GENERATION_FAILED", "CANCELLED"})
 _PENDING_ITEM_STATUSES = frozenset({"REQUESTED", "GENERATING"})
 
@@ -32,6 +35,7 @@ class CostProjectionCode(StrEnum):
     INVALID_ACTOR = "cost_projection_actor_invalid"
     INVALID_AMOUNT = "cost_projection_amount_invalid"
     INVALID_BATCH = "cost_projection_batch_invalid"
+    INVALID_BATCH_STATUS = "cost_projection_batch_status_invalid"
     INVALID_COST_KIND = "cost_projection_kind_invalid"
     INVALID_COUNTS = "cost_projection_counts_invalid"
     INVALID_CURRENCY = "cost_projection_currency_invalid"
@@ -81,6 +85,7 @@ class CostSummary:
 
     batch_id: str
     generation_policy_id: str
+    batch_status: str
     actual: tuple[MonetaryCostAggregate, ...]
     estimated: tuple[MonetaryCostAggregate, ...]
     unavailable_item_count: int
@@ -90,6 +95,8 @@ class CostSummary:
     def __post_init__(self) -> None:
         if _ID.fullmatch(self.batch_id) is None or _ID.fullmatch(self.generation_policy_id) is None:
             raise CostProjectionRejected(CostProjectionCode.INVALID_BATCH)
+        if type(self.batch_status) is not str or self.batch_status not in _BATCH_STATUSES:
+            raise CostProjectionRejected(CostProjectionCode.INVALID_BATCH_STATUS)
         if not all(
             isinstance(item, MonetaryCostAggregate)
             and item.classification is CostClassification.ACTUAL
@@ -205,6 +212,7 @@ class PostgresCostSummaryReadModel:
         return CostSummary(
             batch_id=batch.id,
             generation_policy_id=batch.generation_policy_id,
+            batch_status=batch.status,
             actual=actual,
             estimated=estimated,
             unavailable_item_count=unavailable,

@@ -44,6 +44,7 @@ def test_cost_summary_keeps_actual_estimated_and_unavailable_distinct() -> None:
     summary = CostSummary(
         batch_id="a" * 32,
         generation_policy_id="b" * 32,
+        batch_status="RUNNING",
         actual=(
             MonetaryCostAggregate(
                 classification=CostClassification.ACTUAL,
@@ -98,6 +99,19 @@ def test_cost_summary_keeps_actual_estimated_and_unavailable_distinct() -> None:
             ),
             CostProjectionCode.INVALID_ACTOR,
         ),
+        (
+            lambda: CostSummary(
+                batch_id="a" * 32,
+                generation_policy_id="b" * 32,
+                batch_status="SECRET_STATUS",
+                actual=(),
+                estimated=(),
+                unavailable_item_count=1,
+                pending_item_count=0,
+                total_item_count=1,
+            ),
+            CostProjectionCode.INVALID_BATCH_STATUS,
+        ),
     ],
 )
 def test_cost_projection_rejects_unsafe_values_without_echoing(
@@ -113,6 +127,7 @@ def test_dataset_operational_event_has_fixed_payload_allowlist() -> None:
     summary = CostSummary(
         batch_id="a" * 32,
         generation_policy_id="b" * 32,
+        batch_status="FAILED",
         actual=(),
         estimated=(),
         unavailable_item_count=1,
@@ -282,6 +297,7 @@ async def test_postgresql_cost_read_model_is_read_only_and_preserves_cost_catego
             )
 
         assert summary.batch_id == batch_id
+        assert summary.batch_status == "RUNNING"
         assert before_counts == after_counts == (3, 2)
         assert summary.actual == (MonetaryCostAggregate(CostClassification.ACTUAL, "CNY", 11, 1),)
         assert summary.estimated == (

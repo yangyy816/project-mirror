@@ -74,6 +74,19 @@ class DatasetOperationOutcome(StrEnum):
     UNAVAILABLE = "unavailable"
 
 
+class DatasetOperationCostClassification(StrEnum):
+    ACTUAL = "actual"
+    ESTIMATED = "estimated"
+
+
+class DatasetOperationCostAvailability(StrEnum):
+    ACTUAL = "actual"
+    ESTIMATED = "estimated"
+    MIXED = "mixed"
+    PENDING = "pending"
+    UNAVAILABLE = "unavailable"
+
+
 class DatasetOperationRejected(Exception):
     """A safe, stable rejection that never includes operator-supplied values."""
 
@@ -108,13 +121,38 @@ class DatasetOperationCommand:
 
 
 @dataclass(frozen=True)
+class DatasetOperationCostAggregate:
+    classification: DatasetOperationCostClassification
+    currency: Literal["CNY", "USD"]
+    amount_micros: int
+    event_count: int
+
+    def __post_init__(self) -> None:
+        _validate_cost_aggregate(self)
+
+
+@dataclass(frozen=True)
+class DatasetOperationCostSummary:
+    availability: DatasetOperationCostAvailability
+    actual: tuple[DatasetOperationCostAggregate, ...]
+    estimated: tuple[DatasetOperationCostAggregate, ...]
+    unavailable_item_count: int
+    pending_item_count: int
+    total_item_count: int
+
+    def __post_init__(self) -> None:
+        _validate_cost_summary(self)
+
+
+@dataclass(frozen=True)
 class DatasetOperationProjection:
-    """The only values a future CLI may render without an additional projection policy."""
+    """The only values an internal CLI may render without another projection policy."""
 
     target_status: str
     event_count: int = 0
     currency: Literal["CNY", "USD"] | None = None
     amount_micros: int | None = None
+    cost_summary: DatasetOperationCostSummary | None = None
 
     def __post_init__(self) -> None:
         _validate_projection(self)
@@ -146,6 +184,14 @@ class DatasetOperationResult:
             raise DatasetOperationRejected("operation_result_projection_forbidden")
         if self.projection is not None:
             _validate_projection(self.projection)
+            if (
+                self.operation is DatasetOperationKind.COST_SUMMARY
+                and self.projection.cost_summary is None
+            ) or (
+                self.operation is not DatasetOperationKind.COST_SUMMARY
+                and self.projection.cost_summary is not None
+            ):
+                raise DatasetOperationRejected("operation_result_invalid")
 
     @classmethod
     def rejected(cls, command: DatasetOperationCommand, code: str) -> DatasetOperationResult:
@@ -194,6 +240,81 @@ def _validate_projection(projection: DatasetOperationProjection) -> None:
         type(projection.amount_micros) is not int or projection.amount_micros < 0
     ):
         raise DatasetOperationRejected("operation_projection_amount_invalid")
+    if projection.cost_summary is not None:
+        if type(projection.cost_summary) is not DatasetOperationCostSummary:
+            raise DatasetOperationRejected("operation_result_invalid")
+        _validate_cost_summary(projection.cost_summary)
+        if projection.currency is not None or projection.amount_micros is not None:
+            raise DatasetOperationRejected("operation_result_invalid")
+        expected_event_count = sum(
+            aggregate.event_count
+            for aggregate in (*projection.cost_summary.actual, *projection.cost_summary.estimated)
+        )
+        if projection.event_count != expected_event_count:
+            raise DatasetOperationRejected("operation_projection_count_invalid")
+
+
+def _validate_cost_aggregate(aggregate: DatasetOperationCostAggregate) -> None:
+    if type(aggregate) is not DatasetOperationCostAggregate:
+        raise DatasetOperationRejected("operation_result_invalid")
+    if not isinstance(aggregate.classification, DatasetOperationCostClassification):
+        raise DatasetOperationRejected("operation_result_invalid")
+    if type(aggregate.currency) is not str or aggregate.currency not in _PROJECTION_CURRENCIES:
+        raise DatasetOperationRejected("operation_projection_currency_invalid")
+    if type(aggregate.amount_micros) is not int or aggregate.amount_micros < 0:
+        raise DatasetOperationRejected("operation_projection_amount_invalid")
+    if type(aggregate.event_count) is not int or aggregate.event_count <= 0:
+        raise DatasetOperationRejected("operation_projection_count_invalid")
+
+
+def _validate_cost_summary(summary: DatasetOperationCostSummary) -> None:
+    if type(summary) is not DatasetOperationCostSummary:
+        raise DatasetOperationRejected("operation_result_invalid")
+    if not isinstance(summary.availability, DatasetOperationCostAvailability):
+        raise DatasetOperationRejected("operation_result_invalid")
+    if not all(
+        type(item) is DatasetOperationCostAggregate
+        and item.classification is DatasetOperationCostClassification.ACTUAL
+        for item in summary.actual
+    ) or not all(
+        type(item) is DatasetOperationCostAggregate
+        and item.classification is DatasetOperationCostClassification.ESTIMATED
+        for item in summary.estimated
+    ):
+        raise DatasetOperationRejected("operation_result_invalid")
+    for item in (*summary.actual, *summary.estimated):
+        _validate_cost_aggregate(item)
+    if len({item.currency for item in summary.actual}) != len(summary.actual) or len(
+        {item.currency for item in summary.estimated}
+    ) != len(summary.estimated):
+        raise DatasetOperationRejected("operation_result_invalid")
+    counts = (
+        summary.unavailable_item_count,
+        summary.pending_item_count,
+        summary.total_item_count,
+    )
+    if any(type(value) is not int or value < 0 for value in counts) or (
+        summary.unavailable_item_count + summary.pending_item_count > summary.total_item_count
+    ):
+        raise DatasetOperationRejected("operation_projection_count_invalid")
+    has_actual = bool(summary.actual)
+    has_estimated = bool(summary.estimated)
+    has_unavailable = summary.unavailable_item_count > 0
+    has_pending = summary.pending_item_count > 0
+    category_count = sum((has_actual, has_estimated, has_unavailable, has_pending))
+    expected_availability = (
+        DatasetOperationCostAvailability.MIXED
+        if category_count > 1
+        else DatasetOperationCostAvailability.ACTUAL
+        if has_actual
+        else DatasetOperationCostAvailability.ESTIMATED
+        if has_estimated
+        else DatasetOperationCostAvailability.PENDING
+        if has_pending
+        else DatasetOperationCostAvailability.UNAVAILABLE
+    )
+    if summary.availability is not expected_availability:
+        raise DatasetOperationRejected("operation_result_invalid")
 
 
 def _canonicalize_backend_result(result: DatasetOperationResult) -> DatasetOperationResult:

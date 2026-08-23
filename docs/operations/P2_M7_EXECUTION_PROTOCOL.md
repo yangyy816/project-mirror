@@ -392,3 +392,28 @@ acceptance evidence, ADR-051, relevant accepted service contracts and the curren
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_ACTION: P2_M7_R14_REAL_CLI_COMPOSITION`
+
+## R14 local implementation candidate
+
+- The real non-production CLI now composes the accepted PostgreSQL batch status/cancel backend and cost read model
+  through one bounded async engine/session factory. Production rejects before composition; missing/mismatched database
+  configuration and runtime failure return fixed redacted unavailable results.
+- Typed CLI cost output keeps actual, estimated, pending and unavailable facts distinct and preserves each currency.
+  Provenance/QA remain unavailable. No CLI SQL, new authority, migration, dependency, public API, Provider/storage/
+  task-runner path, production capability, M5 or M6 behavior is present.
+- Local evidence includes 77 focused P2-M7 PostgreSQL/CLI tests with zero skip; 809 full Linux API/Worker tests with one
+  existing optional private-runtime skip; Ruff, 130-source strict mypy, migration lifecycle/check, contract drift,
+  TypeScript/build, Playwright 5/5, Docker five-service health, audits/license/SBOM, and Gitleaks 8.28.0 full history
+  over 292 commits with no leaks.
+- Gitleaks 8.28.0 reports no leaks for the exact 15-path candidate index. Final task-owned formatting/diff review,
+  candidate commit, same-SHA CI, eight-artifact inspection and new independent reviews remain mandatory.
+
+`P2_M7_R14: READY_FOR_TRACKED_EVIDENCE`
+
+`P2_M7_T08: FAIL_AT_9584177_FINAL_REVIEW`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_ACTION: P2_M7_R14_CANDIDATE_COMMIT_AND_SAME_SHA_CI`

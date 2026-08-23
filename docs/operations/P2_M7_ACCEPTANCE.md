@@ -506,3 +506,31 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_TASK: R14_REAL_CLI_COMPOSITION`
+
+## P2-M7-R14 local implementation candidate
+
+- The installed module entrypoint now reaches accepted batch status/cancel and cost-summary application backends in an
+  explicitly configured non-production environment. The only new infrastructure construction boundary owns a
+  task-scoped async SQLAlchemy engine/session factory and contains no query or raw SQL.
+- Production rejection occurs before engine/session construction. Configuration, connection and backend failures are
+  rendered only as stable allowlisted codes; database URLs and exception details are absent from stdout/stderr.
+- PostgreSQL subprocess evidence proves status, stale rejection, exact cancellation replay with one audit effect, and
+  read-only cost projection. Actual, estimated, pending and unavailable remain distinct and monetary aggregates remain
+  separated by currency. Provenance and QA remain unavailable.
+- Local validation reports 77 focused P2-M7 passes with zero skip, 809 full Linux API/Worker passes with one existing
+  optional private-runtime skip, 16 sanitizer passes, Ruff and strict mypy pass, full migration lifecycle/check,
+  unchanged OpenAPI/contracts, TypeScript/build, Playwright 5/5, five healthy Docker services and zero-known-
+  vulnerability dependency audits. Gitleaks 8.28.0 full history reports no leaks across 292 commits.
+- Gitleaks 8.28.0 reports no leaks for the exact 15-path candidate index. Candidate same-SHA CI, all eight artifact
+  contents and new independent security/final reviews remain missing. Therefore R14, T08 and the M7 Gate are not
+  accepted.
+
+`P2_M7_R14: READY_FOR_TRACKED_EVIDENCE`
+
+`P2_M7_T08: FAIL_AT_9584177_FINAL_REVIEW`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_TASK: R14_CANDIDATE_COMMIT_AND_SAME_SHA_CI`

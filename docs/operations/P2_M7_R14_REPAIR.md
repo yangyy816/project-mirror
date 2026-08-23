@@ -60,3 +60,36 @@ not yet the internal application-service control plane required by ADR-051.
 
 R14 does not accept T08 or evaluate the M7 Gate. Those decisions require R14 exact-SHA evidence, artifact inspection,
 independent security/privacy/license review, independent Sol final review, and Principal acceptance.
+
+## Local implementation evidence
+
+- The real non-production entrypoint now reads only the explicit
+  `MIRROR_DATASET_DATABASE_ENVIRONMENT` and `MIRROR_DATASET_DATABASE_URL` configuration names, rejects production
+  before engine/session construction, and delegates engine/session lifetime to one bounded composition module.
+- The composition registers only the accepted `GenerationBatchService` status/cancel backend and
+  `PostgresCostSummaryReadModel`. Provenance and QA remain capability-specific unavailable; no SQL, Provider, storage,
+  task-runner, HTTP, public API, migration, dependency, model, M5 or M6 path was added.
+- Cost output uses typed nested aggregates and preserves actual, estimated, pending and unavailable categories plus
+  per-currency amounts. Database configuration and failures are converted to fixed result codes and are never rendered.
+- Real subprocess tests against PostgreSQL prove status, stale-state rejection, cancellation, exact replay with one
+  authoritative audit effect, cost projection, read-only behavior, unavailable provenance/QA, and configuration
+  redaction. The complete focused P2-M7 suite reports `77 passed`, zero skip.
+- The full isolated Linux PostgreSQL/Redis/Celery regression reports `809 passed` with one existing optional
+  private-runtime skip; the Node sanitizer suite reports `16 passed`. Ruff format/lint and strict mypy over `130`
+  source files pass. Fresh migration, `0014 -> 0013 -> 0014`, Alembic check, contract drift, TypeScript lint/typecheck/
+  tests/build and Playwright `5/5` pass.
+- Docker Compose configuration, API/Worker/Web builds, five-service health, API live/ready, Web, Celery ping and
+  container Alembic check pass. The built image rejects production as `operation_production_disabled`; a configured
+  non-production lookup reaches PostgreSQL and returns `operation_target_not_found` for an absent opaque target.
+- Python and Node dependency audits report zero known vulnerabilities after restoring the repository-locked
+  `pip==26.2.1`; license inventories and a CycloneDX 1.6 SBOM were regenerated. Gitleaks 8.28.0 full history scans
+  `292` commits and reports no leaks; its exact 15-path candidate-index `--no-git` scan also reports no leaks.
+- Repo-wide `pnpm check` reaches only the formatter failure in protected pre-existing `AGENTS.md` and
+  `docs/operations/MODEL_ROUTING_POLICY.md`; R14 does not modify them. All applicable TypeScript sub-gates and
+  task-owned formatting checks pass independently. Same-SHA CI remains authoritative for the clean candidate tree.
+
+`P2_M7_R14: READY_FOR_TRACKED_EVIDENCE`
+
+`P2_M7_T08: FAIL_AT_9584177_FINAL_REVIEW`
+
+`P2_M7_GATE: NOT_EVALUATED`

@@ -1350,3 +1350,22 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   raw Provider payload scans were zero. The task-owned artifact directory was deleted and verified absent.
 - R13 is `PASS_AT_690DD78_RUN_32630571003_ATTEMPT_1`. R14 real CLI composition is `EXECUTION_READY`; T08 remains
   failed at `9584177`, the M7 Gate remains `NOT_EVALUATED`, production remains disabled, and M5/M6 remain closed.
+
+## 2026-08-23 — P2-M7-R14 real CLI composition local candidate
+
+- The real non-production `mirror-dataset` module entrypoint now composes only accepted PostgreSQL batch status/cancel
+  and cost-summary application backends. Production rejects before engine/session creation; configuration and failures
+  are redacted. Provenance and QA remain unavailable, and no SQL, migration, dependency, public API, Provider/storage/
+  task-runner, production, M5 or M6 path was added.
+- Real PostgreSQL subprocess tests prove status, stale rejection, cancellation/exact replay with one audit effect,
+  cost-category/currency preservation, read-only behavior and unavailable capabilities. The focused P2-M7 suite is
+  77 pass/zero skip; the full isolated Linux API/Worker suite is 809 pass with one existing optional private-runtime
+  skip, with 16 additional sanitizer passes.
+- Ruff, 130-source strict mypy, fresh and round-trip `0014` migration/check, contract drift, TypeScript quality/tests/
+  build, Playwright 5/5, Docker builds/five-service health, dependency/license/SBOM checks all pass. Gitleaks 8.28.0
+  scans 292 commits with no leaks. Repo-wide `pnpm check` is blocked only by protected pre-existing formatting changes
+  outside R14; all applicable sub-gates and task-owned formatting pass.
+- Gitleaks 8.28.0 scanned the exact 15-path candidate index with `--no-git` and reported no leaks. R14 is
+  `READY_FOR_TRACKED_EVIDENCE`, but remains unaccepted pending candidate commit, same-SHA three-job CI,
+  eight-artifact inspection and new independent security/final reviews. T08 remains failed at `9584177`; the M7 Gate
+  remains `NOT_EVALUATED`.

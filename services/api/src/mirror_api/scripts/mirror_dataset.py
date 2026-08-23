@@ -1,8 +1,8 @@
 """Fail-closed internal CLI adapter for accepted synthetic-dataset operations.
 
-The adapter deliberately has no database, HTTP, storage, Provider, or task-runner access.  It
-only turns explicit, non-secret command-line fields into the T02 application-service command and
-renders its already-redacted result vocabulary.
+The adapter contains no SQL, HTTP, storage, Provider, or task-runner access.  In non-production it
+may ask the dedicated composition boundary to register already accepted application services using
+one explicit task-scoped PostgreSQL environment.
 """
 
 from __future__ import annotations
@@ -10,8 +10,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import NoReturn, TextIO, cast
 
 from mirror_api.synthetic_dataset.operations import (
@@ -23,9 +24,12 @@ from mirror_api.synthetic_dataset.operations import (
     OperationEnvironment,
     SyntheticDatasetOperationService,
 )
+from mirror_api.synthetic_dataset.operations_composition import compose_dataset_operation_service
 
 _CLI_ARGUMENT_INVALID = "dataset_cli_argument_invalid"
 _CLI_RESULT_INVALID = "dataset_cli_result_invalid"
+_DATABASE_ENVIRONMENT_VARIABLE = "MIRROR_DATASET_DATABASE_ENVIRONMENT"
+_DATABASE_URL_VARIABLE = "MIRROR_DATASET_DATABASE_URL"
 
 
 class DatasetCliArgumentError(ValueError):
@@ -111,6 +115,31 @@ def _add_projection(payload: dict[str, object], *, projection: DatasetOperationP
         payload["currency"] = projection.currency
         if projection.amount_micros is not None:
             payload["amount_micros"] = projection.amount_micros
+    if projection.cost_summary is not None:
+        payload["cost_summary"] = {
+            "actual": [
+                {
+                    "amount_micros": item.amount_micros,
+                    "classification": item.classification.value,
+                    "currency": item.currency,
+                    "event_count": item.event_count,
+                }
+                for item in projection.cost_summary.actual
+            ],
+            "availability": projection.cost_summary.availability.value,
+            "estimated": [
+                {
+                    "amount_micros": item.amount_micros,
+                    "classification": item.classification.value,
+                    "currency": item.currency,
+                    "event_count": item.event_count,
+                }
+                for item in projection.cost_summary.estimated
+            ],
+            "pending_item_count": projection.cost_summary.pending_item_count,
+            "total_item_count": projection.cost_summary.total_item_count,
+            "unavailable_item_count": projection.cost_summary.unavailable_item_count,
+        }
 
 
 def _command_from_args(args: argparse.Namespace) -> DatasetOperationCommand:
@@ -125,11 +154,42 @@ def _command_from_args(args: argparse.Namespace) -> DatasetOperationCommand:
     )
 
 
+def _database_url_for(
+    command: DatasetOperationCommand, environment_variables: Mapping[str, str]
+) -> str:
+    configured_environment = environment_variables.get(_DATABASE_ENVIRONMENT_VARIABLE)
+    database_url = environment_variables.get(_DATABASE_URL_VARIABLE)
+    if configured_environment != command.environment or not database_url:
+        raise DatasetOperationRejected("operation_backend_unavailable")
+    return database_url
+
+
+async def _execute_command(
+    command: DatasetOperationCommand,
+    *,
+    service: SyntheticDatasetOperationService | None,
+    environment_variables: Mapping[str, str],
+) -> DatasetOperationResult:
+    if service is not None:
+        return await service.execute(command)
+    if command.environment == "production":
+        return await SyntheticDatasetOperationService().execute(command)
+    try:
+        database_url = _database_url_for(command, environment_variables)
+        async with compose_dataset_operation_service(database_url) as composed_service:
+            return await composed_service.execute(command)
+    except DatasetOperationRejected as error:
+        return DatasetOperationResult.unavailable(command, error.code)
+    except Exception:
+        return DatasetOperationResult.unavailable(command, "operation_execution_unavailable")
+
+
 def run(
     argv: Sequence[str] | None = None,
     *,
     service: SyntheticDatasetOperationService | None = None,
     output: TextIO | None = None,
+    environment_variables: Mapping[str, str] | None = None,
 ) -> int:
     """Run one internal operation without acquiring any additional authority."""
 
@@ -141,9 +201,16 @@ def run(
         _write_rejection(_CLI_ARGUMENT_INVALID, output=stream)
         return 2
 
-    operation_service = service if service is not None else SyntheticDatasetOperationService()
     try:
-        result = asyncio.run(operation_service.execute(command))
+        result = asyncio.run(
+            _execute_command(
+                command,
+                service=service,
+                environment_variables=(
+                    environment_variables if environment_variables is not None else os.environ
+                ),
+            )
+        )
         render_result(result, output=stream)
     except DatasetOperationRejected as error:
         _write_rejection(error.code, output=stream)

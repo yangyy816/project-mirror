@@ -25,6 +25,17 @@ from mirror_api.synthetic_dataset.operations_integration import GenerationBatchO
 
 _ROOT = Path(__file__).resolve().parents[3]
 _OPERATIONS = _ROOT / "services" / "api" / "src" / "mirror_api" / "synthetic_dataset"
+_COMPOSITION = _OPERATIONS / "operations_composition.py"
+
+
+def _import_roots(tree: ast.AST) -> set[str]:
+    roots: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            roots.update(alias.name.split(".", maxsplit=1)[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            roots.add(node.module.split(".", maxsplit=1)[0])
+    return roots
 
 
 def _command(kind: DatasetOperationKind, *, environment: str = "ci") -> DatasetOperationCommand:
@@ -210,13 +221,34 @@ def test_m7_modules_have_no_direct_network_database_provider_or_public_api_impor
 
     for path in paths:
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        imported = {
-            alias.name.split(".", maxsplit=1)[0]
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.Import, ast.ImportFrom))
-            for alias in node.names
-        }
+        imported = _import_roots(tree)
         assert not prohibited_roots.intersection(imported), path.name
+
+
+def test_m7_composition_is_the_only_bounded_async_sqlalchemy_construction_boundary() -> None:
+    tree = ast.parse(_COMPOSITION.read_text(encoding="utf-8"))
+    sqlalchemy_imports = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        and node.module is not None
+        and node.module.startswith("sqlalchemy")
+    ]
+
+    assert len(sqlalchemy_imports) == 1
+    assert sqlalchemy_imports[0].module == "sqlalchemy.ext.asyncio"
+    assert {alias.name for alias in sqlalchemy_imports[0].names} == {
+        "AsyncSession",
+        "async_sessionmaker",
+        "create_async_engine",
+    }
+    assert not any(
+        isinstance(node, ast.Name) and node.id in {"delete", "insert", "select", "text", "update"}
+        for node in ast.walk(tree)
+    )
+    assert not {"boto3", "celery", "fastapi", "httpx", "requests", "urllib"}.intersection(
+        _import_roots(tree)
+    )
 
 
 def test_m7_is_absent_from_the_public_openapi_contract() -> None:
