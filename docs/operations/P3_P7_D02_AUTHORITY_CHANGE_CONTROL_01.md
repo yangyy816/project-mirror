@@ -7,14 +7,17 @@ CHANGE_CONTROL_ID: P3_P7_D02_CC_01
 TRACK: DEMO_PROTOTYPE
 PLAN_VERSION: P3_P7_ALGORITHMIC_PROTOTYPE_PLATFORM_PLAN_V1_1
 DISCOVERED_BY: D02 independent authority review
-REVISION: 7
+REVISION: 8
 STATUS: PENDING_INDEPENDENT_SOL_REVIEW
-PRIOR_SOL_DECISION: REVISION_6_REVISE
+PRIOR_SOL_DECISION: REVISION_7_REVISE
+REJECTED_REVISION_7_SHA: 08399d19bfe0d9e28a21182b3b7588172dbf2af1
 REJECTED_REVISION_6_SHA: 8ab35f4e7d762069eb338c9e4a09a5d632c502c6
 REJECTED_IMPLEMENTATION_SHA: cc56fc144d23d0b8109c1ef231b6afcfb7eb67c1
 REJECTED_IMPLEMENTATION_DECISION: FAIL_REVISE_REQUIRED
 D02_PRIVATE_SCREENING: CLOSED
-D02_SCHEMA_IMPLEMENTATION: CLOSED
+D02_REVISION_7_DOCUMENTS: REVISE_REQUIRED
+D02_REVISION_8_DOCUMENTS: PENDING_INDEPENDENT_SOL_REVIEW
+D02_SCHEMA_IMPLEMENTATION: CLOSED_PENDING_REVISION_8_SOL_ACCEPT
 D03_D12: DEPENDENCY_GATED
 FORMAL_PHASE_AUTHORITY: FALSE
 PRODUCTION_RELEASE: NOT_AUTHORIZED
@@ -1140,3 +1143,82 @@ PRODUCTION_RELEASE: NOT_AUTHORIZED
 
 Only an independent Sol acceptance of the exact two Revision 7 document blobs may reopen bounded schema remediation.
 That review does not accept `cc56fc1`, does not execute private screening and does not grant `D02 TASK_ACCEPTED`.
+
+## Revision 8 bounded contract closure
+
+This section is normative and supersedes every conflicting Revision 1–7 sentence. Revision 7 exact-SHA commit
+`08399d19bfe0d9e28a21182b3b7588172dbf2af1` remains `REVISE_REQUIRED` negative evidence. No migration, ORM, test or
+private-screening authority is reopened by this document edit.
+
+### Exact peer-document binding
+
+```text
+REVISION_8_PREREGISTRATION_ID: P3_P7_D02_PAIR_SCREENING_V8
+REVISION_8_PREREGISTRATION_SCHEMA: mirror.demo/D02PairScreeningPolicy/v7
+REVISION_8_PREREGISTRATION_SHA256: 263218c1d1a46644a54a9dfa206f8dd0d5d8643f8a1477ed2dbd4c53fd14247e
+```
+
+The SHA-256 value is over the exact LF-normalized content bytes stored by Git for the peer Revision 8 preregistration
+blob. It is intentionally published here, not inside that blob, to avoid a self-hash cycle. Any content change to the
+preregistration invalidates this binding and requires a new change-control revision before review.
+
+The Revision 8 preregistration section is incorporated as the unique implementation contract for:
+
+- `screening_policy_digest`, whose domain-separated preimage includes the exact published preregistration SHA-256;
+- the domain-separated frozen empty/neutral `lock_policy_digest`;
+- PostgreSQL recomputation and rejection of caller-selected policy roots;
+- bidirectional `15000`/`30000` monotonicity peers and both mixed supported/unsupported states;
+- `max_control_dimension_key` membership and first-maximum-by-control-ordinal tie-breaking; and
+- the exhaustive persisted Boolean field set and its coercion attacks.
+
+### PostgreSQL and Principal authority boundary
+
+Principal acceptance of the exact two Revision 8 document blobs establishes the document authority only. The bounded
+migration remediation, if later opened, must embed the published preregistration SHA-256, recompute both policy roots
+with `mirror_demo_digest`, and reject a root mismatch before accepting either `PASSED` or `FAILED`. A report, runtime,
+private receipt or caller cannot supply a replacement root. Principal custody continues to prove physical runtime and
+manual-review evidence; it cannot waive PostgreSQL structural, arithmetic, linkage, digest or Gate validation.
+
+Mixed magnitude evidence remains full-cardinality evidence. A supported record with an unsupported opposite-magnitude
+peer remains supported but has a false monotonicity Gate and false measurement Gate; the unsupported peer retains its
+exclusive unsupported union. Both supported peers carry the same derived monotonicity result. Missing peers remain an
+admission stop, not a `FAILED` outcome.
+
+The maximum control is the first record in frozen control order whose absolute drift equals the maximum. The key must
+name that exact control, and the raw/ppm maximum must equal the same record. This removes non-control and tied-maximum
+choice from the report producer.
+
+### Revision 8 mandatory validation delta
+
+In addition to all Revision 6–7 attacks, PostgreSQL evidence must include:
+
+```text
+UNAUTHORIZED_SCREENING_ROOT_WITH_FULL_DESCENDANT_RECANONICALIZATION
+UNAUTHORIZED_LOCK_ROOT_WITH_FULL_DESCENDANT_RECANONICALIZATION
+MIXED_PEER_15000_SUPPORTED_30000_UNSUPPORTED_VALID_AND_MUTATED
+MIXED_PEER_15000_UNSUPPORTED_30000_SUPPORTED_VALID_AND_MUTATED
+BIDIRECTIONAL_PEER_ID_AND_SHARED_MONOTONICITY
+MAX_CONTROL_NON_MEMBER_NON_MAX_AND_TIED_LATER_REJECTION
+MAX_CONTROL_FIRST_TIE_AND_ALL_ZERO_DETERMINISTIC_REPLAY
+EXCEPTIONAL_BOOLEAN_STRING_AND_INTEGER_COERCION
+EXECUTION_SUCCEEDED_FALSE_REPORT_ADMISSION_REJECTION
+```
+
+Every negative fixture must recompute all enclosing IDs and digests. A valid mixed-peer fixture is positive structural
+evidence only; it does not make the affected dimension eligible or make D02 pass.
+
+### Revision 8 review and execution gate
+
+```text
+D02_REVISION_7_DOCUMENTS: REVISE_REQUIRED
+D02_REVISION_8_DOCUMENTS: PENDING_INDEPENDENT_SOL_REVIEW
+D02_SCHEMA_IMPLEMENTATION: CLOSED_PENDING_REVISION_8_SOL_ACCEPT
+D02_PRIVATE_SCREENING: CLOSED
+D02_RESULT: NOT_VERIFIED
+D03_D12: DEPENDENCY_GATED
+FORMAL_PHASE_AUTHORITY: FALSE
+PRODUCTION_RELEASE: NOT_AUTHORIZED
+```
+
+Only an independent Sol acceptance of both exact Revision 8 document blobs may reopen bounded schema remediation.
+That review does not accept any rejected implementation, execute private screening or grant `D02 TASK_ACCEPTED`.
