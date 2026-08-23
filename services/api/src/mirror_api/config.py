@@ -83,6 +83,7 @@ class Settings(BaseSettings):
         default_factory=lambda: DEFAULT_AUTH_HMAC_KEYRING.copy()
     )
     auth_hmac_active_kid: str = "dev-v1"
+    demo_bearer_token_sha256_by_key_id: dict[str, str] = Field(default_factory=dict)
     auth_access_token_ttl_seconds: int = Field(default=300, ge=60, le=300)
     auth_refresh_token_ttl_seconds: int = Field(default=2_592_000, ge=86_400, le=2_592_000)
     auth_otp_ttl_seconds: int = Field(default=300, ge=60, le=900)
@@ -158,6 +159,24 @@ class Settings(BaseSettings):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
 
+    @field_validator("demo_bearer_token_sha256_by_key_id")
+    @classmethod
+    def validate_demo_bearer_token_keyring(cls, value: dict[str, str]) -> dict[str, str]:
+        for key_id, digest in value.items():
+            if (
+                not key_id
+                or len(key_id) > 64
+                or not key_id.replace("-", "").replace("_", "").isalnum()
+            ):
+                raise ValueError("demo bearer key id must be a non-secret identifier")
+            if len(digest) != 64 or any(
+                character not in "0123456789abcdef" for character in digest
+            ):
+                raise ValueError("demo bearer token digest must be lowercase SHA-256")
+        if len(set(value.values())) != len(value):
+            raise ValueError("demo bearer token digests must be unique")
+        return value
+
     @model_validator(mode="after")
     def validate_environment_boundary(self) -> Settings:
         if not self.database_url.startswith(("postgresql://", "postgresql+psycopg://")):
@@ -227,6 +246,8 @@ class Settings(BaseSettings):
 
     def _validate_production(self) -> None:
         failures: list[str] = []
+        if self.demo_bearer_token_sha256_by_key_id:
+            failures.append("Demo bearer credentials are forbidden in production")
         if self.debug:
             failures.append("debug must be false")
         if self.sms_provider != "tencent":

@@ -30,6 +30,7 @@ from mirror_api.middleware import (
 from mirror_api.routers import (
     auth_router,
     data_rights_router,
+    demo_router,
     health_router,
     ingestion_router,
     local_upload_router,
@@ -122,6 +123,7 @@ def create_app() -> FastAPI:
     app.include_router(upload_control_router)
     app.include_router(ingestion_router)
     app.include_router(data_rights_router)
+    app.include_router(demo_router)
     app.include_router(local_upload_router)
     app.include_router(stubs_router)
 

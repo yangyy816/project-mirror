@@ -2047,6 +2047,2491 @@
         }
       }
     },
+    "/api/v1/demo/capabilities": {
+      "get": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Get Capabilities",
+        "operationId": "demoGetCapabilities",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoCapabilitiesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not Implemented",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/sessions": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Create Session",
+        "operationId": "demoCreateSession",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoSessionCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoSessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/sessions/{session_id}/context": {
+      "get": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Get Session Context",
+        "operationId": "demoGetSessionContext",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoContextResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/identities": {
+      "get": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "List Identities",
+        "operationId": "demoListIdentities",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoIdentityListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not Implemented",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/analyses": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Create Analysis",
+        "operationId": "demoCreateAnalysis",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoAnalysisCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoJobAcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/analyses/{analysis_id}": {
+      "get": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Get Analysis",
+        "operationId": "demoGetAnalysis",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoAnalysisResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/questionnaires/runs": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Create Questionnaire Run",
+        "operationId": "demoCreateQuestionnaireRun",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoQuestionnaireRunCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoJobAcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/questionnaires/runs/{run_id}/next": {
+      "get": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Get Questionnaire Next",
+        "operationId": "demoGetQuestionnaireNext",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/DemoQuestionNextResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DemoQuestionCompletedResponse"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "kind",
+                    "mapping": {
+                      "QUESTION": "#/components/schemas/DemoQuestionNextResponse",
+                      "COMPLETED": "#/components/schemas/DemoQuestionCompletedResponse"
+                    }
+                  },
+                  "title": "Response Demogetquestionnairenext"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/questionnaires/runs/{run_id}/responses": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Create Questionnaire Response",
+        "operationId": "demoCreateQuestionnaireResponse",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoQuestionResponseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoQuestionnaireStepResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/profiles/compile": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Compile Profile",
+        "operationId": "demoCompileProfile",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoProfileCompileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoJobAcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/profiles/active": {
+      "get": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Get Active Profiles",
+        "operationId": "demoGetActiveProfiles",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoActiveProfilesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not Implemented",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/style-feedback": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Create Style Feedback",
+        "operationId": "demoCreateStyleFeedback",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/DemoExplicitStyleSelectionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DemoMaximumIntensityChangedRequest"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "event_type",
+                  "mapping": {
+                    "EXPLICIT_STYLE_SELECTION": "#/components/schemas/DemoExplicitStyleSelectionRequest",
+                    "MAXIMUM_INTENSITY_CHANGED": "#/components/schemas/DemoMaximumIntensityChangedRequest"
+                  }
+                },
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoPreferenceEventResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/constraints": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Create Constraints",
+        "operationId": "demoCreateConstraints",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoConstraintsCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoIdentityConstraintsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/editing-sessions": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Create Editing Session",
+        "operationId": "demoCreateEditingSession",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoEditingSessionCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoJobAcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/editing-sessions/{editing_session_id}/plans": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Create Edit Plan",
+        "operationId": "demoCreateEditPlan",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "editing_session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Editing Session Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoEditPlanCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoJobAcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/edit-plans/{edit_plan_id}/executions": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Execute Edit Plan",
+        "operationId": "demoExecuteEditPlan",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "edit_plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Edit Plan Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoEditPlanExecuteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoJobAcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/tool-runs/{tool_run_id}": {
+      "get": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Get Tool Run",
+        "operationId": "demoGetToolRun",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tool_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Tool Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoToolRunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/image-versions/{image_version_id}/feedback": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Create Image Version Feedback",
+        "operationId": "demoCreateImageVersionFeedback",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "image_version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Image Version Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoImageFeedbackRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoPreferenceEventResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/image-versions/{image_version_id}/restore": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Restore Image Version",
+        "operationId": "demoRestoreImageVersion",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "image_version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Image Version Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoRestoreRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoJobAcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/profiles/rebuild": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Rebuild Profiles",
+        "operationId": "demoRebuildProfiles",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoProfileRebuildRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoJobAcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/traces/{session_id}": {
+      "get": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Get Trace",
+        "operationId": "demoGetTrace",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoExecutionEvidenceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Get Job",
+        "operationId": "demoGetJob",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/jobs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Cancel Job",
+        "operationId": "demoCancelJob",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoJobCancelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
     "/api/v1/questionnaires/runs": {
       "post": {
         "tags": [
@@ -2642,6 +5127,1288 @@
           "requested_at"
         ],
         "title": "DataExportResponse"
+      },
+      "DemoActiveProfilesResponse": {
+        "properties": {
+          "profiles": {
+            "items": {
+              "$ref": "#/components/schemas/DemoProfileResponse"
+            },
+            "type": "array",
+            "title": "Profiles"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "profiles"
+        ],
+        "title": "DemoActiveProfilesResponse"
+      },
+      "DemoAnalysisCreateRequest": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Session Id"
+          },
+          "source_asset_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Source Asset Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "source_asset_id"
+        ],
+        "title": "DemoAnalysisCreateRequest"
+      },
+      "DemoAnalysisResponse": {
+        "properties": {
+          "analysis_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Analysis Id"
+          },
+          "session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Session Id"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "SUPPORTED",
+              "UNSUPPORTED",
+              "PENDING"
+            ],
+            "title": "State"
+          },
+          "observation_digest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation Digest"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "analysis_id",
+          "session_id",
+          "state"
+        ],
+        "title": "DemoAnalysisResponse"
+      },
+      "DemoCapabilitiesResponse": {
+        "properties": {
+          "track": {
+            "type": "string",
+            "const": "DEMO_PROTOTYPE",
+            "title": "Track",
+            "default": "DEMO_PROTOTYPE"
+          },
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/DemoCapability"
+            },
+            "type": "array",
+            "title": "Capabilities"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "capabilities"
+        ],
+        "title": "DemoCapabilitiesResponse"
+      },
+      "DemoCapability": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "P3_FACE_ANALYSIS",
+              "P4_QUESTIONNAIRE",
+              "P5_COMPILER",
+              "P6_DETERMINISTIC_RASTER",
+              "P6_GEOMETRY",
+              "P6_MAKEUP",
+              "P6_GENERATIVE_EDITOR",
+              "P7_PREFERENCE_MEMORY"
+            ],
+            "title": "Code"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "NOT_IMPLEMENTED",
+              "DEFERRED_WITH_EXPLICIT_REASON",
+              "CAPABILITY_UNAVAILABLE"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "status"
+        ],
+        "title": "DemoCapability"
+      },
+      "DemoConstraintsCreateRequest": {
+        "properties": {
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "PERSISTENT",
+              "SESSION_OVERRIDE"
+            ],
+            "title": "Scope"
+          },
+          "locks": {
+            "items": {
+              "$ref": "#/components/schemas/DemoLockRequest"
+            },
+            "type": "array",
+            "maxItems": 64,
+            "minItems": 1,
+            "title": "Locks"
+          },
+          "prohibited_operations": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "CROP",
+                "ROTATE",
+                "EXPOSURE",
+                "CONTRAST",
+                "SATURATION",
+                "TEMPERATURE",
+                "GEOMETRY",
+                "MAKEUP",
+                "GENERATIVE"
+              ]
+            },
+            "type": "array",
+            "title": "Prohibited Operations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "scope",
+          "locks"
+        ],
+        "title": "DemoConstraintsCreateRequest"
+      },
+      "DemoContextResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Session Id"
+          },
+          "profile_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Profile Id"
+          },
+          "compilation_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Compilation Digest"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "profile_id",
+          "compilation_digest",
+          "expires_at"
+        ],
+        "title": "DemoContextResponse"
+      },
+      "DemoEditPlanCreateRequest": {
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "CROP",
+              "ROTATE",
+              "EXPOSURE",
+              "CONTRAST",
+              "SATURATION",
+              "TEMPERATURE",
+              "GEOMETRY",
+              "MAKEUP",
+              "GENERATIVE"
+            ],
+            "title": "Operation"
+          },
+          "value_ppm": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": -1000000.0,
+            "title": "Value Ppm"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "operation",
+          "value_ppm"
+        ],
+        "title": "DemoEditPlanCreateRequest"
+      },
+      "DemoEditPlanExecuteRequest": {
+        "properties": {
+          "execution_mode": {
+            "type": "string",
+            "enum": [
+              "DETERMINISTIC_RASTER",
+              "GEOMETRY",
+              "MAKEUP",
+              "GENERATIVE"
+            ],
+            "title": "Execution Mode"
+          },
+          "expected_plan_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Plan Digest"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "execution_mode",
+          "expected_plan_digest"
+        ],
+        "title": "DemoEditPlanExecuteRequest"
+      },
+      "DemoEditingSessionCreateRequest": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Session Id"
+          },
+          "source_image_version_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Source Image Version Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "source_image_version_id"
+        ],
+        "title": "DemoEditingSessionCreateRequest"
+      },
+      "DemoExecutionEvidenceResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Session Id"
+          },
+          "evidence_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Evidence Digest"
+          },
+          "context_compilation_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Context Compilation Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "evidence_digest",
+          "context_compilation_id"
+        ],
+        "title": "DemoExecutionEvidenceResponse"
+      },
+      "DemoExplicitStyleSelectionRequest": {
+        "properties": {
+          "event_type": {
+            "type": "string",
+            "const": "EXPLICIT_STYLE_SELECTION",
+            "title": "Event Type"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "style_key": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Style Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_type",
+          "style_key"
+        ],
+        "title": "DemoExplicitStyleSelectionRequest"
+      },
+      "DemoIdentityConstraintsResponse": {
+        "properties": {
+          "constraints_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Constraints Id"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "PERSISTENT",
+              "SESSION_OVERRIDE"
+            ],
+            "title": "Scope"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "constraints_id",
+          "version",
+          "scope"
+        ],
+        "title": "DemoIdentityConstraintsResponse"
+      },
+      "DemoIdentityListResponse": {
+        "properties": {
+          "identities": {
+            "items": {
+              "$ref": "#/components/schemas/DemoIdentityResponse"
+            },
+            "type": "array",
+            "title": "Identities"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "identities"
+        ],
+        "title": "DemoIdentityListResponse"
+      },
+      "DemoIdentityResponse": {
+        "properties": {
+          "identity_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Identity Id"
+          },
+          "canonical_asset_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Canonical Asset Digest"
+          },
+          "admission_status": {
+            "type": "string",
+            "enum": [
+              "ADMITTED",
+              "REVOKED"
+            ],
+            "title": "Admission Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "identity_id",
+          "canonical_asset_digest",
+          "admission_status"
+        ],
+        "title": "DemoIdentityResponse"
+      },
+      "DemoImageFeedbackRequest": {
+        "properties": {
+          "feedback": {
+            "type": "string",
+            "enum": [
+              "ACCEPT",
+              "REJECT",
+              "ADJUST"
+            ],
+            "title": "Feedback"
+          },
+          "intensity_ppm": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intensity Ppm"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "feedback"
+        ],
+        "title": "DemoImageFeedbackRequest"
+      },
+      "DemoJobAcceptedResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "PENDING",
+            "title": "Status",
+            "default": "PENDING"
+          },
+          "capability": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Capability"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "job_id",
+          "capability"
+        ],
+        "title": "DemoJobAcceptedResponse"
+      },
+      "DemoJobCancelRequest": {
+        "properties": {
+          "expected_status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "RUNNING"
+            ],
+            "title": "Expected Status"
+          },
+          "reason": {
+            "type": "string",
+            "const": "USER_REQUEST",
+            "title": "Reason",
+            "default": "USER_REQUEST"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_status"
+        ],
+        "title": "DemoJobCancelRequest"
+      },
+      "DemoJobResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "RUNNING",
+              "COMPLETED",
+              "REJECTED",
+              "FAILED",
+              "CANCELLED"
+            ],
+            "title": "Status"
+          },
+          "result_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Code"
+          },
+          "finalized_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalized At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "DemoJobResponse"
+      },
+      "DemoLockRequest": {
+        "properties": {
+          "dimension_key": {
+            "type": "string",
+            "maxLength": 48,
+            "minLength": 1,
+            "title": "Dimension Key"
+          },
+          "lock": {
+            "type": "string",
+            "enum": [
+              "PRESERVE",
+              "UNLOCK"
+            ],
+            "title": "Lock"
+          },
+          "minimum_ppm": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000.0,
+                "minimum": -1000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Ppm"
+          },
+          "maximum_ppm": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000.0,
+                "minimum": -1000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Ppm"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "dimension_key",
+          "lock"
+        ],
+        "title": "DemoLockRequest"
+      },
+      "DemoMaximumIntensityChangedRequest": {
+        "properties": {
+          "event_type": {
+            "type": "string",
+            "const": "MAXIMUM_INTENSITY_CHANGED",
+            "title": "Event Type"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "target_key": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Target Key"
+          },
+          "maximum_intensity_ppm": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Maximum Intensity Ppm"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_type",
+          "target_key",
+          "maximum_intensity_ppm"
+        ],
+        "title": "DemoMaximumIntensityChangedRequest"
+      },
+      "DemoPreferenceEventResponse": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Event Id"
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "EXPLICIT_STYLE_SELECTION",
+              "MAXIMUM_INTENSITY_CHANGED",
+              "IMAGE_ACCEPTED",
+              "IMAGE_REJECTED",
+              "IMAGE_ADJUSTED"
+            ],
+            "title": "Event Type"
+          },
+          "event_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Event Digest"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_type",
+          "event_digest"
+        ],
+        "title": "DemoPreferenceEventResponse"
+      },
+      "DemoProfileCompileRequest": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Session Id"
+          },
+          "compiler_version": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Compiler Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "compiler_version"
+        ],
+        "title": "DemoProfileCompileRequest"
+      },
+      "DemoProfileRebuildRequest": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "USER_REQUEST",
+              "RESET",
+              "ROLLBACK",
+              "TOMBSTONE_PROPAGATION"
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "DemoProfileRebuildRequest"
+      },
+      "DemoProfileResponse": {
+        "properties": {
+          "profile_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Profile Id"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Generation"
+          },
+          "compilation_watermark": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Compilation Watermark"
+          },
+          "learning_enabled": {
+            "type": "boolean",
+            "title": "Learning Enabled"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "profile_id",
+          "generation",
+          "compilation_watermark",
+          "learning_enabled"
+        ],
+        "title": "DemoProfileResponse"
+      },
+      "DemoQuestionCompletedResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "COMPLETED",
+            "title": "Kind"
+          },
+          "run_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Run Id"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Completed At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "run_id",
+          "completed_at"
+        ],
+        "title": "DemoQuestionCompletedResponse"
+      },
+      "DemoQuestionNextResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "QUESTION",
+            "title": "Kind"
+          },
+          "step_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Step Id"
+          },
+          "question_pair_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Question Pair Id"
+          },
+          "question_pair_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Question Pair Digest"
+          },
+          "dimension_key": {
+            "type": "string",
+            "maxLength": 48,
+            "minLength": 1,
+            "title": "Dimension Key"
+          },
+          "magnitude_ppm": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Magnitude Ppm"
+          },
+          "source_identity_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Source Identity Id"
+          },
+          "source_asset_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Source Asset Id"
+          },
+          "source_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Source Checksum"
+          },
+          "left": {
+            "$ref": "#/components/schemas/DemoQuestionSideResponse"
+          },
+          "right": {
+            "$ref": "#/components/schemas/DemoQuestionSideResponse"
+          },
+          "routing_score_ppm": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Routing Score Ppm"
+          },
+          "routing_components": {
+            "$ref": "#/components/schemas/DemoRoutingComponents"
+          },
+          "routing_evidence_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Routing Evidence Digest"
+          },
+          "step_sequence": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Step Sequence"
+          },
+          "run_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Run Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "step_id",
+          "question_pair_id",
+          "question_pair_digest",
+          "dimension_key",
+          "magnitude_ppm",
+          "source_identity_id",
+          "source_asset_id",
+          "source_checksum",
+          "left",
+          "right",
+          "routing_score_ppm",
+          "routing_components",
+          "routing_evidence_digest",
+          "step_sequence",
+          "run_version"
+        ],
+        "title": "DemoQuestionNextResponse"
+      },
+      "DemoQuestionResponseRequest": {
+        "properties": {
+          "selected_side": {
+            "type": "string",
+            "enum": [
+              "LEFT",
+              "RIGHT",
+              "INDISTINGUISHABLE",
+              "SKIP"
+            ],
+            "title": "Selected Side"
+          },
+          "expected_step_sequence": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Step Sequence"
+          },
+          "expected_run_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Run Version"
+          },
+          "response_latency_ms": {
+            "type": "integer",
+            "maximum": 3600000.0,
+            "minimum": 0.0,
+            "title": "Response Latency Ms"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "selected_side",
+          "expected_step_sequence",
+          "expected_run_version",
+          "response_latency_ms"
+        ],
+        "title": "DemoQuestionResponseRequest"
+      },
+      "DemoQuestionSideResponse": {
+        "properties": {
+          "result_asset_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Result Asset Id"
+          },
+          "result_checksum": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Result Checksum"
+          },
+          "result_lineage_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Result Lineage Digest"
+          },
+          "requested_direction": {
+            "type": "string",
+            "enum": [
+              "NEGATIVE",
+              "POSITIVE"
+            ],
+            "title": "Requested Direction"
+          },
+          "measured_delta_ppm": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": -1000000.0,
+            "title": "Measured Delta Ppm"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "result_asset_id",
+          "result_checksum",
+          "result_lineage_digest",
+          "requested_direction",
+          "measured_delta_ppm"
+        ],
+        "title": "DemoQuestionSideResponse"
+      },
+      "DemoQuestionnaireRunCreateRequest": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Session Id"
+          },
+          "self_state_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Self State Id"
+          },
+          "question_bank_version": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Question Bank Version"
+          },
+          "max_questions": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 12.0,
+            "title": "Max Questions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "self_state_id",
+          "question_bank_version",
+          "max_questions"
+        ],
+        "title": "DemoQuestionnaireRunCreateRequest"
+      },
+      "DemoQuestionnaireStepResponse": {
+        "properties": {
+          "step_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Step Id"
+          },
+          "run_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Run Id"
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "PRESENTED",
+              "RESPONDED",
+              "STOPPED",
+              "INVALIDATED"
+            ],
+            "title": "Event Type"
+          },
+          "step_number": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Number"
+          },
+          "step_sequence": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Step Sequence"
+          },
+          "run_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Run Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "step_id",
+          "run_id",
+          "event_type",
+          "step_sequence",
+          "run_version"
+        ],
+        "title": "DemoQuestionnaireStepResponse"
+      },
+      "DemoRestoreRequest": {
+        "properties": {
+          "expected_current_image_version_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Expected Current Image Version Id"
+          },
+          "expected_current_image_version_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Current Image Version Digest"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_current_image_version_id",
+          "expected_current_image_version_digest"
+        ],
+        "title": "DemoRestoreRequest"
+      },
+      "DemoRoutingComponents": {
+        "properties": {
+          "posterior_uncertainty_ppm": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Posterior Uncertainty Ppm"
+          },
+          "self_state_reliability_ppm": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Self State Reliability Ppm"
+          },
+          "coverage_need_ppm": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Coverage Need Ppm"
+          },
+          "expected_fisher_information_ppm": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Expected Fisher Information Ppm"
+          },
+          "morphology_neighborhood_compatibility_ppm": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Morphology Neighborhood Compatibility Ppm"
+          },
+          "pair_quality_ppm": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Pair Quality Ppm"
+          },
+          "contradiction_priority_ppm": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Contradiction Priority Ppm"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "posterior_uncertainty_ppm",
+          "self_state_reliability_ppm",
+          "coverage_need_ppm",
+          "expected_fisher_information_ppm",
+          "morphology_neighborhood_compatibility_ppm",
+          "pair_quality_ppm",
+          "contradiction_priority_ppm"
+        ],
+        "title": "DemoRoutingComponents"
+      },
+      "DemoSessionCreateRequest": {
+        "properties": {
+          "synthetic_identity_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Synthetic Identity Id"
+          },
+          "context_seed": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Context Seed"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "synthetic_identity_id",
+          "context_seed"
+        ],
+        "title": "DemoSessionCreateRequest"
+      },
+      "DemoSessionResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Session Id"
+          },
+          "synthetic_identity_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Synthetic Identity Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "CLOSED",
+              "TOMBSTONED"
+            ],
+            "title": "Status"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "synthetic_identity_id",
+          "status",
+          "expires_at"
+        ],
+        "title": "DemoSessionResponse"
+      },
+      "DemoToolRunResponse": {
+        "properties": {
+          "tool_run_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Tool Run Id"
+          },
+          "tool_name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Tool Name"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "RUNNING",
+              "COMPLETED",
+              "REJECTED",
+              "FAILED",
+              "CANCELLED"
+            ],
+            "title": "Status"
+          },
+          "output_digest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Digest"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tool_run_id",
+          "tool_name",
+          "status"
+        ],
+        "title": "DemoToolRunResponse"
       },
       "ErrorEnvelope": {
         "properties": {
@@ -3610,6 +7377,13 @@
         ],
         "title": "QuestionnaireRunContextContract",
         "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "DemoBearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "opaque"
       }
     }
   }

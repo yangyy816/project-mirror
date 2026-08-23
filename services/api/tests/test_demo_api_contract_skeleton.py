@@ -1,0 +1,240 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+import pytest
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.testclient import TestClient
+from pydantic import TypeAdapter, ValidationError
+
+from mirror_api.config import Settings
+from mirror_api.demo_dependencies import get_demo_actor
+from mirror_api.demo_models import DemoActor
+from mirror_api.demo_schemas import (
+    DemoCapability,
+    DemoEditPlanExecuteRequest,
+    DemoJobCancelRequest,
+    DemoQuestionNextResponse,
+    DemoQuestionResponseRequest,
+    DemoRestoreRequest,
+    DemoStyleFeedbackRequest,
+    DemoToolRunResponse,
+)
+from mirror_api.errors import APIError, api_error_handler, validation_error_handler
+from mirror_api.main import create_app
+from mirror_api.routers.demo import router
+
+
+def _app() -> FastAPI:
+    app = FastAPI()
+    app.add_exception_handler(APIError, api_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(RequestValidationError, validation_error_handler)  # type: ignore[arg-type]
+    app.include_router(router)
+    return app
+
+
+def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
+    app = _app()
+    schema = app.openapi()
+    paths = {
+        path: value for path, value in schema["paths"].items() if path.startswith("/api/v1/demo")
+    }
+    operations = [operation for item in paths.values() for operation in item.values()]
+    assert len(operations) == 23
+    assert sum(operation["operationId"].startswith("demo") for operation in operations) == 23
+    assert all(operation["x-demo-only"] is True for operation in operations)
+    posts = [
+        operation
+        for operation in operations
+        if operation["operationId"]
+        in {
+            "demoCreateSession",
+            "demoCreateAnalysis",
+            "demoCreateQuestionnaireRun",
+            "demoCreateQuestionnaireResponse",
+            "demoCompileProfile",
+            "demoCreateStyleFeedback",
+            "demoCreateConstraints",
+            "demoCreateEditingSession",
+            "demoCreateEditPlan",
+            "demoExecuteEditPlan",
+            "demoCreateImageVersionFeedback",
+            "demoRestoreImageVersion",
+            "demoRebuildProfiles",
+            "demoCancelJob",
+        }
+    ]
+    assert len(posts) == 14
+    assert all("DemoBearerAuth" in operation["security"][0] for operation in operations)
+    assert all(
+        any(parameter["name"] == "Idempotency-Key" for parameter in operation["parameters"])
+        for operation in posts
+    )
+
+
+def test_capabilities_are_the_only_success_path_and_other_routes_are_strict() -> None:
+    app = _app()
+    app.dependency_overrides[get_demo_actor] = lambda: DemoActor(
+        id="0" * 32,
+        schema_version="mirror.demo/Actor/v1",
+        canonical_payload={},
+        content_digest="0" * 64,
+        actor_kind="LOCAL_SINGLE_USER",
+        credential_key_id="local",
+        authority_at=datetime(2026, 8, 23, tzinfo=UTC),
+    )
+    client = TestClient(app)
+    capabilities = client.get("/api/v1/demo/capabilities")
+    assert capabilities.status_code == 200
+    assert {item["status"] for item in capabilities.json()["capabilities"]} == {
+        "NOT_IMPLEMENTED",
+        "DEFERRED_WITH_EXPLICIT_REASON",
+        "CAPABILITY_UNAVAILABLE",
+    }
+    rejected = client.post(
+        "/api/v1/demo/sessions",
+        headers={"Idempotency-Key": "abcdefgh"},
+        json={"synthetic_identity_id": "1" * 32, "context_seed": "2" * 64, "actor_id": "3" * 32},
+    )
+    assert rejected.status_code == 422
+    deferred = client.post(
+        "/api/v1/demo/sessions",
+        headers={"Idempotency-Key": "abcdefgh"},
+        json={"synthetic_identity_id": "1" * 32, "context_seed": "2" * 64},
+    )
+    assert deferred.status_code == 501
+    assert deferred.json()["code"] == "CAPABILITY_NOT_IMPLEMENTED"
+
+
+def test_demo_router_denies_missing_bearer_credentials() -> None:
+    client = TestClient(_app())
+    response = client.get("/api/v1/demo/capabilities")
+    assert response.status_code == 401
+    assert response.json()["code"] == "demo_authentication_failed"
+
+
+def test_frozen_demo_contracts_include_concurrency_and_quantized_authority() -> None:
+    response = DemoQuestionResponseRequest(
+        selected_side="INDISTINGUISHABLE",
+        expected_step_sequence=3,
+        expected_run_version=7,
+        response_latency_ms=250,
+    )
+    assert response.selected_side == "INDISTINGUISHABLE"
+    with pytest.raises(ValidationError):
+        DemoQuestionResponseRequest.model_validate(
+            {
+                "selected_side": "LEFT",
+                "response_latency_ms": 250,
+            }
+        )
+
+    next_question = DemoQuestionNextResponse(
+        kind="QUESTION",
+        step_id="1" * 32,
+        question_pair_id="2" * 32,
+        question_pair_digest="3" * 64,
+        dimension_key="jaw_width",
+        magnitude_ppm=15_000,
+        source_identity_id="4" * 32,
+        source_asset_id="5" * 32,
+        source_checksum="6" * 64,
+        left={
+            "result_asset_id": "7" * 32,
+            "result_checksum": "8" * 64,
+            "result_lineage_digest": "9" * 64,
+            "requested_direction": "NEGATIVE",
+            "measured_delta_ppm": -14_500,
+        },
+        right={
+            "result_asset_id": "a" * 32,
+            "result_checksum": "b" * 64,
+            "result_lineage_digest": "c" * 64,
+            "requested_direction": "POSITIVE",
+            "measured_delta_ppm": 14_700,
+        },
+        routing_score_ppm=600_000,
+        routing_components={
+            "posterior_uncertainty_ppm": 800_000,
+            "self_state_reliability_ppm": 900_000,
+            "coverage_need_ppm": 1_000_000,
+            "expected_fisher_information_ppm": 700_000,
+            "morphology_neighborhood_compatibility_ppm": 750_000,
+            "pair_quality_ppm": 950_000,
+            "contradiction_priority_ppm": 500_000,
+        },
+        routing_evidence_digest="d" * 64,
+        step_sequence=3,
+        run_version=7,
+    )
+    assert next_question.routing_components.morphology_neighborhood_compatibility_ppm == 750_000
+
+    assert DemoCapability(code="P3_FACE_ANALYSIS", status="AVAILABLE").status == "AVAILABLE"
+    assert (
+        DemoToolRunResponse(
+            tool_run_id="e" * 32,
+            tool_name="contrast",
+            status="COMPLETED",
+            output_digest="f" * 64,
+        ).status
+        == "COMPLETED"
+    )
+
+
+def test_frozen_demo_mutation_contracts_require_explicit_intent_and_preconditions() -> None:
+    style_adapter = TypeAdapter[DemoStyleFeedbackRequest](DemoStyleFeedbackRequest)
+    explicit_style = style_adapter.validate_python(
+        {
+            "event_type": "EXPLICIT_STYLE_SELECTION",
+            "session_id": "1" * 32,
+            "style_key": "natural",
+        }
+    )
+    maximum_intensity = style_adapter.validate_python(
+        {
+            "event_type": "MAXIMUM_INTENSITY_CHANGED",
+            "target_key": "geometry",
+            "maximum_intensity_ppm": 300_000,
+        }
+    )
+    assert explicit_style.event_type == "EXPLICIT_STYLE_SELECTION"
+    assert maximum_intensity.event_type == "MAXIMUM_INTENSITY_CHANGED"
+    with pytest.raises(ValidationError):
+        style_adapter.validate_python(
+            {
+                "event_type": "EXPLICIT_STYLE_SELECTION",
+                "style_key": "natural",
+                "maximum_intensity_ppm": 300_000,
+            }
+        )
+
+    assert DemoJobCancelRequest(expected_status="RUNNING").reason == "USER_REQUEST"
+    assert (
+        DemoEditPlanExecuteRequest(
+            execution_mode="GEOMETRY", expected_plan_digest="2" * 64
+        ).expected_plan_digest
+        == "2" * 64
+    )
+    restored = DemoRestoreRequest(
+        expected_current_image_version_id="3" * 32,
+        expected_current_image_version_digest="4" * 64,
+    )
+    assert restored.expected_current_image_version_id == "3" * 32
+
+
+def test_main_application_exposes_the_complete_demo_contract() -> None:
+    schema = create_app().openapi()
+    paths = [path for path in schema["paths"] if path.startswith("/api/v1/demo")]
+    assert len(paths) == 23
+    assert schema["paths"]["/api/v1/demo/jobs/{job_id}/cancel"]["post"]["requestBody"]
+
+
+def test_demo_bearer_keyring_rejects_ambiguous_digest_authority() -> None:
+    with pytest.raises(ValidationError, match="digests must be unique"):
+        Settings(
+            demo_bearer_token_sha256_by_key_id={
+                "first": "1" * 64,
+                "second": "1" * 64,
+            }
+        )
