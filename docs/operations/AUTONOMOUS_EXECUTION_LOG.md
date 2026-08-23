@@ -1450,3 +1450,27 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   runtime/provider change control.
 - The primary, protected P2-M5 and independent P3–P7 worktrees and protected user changes remain untouched. `MEMORY.md`
   reconciliation is still deferred rather than overwriting the Owner's current uncommitted content.
+
+## 2026-08-23 — P2-M5/M7 integration candidate evidence and independent reviews
+
+- Candidate `fc336345e96a7f1627c681770b58659f8c2ebb05` completed run `32642007499`, attempt 1. All three
+  mandatory jobs succeeded. Eight unexpired artifacts with 12 fixed-relative members bind the exact candidate and
+  migration head `0014_m5_eval_authority`.
+- Exact-SHA evidence reports full Python 814 passes plus one existing optional M4 private-runtime skip, fixed P2-M7
+  75 passes/zero skip, Phase 1 and P2-M1/M2/M3 1/98/52/46 passes/zero skip, Ruff 233 files, strict mypy 130 sources,
+  PostgreSQL lifecycle/check, TypeScript 54 tests/build, Browser 5/5, contract drift, five healthy Docker services and
+  successful Redis/Celery execution.
+- Artifact inspection found one Gitleaks SARIF run with zero results, 101 Python license entries, 14 Node license
+  groups / 480 package entries and a CycloneDX 1.6 SBOM with 105 components. Image, private-path, credential, signed
+  URL, Prompt, object-key and raw Provider-payload scans were zero. The task-owned artifact root was deleted after both
+  independent reviewers completed.
+- The exact secret-scan fact is Gitleaks 8.24.3 over the one post-merge candidate commit, not 8.28.0 or a newly claimed
+  full-history scan. Both accepted parent histories had their own Gates; the merge preserves all 24 M5 and 41 M7
+  changed-path blobs exactly with zero path overlap, while the candidate adds only three scanned governance documents.
+- Independent Security/Privacy/Data/License review returned PASS. Independent Sol High final integration review
+  returned `PASS_FOR_PRINCIPAL_ACCEPTANCE_CLOSURE`; neither found a mandatory defect. Principal accepts the candidate
+  Gate subject to this docs-only closure's own same-SHA CI and eight-artifact inspection.
+- No Milestone state changes. M5 remains `EXECUTING` at the E01 runtime capability blocker with zero generation calls,
+  raw outputs or consumed request ordinal; M7 remains `FROZEN`; M6/M8, production, real-user processing and
+  QuestionBank release remain closed. `MEMORY.md`, OpenAPI, Codex configuration and protected worktrees remain
+  untouched.

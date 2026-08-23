@@ -4,10 +4,13 @@
 
 - `BOOTSTRAP_STATUS: OK`
 - `TASK_ID: P2-M5-M7-INTEGRATION-01`
-- `STATUS: READY_FOR_TRACKED_EVIDENCE`
+- `STATUS: PASS_PENDING_ACCEPTANCE_CLOSURE_CI`
 - `BRANCH: codex/phase2-m5-m7-integration`
 - `MERGE_COMMIT: 6a596a848f39c1a5e0248cf23ee35fbc38d6da36`
-- `CANDIDATE_COMMIT: THIS_COMMIT`
+- `CANDIDATE_COMMIT: fc336345e96a7f1627c681770b58659f8c2ebb05`
+- `CANDIDATE_RUN: 32642007499_ATTEMPT_1`
+- `ACCEPTANCE_CLOSURE_COMMIT: THIS_COMMIT`
+- `INTEGRATION_CHECKPOINT: PASS_PENDING_ACCEPTANCE_CLOSURE_CI`
 - `MIGRATION_HEAD: 0014_m5_eval_authority`
 - `PUBLIC_API_CHANGE: NONE`
 - `PRODUCTION_STATUS: NOT_DEPLOYED`
@@ -106,6 +109,54 @@ Before this checkpoint may be accepted, its exact candidate SHA must prove:
 A failed Gate produces a bounded integration repair. It cannot weaken M5/M7 evidence, reinterpret E01, skip Browser or
 PostgreSQL, or use either parent run as combined-state acceptance.
 
+## Candidate evidence and independent reviews
+
+Candidate `fc336345e96a7f1627c681770b58659f8c2ebb05` completed GitHub Actions run `32642007499`, attempt 1.
+`quality-and-integration`, `secret-scan` and `docker-validation` all succeeded on that exact SHA. The refreshed remote
+integration ref points to the same candidate.
+
+- Full Python reported 814 passes and one existing optional M4 private-runtime skip. The fixed P2-M7 evidence slice
+  reported 75 passes and zero failure, error or skip; Phase 1 and P2-M1/M2/M3 reported 1/98/52/46 tests with zero skip.
+- Ruff covered 233 files and strict mypy covered 130 source files. PostgreSQL completed full downgrade, upgrade,
+  re-upgrade and Alembic check at `0014_m5_eval_authority`. TypeScript quality, 54 tests, production build, five
+  Browser Integration tests and generated-contract drift all passed.
+- Redis/Celery evidence contains only the expected successful task results. Docker evidence reports all five services
+  running and healthy. Both dependency audits report no known vulnerabilities; license evidence contains 101 Python
+  entries and 14 Node license groups / 480 package entries, and the CycloneDX 1.6 SBOM contains 105 components.
+- Eight unexpired artifacts contain 12 fixed-relative members and bind the candidate SHA. Their IDs and GitHub archive
+  digests are `9493901524` / `00e61f89...`, `9493898903` / `442d5516...`, `9493898656` / `65b75341...`,
+  `9493898439` / `1ec07fac...`, `9493898214` / `fcbe69bb...`, `9493894730` / `3d1bcb2c...`, `9493869841` /
+  `b8402f41...` and `9493848304` / `855d5005...`.
+- Artifact scans found zero image extensions or image magic, private/runner absolute paths, credential assignments,
+  signed URLs, Prompt fields, object-key fields or raw Provider payload fields. The exact task-owned inspection root
+  was deleted after both reviewers completed, and its absence was verified.
+
+The secret-scan evidence is recorded exactly: this run used Gitleaks `8.24.3` through the existing
+`gitleaks/gitleaks-action@v2` workflow and scanned the one post-merge candidate commit, producing one SARIF run with zero
+results. It is not represented as Gitleaks 8.28.0 or as a new full-history scan. Combined-tree coverage remains valid
+because the separately accepted parent runs cover their histories, all 24 M5 and 41 M7 changed paths are byte-identical
+between each accepted parent and merge `6a596a8`, their path sets have zero overlap, and the only post-merge changes are
+the three governance documents scanned in this candidate run.
+
+Independent Security/Privacy/Data/License review returned `PASS` with no bounded repair. Independent Sol High final
+review returned `PASS_FOR_PRINCIPAL_ACCEPTANCE_CLOSURE`. Principal separately reviewed the merge graph, all 65 parent
+path bindings, candidate diff, exact-SHA logs, artifacts, M5 true-EOF authority and both review reports. The candidate
+satisfies the controlled integration Gate, subject only to this documentation-only acceptance closure receiving its
+own same-SHA three-job CI and eight-artifact inspection.
+
+This decision does not alter any Milestone state. P2-M5 remains `EXECUTING`; E01 remains
+`BLOCKED_SECURITY_PRIVACY_LICENSE` with zero generation calls, raw outputs or consumed request ordinal; P2-M7 remains
+`FROZEN`; and P2-M6/M8, production, real-user processing and QuestionBank release remain closed.
+
+```text
+INTEGRATION_CANDIDATE: PASS_AT_FC336345_RUN_32642007499_ATTEMPT_1
+INTEGRATION_SECURITY_REVIEW: PASS
+INTEGRATION_FINAL_REVIEW: PASS_FOR_PRINCIPAL_ACCEPTANCE_CLOSURE
+INTEGRATION_CHECKPOINT: PASS_PENDING_ACCEPTANCE_CLOSURE_CI
+MILESTONE_STATE_CHANGE: NONE
+NEXT_ACTION: ACCEPTANCE_CLOSURE_SAME_SHA_CI
+```
+
 ## Protected-worktree evidence
 
 The primary, protected M5 and independent P3-P7 worktrees remain untouched. Their branches, uncommitted changes,
@@ -115,10 +166,9 @@ cleaned, reset or adopted by this checkpoint.
 ## Next action
 
 ```text
-commit candidate
--> normal non-force push
+commit documentation-only acceptance closure
+-> push with the exact integration-branch refspec
 -> exact-SHA three-job Actions
 -> inspect all eight artifacts
--> independent security and final reviews
--> Principal integration acceptance or bounded repair
+-> record final controlled-integration acceptance or bounded repair
 ```

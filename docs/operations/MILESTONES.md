@@ -58,6 +58,10 @@ M5/M7 受控组合分支只汇合已接受的 M5 current authority 与已冻结 
 real-user facial processing 或 QuestionBank release Gate。组合 checkpoint 的权威证据见
 `P2_M5_M7_INTEGRATION_CHECKPOINT.md`。
 
+组合 candidate `fc336345` 的 run `32642007499` 三 jobs、八项 exact-SHA artifacts、独立安全审查和 Sol High
+最终集成审查均通过。该 checkpoint 当前为 `PASS_PENDING_ACCEPTANCE_CLOSURE_CI`；这不改变表中任何 Milestone
+状态，也不解除 P2-M5 E01 blocker。
+
 P2 的可执行状态不解除 P3 真实 facial-data 的 Legal/Consent/PIPIA/Security/Provider Gates。P2 research threshold、identity count、模型选择和 live Provider benchmark 继续是可替换的研究或运营决策，不是本仓库 invariant。
 
 ## Future rolling-wave positioning
