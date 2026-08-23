@@ -11,12 +11,12 @@ approval. P2-M5 fresh study and P2-M6 release/revoke remain closed.
 `ProviderCostEvent` is the sole monetary authority for generation cost. The projection must report these categories
 separately and must never sum them into a single asserted spend:
 
-| Category | Source | Permitted interpretation |
-| --- | --- | --- |
-| `actual` | `ProviderCostEvent.event_kind=final` | Provider-posted final monetary fact, grouped by currency. |
-| `estimated` | `ProviderCostEvent.event_kind=estimated` | Versioned pricing estimate, grouped by currency. |
+| Category      | Source                                       | Permitted interpretation                                                        |
+| ------------- | -------------------------------------------- | ------------------------------------------------------------------------------- |
+| `actual`      | `ProviderCostEvent.event_kind=final`         | Provider-posted final monetary fact, grouped by currency.                       |
+| `estimated`   | `ProviderCostEvent.event_kind=estimated`     | Versioned pricing estimate, grouped by currency.                                |
 | `unavailable` | terminal `GenerationItem` with no cost event | Absence of a provider monetary fact; it is never converted from request counts. |
-| `pending` | `REQUESTED` or `GENERATING` item | Cost evidence is not terminal; it is neither zero nor unavailable. |
+| `pending`     | `REQUESTED` or `GENERATING` item             | Cost evidence is not terminal; it is neither zero nor unavailable.              |
 
 Currency values remain separate. `actual`, `estimated`, `unavailable`, and `pending` must never be compared or
 converted without a new approved pricing/FX authority.
