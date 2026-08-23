@@ -1264,3 +1264,13 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   operation payload.
 - Principal accepts T05. T06 independent deterministic evaluation is now the only authorized M7 implementation
   follow-up; M7 Gate remains `NOT_EVALUATED`, production remains disabled and M5/M6 remain closed.
+
+## 2026-08-23 — P2-M7-T05 acceptance closure CI confirmed
+
+- Closure `379f5c3` completed run `32625171662` with all three mandatory jobs successful, including the complete
+  Linux PostgreSQL/Celery/Python/TypeScript/Playwright/contract/supply-chain matrix.
+- Principal inspected all eight unexpired artifacts: 11 fixed relative members, exact closure SHA and `0014` binding,
+  zero Gitleaks results and zero protected path/payload/image/credential findings. The task-owned inspection root was
+  deleted after review.
+- T05 acceptance is effective. T06 is the sole next M7 task; M7 Gate remains `NOT_EVALUATED`, production remains
+  disabled, and M5/M6 remain closed.

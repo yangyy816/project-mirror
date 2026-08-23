@@ -293,3 +293,27 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_TASK: T06_AUTHORIZED`
+
+## P2-M7-T05 acceptance closure CI confirmation
+
+- The acceptance closure commit `379f5c3b108076beba4e8f924b3cb8f8b8e825b2` completed GitHub Actions run
+  `32625171662`, attempt 1, with all three mandatory jobs successful. The quality job completed the full
+  PostgreSQL/Celery/Python/TypeScript/Browser/contract/supply-chain matrix, and Docker validation plus Gitleaks
+  also succeeded on the same SHA.
+- Principal authenticated and content-inspected eight unexpired closure artifacts, then deleted the unique
+  task-created inspection directory. Their 11 extracted members use fixed relative names; retained evidence binds
+  the exact closure SHA, migration head `0014_m5_eval_authority` and the unchanged recorded OpenAPI digest. SARIF
+  contains zero results; no image, signed URL, credential assignment, raw Provider payload or absolute
+  runner/private path was found.
+- T05 acceptance is effective. T06 independent deterministic evaluation is the sole next M7 task; M7 Gate remains
+  unevaluated, production operation remains disabled, and M5/M6 remain closed.
+
+`P2_M7_T05_ACCEPTANCE_CLOSURE: PASS_AT_379F5C3_RUN_32625171662_ATTEMPT_1`
+
+`P2_M7_T06: EXECUTION_READY`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_TASK: T06_AUTHORIZED`
