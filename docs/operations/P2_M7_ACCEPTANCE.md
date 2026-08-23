@@ -445,3 +445,33 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_TASK: R13_TRACKED_EVIDENCE`
+
+## P2-M7-R13 tracked evidence and Principal acceptance
+
+- Candidate `e804a48aef97faa299d55926d07037ed7f922307` completed GitHub Actions run `32629699282`, attempt 1, with
+  `quality-and-integration`, `secret-scan` and `docker-validation` successful on that exact SHA.
+- The quality job executed the six exact P2-M7 suites against PostgreSQL and reported `65 passed`, zero skip. The
+  retained M7 evidence binds the candidate, migration head `0014_m5_eval_authority`, the unchanged OpenAPI digest and
+  eight passed operation-boundary checks. Phase 1 and P2-M1/M2/M3 retained evidence is also exact-SHA bound.
+- Principal authenticated and content-inspected all eight unexpired artifacts. Their 12 fixed-relative members contain
+  no image file or image magic, runner/private absolute path, credential assignment, signed URL, Prompt field,
+  object-key field or raw Provider payload; Gitleaks SARIF has zero results. Docker evidence reports all five services
+  running and healthy. Playwright 1.62.1 system dependencies and Chromium completed on attempt 1 in 16 and 9 seconds.
+  Celery evidence contains only INFO-level records and no traceback, error, exception or task failure. The exact
+  task-owned artifact directory was deleted and its absence verified.
+- Principal reviewed the complete `9584177..e804a48` diff. The repair uses one request-scoped PostgreSQL transaction
+  advisory lock and the existing append-only audit fingerprint; serial and concurrent exact replay yields one effect,
+  while changed target, expectation, actor or reason fails closed. No migration, dependency, public API/OpenAPI,
+  production, M5/M6 or real CLI composition change is present.
+- R13 is accepted subject to this documentation-only acceptance closure checkpoint receiving its own exact-SHA CI and
+  eight-artifact inspection. R14 remains closed until that evidence succeeds; T08 and the M7 Gate remain unresolved.
+
+`P2_M7_R13: PASS_PENDING_ACCEPTANCE_CLOSURE_CI_AT_E804A48_RUN_32629699282_ATTEMPT_1`
+
+`P2_M7_R14: CLOSED_PENDING_R13_ACCEPTANCE_CLOSURE_CI`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_TASK: R13_ACCEPTANCE_CLOSURE_CI`

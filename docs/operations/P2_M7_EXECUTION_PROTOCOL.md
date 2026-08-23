@@ -346,3 +346,23 @@ acceptance evidence, ADR-051, relevant accepted service contracts and the curren
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_ACTION: P2_M7_R13_TRACKED_EVIDENCE`
+
+## R13 tracked evidence / acceptance closure entry
+
+- Candidate `e804a48aef97faa299d55926d07037ed7f922307` completed run `32629699282`, attempt 1, with all three mandatory
+  jobs successful. The exact quality job ran `65` P2-M7 tests with zero skip.
+- Principal inspected all eight unexpired same-SHA artifacts and their 12 fixed-relative members. Retained evidence
+  binds `0014_m5_eval_authority` and the unchanged OpenAPI digest; all eight M7 boundary checks passed, Gitleaks has
+  zero results, and protected path/payload/image/credential scans are zero. The inspection root was deleted.
+- Principal reviewed the actual transaction/concurrency diff and accepts R13 subject to this documentation-only
+  acceptance closure's own same-SHA Gate. R14 composition remains closed until that Gate succeeds.
+
+`P2_M7_R13: PASS_PENDING_ACCEPTANCE_CLOSURE_CI_AT_E804A48_RUN_32629699282_ATTEMPT_1`
+
+`P2_M7_R14: CLOSED_PENDING_R13_ACCEPTANCE_CLOSURE_CI`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_ACTION: P2_M7_R13_ACCEPTANCE_CLOSURE_CI`

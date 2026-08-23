@@ -1328,3 +1328,13 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
 - One broader collection attempt omitted repository-root research/governance scripts from the read-only container
   mount and failed before test execution; exact P2-M7 file collection corrected the harness without a product change.
   R13 is `READY_FOR_TRACKED_EVIDENCE`; R14 remains closed until R13 acceptance.
+
+## 2026-08-23 — P2-M7-R13 tracked evidence accepted pending closure CI
+
+- Candidate `e804a48` completed exact-SHA run `32629699282`, attempt 1, with quality/integration, secret scan and
+  Docker validation successful. The P2-M7 suite reported 65 passes and zero skip.
+- Principal inspected eight unexpired artifacts with 12 fixed-relative members. Exact SHA, `0014`, unchanged OpenAPI,
+  all eight M7 checks, zero Gitleaks results, five healthy Docker services and clean Celery evidence were confirmed;
+  protected path/payload/image/credential scans were zero. The task-owned inspection root was deleted.
+- Principal reviewed the transaction/concurrency diff and accepts R13 subject to a separate acceptance closure CI.
+  R14 real CLI composition, T08 and the M7 Gate remain closed until that checkpoint succeeds.

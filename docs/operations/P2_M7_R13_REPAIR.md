@@ -2,7 +2,7 @@
 
 ## Status
 
-`READY_FOR_TRACKED_EVIDENCE`
+`PASS_PENDING_ACCEPTANCE_CLOSURE_CI_AT_E804A48_RUN_32629699282_ATTEMPT_1`
 
 ## Finding
 
@@ -55,5 +55,22 @@ composition repair both pass same-SHA evidence and independent re-review.
   read-only container mount and failed during unrelated module collection. The corrected exact P2-M7 file collection
   passed without a product change; this harness attempt is not treated as an application defect.
 
-No CLI composition, migration, dependency, public contract, production, M5 or M6 change is included. Remote exact-SHA
-CI, eight-artifact inspection and Principal acceptance are still required before R14 may expose mutation composition.
+No CLI composition, migration, dependency, public contract, production, M5 or M6 change is included.
+
+## Tracked evidence and Principal disposition
+
+- Candidate `e804a48aef97faa299d55926d07037ed7f922307` completed GitHub Actions run `32629699282`, attempt 1.
+  `quality-and-integration`, `secret-scan` and `docker-validation` all succeeded on that exact SHA.
+- The quality job executed all six P2-M7 files against PostgreSQL and reported `65 passed`, zero skip. Retained
+  `mirror.p2-m7.ci-evidence/v1` binds the candidate, `0014_m5_eval_authority`, the unchanged OpenAPI digest and all
+  eight operation-boundary checks.
+- Principal authenticated and inspected all eight unexpired artifacts: 12 fixed-relative members, zero image file or
+  image magic, zero runner/private absolute path, credential assignment, signed URL, Prompt field, object-key field or
+  raw Provider payload, and zero Gitleaks SARIF results. The Celery evidence contains INFO records only and no
+  traceback, error, exception or task failure. The exact task-created inspection directory was deleted afterward.
+- Principal reviewed the complete `9584177..e804a48` transaction and test diff. Serial and concurrent exact retries
+  produce one audit effect and stable response; changed target, expectation, actor or reason fails closed. Existing
+  stale-expectation and worker-recovery semantics remain covered.
+
+R13 is accepted subject to a separate documentation-only acceptance closure checkpoint and its own same-SHA CI and
+artifact inspection. R14 remains closed until that checkpoint succeeds.
