@@ -67,7 +67,7 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 - **D:** fresh/upgrade/downgrade/re-upgrade, single-head, `alembic check`, zero-drift and populated-downgrade tests.
 - **R:** repair the prototype revision before D01-B acceptance; formal absorption uses a new forward migration.
 - **S:** stop D01-B/C and all database consumers while lifecycle or authority is ambiguous.
-- **Owner / status / blocked:** Principal + data owner / `OPEN` / D01-C–D12.
+- **Owner / status / blocked:** Principal + data owner / `MITIGATED_MONITORED` / no current task; formal promotion and D12 remain monitored.
 
 ## R-DEMO-06 — Formal and Demo entities become competing authorities
 
@@ -78,7 +78,7 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 - **D:** invariants and lineage tests prove no capability/evidence/API/rebuildability/formal-authority loss.
 - **R:** redo the physical mapping/migration before data admission; retain independent `demo_*` table when equivalence is incomplete.
 - **S:** prohibit table creation or D01-B acceptance for an unresolved entity.
-- **Owner / status / blocked:** Principal + data owner / `OPEN` / D01-B–D12.
+- **Owner / status / blocked:** Principal + data owner / `MITIGATED_MONITORED` / no current task; downstream compiler and D12 authority checks remain monitored.
 
 ## R-DEMO-07 — Bayesian Newton solver is unstable or non-convergent
 
@@ -190,7 +190,7 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 - **D:** owner-bound GET/cancel, cross-owner negative, concurrent binding and immutability tests.
 - **R:** repair the bridge/schema before opening async routes; quarantine unbound job results.
 - **S:** no asynchronous Demo API may open without owner-bound binding authority.
-- **Owner / status / blocked:** backend + data owners / `OPEN` / D01-C, D03–D10.
+- **Owner / status / blocked:** backend + data owners / `PARTIALLY_MITIGATED` / D01-C and D03–D10 owner-bound API/state-machine integration.
 
 ## R-DEMO-17 — D00/worktree circular dependency
 

@@ -8,11 +8,13 @@ TRACK: DEMO_PROTOTYPE
 PLAN_VERSION: P3_P7_ALGORITHMIC_PROTOTYPE_PLATFORM_PLAN_V1_1
 BASE_SHA: d134517fa97132b180a82c69c617b8f65d3b282e
 D01_A: TASK_ACCEPTED
-D01_B: EXECUTING_SCHEMA_AUTHORITY
+D01_B: READY_FOR_INDEPENDENT_IMPLEMENTATION_REVIEW
 INDEPENDENT_SOL_SCHEMA_REVIEW: PASS
 INDEPENDENT_SOL_REVIEWED_MATRIX_SHA256: 382fb6ba3ef5059d4089fcb4f3b149ba0d65fedd43d5e4b11c3e4e55054544bc
 PRINCIPAL_MATRIX_DISPOSITION: ACCEPTED_FOR_D01_B_IMPLEMENTATION
 MIGRATION_ORM_WRITES_AT_MATRIX_ACCEPTANCE: NOT_STARTED
+MIGRATION_ORM_IMPLEMENTATION: COMPLETE
+INDEPENDENT_SOL_IMPLEMENTATION_REVIEW: PENDING
 FORMAL_SCHEMA_CHANGE: FORBIDDEN
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```
@@ -43,13 +45,13 @@ column, trigger, constraint, index, current pointer or preference/profile payloa
 
 ## Five mandatory preservation proofs
 
-| Proof                           | Design result | Implementation result | Reason                                                                                         |
-| ------------------------------- | ------------- | --------------------- | ---------------------------------------------------------------------------------------------- |
-| `NO_CAPABILITY_LOSS`            | `PASS`        | `NOT_VERIFIED`        | All 26 logical entities plus `demo_job_binding` retain a unique physical authority.            |
-| `NO_EVIDENCE_LOSS`              | `PASS`        | `NOT_VERIFIED`        | Evidence/version entities retain digest, lineage, append-only or rebuildable semantics.        |
-| `NO_API_LOSS`                   | `PASS`        | `NOT_VERIFIED`        | The matrix supports every frozen `/api/v1/demo/*` ownership, job, trace and rebuild operation. |
-| `NO_REBUILDABILITY_LOSS`        | `PASS`        | `NOT_VERIFIED`        | Derived state uses evidence watermark/version inputs and has no mutable current pointer.       |
-| `NO_FORMAL_AUTHORITY_POLLUTION` | `PASS`        | `NOT_VERIFIED`        | Formal reuse is reference/operation-only and `demo_0001` performs no formal-table DDL.         |
+| Proof                           | Design result | Implementation result | Reason                                                                                                 |
+| ------------------------------- | ------------- | --------------------- | ------------------------------------------------------------------------------------------------------ |
+| `NO_CAPABILITY_LOSS`            | `PASS`        | `PASS`                | All 26 logical entities plus `demo_job_binding` retain a unique physical authority.                    |
+| `NO_EVIDENCE_LOSS`              | `PASS`        | `PASS`                | Evidence/version entities retain digest, lineage, append-only or rebuildable semantics.                |
+| `NO_API_LOSS`                   | `PASS`        | `PASS`                | The physical graph supports every frozen `/api/v1/demo/*` ownership, job, trace and rebuild operation. |
+| `NO_REBUILDABILITY_LOSS`        | `PASS`        | `PASS`                | Derived state uses evidence watermark/version inputs and has no mutable current pointer.               |
+| `NO_FORMAL_AUTHORITY_POLLUTION` | `PASS`        | `PASS`                | Formal reuse is reference/operation-only and `demo_0001` performs no formal-table DDL.                 |
 
 Design `PASS` authorizes implementation only. D01-B remains incomplete until real PostgreSQL migration, invariants,
 concurrency, populated downgrade, ORM consistency and independent review pass.
@@ -813,10 +815,10 @@ that follows this document; it does not assert implementation or PostgreSQL succ
 After implementation, an independent Sol review must verify the actual diff and real PostgreSQL evidence. Until then:
 
 ```text
-D01_B: NOT_ACCEPTED
+D01_B_IMPLEMENTATION: READY_FOR_INDEPENDENT_REVIEW
 D01_C: CLOSED
-DEMO_MIGRATION_LIFECYCLE: NOT_VERIFIED
-POSTGRESQL_AUTHORITY: NOT_VERIFIED
+DEMO_MIGRATION_LIFECYCLE: PASS
+POSTGRESQL_AUTHORITY: PASS
 FORMAL_P3_P7_STATUS: UNCHANGED
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```

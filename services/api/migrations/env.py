@@ -5,6 +5,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from mirror_api import demo_models as _demo_models  # noqa: F401
 from mirror_api import models as _models  # noqa: F401
 from mirror_api.config import get_settings
 from mirror_api.db import Base
