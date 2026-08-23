@@ -3328,6 +3328,48 @@ def test_concurrent_local_synthetic_admission_successor_has_one_key_scoped_winne
     assert authority_rows[-1].source_authority_key == source_authority_key
 
 
+def test_local_synthetic_revocation_copies_import_config_authority(
+    session: Session,
+) -> None:
+    _, first_admit = _insert_local_d02_identity(
+        session, marker=f"local-revoke-import-config-{new_id()}"
+    )
+    base_fields = {
+        column.name: getattr(first_admit, column.name)
+        for column in first_admit.__table__.columns
+        if column.name
+        not in _NON_AUTHORITY_COLUMNS | {"source_authority_kind", "source_authority_key"}
+    }
+    base_fields.update(
+        admission_sequence=2,
+        admission_action="REVOKE",
+        admission_config_digest=hashlib.sha256(b"local-revoke-import-config").hexdigest(),
+        supersedes_id=first_admit.id,
+    )
+
+    with pytest.raises(
+        DBAPIError,
+        match="D02 local revocation must copy recovered authority",
+    ):
+        _insert_demo_row(
+            session,
+            DemoSyntheticIdentity,
+            **{
+                **base_fields,
+                "import_config_digest": hashlib.sha256(b"tampered-local-import-config").hexdigest(),
+            },
+        )
+    session.rollback()
+
+    revoke = _insert_demo_row(
+        session,
+        DemoSyntheticIdentity,
+        **base_fields,
+    )
+    assert revoke.admission_action == "REVOKE"
+    assert revoke.import_config_digest == first_admit.import_config_digest
+
+
 def test_image_verification_matching_bidirectional_edge_commits(session: Session) -> None:
     graph = _insert_full_demo_graph(session, include_episode=False)
     step = _prepare_followup_execution(session, graph)

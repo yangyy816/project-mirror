@@ -3971,6 +3971,8 @@ BEGIN
             OR NEW.adult_synthetic_attested IS DISTINCT FROM
                 previous_admission.adult_synthetic_attested
             OR NEW.importer_version IS DISTINCT FROM previous_admission.importer_version
+            OR NEW.import_config_digest IS DISTINCT FROM
+                previous_admission.import_config_digest
         ) THEN
             RAISE EXCEPTION 'D02 local revocation must copy recovered authority';
         END IF;
