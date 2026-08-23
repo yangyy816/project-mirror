@@ -61,16 +61,25 @@ technical or MVR decision.
 | Diversity and isolation evidence         | non-sensitive morphology/style diversity, duplicate and mode-collapse evidence                                        | `FURTHER_RESEARCH` if insufficient                                      |
 | M5 disposition separation                | separate post-`04-E` technical and MVR disposition tasks                                                              | `OWNER_ACCEPTED_SEPARATE_TECHNICAL_AND_MVR_DISPOSITION`                 |
 
-The table states requirements only. It does not freeze a value, select a resource, or create an execution envelope.
+The Owner-accepted dispositions in this table are synchronized summaries of `OD-P2-M5-CC04-001`, the Owner Decision
+Pack, and the Decision Register. The table does not replace those authorities or grant execution authority. The bounded
+resource envelope and every other Owner-accepted constraint remain in force exactly as recorded; this proposal does not
+create, modify, expand, transfer, or consume them.
 
 ## Stop and escalation rules
 
 - Missing or unknown authority, source rights, retention, telemetry, artifact, custody or qualification facts result in
   `FURTHER_RESEARCH`, `DEFERRED_EXTERNAL_DEPENDENCY`, or the applicable review-required state; they must not be
   represented by placeholder values.
-- A requirement for a new architecture, schema, public contract, Product Invariant, adult-policy change, Provider
-  scope, model/license disposition, resource/budget ceiling, threshold/split or custody arrangement is
-  `OWNER_DECISION_REQUIRED` before a later task is written.
+- Within the already accepted scope, missing source-rights, retention, telemetry, runtime-qualification,
+  threshold/formula/candidate evidence, custody-implementation evidence, or other required facts resolve through their
+  named License, Security, Privacy, evidence, deferred-dependency, or `FURTHER_RESEARCH` Gate. They must not be
+  represented by placeholders or silently promoted to Owner approval.
+- Only a future change, expansion, exception, or violation affecting architecture, schema/public contract, a Product
+  Invariant, the adult boundary, Provider/production scope, the accepted resource envelope, the accepted
+  calibration/holdout isolation rule, or the accepted custody boundary is `OWNER_DECISION_REQUIRED_FOR_SCOPE_CHANGE`
+  before a later task is written. Implementing the already accepted constraints does not require the same Owner decision
+  again.
 - Any legacy-evidence reference that would affect selection, comparison, replacement or execution is a hard stop.
 - Any request that would expose private bytes, a locator, Prompt, object key, signed URL or credential is a hard stop.
 
