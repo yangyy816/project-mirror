@@ -4,13 +4,18 @@
 
 - `BOOTSTRAP_STATUS: OK`
 - `TASK_ID: P2-M5-M7-INTEGRATION-01`
-- `STATUS: PASS_PENDING_ACCEPTANCE_CLOSURE_CI`
+- `STATUS: PASS_PENDING_FINAL_STATE_CI`
 - `BRANCH: codex/phase2-m5-m7-integration`
 - `MERGE_COMMIT: 6a596a848f39c1a5e0248cf23ee35fbc38d6da36`
 - `CANDIDATE_COMMIT: fc336345e96a7f1627c681770b58659f8c2ebb05`
 - `CANDIDATE_RUN: 32642007499_ATTEMPT_1`
-- `ACCEPTANCE_CLOSURE_COMMIT: THIS_COMMIT`
-- `INTEGRATION_CHECKPOINT: PASS_PENDING_ACCEPTANCE_CLOSURE_CI`
+- `ACCEPTANCE_CLOSURE_COMMIT: 64b5e19a4a06aa938c84bd33256cc05a3d5a46ea`
+- `ACCEPTANCE_CLOSURE_RUN: 32644263187_ATTEMPT_1`
+- `FINAL_STATE_COMMIT: THIS_COMMIT`
+- `FINAL_STATE_PRECONDITION: PASS_PENDING_FINAL_STATE_CI`
+- `FINAL_STATE_POSTCONDITION: PASS`
+- `FINAL_STATE_AUTHORITY_CONDITION: EFFECTIVE_ONLY_AFTER_THIS_COMMIT_SAME_SHA_THREE_JOB_CI_AND_EIGHT_ARTIFACT_INSPECTION`
+- `INTEGRATION_CHECKPOINT: PASS_AFTER_FINAL_STATE_AUTHORITY_CONDITION`
 - `MIGRATION_HEAD: 0014_m5_eval_authority`
 - `PUBLIC_API_CHANGE: NONE`
 - `PRODUCTION_STATUS: NOT_DEPLOYED`
@@ -157,6 +162,54 @@ MILESTONE_STATE_CHANGE: NONE
 NEXT_ACTION: ACCEPTANCE_CLOSURE_SAME_SHA_CI
 ```
 
+## Acceptance closure evidence and final-state candidate
+
+Documentation-only acceptance closure `64b5e19a4a06aa938c84bd33256cc05a3d5a46ea` completed GitHub Actions run
+`32644263187`, attempt 1. `quality-and-integration`, `secret-scan` and `docker-validation` all succeeded on that exact
+SHA.
+
+- Full Python reported 814 passes and one existing optional M4 private-runtime skip. The fixed P2-M7 evidence slice
+  reported 75 passes and zero failure, error or skip; Phase 1 and P2-M1/M2/M3 reported 1/98/52/46 tests with zero skip.
+  Ruff covered 233 files, strict mypy covered 130 source files, PostgreSQL completed upgrade/downgrade/re-upgrade and
+  Alembic check at `0014_m5_eval_authority`, TypeScript reported 54 tests, and Browser Integration reported five
+  passes.
+- Eight unexpired artifacts contain 12 fixed-relative members and bind the closure SHA. Their IDs and GitHub archive
+  digests are `9494483968` / `dc1894be...`, `9494480448` / `c2f27a63...`, `9494480095` / `8d4deae8...`,
+  `9494479715` / `ee1bc890...`, `9494479377` / `972889a8...`, `9494474779` / `c264995f...`, `9494437682` /
+  `e74ae5e4...` and `9494419850` / `7fda2906...`.
+- The extracted set contains 12 files and 252,619 bytes. Its sorted relative-path/size/member-SHA manifest digest is
+  `6357c06f3ba4eeeab65063e79b89e11547e83dd57a7151425e3a0d9eef4ff233`. All five retained CI evidence
+  files bind the closure SHA, `0014_m5_eval_authority` and the unchanged OpenAPI digest.
+- Docker reports all five services running and healthy. Celery records six successful tasks and no error, critical or
+  traceback marker. Playwright 1.62.1 system dependencies and Chromium both succeeded on attempt 1 in 16 and 11
+  seconds. Both dependency audits report no known vulnerabilities; evidence contains 101 Python license entries, 14
+  Node license groups / 480 package entries / 479 unique package names and a CycloneDX 1.6 SBOM with 105 components.
+- Gitleaks `8.24.3` used the existing action's `--log-opts=-1`, scanned exactly the one closure commit and reported no
+  leaks; the SARIF contains one run and zero results. This is not represented as Gitleaks 8.28.0 or a full-history
+  scan.
+- Path escape, reparse point, image extension/magic, runner/private absolute path, credential assignment, signed URL,
+  Prompt field, object-key field and raw Provider-payload scans are all zero. The exact task-owned inspection root was
+  deleted and verified absent.
+
+The acceptance closure is effective. This final-state record changes governance documents only and becomes the
+authoritative `PASS` record only after its own exact-SHA three-job CI and eight-artifact inspection satisfy the stated
+authority condition. Before that evidence exists, the precondition remains `PASS_PENDING_FINAL_STATE_CI`. Failure
+requires a bounded integration repair and cannot reuse run `32644263187` as this commit's evidence.
+
+No Milestone state changes. P2-M5 remains `EXECUTING`; E01 remains `BLOCKED_SECURITY_PRIVACY_LICENSE` with zero
+generation calls, raw outputs or consumed request ordinal; P2-M7 remains `FROZEN`; and P2-M6/M8, production, real-user
+processing and QuestionBank release remain closed.
+
+```text
+INTEGRATION_CANDIDATE: PASS_AT_FC336345_RUN_32642007499_ATTEMPT_1
+INTEGRATION_ACCEPTANCE_CLOSURE: PASS_AT_64B5E19A_RUN_32644263187_ATTEMPT_1
+INTEGRATION_SECURITY_REVIEW: PASS
+INTEGRATION_FINAL_REVIEW: PASS_FOR_PRINCIPAL_ACCEPTANCE_CLOSURE
+INTEGRATION_FINAL_STATE: PASS_AFTER_THIS_COMMIT_SAME_SHA_CI_AND_EIGHT_ARTIFACT_INSPECTION
+MILESTONE_STATE_CHANGE: NONE
+NEXT_ACTION: FINAL_STATE_SAME_SHA_CI
+```
+
 ## Protected-worktree evidence
 
 The primary, protected M5 and independent P3-P7 worktrees remain untouched. Their branches, uncommitted changes,
@@ -166,9 +219,9 @@ cleaned, reset or adopted by this checkpoint.
 ## Next action
 
 ```text
-commit documentation-only acceptance closure
+commit this documentation-only final-state record
 -> push with the exact integration-branch refspec
 -> exact-SHA three-job Actions
 -> inspect all eight artifacts
--> record final controlled-integration acceptance or bounded repair
+-> apply the conditional PASS or create a bounded repair
 ```

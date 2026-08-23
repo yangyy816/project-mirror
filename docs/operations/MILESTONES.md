@@ -62,6 +62,10 @@ real-user facial processing 或 QuestionBank release Gate。组合 checkpoint �
 最终集成审查均通过。该 checkpoint 当前为 `PASS_PENDING_ACCEPTANCE_CLOSURE_CI`；这不改变表中任何 Milestone
 状态，也不解除 P2-M5 E01 blocker。
 
+文档 closure `64b5e19a` 的 run `32644263187` 三 jobs 与八项 exact-SHA artifacts 已通过并完成内容检查。
+本 final-state record 仅在其自己的 same-SHA 三 jobs 与八 artifacts 通过后使组合 checkpoint 成为 `PASS`；
+无论结果如何，表中 P2-M5 `EXECUTING`、P2-M7 `FROZEN` 及 E01 blocker 均不改变。
+
 P2 的可执行状态不解除 P3 真实 facial-data 的 Legal/Consent/PIPIA/Security/Provider Gates。P2 research threshold、identity count、模型选择和 live Provider benchmark 继续是可替换的研究或运营决策，不是本仓库 invariant。
 
 ## Future rolling-wave positioning

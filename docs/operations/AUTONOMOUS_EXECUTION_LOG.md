@@ -1474,3 +1474,24 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   raw outputs or consumed request ordinal; M7 remains `FROZEN`; M6/M8, production, real-user processing and
   QuestionBank release remain closed. `MEMORY.md`, OpenAPI, Codex configuration and protected worktrees remain
   untouched.
+
+## 2026-08-23 — P2-M5/M7 integration acceptance closure and final-state candidate
+
+- Documentation-only closure `64b5e19a4a06aa938c84bd33256cc05a3d5a46ea` completed run `32644263187`,
+  attempt 1, with all three mandatory jobs successful. Full Python reported 814 passes plus one existing optional M4
+  private-runtime skip; fixed P2-M7 reported 75 passes/zero skip; retained Phase 1 and P2-M1/M2/M3 evidence reported
+  1/98/52/46 passes/zero skip. PostgreSQL lifecycle/check, strict mypy over 130 sources, 54 Node tests, Browser 5/5,
+  contract drift, Redis/Celery, dependency audits and Docker all passed.
+- All eight unexpired artifacts and 12 fixed-relative members were inspected. Five evidence files bind the closure SHA,
+  migration head `0014_m5_eval_authority` and unchanged OpenAPI digest. The extracted set is 252,619 bytes with member
+  manifest digest `6357c06f3ba4eeeab65063e79b89e11547e83dd57a7151425e3a0d9eef4ff233`.
+- Gitleaks 8.24.3 scanned one closure commit and produced one SARIF run with zero results. Docker reports five healthy
+  services; Celery reports six successful tasks and zero failure marker; Playwright dependency/Chromium acquisition
+  succeeded on attempt 1. License evidence contains 101 Python entries and 14 Node groups / 480 package entries; the
+  CycloneDX 1.6 SBOM contains 105 components.
+- Path escape, reparse, image extension/magic, private path, credential, signed URL, Prompt, object-key and raw Provider
+  payload scans are zero. The exact task-owned inspection root was deleted and verified absent.
+- This final-state record changes only the same three governance documents. It becomes an authoritative integration
+  `PASS` only after its own exact-SHA three-job CI and eight-artifact inspection; until then the checkpoint is
+  `PASS_PENDING_FINAL_STATE_CI`. It does not change P2-M5 `EXECUTING`, P2-M7 `FROZEN`, the E01 capability blocker, M6/M8
+  entry, production, real-user processing or QuestionBank release.
