@@ -9,8 +9,8 @@
 - Migration head: `0014_m5_eval_authority`
 - Architecture authority: ADR-022, ADR-025, ADR-043, ADR-049 and ADR-051.
 - Public API impact: none.
-- State: `PASS`; T01–T08 and R01–R14 are accepted. The freeze-state candidate still requires its own same-SHA Gate;
-  production remains `NOT_DEPLOYED`, and P2-M8 entry remains dependency-gated by P2-M5 and P2-M6.
+- State: `FROZEN`; T01–T08 and R01–R14 are accepted, and freeze candidate `7d8e049` passed its exact-SHA Gate.
+  Production remains `NOT_DEPLOYED`, and P2-M8 entry remains dependency-gated by P2-M5 and P2-M6.
 
 ## Objective
 
@@ -480,5 +480,32 @@ acceptance evidence, ADR-051, relevant accepted service contracts and the curren
 `P2_M7_STATE: PASS`
 
 `P2_M7_FREEZE_STATE: PENDING_SAME_SHA_CI`
+
+`P2_M8_ENTRY: CLOSED_PENDING_P2_M5_AND_P2_M6_FROZEN`
+
+## Final freeze-state record
+
+- Freeze candidate `7d8e049aec28156ec0337a5176f6521a3eaacb92` completed exact-SHA run `32639724124`, attempt 1,
+  with all three mandatory jobs successful.
+- Principal inspected eight unexpired artifacts and 12 fixed-relative members. Five evidence files bind that SHA,
+  `0014_m5_eval_authority` and unchanged OpenAPI digest. M7 has 75 passes and zero failure/error/skip; full Python has
+  814 passes plus one existing optional private-runtime skip; strict mypy covers 130 source files; Browser Integration
+  has five passes.
+- Gitleaks has zero results, Docker has five healthy services, Playwright dependency/Chromium acquisition passed on
+  attempt 1, Celery has no failure record, dependency audits report no known vulnerabilities, and license/SBOM evidence
+  is readable. Protected path/payload/image/credential scans are zero; the task-owned artifact root was deleted.
+- The freeze candidate changes governance documents only and preserves every accepted authority, implementation,
+  contract, security, privacy, data, license and production boundary. Principal closes P2-M7 implementation and records
+  the milestone as `FROZEN` in this separate final state record.
+- Production remains `NOT_DEPLOYED`; provenance/QA remain unavailable; P2-M5 and P2-M6 are unchanged; P2-M8 remains
+  closed pending both frozen dependencies.
+
+`P2_M7_FREEZE_CANDIDATE: PASS_AT_7D8E049_RUN_32639724124_ATTEMPT_1`
+
+`P2_M7_GATE: PASS`
+
+`P2_M7_STATE: FROZEN`
+
+`P2_M7_FREEZE_STATE: FROZEN`
 
 `P2_M8_ENTRY: CLOSED_PENDING_P2_M5_AND_P2_M6_FROZEN`

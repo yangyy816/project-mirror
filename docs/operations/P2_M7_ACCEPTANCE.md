@@ -3,7 +3,7 @@
 ## Status
 
 - Milestone: `P2-M7 — Internal Operations, Cost and Observability`
-- State: `PASS`
+- State: `FROZEN`
 - Planning baseline: `fd64a313c3f2da534e3e019991f1cdb8352f5a74`
 - Migration head: `0014_m5_eval_authority`
 - Public API / OpenAPI: unchanged by P2-M7.
@@ -21,7 +21,7 @@
 | Observability      | fixed allowlist, correlation, no collector overclaim                | PASS                                         |
 | Recovery           | duplicate, stale, cancel/crash/concurrency evidence                 | PASS                                         |
 | Contracts          | OpenAPI/generated TypeScript unchanged                              | PASS                                         |
-| CI                 | exact SHA, three jobs, eight readable artifacts                     | PASS — closure `32638417120`, attempt 1      |
+| CI                 | exact SHA, three jobs, eight readable artifacts                     | PASS — freeze run `32639724124`, attempt 1   |
 | Independent review | security/privacy/license and final review                           | PASS — R14 exact-SHA acceptance prerequisite |
 
 ## T01 local candidate
@@ -614,5 +614,35 @@
 `P2_M7_STATE: PASS`
 
 `P2_M7_FREEZE_STATE: PENDING_SAME_SHA_CI`
+
+`P2_M8_ENTRY: CLOSED_PENDING_P2_M5_AND_P2_M6_FROZEN`
+
+## P2-M7 freeze-state confirmation
+
+- Freeze candidate `7d8e049aec28156ec0337a5176f6521a3eaacb92` completed GitHub Actions run `32639724124`,
+  attempt 1. `quality-and-integration`, `secret-scan` and `docker-validation` all succeeded on that exact SHA.
+- Principal inspected all eight unexpired artifacts and 12 fixed-relative members. Five retained evidence files bind
+  the freeze candidate, migration head `0014_m5_eval_authority` and unchanged OpenAPI digest. M7 reports 75 passes and
+  zero failure/error/skip; full Python reports 814 passes plus one existing optional private-runtime skip; strict mypy
+  covers 130 source files and Browser Integration passes five tests.
+- Gitleaks SARIF contains one run and zero results. Docker reports five running/healthy services. Playwright 1.62.1
+  system dependencies and Chromium both passed on attempt 1 in 12 and 11 seconds. Celery contains no failure record.
+  Python license evidence has 101 entries, Node evidence has 14 groups and 480 package entries, CycloneDX 1.6 has 105
+  components, and both dependency audits report no known vulnerabilities.
+- Artifact path-escape, unexpected/image extension, image magic, private path, credential assignment, signed URL,
+  Prompt, object-key and raw Provider payload scans are all zero. The task-owned artifact root was deleted and verified
+  absent.
+- This separate final state record advances P2-M7 from `PASS` to `FROZEN`. No M7 implementation remains open.
+  Production remains `NOT_DEPLOYED`; provenance/QA capabilities remain unavailable; M5/M6 states are unchanged; P2-M8
+  refinement remains closed until P2-M5 and P2-M6 are also frozen.
+- `MEMORY.md` remains a protected pre-existing user modification and is not modified or staged by this record.
+
+`P2_M7_FREEZE_CANDIDATE: PASS_AT_7D8E049_RUN_32639724124_ATTEMPT_1`
+
+`P2_M7_GATE: PASS`
+
+`P2_M7_STATE: FROZEN`
+
+`P2_M7_FREEZE_STATE: FROZEN`
 
 `P2_M8_ENTRY: CLOSED_PENDING_P2_M5_AND_P2_M6_FROZEN`

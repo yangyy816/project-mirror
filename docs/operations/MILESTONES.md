@@ -50,7 +50,7 @@ Phase 2 仅处理可追溯的成年合成人物刺激资产；真实用户数据
 | P2-M4     | FROZEN    | repaired closure `11bda0a`；run `32169725374`、七项 artifacts 与双重独立审查全绿                                                   |
 | P2-M5     | EXECUTING | CC02-C legacy replay 已因 `EVIDENCE_LOCATION_LOST` 停止；CC04-G 已接受，只有 04-A proposal planning eligible，执行与后续 Gate 关闭 |
 | P2-M6     | COMMITTED | QuestionBank draft, immutable release and revocation；须待 M5 Gate 后 refinement                                                   |
-| P2-M7     | PASS      | R14/T08 与 closure Gate 均通过；freeze-state candidate 等待 same-SHA CI；production `NOT_DEPLOYED`                                 |
+| P2-M7     | FROZEN    | freeze candidate `7d8e049`；run `32639724124` 三 jobs 与 8 artifacts 全绿；production `NOT_DEPLOYED`                               |
 | P2-M8     | COMMITTED | Golden dataset and integrated evaluation；须待 M5–M7 Gate 后 refinement                                                            |
 | P2-M9     | COMMITTED | Final audit and freeze；须待 M1–M8 Gate 后 refinement                                                                              |
 

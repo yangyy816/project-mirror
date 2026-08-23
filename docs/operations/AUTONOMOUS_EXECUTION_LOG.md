@@ -1410,3 +1410,23 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   remains closed pending both dependencies.
 - Protected pre-existing `MEMORY.md` changes remain untouched and unstaged; durable-memory reconciliation stays
   deferred.
+
+## 2026-08-23 — P2-M7 freeze-state Gate passed / final state record
+
+- Freeze candidate `7d8e049aec28156ec0337a5176f6521a3eaacb92` completed exact-SHA run `32639724124`,
+  attempt 1. Quality/integration, secret scan and Docker validation all passed.
+- Principal downloaded and inspected eight unexpired artifacts with 12 fixed-relative members. Five retained evidence
+  files bind the freeze candidate, `0014_m5_eval_authority` and unchanged OpenAPI digest. M7 has 75 passes and zero
+  failure/error/skip; full Python has 814 passes plus one existing optional private-runtime skip; strict mypy covers
+  130 source files; Browser Integration has five passes.
+- Gitleaks contains one SARIF run and zero results; Docker has five running/healthy services; Playwright 1.62.1 system
+  dependencies and Chromium passed on attempt 1 in 12 and 11 seconds; Celery has no failure record. Python license
+  evidence has 101 entries, Node evidence has 14 groups and 480 package entries, CycloneDX 1.6 has 105 components, and
+  dependency audits report no known vulnerabilities.
+- Path escape, unexpected/image extension, image magic, private path, credential assignment, signed URL, Prompt,
+  object-key and raw Provider payload scans are zero. The task-owned artifact directory was deleted and verified absent.
+- Principal records `P2_M7_GATE: PASS` and advances P2-M7 to `FROZEN` in this separate final state record. Production
+  remains `NOT_DEPLOYED`; provenance/QA remain unavailable; M5/M6 are unchanged; P2-M8 remains closed pending P2-M5 and
+  P2-M6 frozen dependencies.
+- Protected pre-existing `MEMORY.md` changes remain untouched and unstaged; durable-memory reconciliation stays
+  deferred.
