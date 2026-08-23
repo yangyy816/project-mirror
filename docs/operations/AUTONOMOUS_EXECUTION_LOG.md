@@ -1430,3 +1430,23 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   P2-M6 frozen dependencies.
 - Protected pre-existing `MEMORY.md` changes remain untouched and unstaged; durable-memory reconciliation stays
   deferred.
+
+## 2026-08-23 — P2-M5/M7 controlled combined-line candidate
+
+- A new isolated worktree and branch start from M5 current authority `496d8061f4493b280d41ae33e4c8df78493e860c`
+  and merge the frozen M7 final state `376d26d7ee5a4394ec167f26b087d0bb0ed7ceea` through ordinary two-parent merge
+  `6a596a848f39c1a5e0248cf23ee35fbc38d6da36`. Merge base is `fd64a313c3f2da534e3e019991f1cdb8352f5a74`;
+  the two branch-exclusive changed-path sets had zero overlap.
+- M5 run `32631572282` and M7 run `32640294672` each passed all three mandatory jobs and expose eight unexpired
+  exact-SHA artifacts. The combined candidate still requires its own same-SHA CI, artifact inspection and independent
+  security/final review; parent evidence is not substituted for combined-state evidence.
+- Local combined-tree checks passed Ruff format/lint, strict mypy over 130 sources, Node lint/typecheck/54 tests and
+  production build. The fixed M7 slice produced 68 passes plus seven PostgreSQL-environment skips, so it is not used as
+  zero-skip acceptance evidence. Windows CRLF made repo-wide Prettier and byte-exact contract checks non-authoritative;
+  Docker was unavailable locally. Linux same-SHA CI remains mandatory for those Gates.
+- No private input, image generation, Prompt, output root, request ordinal, dependency, migration, OpenAPI, production,
+  M6/M8 or P3–P7 authority changed. E01 remains fail closed with zero calls pending Owner selection and actual provision
+  of a destination-bound private sink plus authenticated actual-human duplicate-review channel, or explicit new
+  runtime/provider change control.
+- The primary, protected P2-M5 and independent P3–P7 worktrees and protected user changes remain untouched. `MEMORY.md`
+  reconciliation is still deferred rather than overwriting the Owner's current uncommitted content.
