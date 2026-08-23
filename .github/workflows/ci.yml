@@ -128,6 +128,16 @@ jobs:
           services/worker/tests/test_synthetic_m3_worker.py
           services/api/tests/test_p2_m3_ci_evidence.py
           --junitxml=p2-m3-results.xml
+      - name: P2-M7 deterministic operations and evidence tests
+        run: >-
+          python -m pytest
+          services/api/tests/test_p2_m7_dataset_cli.py
+          services/api/tests/test_p2_m7_operation_contract.py
+          services/api/tests/test_p2_m7_operations_projection.py
+          services/api/tests/test_p2_m7_recovery_integration.py
+          services/api/tests/test_p2_m7_independent_evaluation.py
+          services/api/tests/test_p2_m7_ci_evidence.py
+          --junitxml=p2-m7-results.xml
       - name: TypeScript quality and build
         run: pnpm check
       - name: Install Playwright Chromium system dependencies
@@ -139,6 +149,7 @@ jobs:
         shell: bash
         env:
           PLAYWRIGHT_INSTALL_LOG: ${{ runner.temp }}/playwright-chromium-install.log
+          PLAYWRIGHT_RAW_LOG: ${{ runner.temp }}/playwright-chromium-install.raw.log
         run: |
           set -euo pipefail
           readonly max_attempts=3
@@ -147,6 +158,7 @@ jobs:
           playwright_version="$(pnpm --filter @mirror/web exec playwright --version)"
           playwright_version="${playwright_version#Version }"
           : > "$PLAYWRIGHT_INSTALL_LOG"
+          : > "$PLAYWRIGHT_RAW_LOG"
 
           for attempt in $(seq 1 "$max_attempts"); do
             start_epoch="$(date +%s)"
@@ -158,9 +170,7 @@ jobs:
             set +e
             timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" \
               bash -o pipefail -c '
-                pnpm --filter @mirror/web exec playwright install-deps chromium 2>&1 \
-                  | tee -a "$PLAYWRIGHT_INSTALL_LOG"
-                exit "${PIPESTATUS[0]}"
+                pnpm --filter @mirror/web exec playwright install-deps chromium > "$PLAYWRIGHT_RAW_LOG" 2>&1
               '
             install_status="$?"
             set -e
@@ -168,8 +178,10 @@ jobs:
             end_epoch="$(date +%s)"
             end_timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             elapsed_seconds="$((end_epoch - start_epoch))"
-            printf 'event=playwright_system_dependencies attempt=%s/%s end=%s elapsed_seconds=%s exit_status=%s\n' \
-              "$attempt" "$max_attempts" "$end_timestamp" "$elapsed_seconds" "$install_status" \
+            raw_output_bytes="$(wc -c < "$PLAYWRIGHT_RAW_LOG")"
+            raw_output_sha256="$(sha256sum "$PLAYWRIGHT_RAW_LOG" | cut -d' ' -f1)"
+            printf 'event=playwright_system_dependencies attempt=%s/%s end=%s elapsed_seconds=%s exit_status=%s raw_output_bytes=%s raw_output_sha256=%s\n' \
+              "$attempt" "$max_attempts" "$end_timestamp" "$elapsed_seconds" "$install_status" "$raw_output_bytes" "$raw_output_sha256" \
               | tee -a "$PLAYWRIGHT_INSTALL_LOG"
 
             if [[ "$install_status" -eq 0 ]]; then
@@ -194,6 +206,7 @@ jobs:
         shell: bash
         env:
           PLAYWRIGHT_INSTALL_LOG: ${{ runner.temp }}/playwright-chromium-install.log
+          PLAYWRIGHT_RAW_LOG: ${{ runner.temp }}/playwright-chromium-install.raw.log
         run: |
           set -euo pipefail
           readonly max_attempts=3
@@ -216,9 +229,7 @@ jobs:
             set +e
             timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" \
               bash -o pipefail -c '
-                pnpm --filter @mirror/web exec playwright install chromium 2>&1 \
-                  | tee -a "$PLAYWRIGHT_INSTALL_LOG"
-                exit "${PIPESTATUS[0]}"
+                pnpm --filter @mirror/web exec playwright install chromium > "$PLAYWRIGHT_RAW_LOG" 2>&1
               '
             install_status="$?"
             set -e
@@ -226,8 +237,10 @@ jobs:
             end_epoch="$(date +%s)"
             end_timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             elapsed_seconds="$((end_epoch - start_epoch))"
-            printf 'event=playwright_chromium_download attempt=%s/%s end=%s elapsed_seconds=%s exit_status=%s\n' \
-              "$attempt" "$max_attempts" "$end_timestamp" "$elapsed_seconds" "$install_status" \
+            raw_output_bytes="$(wc -c < "$PLAYWRIGHT_RAW_LOG")"
+            raw_output_sha256="$(sha256sum "$PLAYWRIGHT_RAW_LOG" | cut -d' ' -f1)"
+            printf 'event=playwright_chromium_download attempt=%s/%s end=%s elapsed_seconds=%s exit_status=%s raw_output_bytes=%s raw_output_sha256=%s\n' \
+              "$attempt" "$max_attempts" "$end_timestamp" "$elapsed_seconds" "$install_status" "$raw_output_bytes" "$raw_output_sha256" \
               | tee -a "$PLAYWRIGHT_INSTALL_LOG"
 
             if [[ "$install_status" -eq 0 ]]; then
@@ -327,12 +340,26 @@ jobs:
         with:
           name: p2-m3-ci-evidence
           path: p2-m3-ci-evidence.json
+      - name: Generate P2-M7 CI evidence
+        run: |
+          python -m alembic -c services/api/alembic.ini heads > p2-m7-migration-head.txt
+          python -m mirror_api.scripts.p2_m7_ci_evidence \
+            --commit-sha "$GITHUB_SHA" \
+            --migration-head-file p2-m7-migration-head.txt \
+            --expected-migration-head 0014_m5_eval_authority \
+            --openapi packages/contracts/openapi.json \
+            --test-results p2-m7-results.xml \
+            --output p2-m7-ci-evidence.json
       - name: Dependency and license audits
         run: |
           pip-audit --local
           pnpm audit --audit-level high
           pip-licenses --format=json --output-file=python-licenses.json
-          pnpm licenses list --json > node-licenses.json
+          pnpm licenses list --json > node-licenses.raw.json
+          node scripts/ci_artifact_sanitizer.mjs \
+            --licenses-input node-licenses.raw.json \
+            --licenses-output node-license-evidence.json
+          rm node-licenses.raw.json
       - name: Generate SBOM
         run: cyclonedx-py environment --output-format JSON --output-file python-sbom.cdx.json
       - uses: actions/upload-artifact@v4
@@ -341,8 +368,9 @@ jobs:
           name: project-audit-evidence
           path: |
             celery.log
+            p2-m7-ci-evidence.json
             python-licenses.json
-            node-licenses.json
+            node-license-evidence.json
             python-sbom.cdx.json
 
   secret-scan:
@@ -352,6 +380,24 @@ jobs:
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+      - name: Prepare Gitleaks SARIF evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f results.sarif
+          mkdir -p "$RUNNER_TEMP/gitleaks-evidence"
+          cp results.sarif "$RUNNER_TEMP/gitleaks-evidence/gitleaks-results.sarif"
+      - name: Upload Gitleaks evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-results.sarif
+          path: ${{ runner.temp }}/gitleaks-evidence/gitleaks-results.sarif
+          if-no-files-found: error
+          retention-days: 14
 
   docker-validation:
     runs-on: ubuntu-latest
@@ -379,13 +425,16 @@ jobs:
       - name: Capture container evidence
         if: always()
         run: |
-          docker compose -f compose.yaml ps --all
-          docker compose -f compose.yaml logs --no-color > docker-compose.log
+          docker compose -f compose.yaml ps --all --format json > docker-compose-raw.json
+          node scripts/ci_artifact_sanitizer.mjs \
+            --docker-input docker-compose-raw.json \
+            --docker-output docker-compose-evidence.json
+          rm docker-compose-raw.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: project-docker-evidence
-          path: docker-compose.log
+          path: docker-compose-evidence.json
       - name: Stop Project topology
         if: always()
         run: docker compose -f compose.yaml down --volumes --remove-orphans

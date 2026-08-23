@@ -32,6 +32,7 @@ dev = [
 
 [project.scripts]
 mirror-api = "mirror_api.__main__:run"
+mirror-dataset = "mirror_api.scripts.mirror_dataset:run"
 mirror-openapi = "mirror_api.scripts.export_openapi:run"
 
 [tool.hatch.build.targets.wheel]

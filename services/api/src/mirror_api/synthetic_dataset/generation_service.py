@@ -4,13 +4,16 @@ import hashlib
 import secrets
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
 
+from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mirror_api.models import (
+    AuditLog,
     GenerationBatch,
     GenerationItem,
     Job,
@@ -453,12 +456,91 @@ class GenerationBatchService:
             return True
 
     async def request_cancel(self, batch_id: str) -> GenerationBatchResult:
+        return await self._request_cancel(batch_id)
+
+    async def request_cancel_with_expectation(
+        self,
+        *,
+        batch_id: str,
+        expected_status: str,
+        actor_reference: str,
+        reason_code: str,
+        request_id: str,
+    ) -> GenerationBatchResult:
+        """Request cancellation atomically with an operator expectation and audit record.
+
+        This is deliberately an additive internal control-plane entry point.  It shares the
+        existing batch/item/job locking and cancellation semantics; it does not alter budget or
+        worker behaviour.  A stale operator never obtains a best-effort cancellation.
+        """
+
+        return await self._request_cancel(
+            batch_id,
+            expected_status=expected_status,
+            actor_reference=actor_reference,
+            reason_code=reason_code,
+            request_id=request_id,
+        )
+
+    async def _request_cancel(
+        self,
+        batch_id: str,
+        *,
+        expected_status: str | None = None,
+        actor_reference: str | None = None,
+        reason_code: str | None = None,
+        request_id: str | None = None,
+    ) -> GenerationBatchResult:
         now = self._now()
         async with _transaction(self._sessions) as session:
             repo = GenerationRepository(session)
+            if request_id is not None:
+                if (
+                    actor_reference is None or reason_code is None or expected_status is None
+                ):  # pragma: no cover - caller invariant
+                    raise RuntimeError("operator cancellation audit fields are incomplete")
+                await session.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtextextended(:reference, 0))"),
+                    {"reference": f"p2-m7-batch-cancel:{request_id}"},
+                )
+                existing_audits = tuple(
+                    await session.scalars(
+                        select(AuditLog)
+                        .where(
+                            AuditLog.action == "synthetic_batch_cancel_requested",
+                            AuditLog.request_id == request_id,
+                        )
+                        .limit(2)
+                    )
+                )
+                if existing_audits:
+                    if len(existing_audits) != 1 or not self._matches_operator_cancel_audit(
+                        existing_audits[0],
+                        batch_id=batch_id,
+                        expected_status=expected_status,
+                        actor_reference=actor_reference,
+                        reason_code=reason_code,
+                    ):
+                        raise GenerationOperationRejected("generation_batch_request_conflict")
+                    batch = await repo.locked_batch(batch_id)
+                    if batch is None:
+                        raise GenerationOperationRejected("generation_batch_not_found")
+                    replay = self._result(
+                        batch, await repo.items(batch.id, lock=True), created=False
+                    )
+                    return GenerationBatchResult(
+                        batch=replace(
+                            replay.batch,
+                            status=cast(str, existing_audits[0].metadata_json["result_status"]),
+                        ),
+                        items=replay.items,
+                        created=False,
+                    )
             batch = await repo.locked_batch(batch_id)
             if batch is None:
                 raise GenerationOperationRejected("generation_batch_not_found")
+            if expected_status is not None and batch.status != expected_status:
+                raise GenerationOperationRejected("generation_batch_stale_expectation")
             if batch.status not in {"QUEUED", "RUNNING", "CANCELLED"}:
                 raise GenerationOperationRejected("generation_batch_not_cancellable")
             items = await repo.items(batch.id, lock=True)
@@ -484,8 +566,49 @@ class GenerationBatchService:
                     job.updated_at = now
             await session.flush()
             await self._finalize_batch_if_quiescent(repo, batch, now)
+            if request_id is not None:
+                session.add(
+                    AuditLog(
+                        id=new_id(),
+                        actor_type="system_operator",
+                        actor_id=None,
+                        action="synthetic_batch_cancel_requested",
+                        target_type="generation_batch",
+                        target_id=batch.id,
+                        request_id=request_id,
+                        metadata_json={
+                            "actor_reference": actor_reference,
+                            "reason_code": reason_code,
+                            "expected_status": expected_status,
+                            "result_status": batch.status,
+                        },
+                        occurred_at=now,
+                    )
+                )
             await session.flush()
             return self._result(batch, await repo.items(batch.id), created=False)
+
+    @staticmethod
+    def _matches_operator_cancel_audit(
+        audit: AuditLog,
+        *,
+        batch_id: str,
+        expected_status: str,
+        actor_reference: str,
+        reason_code: str,
+    ) -> bool:
+        metadata = audit.metadata_json
+        return (
+            audit.actor_type == "system_operator"
+            and audit.actor_id is None
+            and audit.target_type == "generation_batch"
+            and audit.target_id == batch_id
+            and type(metadata) is dict
+            and metadata.get("actor_reference") == actor_reference
+            and metadata.get("reason_code") == reason_code
+            and metadata.get("expected_status") == expected_status
+            and type(metadata.get("result_status")) is str
+        )
 
     async def post_cost(self, cost: ProviderCostInput) -> bool:
         now = self._now()

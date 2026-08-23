@@ -3,6 +3,41 @@
 This append-only operational summary records bounded autonomous checkpoints. It intentionally excludes
 credentials, Prompt plaintext, image bytes, private object keys, signed URLs and raw Provider responses.
 
+## 2026-08-23 — P2-M7 rolling-wave governance local candidate
+
+- Repository truth was rechecked from `fd64a313c3f2da534e3e019991f1cdb8352f5a74`; origin matched that SHA and
+  run `32586638200` completed all three jobs successfully with eight unexpired artifacts.
+- P2-M5 remains `EXECUTING`, but CC04-A fresh-study execution is
+  `CLOSED_PENDING_SEPARATE_DECISION_AUTHORITY`; P2-M6 remains closed. No M5 research action was started.
+- Because P2-M2 contracts are frozen and MILESTONES permits M7 refinement after them, Principal created the isolated
+  branch `codex/phase2-m7-internal-operations` and added only ADR-051, M7 protocol/acceptance skeleton and milestone
+  status alignment.
+- The candidate freezes an internal CLI/application-service boundary, payload-free cost/observability projection and
+  fail-closed operator expectations. It adds no implementation, schema, dependency, model, private input, image,
+  Provider call, public API, M5 execution or M6 release/revoke capability.
+- Scoped Prettier and `git diff --check` passed. Full workspace formatting remains blocked only by the pre-existing
+  user-modified `AGENTS.md` and `MODEL_ROUTING_POLICY.md`; those files remain outside this checkpoint.
+- Candidate `6ecacf45792e7b93c666eec05b4d19ba7c05a3f8` was normally pushed. Exact-SHA run `32587937578`, attempt 1,
+  completed `quality-and-integration`, `secret-scan` and `docker-validation` successfully. All eight expected
+  artifacts are unexpired and service-side metadata-bound to the candidate SHA.
+- Current-session archive content download returned HTTP 401. The artifact metadata is preserved as evidence, but it
+  cannot substitute for content inspection; T01 remains unaccepted, M7 remains `COMMITTED`, and T02 remains closed.
+- Principal then found the T01 task cards did not explicitly contain every required bounded-task contract field. The
+  docs-only `P2-M7-R01` repair adds that missing execution governance without changing architecture or opening M5/M6.
+- Next action: validate and track R01, then restore read-only artifact access, inspect the eight archives and
+  independently review T01 before accepting it or changing M7 state.
+- `P2-M7-R02` records the completed follow-up without changing architecture: `78c6370fa6b73491bf3ad0c705f6cf284982e3ee`
+  / run `32588923032` passed all three jobs; all eight archives were authenticated, content-inspected and removed from
+  the temporary review root. The failure-only Playwright upload was correctly skipped because Browser Integration
+  passed; its mandatory install-evidence artifact was present and inspected. Independent review found no security,
+  privacy, data, supply-chain or phase-boundary finding. M5 fresh-study execution and M6 remain closed. R02 is the
+  same-SHA evidence-state reconciliation candidate; a separate acceptance checkpoint may open T02 only after R02 has
+  passed its own CI.
+- R02 candidate `aead7961d9ab9a062a88e8177f785dc1730dfc5f` then passed exact-SHA run `32589829490`, attempt 1, with
+  three successful jobs and eight unexpired artifacts. Principal content inspection again found only the expected
+  non-image evidence files, no credential-pattern hit and zero Gitleaks results. Principal accepts T01/R01/R02 and
+  changes only M7 to `EXECUTION_READY`; T02 is authorized, while M5 fresh-study execution and M6 remain closed.
+
 ## 2026-08-18T01:45:05+08:00 — P2-M3 recovery and V01 authority closure
 
 - Phase/Milestone: Phase 2 / P2-M3 (`EXECUTING`)
@@ -1214,3 +1249,184 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   controls remain undecided; `04-A` execution, `04-B–E`, T06, MVR, M6, production geometry and real-user processing
   remain closed. The durable next state is `OWNER_DECISION_REQUIRED` before any separate decision task can be opened.
 - `MEMORY.md`, OpenAPI and `.tmp/` remain protected pre-existing worktree changes and were not modified or staged.
+
+## 2026-08-23 — P2-M7-T05 recovery/concurrency candidate accepted
+
+- Candidate `8821688` completed same-SHA run `32624641238`: quality/integration, secret scan and Docker validation
+  all passed. The exact Linux job completed PostgreSQL lifecycle, Celery, Python/TypeScript/Browser regressions,
+  contract drift and supply-chain stages.
+- Principal reviewed the narrow application-service diff and the real PostgreSQL tests for duplicate cancellation,
+  stale expectations, audit atomicity and cancelled-worker recovery. No schema, public API, Provider, dependency,
+  M5/M6 or production-boundary change occurred.
+- Eight artifacts were authenticated and inspected before the task-created temporary root was deleted. Four retained
+  evidence files bind the candidate SHA and `0014_m5_eval_authority`; SARIF has zero results and no protected
+  payload/path/image finding was present. Dependency-name lexical matches in license/SBOM files were not treated as
+  operation payload.
+- Principal accepts T05. T06 independent deterministic evaluation is now the only authorized M7 implementation
+  follow-up; M7 Gate remains `NOT_EVALUATED`, production remains disabled and M5/M6 remain closed.
+
+## 2026-08-23 — P2-M7-T05 acceptance closure CI confirmed
+
+- Closure `379f5c3` completed run `32625171662` with all three mandatory jobs successful, including the complete
+  Linux PostgreSQL/Celery/Python/TypeScript/Playwright/contract/supply-chain matrix.
+- Principal inspected all eight unexpired artifacts: 11 fixed relative members, exact closure SHA and `0014` binding,
+  zero Gitleaks results and zero protected path/payload/image/credential findings. The task-owned inspection root was
+  deleted after review.
+- T05 acceptance is effective. T06 is the sole next M7 task; M7 Gate remains `NOT_EVALUATED`, production remains
+  disabled, and M5/M6 remain closed.
+
+## 2026-08-23 — P2-M7-T06 independent evaluation candidate
+
+- T06 adds a tests-only independent boundary suite. Under a Linux cached API image, read-only source mount and
+  `--network none`, 14 new tests plus 50 P2-M7 non-integration regressions passed; Ruff and strict mypy passed.
+- Candidate `832f7e9` passed same-SHA run `32625981774` and all eight artifacts were inspected as exact-SHA,
+  path/payload/image/credential-clean evidence before the task-created directory was deleted.
+- Principal records T06 as pending its acceptance closure CI. T07 remains closed; no production or M5/M6 boundary
+  changed.
+
+## 2026-08-23 — P2-M7-T06 acceptance closure CI confirmed
+
+- Closure `9877925` completed same-SHA run `32626264787` with quality/integration, secret scan and Docker
+  validation successful.
+- Principal reauthenticated and inspected all eight unexpired artifacts: 11 fixed-relative members, four exact-SHA
+  and four migration `0014_m5_eval_authority` bindings, SARIF zero results, and zero path/payload/image/credential
+  findings. The task-created inspection directory was deleted after review.
+- T06 acceptance is effective. T07 is `EXECUTION_READY` for machine-readable CI evidence only; M7 Gate remains
+  `NOT_EVALUATED`, production remains disabled, and M5/M6 remain closed.
+
+## 2026-08-23 — P2-M7-T07 CI evidence candidate and R12 repair
+
+- T07 candidate `a0c5481` added the allowlisted `mirror.p2-m7.ci-evidence/v1` generator, deterministic tests and
+  existing-CI wiring. Its run `32627371712` failed deterministically because the existing migration-head coverage
+  test still expected four evidence generators; the later missing Playwright log was a consequence of that early
+  Python-test stop, not a browser failure.
+- R12 `eee43eb` updated only that count to five. Same-SHA run `32627600351` completed all three mandatory jobs.
+  Principal inspected eight unexpired artifacts with 12 fixed-relative members: P2-M7 evidence binds the exact SHA,
+  `0014_m5_eval_authority`, 62 zero-skip tests and eight passed checks; SARIF and protected path/payload/image/
+  credential scans are zero. The task-created inspection root was deleted after review.
+- Principal records R12 and T07 as pending T07 acceptance closure CI. T08 remains closed; M7 Gate stays
+  `NOT_EVALUATED`, production remains disabled, and M5/M6 remain closed.
+
+## 2026-08-23 — P2-M7-T07 acceptance closure CI confirmed
+
+- Closure `7b86cd5` completed same-SHA run `32627947161` with all three mandatory jobs successful. Its eight
+  unexpired artifacts contain 12 fixed-relative members; P2-M7 evidence binds the exact SHA, `0014`, 62 zero-skip
+  tests and eight passed checks. SARIF and protected path/payload/image/credential scans are zero.
+- T07 acceptance is effective. T08 is `EXECUTION_READY` for independent review only; M7 Gate remains
+  `NOT_EVALUATED`, production remains disabled, and M5/M6 remain closed.
+
+## 2026-08-23 — P2-M7-T08 final-review failure and R13 local candidate
+
+- At `9584177`, the independent security/privacy/license review passed, while the independent final review failed T08:
+  the installed CLI has no real application-service composition, and RUNNING cancellation lacked exact-request replay
+  evidence. Principal independently confirmed both source findings; M7 Gate remains `NOT_EVALUATED`.
+- R13 adds only request-scoped PostgreSQL transaction serialization, exact append-only audit fingerprint replay and
+  changed-input rejection to the accepted cancellation service/adapter. It adds no migration, dependency, public API,
+  CLI composition, production, M5 or M6 behavior.
+- In an isolated PostgreSQL 17 database, 6 focused replay/concurrency/recovery tests and all 65 P2-M7 tests passed with
+  zero skip. Fresh migration, `0014 -> 0013 -> 0014`, Alembic zero drift, Ruff, strict mypy and contract drift passed.
+- One broader collection attempt omitted repository-root research/governance scripts from the read-only container
+  mount and failed before test execution; exact P2-M7 file collection corrected the harness without a product change.
+  R13 is `READY_FOR_TRACKED_EVIDENCE`; R14 remains closed until R13 acceptance.
+
+## 2026-08-23 — P2-M7-R13 tracked evidence accepted pending closure CI
+
+- Candidate `e804a48` completed exact-SHA run `32629699282`, attempt 1, with quality/integration, secret scan and
+  Docker validation successful. The P2-M7 suite reported 65 passes and zero skip.
+- Principal inspected eight unexpired artifacts with 12 fixed-relative members. Exact SHA, `0014`, unchanged OpenAPI,
+  all eight M7 checks, zero Gitleaks results, five healthy Docker services and clean Celery evidence were confirmed;
+  protected path/payload/image/credential scans were zero. The task-owned inspection root was deleted.
+- Principal reviewed the transaction/concurrency diff and accepts R13 subject to a separate acceptance closure CI.
+  R14 real CLI composition, T08 and the M7 Gate remain closed until that checkpoint succeeds.
+
+## 2026-08-23 — P2-M7-R13 acceptance closure confirmed / R14 opened
+
+- Closure `690dd78` completed exact-SHA run `32630571003`, attempt 1, with quality/integration, secret scan, and Docker
+  validation successful.
+- Principal inspected eight unexpired artifacts with 12 fixed-relative members. Exact SHA, `0014_m5_eval_authority`,
+  unchanged OpenAPI digest, 65 zero-skip M7 tests, eight boundary checks, zero Gitleaks results, five healthy Docker
+  services, first-attempt Playwright acquisition, and clean Celery evidence were confirmed.
+- Path escape, private/runner path, image extension/magic, credential assignment, signed URL, Prompt, object-key, and
+  raw Provider payload scans were zero. The task-owned artifact directory was deleted and verified absent.
+- R13 is `PASS_AT_690DD78_RUN_32630571003_ATTEMPT_1`. R14 real CLI composition is `EXECUTION_READY`; T08 remains
+  failed at `9584177`, the M7 Gate remains `NOT_EVALUATED`, production remains disabled, and M5/M6 remain closed.
+
+## 2026-08-23 — P2-M7-R14 real CLI composition local candidate
+
+- The real non-production `mirror-dataset` module entrypoint now composes only accepted PostgreSQL batch status/cancel
+  and cost-summary application backends. Production rejects before engine/session creation; configuration and failures
+  are redacted. Provenance and QA remain unavailable, and no SQL, migration, dependency, public API, Provider/storage/
+  task-runner, production, M5 or M6 path was added.
+- Real PostgreSQL subprocess tests prove status, stale rejection, cancellation/exact replay with one audit effect,
+  cost-category/currency preservation, read-only behavior and unavailable capabilities. The focused P2-M7 suite is
+  77 pass/zero skip; the full isolated Linux API/Worker suite is 809 pass with one existing optional private-runtime
+  skip, with 16 additional sanitizer passes.
+- Ruff, 130-source strict mypy, fresh and round-trip `0014` migration/check, contract drift, TypeScript quality/tests/
+  build, Playwright 5/5, Docker builds/five-service health, dependency/license/SBOM checks all pass. Gitleaks 8.28.0
+  scans 292 commits with no leaks. Repo-wide `pnpm check` is blocked only by protected pre-existing formatting changes
+  outside R14; all applicable sub-gates and task-owned formatting pass.
+- Gitleaks 8.28.0 scanned the exact 15-path candidate index with `--no-git` and reported no leaks. R14 is
+  `READY_FOR_TRACKED_EVIDENCE`, but remains unaccepted pending candidate commit, same-SHA three-job CI,
+  eight-artifact inspection and new independent security/final reviews. T08 remains failed at `9584177`; the M7 Gate
+  remains `NOT_EVALUATED`.
+
+## 2026-08-23 — P2-M7-R14 tracked evidence and T08 recovery pending closure CI
+
+- Candidate `c15fd29340552f7c4d4b3348f862da6deb242986` completed exact-SHA run `32636243642`, attempt 1, with
+  quality/integration, secret scan and Docker validation successful. A fresh command-scoped-proxy fetch confirmed the
+  local and remote branch tips match with zero ahead/behind divergence.
+- Principal inspected eight unexpired artifacts with 12 fixed-relative members. They bind the candidate,
+  `0014_m5_eval_authority` and unchanged OpenAPI digest. The fixed M7 slice has 75 zero-skip tests and eight passed
+  checks; the exact-SHA full Python collection has 814 passes and one existing optional private-runtime skip. Gitleaks
+  has zero results, Docker has five healthy services, Playwright acquisition passed on attempt 1, Celery has no failure
+  record, and protected path/payload/image/credential scans are zero. The inspection root was deleted.
+- Independent security/privacy/data/supply-chain review returned PASS. Independent Sol final review returned
+  `PASS_FOR_R14_EXACT_SHA_PREREQUISITE`, closing the prior real-composition and replay/audit findings. Principal reviewed
+  the actual R13/R14 diff and accepts R14/T08 subject to this docs-only acceptance closure's own same-SHA Gate.
+- The two new real PostgreSQL subprocess composition tests ran in the full exact-SHA Python collection but are not
+  enumerated in the fixed targeted M7 JUnit slice; both reviewers classified this as non-blocking evidence granularity.
+- P2-M7 remains `EXECUTING`; its technical Gate is `PASS_PENDING_ACCEPTANCE_CLOSURE_CI`. Production remains
+  `NOT_DEPLOYED`, provenance/QA remain unavailable, and M5/M6 states are unchanged. A separate freeze-state commit and
+  same-SHA Gate remain mandatory after closure CI.
+- Protected pre-existing `MEMORY.md` changes were not modified or staged. Durable-memory reconciliation is deferred
+  until they can be integrated without overwrite or adoption.
+
+## 2026-08-23 — P2-M7 acceptance closure passed / freeze-state checkpoint
+
+- Documentation-only closure `3af45337149c791b6c9905db2d7e3b673a83478c` completed exact-SHA run
+  `32638417120`, attempt 1. Quality/integration, secret scan and Docker validation all passed.
+- Principal downloaded and inspected eight unexpired artifacts with 12 fixed-relative members. Five retained evidence
+  files bind the closure SHA, `0014_m5_eval_authority` and unchanged OpenAPI digest. M7 reports 75 passes and zero
+  skip; full Python reports 814 passes plus one existing optional private-runtime skip. Gitleaks has zero results,
+  Docker has five healthy services, Playwright 1.62.1 dependencies/Chromium and five browser tests passed, and Celery
+  has no failure record.
+- Python license evidence contains 101 entries; Node evidence contains 14 groups and 480 package entries; CycloneDX
+  1.6 contains 105 components; dependency audits report no known vulnerabilities. Path escape, image extension/magic,
+  private path, credential assignment, signed URL, Prompt, object-key and raw Provider payload scans are zero.
+  Task-created artifact and GitHub CLI cache roots were deleted and verified absent.
+- Principal makes R14/T08 acceptance effective and records `P2_M7_GATE: PASS` and `P2_M7_STATE: PASS`. The current
+  docs-only freeze-state candidate requires its own exact-SHA three-job CI and eight-artifact inspection before a
+  separate final state record may declare `FROZEN`. Production remains `NOT_DEPLOYED`; M5/M6 are unchanged and P2-M8
+  remains closed pending both dependencies.
+- Protected pre-existing `MEMORY.md` changes remain untouched and unstaged; durable-memory reconciliation stays
+  deferred.
+
+## 2026-08-23 — P2-M7 freeze-state Gate passed / final state record
+
+- Freeze candidate `7d8e049aec28156ec0337a5176f6521a3eaacb92` completed exact-SHA run `32639724124`,
+  attempt 1. Quality/integration, secret scan and Docker validation all passed.
+- Principal downloaded and inspected eight unexpired artifacts with 12 fixed-relative members. Five retained evidence
+  files bind the freeze candidate, `0014_m5_eval_authority` and unchanged OpenAPI digest. M7 has 75 passes and zero
+  failure/error/skip; full Python has 814 passes plus one existing optional private-runtime skip; strict mypy covers
+  130 source files; Browser Integration has five passes.
+- Gitleaks contains one SARIF run and zero results; Docker has five running/healthy services; Playwright 1.62.1 system
+  dependencies and Chromium passed on attempt 1 in 12 and 11 seconds; Celery has no failure record. Python license
+  evidence has 101 entries, Node evidence has 14 groups and 480 package entries, CycloneDX 1.6 has 105 components, and
+  dependency audits report no known vulnerabilities.
+- Path escape, unexpected/image extension, image magic, private path, credential assignment, signed URL, Prompt,
+  object-key and raw Provider payload scans are zero. The task-owned artifact directory was deleted and verified absent.
+- Principal records `P2_M7_GATE: PASS` and advances P2-M7 to `FROZEN` in this separate final state record. Production
+  remains `NOT_DEPLOYED`; provenance/QA remain unavailable; M5/M6 are unchanged; P2-M8 remains closed pending P2-M5 and
+  P2-M6 frozen dependencies.
+- Protected pre-existing `MEMORY.md` changes remain untouched and unstaged; durable-memory reconciliation stays
+  deferred.

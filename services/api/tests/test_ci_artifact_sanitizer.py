@@ -1,0 +1,181 @@
+"""Regression tests for path-free CI artifact projections."""
+
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[3]
+SANITIZER = ROOT / "scripts" / "ci_artifact_sanitizer.mjs"
+
+
+def test_ci_artifact_sanitizer_projects_allowlisted_license_and_compose_fields(
+    tmp_path: Path,
+) -> None:
+    licenses_input = tmp_path / "node-licenses-raw.json"
+    docker_input = tmp_path / "docker-compose-raw.json"
+    licenses_output = tmp_path / "node-license-evidence.json"
+    docker_output = tmp_path / "docker-compose-evidence.json"
+    licenses_input.write_text(
+        json.dumps(
+            {
+                "MIT": [
+                    {
+                        "name": "@mirror/example",
+                        "versions": ["1.2.3"],
+                        "paths": ["/home/runner/work/project/node_modules/example"],
+                        "homepage": "https://example.invalid",
+                        "description": "untrusted raw metadata",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    docker_input.write_text(
+        json.dumps(
+            {
+                "Service": "api",
+                "State": "running",
+                "Health": "healthy",
+                "ExitCode": 0,
+                "Command": "/home/runner/private command",
+            }
+        )
+        + "\n"
+        + json.dumps({"Service": "worker", "State": "running", "Health": "", "ExitCode": 0}),
+        encoding="utf-8",
+    )
+
+    node = shutil.which("node")
+    assert node is not None
+    subprocess.run(  # noqa: S603
+        [
+            node,
+            str(SANITIZER),
+            "--licenses-input",
+            str(licenses_input),
+            "--licenses-output",
+            str(licenses_output),
+            "--docker-input",
+            str(docker_input),
+            "--docker-output",
+            str(docker_output),
+        ],
+        check=True,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    artifacts = licenses_output.read_text(encoding="utf-8") + docker_output.read_text(
+        encoding="utf-8"
+    )
+    assert "/home/runner" not in artifacts
+    assert "https://" not in artifacts
+    assert "untrusted raw metadata" not in artifacts
+    assert json.loads(licenses_output.read_text(encoding="utf-8")) == {
+        "schema_version": "mirror.ci.node-license-summary/v1",
+        "license_groups": [
+            {"license": "MIT", "packages": [{"name": "@mirror/example", "versions": ["1.2.3"]}]}
+        ],
+    }
+    assert json.loads(docker_output.read_text(encoding="utf-8")) == {
+        "schema_version": "mirror.ci.compose-status/v1",
+        "containers": [
+            {"service": "api", "state": "running", "health": "healthy", "exit_code": 0},
+            {"service": "worker", "state": "running", "health": None, "exit_code": 0},
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    ("docker_payload", "expected_containers"),
+    [
+        (
+            json.dumps({"Service": "api", "State": "running", "Health": "", "ExitCode": 0}),
+            [{"service": "api", "state": "running", "health": None, "exit_code": 0}],
+        ),
+        (
+            json.dumps(
+                [
+                    {"Service": "api", "State": "running", "Health": "healthy", "ExitCode": 0},
+                    {"Service": "worker", "State": "exited", "Health": "", "ExitCode": 1},
+                ]
+            ),
+            [
+                {"service": "api", "state": "running", "health": "healthy", "exit_code": 0},
+                {"service": "worker", "state": "exited", "health": None, "exit_code": 1},
+            ],
+        ),
+        ("", []),
+    ],
+)
+def test_ci_artifact_sanitizer_accepts_existing_compose_json_forms(
+    tmp_path: Path,
+    docker_payload: str,
+    expected_containers: list[dict[str, str | int | None]],
+) -> None:
+    docker_input = tmp_path / "docker-compose-raw.json"
+    docker_output = tmp_path / "docker-compose-evidence.json"
+    docker_input.write_text(docker_payload, encoding="utf-8")
+
+    node = shutil.which("node")
+    assert node is not None
+    subprocess.run(  # noqa: S603
+        [
+            node,
+            str(SANITIZER),
+            "--docker-input",
+            str(docker_input),
+            "--docker-output",
+            str(docker_output),
+        ],
+        check=True,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(docker_output.read_text(encoding="utf-8")) == {
+        "schema_version": "mirror.ci.compose-status/v1",
+        "containers": expected_containers,
+    }
+
+
+def test_ci_artifact_sanitizer_does_not_echo_malformed_compose_json_lines(
+    tmp_path: Path,
+) -> None:
+    marker = "synthetic-private-marker-must-not-echo"
+    docker_input = tmp_path / "docker-compose-raw.json"
+    docker_output = tmp_path / "docker-compose-evidence.json"
+    docker_input.write_text(
+        json.dumps({"Service": "api", "State": "running", "Health": "", "ExitCode": 0})
+        + "\n"
+        + marker,
+        encoding="utf-8",
+    )
+
+    node = shutil.which("node")
+    assert node is not None
+    result = subprocess.run(  # noqa: S603
+        [
+            node,
+            str(SANITIZER),
+            "--docker-input",
+            str(docker_input),
+            "--docker-output",
+            str(docker_output),
+        ],
+        check=False,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert marker not in result.stdout
+    assert marker not in result.stderr
+    assert not docker_output.exists()

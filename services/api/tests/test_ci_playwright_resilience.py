@@ -22,7 +22,7 @@ def test_playwright_system_dependencies_timeout_owns_each_logging_pipeline_and_r
 
     timeout = 'timeout --signal=TERM --kill-after=30s "${timeout_seconds}s"'
     child_shell = "bash -o pipefail -c '"
-    pnpm_command = "pnpm --filter @mirror/web exec playwright install-deps chromium 2>&1"
+    pnpm_command = "pnpm --filter @mirror/web exec playwright install-deps chromium"
     loop = 'for attempt in $(seq 1 "$max_attempts"); do'
     success_branch = """            if [[ "$install_status" -eq 0 ]]; then
               exit 0
@@ -47,8 +47,8 @@ def test_playwright_system_dependencies_timeout_owns_each_logging_pipeline_and_r
     assert timeout in step
     assert child_shell in step
     assert pnpm_command in step
-    assert '| tee -a "$PLAYWRIGHT_INSTALL_LOG"' in step
-    assert 'exit "${PIPESTATUS[0]}"' in step
+    assert ' > "$PLAYWRIGHT_RAW_LOG" 2>&1' in step
+    assert "raw_output_sha256" in step
     assert 'install_status="$?"' in step
     assert success_branch in step
     assert backoff_branch in step
@@ -126,7 +126,7 @@ def test_playwright_download_timeout_owns_each_logging_pipeline_and_keeps_retry_
 
     timeout = 'timeout --signal=TERM --kill-after=30s "${timeout_seconds}s"'
     child_shell = "bash -o pipefail -c '"
-    pnpm_command = "pnpm --filter @mirror/web exec playwright install chromium 2>&1"
+    pnpm_command = "pnpm --filter @mirror/web exec playwright install chromium"
 
     assert "timeout-minutes: 35" in step
     assert "readonly max_attempts=3" in step
@@ -135,9 +135,25 @@ def test_playwright_download_timeout_owns_each_logging_pipeline_and_keeps_retry_
     assert timeout in step
     assert child_shell in step
     assert pnpm_command in step
-    assert '| tee -a "$PLAYWRIGHT_INSTALL_LOG"' in step
-    assert 'exit "${PIPESTATUS[0]}"' in step
+    assert ' > "$PLAYWRIGHT_RAW_LOG" 2>&1' in step
+    assert "raw_output_sha256" in step
     assert 'install_status="$?"' in step
     assert 'if [[ "$install_status" -eq 0 ]]; then' in step
     assert "exit 1" in step
     assert step.index(timeout) < step.index(child_shell) < step.index(pnpm_command)
+
+
+def test_gitleaks_evidence_uses_fixed_staging_filename_without_builtin_upload() -> None:
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    secret_scan = workflow[
+        workflow.index("  secret-scan:\n") : workflow.index("  docker-validation:\n")
+    ]
+
+    assert "gitleaks/gitleaks-action@v2" in secret_scan
+    assert 'GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"' in secret_scan
+    assert "- name: Prepare Gitleaks SARIF evidence" in secret_scan
+    assert "test -f results.sarif" in secret_scan
+    assert 'cp results.sarif "$RUNNER_TEMP/gitleaks-evidence/gitleaks-results.sarif"' in secret_scan
+    assert "- name: Upload Gitleaks evidence" in secret_scan
+    assert "name: gitleaks-results.sarif" in secret_scan
+    assert "path: ${{ runner.temp }}/gitleaks-evidence/gitleaks-results.sarif" in secret_scan
