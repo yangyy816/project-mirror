@@ -44,7 +44,15 @@ router = APIRouter(
     tags=["demo-prototype"],
     dependencies=[Depends(get_demo_actor)],
 )
-IdempotencyKey = Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=128)]
+IdempotencyKey = Annotated[
+    str,
+    Header(
+        alias="Idempotency-Key",
+        min_length=8,
+        max_length=128,
+        pattern=r"^[!-~]{8,128}$",
+    ),
+]
 DEMO_ERRORS: dict[int | str, dict[str, Any]] = {
     401: {"model": ErrorEnvelope},
     404: {"model": ErrorEnvelope},

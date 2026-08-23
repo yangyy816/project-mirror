@@ -1209,12 +1209,14 @@ export interface components {
             job_id: string;
             /**
              * Status
-             * @default PENDING
              * @constant
              */
             status: "PENDING";
             /** Capability */
             capability: string;
+            /** Job Binding Digest */
+            job_binding_digest: string;
+            target: components["schemas"]["DemoJobTargetResponse"];
         };
         /** DemoJobCancelRequest */
         DemoJobCancelRequest: {
@@ -1239,10 +1241,27 @@ export interface components {
              * @enum {string}
              */
             status: "PENDING" | "RUNNING" | "COMPLETED" | "REJECTED" | "FAILED" | "CANCELLED";
+            /** Capability */
+            capability: string;
+            /** Job Binding Digest */
+            job_binding_digest: string;
+            target: components["schemas"]["DemoJobTargetResponse"];
             /** Result Code */
             result_code?: string | null;
             /** Finalized At */
             finalized_at?: string | null;
+        };
+        /** DemoJobTargetResponse */
+        DemoJobTargetResponse: {
+            /**
+             * Target Type
+             * @enum {string}
+             */
+            target_type: "DEMO_ACTOR" | "DEMO_SESSION" | "FACE_OBSERVATION" | "QUESTIONNAIRE_RUN" | "SELF_TRANSFER_RUN" | "EDITING_SESSION" | "IMAGE_VERSION" | "EDIT_PLAN" | "EDIT_OPERATION" | "TOOL_RUN";
+            /** Target Id */
+            target_id: string;
+            /** Authority Digest */
+            authority_digest: string;
         };
         /** DemoLockRequest */
         DemoLockRequest: {

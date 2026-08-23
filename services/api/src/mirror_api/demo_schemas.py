@@ -12,6 +12,18 @@ DemoDigest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 Ppm = Annotated[int, Field(ge=-1_000_000, le=1_000_000)]
 UnitPpm = Annotated[int, Field(ge=0, le=1_000_000)]
 JobState = Literal["PENDING", "RUNNING", "COMPLETED", "REJECTED", "FAILED", "CANCELLED"]
+DemoJobTargetType = Literal[
+    "DEMO_ACTOR",
+    "DEMO_SESSION",
+    "FACE_OBSERVATION",
+    "QUESTIONNAIRE_RUN",
+    "SELF_TRANSFER_RUN",
+    "EDITING_SESSION",
+    "IMAGE_VERSION",
+    "EDIT_PLAN",
+    "EDIT_OPERATION",
+    "TOOL_RUN",
+]
 
 
 class DemoSessionCreateRequest(StrictContractModel):
@@ -43,15 +55,26 @@ class DemoIdentityListResponse(StrictContractModel):
     identities: list[DemoIdentityResponse]
 
 
+class DemoJobTargetResponse(StrictContractModel):
+    target_type: DemoJobTargetType
+    target_id: DemoId
+    authority_digest: DemoDigest
+
+
 class DemoJobAcceptedResponse(StrictContractModel):
     job_id: DemoId
-    status: Literal["PENDING"] = "PENDING"
+    status: Literal["PENDING"]
     capability: str = Field(min_length=1, max_length=64)
+    job_binding_digest: DemoDigest
+    target: DemoJobTargetResponse
 
 
 class DemoJobResponse(StrictContractModel):
     job_id: DemoId
     status: JobState
+    capability: str = Field(min_length=1, max_length=64)
+    job_binding_digest: DemoDigest
+    target: DemoJobTargetResponse
     result_code: str | None = Field(default=None, min_length=1, max_length=64)
     finalized_at: datetime | None = None
 

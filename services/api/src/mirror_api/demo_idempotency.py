@@ -146,6 +146,21 @@ class DemoSemanticIdempotencyCoordinator:
 
         async with self._session_factory() as session:
             async with session.begin():
+                binding = await _load_binding(
+                    session,
+                    demo_actor_id=demo_actor_id,
+                    endpoint_operation=endpoint_operation,
+                    idempotency_key_hash_value=key_hash,
+                )
+                if binding is not None:
+                    return await _replay_binding(
+                        session,
+                        binding=binding,
+                        operation_response=operation_response,
+                        request_digest=request_digest,
+                        load_target=load_target,
+                    )
+
                 savepoint = await session.begin_nested()
                 candidate = await create_target(session)
                 _validate_target(candidate)
@@ -199,39 +214,72 @@ class DemoSemanticIdempotencyCoordinator:
                     )
 
                 await savepoint.rollback()
-                binding = await session.scalar(
-                    select(DemoCommandBinding).where(
-                        DemoCommandBinding.demo_actor_id == demo_actor_id,
-                        DemoCommandBinding.endpoint_operation == endpoint_operation,
-                        DemoCommandBinding.idempotency_key_hash == key_hash,
-                    )
+                binding = await _load_binding(
+                    session,
+                    demo_actor_id=demo_actor_id,
+                    endpoint_operation=endpoint_operation,
+                    idempotency_key_hash_value=key_hash,
                 )
                 if binding is None:
                     raise DemoIdempotencyAuthorityCorruption(
                         "unique-conflict winner was not reloadable"
                     )
-                _validate_binding(binding, operation_response)
-                if binding.request_digest != request_digest:
-                    raise DemoIdempotencyPayloadConflict()
-
-                loaded_target = await load_target(session, binding)
-                if loaded_target is None:
-                    raise DemoIdempotencyAuthorityCorruption("winner response target is missing")
-                _validate_target(loaded_target)
-                if (
-                    loaded_target.response_id != binding.response_id
-                    or loaded_target.demo_session_id != binding.demo_session_id
-                ):
-                    raise DemoIdempotencyAuthorityCorruption(
-                        "winner response target does not match its command binding"
-                    )
-                return DemoIdempotencyResult(
-                    value=loaded_target.value,
-                    target_id=binding.response_id,
-                    binding_id=binding.id,
-                    response_status=binding.response_status,
-                    replayed=True,
+                return await _replay_binding(
+                    session,
+                    binding=binding,
+                    operation_response=operation_response,
+                    request_digest=request_digest,
+                    load_target=load_target,
                 )
+
+
+async def _load_binding(
+    session: AsyncSession,
+    *,
+    demo_actor_id: str,
+    endpoint_operation: str,
+    idempotency_key_hash_value: str,
+) -> DemoCommandBinding | None:
+    bindings = await session.scalars(
+        select(DemoCommandBinding).where(
+            DemoCommandBinding.demo_actor_id == demo_actor_id,
+            DemoCommandBinding.endpoint_operation == endpoint_operation,
+            DemoCommandBinding.idempotency_key_hash == idempotency_key_hash_value,
+        )
+    )
+    return bindings.one_or_none()
+
+
+async def _replay_binding[T](
+    session: AsyncSession,
+    *,
+    binding: DemoCommandBinding,
+    operation_response: DemoOperationResponse,
+    request_digest: str,
+    load_target: DemoTargetLoader[T],
+) -> DemoIdempotencyResult[T]:
+    _validate_binding(binding, operation_response)
+    if binding.request_digest != request_digest:
+        raise DemoIdempotencyPayloadConflict()
+
+    loaded_target = await load_target(session, binding)
+    if loaded_target is None:
+        raise DemoIdempotencyAuthorityCorruption("winner response target is missing")
+    _validate_target(loaded_target)
+    if (
+        loaded_target.response_id != binding.response_id
+        or loaded_target.demo_session_id != binding.demo_session_id
+    ):
+        raise DemoIdempotencyAuthorityCorruption(
+            "winner response target does not match its command binding"
+        )
+    return DemoIdempotencyResult(
+        value=loaded_target.value,
+        target_id=binding.response_id,
+        binding_id=binding.id,
+        response_status=binding.response_status,
+        replayed=True,
+    )
 
 
 def _normalize_json_object(value: Mapping[str, Any]) -> dict[str, _JsonValue]:

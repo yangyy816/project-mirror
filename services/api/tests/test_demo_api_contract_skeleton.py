@@ -14,7 +14,9 @@ from mirror_api.demo_models import DemoActor
 from mirror_api.demo_schemas import (
     DemoCapability,
     DemoEditPlanExecuteRequest,
+    DemoJobAcceptedResponse,
     DemoJobCancelRequest,
+    DemoJobResponse,
     DemoQuestionNextResponse,
     DemoQuestionResponseRequest,
     DemoRestoreRequest,
@@ -23,7 +25,7 @@ from mirror_api.demo_schemas import (
 )
 from mirror_api.errors import APIError, api_error_handler, validation_error_handler
 from mirror_api.main import create_app
-from mirror_api.routers.demo import router
+from mirror_api.routers.demo import IdempotencyKey, router
 
 
 def _app() -> FastAPI:
@@ -67,10 +69,42 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
     ]
     assert len(posts) == 14
     assert all("DemoBearerAuth" in operation["security"][0] for operation in operations)
-    assert all(
-        any(parameter["name"] == "Idempotency-Key" for parameter in operation["parameters"])
+    idempotency_headers = [
+        next(
+            parameter
+            for parameter in operation["parameters"]
+            if parameter["name"] == "Idempotency-Key"
+        )
         for operation in posts
+    ]
+    assert all(parameter["required"] is True for parameter in idempotency_headers)
+    assert all(
+        parameter["schema"]
+        == {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "pattern": "^[!-~]{8,128}$",
+            "title": "Idempotency-Key",
+        }
+        for parameter in idempotency_headers
     )
+
+    accepted_job = schema["components"]["schemas"]["DemoJobAcceptedResponse"]
+    job = schema["components"]["schemas"]["DemoJobResponse"]
+    target = schema["components"]["schemas"]["DemoJobTargetResponse"]
+    assert {"job_id", "status", "capability", "job_binding_digest", "target"}.issubset(
+        accepted_job["required"]
+    )
+    assert {
+        "job_id",
+        "status",
+        "capability",
+        "job_binding_digest",
+        "target",
+    }.issubset(job["required"])
+    assert {"result_code", "finalized_at"}.issubset(job["properties"])
+    assert {"target_type", "target_id", "authority_digest"} == set(target["required"])
 
 
 def test_capabilities_are_the_only_success_path_and_other_routes_are_strict() -> None:
@@ -105,6 +139,21 @@ def test_capabilities_are_the_only_success_path_and_other_routes_are_strict() ->
     )
     assert deferred.status_code == 501
     assert deferred.json()["code"] == "CAPABILITY_NOT_IMPLEMENTED"
+
+    invalid_key = client.post(
+        "/api/v1/demo/sessions",
+        headers={"Idempotency-Key": "bad key!"},
+        json={"synthetic_identity_id": "1" * 32, "context_seed": "2" * 64},
+    )
+    assert invalid_key.status_code == 422
+
+
+def test_idempotency_key_rejects_non_visible_ascii_before_application_logic() -> None:
+    adapter = TypeAdapter(IdempotencyKey)
+    for invalid_key in ("bad key!", "abc\tdefg", "中文abcdef"):
+        with pytest.raises(ValidationError):
+            adapter.validate_python(invalid_key)
+    assert adapter.validate_python("visible-key-~") == "visible-key-~"
 
 
 def test_demo_router_denies_missing_bearer_credentials() -> None:
@@ -221,6 +270,28 @@ def test_frozen_demo_mutation_contracts_require_explicit_intent_and_precondition
         expected_current_image_version_digest="4" * 64,
     )
     assert restored.expected_current_image_version_id == "3" * 32
+
+    target = {
+        "target_type": "EDIT_PLAN",
+        "target_id": "5" * 32,
+        "authority_digest": "6" * 64,
+    }
+    accepted = DemoJobAcceptedResponse(
+        job_id="7" * 32,
+        status="PENDING",
+        capability="edit_plan",
+        job_binding_digest="8" * 64,
+        target=target,
+    )
+    completed = DemoJobResponse(
+        job_id=accepted.job_id,
+        status="COMPLETED",
+        capability=accepted.capability,
+        job_binding_digest=accepted.job_binding_digest,
+        target=target,
+    )
+    assert completed.target.target_id == accepted.target.target_id
+    assert completed.target.authority_digest == "6" * 64
 
 
 def test_main_application_exposes_the_complete_demo_contract() -> None:

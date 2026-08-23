@@ -2155,6 +2155,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -2451,6 +2452,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -2660,6 +2662,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -2894,6 +2897,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -3004,6 +3008,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -3201,6 +3206,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -3326,6 +3332,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -3436,6 +3443,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -3556,6 +3564,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -3676,6 +3685,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -3895,6 +3905,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -4015,6 +4026,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -4125,6 +4137,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -4443,6 +4456,7 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
               "title": "Idempotency-Key"
             }
           }
@@ -5630,21 +5644,31 @@
           "status": {
             "type": "string",
             "const": "PENDING",
-            "title": "Status",
-            "default": "PENDING"
+            "title": "Status"
           },
           "capability": {
             "type": "string",
             "maxLength": 64,
             "minLength": 1,
             "title": "Capability"
+          },
+          "job_binding_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Job Binding Digest"
+          },
+          "target": {
+            "$ref": "#/components/schemas/DemoJobTargetResponse"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "job_id",
-          "capability"
+          "status",
+          "capability",
+          "job_binding_digest",
+          "target"
         ],
         "title": "DemoJobAcceptedResponse"
       },
@@ -5691,6 +5715,20 @@
             ],
             "title": "Status"
           },
+          "capability": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Capability"
+          },
+          "job_binding_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Job Binding Digest"
+          },
+          "target": {
+            "$ref": "#/components/schemas/DemoJobTargetResponse"
+          },
           "result_code": {
             "anyOf": [
               {
@@ -5721,9 +5759,50 @@
         "type": "object",
         "required": [
           "job_id",
-          "status"
+          "status",
+          "capability",
+          "job_binding_digest",
+          "target"
         ],
         "title": "DemoJobResponse"
+      },
+      "DemoJobTargetResponse": {
+        "properties": {
+          "target_type": {
+            "type": "string",
+            "enum": [
+              "DEMO_ACTOR",
+              "DEMO_SESSION",
+              "FACE_OBSERVATION",
+              "QUESTIONNAIRE_RUN",
+              "SELF_TRANSFER_RUN",
+              "EDITING_SESSION",
+              "IMAGE_VERSION",
+              "EDIT_PLAN",
+              "EDIT_OPERATION",
+              "TOOL_RUN"
+            ],
+            "title": "Target Type"
+          },
+          "target_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Target Id"
+          },
+          "authority_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Authority Digest"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target_type",
+          "target_id",
+          "authority_digest"
+        ],
+        "title": "DemoJobTargetResponse"
       },
       "DemoLockRequest": {
         "properties": {

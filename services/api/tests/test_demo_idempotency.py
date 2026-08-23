@@ -12,6 +12,8 @@ import pytest
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session
+from test_demo_schema_authority_invariants import _insert_full_demo_graph, _insert_job_binding
 
 from mirror_api.demo_idempotency import (
     DEMO_COMMAND_BINDING_SCHEMA_VERSION,
@@ -26,8 +28,14 @@ from mirror_api.demo_idempotency import (
     idempotency_key_hash,
     semantic_request_digest,
 )
-from mirror_api.demo_models import DEMO_TABLE_NAMES, DemoActor, DemoCommandBinding, DemoSession
-from mirror_api.models import new_id
+from mirror_api.demo_models import (
+    DEMO_TABLE_NAMES,
+    DemoActor,
+    DemoCommandBinding,
+    DemoQuestionnaireStep,
+    DemoSession,
+)
+from mirror_api.models import Job, new_id
 
 NOW = datetime(2026, 8, 23, 12, tzinfo=UTC)
 EXPIRES_AT = datetime(2026, 8, 24, tzinfo=UTC)
@@ -229,6 +237,186 @@ async def test_different_payload_conflict_keeps_only_canonical_winner() -> None:
         assert conflict.value.code == IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD
         assert await _count(sessions, DemoSession) == 1
         assert await _count(sessions, DemoCommandBinding) == 1
+
+
+@pytest.mark.asyncio
+async def test_stateful_questionnaire_and_job_replays_never_reinvoke_mutation_creator() -> None:
+    async with _database() as sessions:
+        async with sessions() as setup_session:
+
+            def setup_stateful_authorities(sync_session: Session) -> tuple[str, ...]:
+                graph = _insert_full_demo_graph(sync_session, include_episode=False)
+                actor = graph["actor"]
+                demo_session = graph["session"]
+                job, _ = _insert_job_binding(
+                    sync_session,
+                    actor,
+                    endpoint_operation="profile.compile",
+                    target_type="DEMO_ACTOR",
+                    target_id=actor.id,
+                    demo_session=demo_session,
+                )
+                return (
+                    actor.id,
+                    demo_session.id,
+                    graph["questionnaire_run"].id,
+                    graph["question_pair"].id,
+                    job.id,
+                )
+
+            actor_id, session_id, run_id, pair_id, job_id = await setup_session.run_sync(
+                setup_stateful_authorities
+            )
+
+        coordinator = DemoSemanticIdempotencyCoordinator(session_factory=sessions)
+
+        async def create_questionnaire_response(
+            session: AsyncSession,
+        ) -> DemoIdempotencyTarget[DemoQuestionnaireStep]:
+            fields = {
+                "demo_actor_id": actor_id,
+                "demo_session_id": session_id,
+                "questionnaire_run_id": run_id,
+                "event_sequence": 3,
+                "step_number": 2,
+                "event_type": "RESPONDED",
+                "question_pair_id": pair_id,
+                "routing_snapshot": {"selected": 1},
+                "response_snapshot": {"choice": "RIGHT"},
+                "posterior_before": {"jaw_width_ppm": 1_000},
+                "posterior_after": {"jaw_width_ppm": 2_000},
+                "scheduler_version": "fixture-scheduler-v1",
+            }
+            schema_version = "mirror.demo/DemoQuestionnaireStep/v1"
+            target = DemoQuestionnaireStep(
+                id=new_id(),
+                schema_version=schema_version,
+                canonical_payload=fields,
+                content_digest=_authority_digest(schema_version, fields),
+                created_at=NOW,
+                **fields,
+            )
+            session.add(target)
+            return DemoIdempotencyTarget(
+                value=target,
+                response_id=target.id,
+                demo_session_id=session_id,
+            )
+
+        async def load_questionnaire_response(
+            session: AsyncSession, binding: DemoCommandBinding
+        ) -> DemoIdempotencyTarget[DemoQuestionnaireStep] | None:
+            target = await session.get(DemoQuestionnaireStep, binding.response_id)
+            if target is None:
+                return None
+            return DemoIdempotencyTarget(
+                value=target,
+                response_id=target.id,
+                demo_session_id=target.demo_session_id,
+            )
+
+        questionnaire_request = {"expected_run_version": 7, "selected_side": "RIGHT"}
+        questionnaire_first = await coordinator.execute(
+            demo_actor_id=actor_id,
+            endpoint_operation="questionnaire.response.create",
+            idempotency_key="questionnaire-state-key",
+            semantic_request=questionnaire_request,
+            create_target=create_questionnaire_response,
+            load_target=load_questionnaire_response,
+        )
+
+        async def questionnaire_state_already_advanced(
+            session: AsyncSession,
+        ) -> DemoIdempotencyTarget[DemoQuestionnaireStep]:
+            del session
+            raise AssertionError("questionnaire replay must not advance the run twice")
+
+        bindings_after_questionnaire_create = await _count(sessions, DemoCommandBinding)
+        questionnaire_replay = await coordinator.execute(
+            demo_actor_id=actor_id,
+            endpoint_operation="questionnaire.response.create",
+            idempotency_key="questionnaire-state-key",
+            semantic_request={"selected_side": "RIGHT", "expected_run_version": 7},
+            create_target=questionnaire_state_already_advanced,
+            load_target=load_questionnaire_response,
+        )
+        assert questionnaire_replay.replayed is True
+        assert questionnaire_replay.target_id == questionnaire_first.target_id
+
+        with pytest.raises(DemoIdempotencyPayloadConflict):
+            await coordinator.execute(
+                demo_actor_id=actor_id,
+                endpoint_operation="questionnaire.response.create",
+                idempotency_key="questionnaire-state-key",
+                semantic_request={"selected_side": "LEFT", "expected_run_version": 7},
+                create_target=questionnaire_state_already_advanced,
+                load_target=load_questionnaire_response,
+            )
+        assert await _count(sessions, DemoCommandBinding) == bindings_after_questionnaire_create
+
+        async def cancel_job(session: AsyncSession) -> DemoIdempotencyTarget[Job]:
+            target = await session.get(Job, job_id)
+            assert target is not None
+            target.status = "CANCELLED"
+            target.finalized_at = NOW
+            target.result_code = "USER_REQUEST"
+            return DemoIdempotencyTarget(
+                value=target,
+                response_id=target.id,
+                demo_session_id=session_id,
+            )
+
+        async def load_cancelled_job(
+            session: AsyncSession, binding: DemoCommandBinding
+        ) -> DemoIdempotencyTarget[Job] | None:
+            target = await session.get(Job, binding.response_id)
+            if target is None:
+                return None
+            return DemoIdempotencyTarget(
+                value=target,
+                response_id=target.id,
+                demo_session_id=session_id,
+            )
+
+        job_request = {"expected_status": "PENDING", "reason": "USER_REQUEST"}
+        job_first = await coordinator.execute(
+            demo_actor_id=actor_id,
+            endpoint_operation="job.cancel",
+            idempotency_key="job-cancel-state-key",
+            semantic_request=job_request,
+            create_target=cancel_job,
+            load_target=load_cancelled_job,
+        )
+
+        async def job_state_already_cancelled(
+            session: AsyncSession,
+        ) -> DemoIdempotencyTarget[Job]:
+            del session
+            raise AssertionError("job replay must not cancel an already terminal job")
+
+        bindings_after_job_cancel = await _count(sessions, DemoCommandBinding)
+        job_replay = await coordinator.execute(
+            demo_actor_id=actor_id,
+            endpoint_operation="job.cancel",
+            idempotency_key="job-cancel-state-key",
+            semantic_request={"reason": "USER_REQUEST", "expected_status": "PENDING"},
+            create_target=job_state_already_cancelled,
+            load_target=load_cancelled_job,
+        )
+        assert job_replay.replayed is True
+        assert job_replay.target_id == job_first.target_id
+
+        with pytest.raises(DemoIdempotencyPayloadConflict):
+            await coordinator.execute(
+                demo_actor_id=actor_id,
+                endpoint_operation="job.cancel",
+                idempotency_key="job-cancel-state-key",
+                semantic_request={"expected_status": "RUNNING", "reason": "USER_REQUEST"},
+                create_target=job_state_already_cancelled,
+                load_target=load_cancelled_job,
+            )
+
+        assert await _count(sessions, DemoCommandBinding) == bindings_after_job_cancel
 
 
 @pytest.mark.asyncio
