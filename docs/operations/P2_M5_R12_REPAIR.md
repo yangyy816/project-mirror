@@ -6,6 +6,14 @@
 - `P2_M5_R12: LOCAL_CANDIDATE_PENDING_VALIDATION`
 - `CC04_A_OWNER_DECISION_CLOSURE: PENDING_R12_ACCEPTANCE`
 
+## Final checkpoint historical synchronization
+
+`P2_M5_R12: FAILED_AT_763EEB0_RUN_32616944692_RESIDUAL_STATE_INCONSISTENCY`
+
+`R12_RESIDUAL_DEFECT: CLOSED_BY_R13_0D270F3`
+
+R12 remains a failed historical candidate; its CI, artifact, and Security evidence is not reclassified as a repair PASS.
+
 ## Bounded repair packet
 
 - `OBJECTIVE`: synchronize already accepted CC04-A Owner-decision authority in the D01 contract, Proposal, and Register without changing any decision or execution boundary.

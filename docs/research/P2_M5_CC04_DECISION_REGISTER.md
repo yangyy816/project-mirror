@@ -40,3 +40,11 @@ authorizes `04-B` execution.
 
 After this Owner Decision Closure receives its own exact-SHA acceptance, the next permitted action is only `04-B`
 contract writing at `ELIGIBLE_NOT_EXECUTION_AUTHORIZATION`; it neither creates nor executes `04-B`.
+
+## Final checkpoint state
+
+`FINAL_ACCEPTANCE_CHECKPOINT: THIS_COMMIT`
+
+`AUTHORITY_CONDITION: EFFECTIVE_ONLY_AFTER_THIS_CHECKPOINT_SAME_SHA_CI_ARTIFACT_SECURITY_SOL_AND_PRINCIPAL_ACCEPTANCE`
+
+Closure is conditionally accepted; the next permitted action is a separate `04-B` contract-writing task only. No row authorizes execution, and `CC04_B_CONTRACT: NOT_CREATED` with execution closed remains current.

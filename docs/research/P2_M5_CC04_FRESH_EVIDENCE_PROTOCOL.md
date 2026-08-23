@@ -77,3 +77,14 @@ transform, threshold, report, private-input read or output root.
 `CC04_B_CONTRACT: NOT_CREATED`
 
 `CC04_B_EXECUTION: CLOSED_PENDING_SEPARATE_CONTRACT_ACCEPTANCE`
+
+## Final status-only acceptance checkpoint
+
+- Current bounded stage: `CC04-A closure conditionally accepted by this checkpoint`.
+- `FINAL_ACCEPTANCE_CHECKPOINT: THIS_COMMIT`.
+- `AUTHORITY_CONDITION: EFFECTIVE_ONLY_AFTER_THIS_CHECKPOINT_SAME_SHA_CI_ARTIFACT_SECURITY_SOL_AND_PRINCIPAL_ACCEPTANCE`.
+- `CC04_A_OWNER_DECISION_CLOSURE: PASS_AT_THIS_ACCEPTANCE_CHECKPOINT`.
+- `CC04_B_CONTRACT_WRITING: ELIGIBLE_NOT_EXECUTION_AUTHORIZATION`.
+- `CC04_B_CONTRACT: NOT_CREATED`; `CC04_B_EXECUTION: CLOSED_PENDING_SEPARATE_CONTRACT_ACCEPTANCE`.
+
+This checkpoint opens neither `04-C` through `04-E`, T06, MVR, M6, generation, private input, cohort, Asset, identity, Vision, measurement, transform, threshold, or holdout work.

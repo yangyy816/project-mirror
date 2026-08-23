@@ -6,7 +6,10 @@
 - Decision date: `2026-08-23`.
 - Decision: `PROCEED_WITH_FRESH_EVIDENCE_LINE`.
 - D01 contract: `PASS_AT_7659EED_RUN_32592430642`.
-- Status: `LOCAL_CANDIDATE_PENDING_VALIDATION`.
+- Status: `CONDITIONALLY_ACCEPTED_BY_THIS_FINAL_STATUS_ONLY_CHECKPOINT`.
+- `FINAL_ACCEPTANCE_CHECKPOINT: THIS_COMMIT`.
+- `AUTHORITY_CONDITION: EFFECTIVE_ONLY_AFTER_THIS_CHECKPOINT_SAME_SHA_CI_ARTIFACT_SECURITY_SOL_AND_PRINCIPAL_ACCEPTANCE`.
+- `SUPPORTING_ACCEPTED_REPAIR: P2_M5_R13_PASS_AT_0D270F3_RUN_32619233525`.
 
 This records a new, synthetic-only and reviewable evidence line. It does not authorize study execution. CC01-C/CC02 reports, cases, Assets, identities, measurements, transforms, outputs, aggregates, private roots, locators, receipts, runtime/model results, 0/4 eligibility, and `FURTHER_RESEARCH` remain immutable historical evidence. They cannot be discovered, reconstructed, used as input, compared, replaced, or described as replay, repair, recovery, drift comparison, or historical-Gate repair.
 

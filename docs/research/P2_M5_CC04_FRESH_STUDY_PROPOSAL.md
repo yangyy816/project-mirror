@@ -88,3 +88,11 @@ create, modify, expand, transfer, or consume them.
 `04-A` now has a proposal, decision register, and Owner Decision Pack only. Once this closure receives exact-SHA
 acceptance, only `04-B` contract writing becomes eligible; the contract remains uncreated and execution remains closed.
 `04-B` through `04-E`, T06, MVR, M6, production geometry, QuestionBank release, and real-user processing remain closed.
+
+## Final status-only acceptance checkpoint
+
+`FINAL_ACCEPTANCE_CHECKPOINT: THIS_COMMIT`
+
+`AUTHORITY_CONDITION: EFFECTIVE_ONLY_AFTER_THIS_CHECKPOINT_SAME_SHA_CI_ARTIFACT_SECURITY_SOL_AND_PRINCIPAL_ACCEPTANCE`
+
+Closure is conditionally accepted by this checkpoint, supported by `P2_M5_R13_PASS_AT_0D270F3_RUN_32619233525`. Only a separate `04-B` contract-writing task is eligible; that contract remains `NOT_CREATED`, execution remains closed, and this governance artifact remains non-execution authority.

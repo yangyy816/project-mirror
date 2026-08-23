@@ -681,6 +681,24 @@ qualification, measurement, transform, threshold, holdout, MVR evaluation, or `0
 
 `CC04_B_EXECUTION: CLOSED_PENDING_SEPARATE_CONTRACT_ACCEPTANCE`
 
+## CC04-A final status-only acceptance checkpoint
+
+`FINAL_ACCEPTANCE_CHECKPOINT: THIS_COMMIT`
+
+`AUTHORITY_CONDITION: EFFECTIVE_ONLY_AFTER_THIS_CHECKPOINT_SAME_SHA_CI_ARTIFACT_SECURITY_SOL_AND_PRINCIPAL_ACCEPTANCE`
+
+`SUPPORTING_ACCEPTED_REPAIR: P2_M5_R13_PASS_AT_0D270F3_RUN_32619233525`
+
+`CC04_A_OWNER_DECISION_CLOSURE: PASS_AT_THIS_ACCEPTANCE_CHECKPOINT`
+
+`CC04_B_CONTRACT_WRITING: ELIGIBLE_NOT_EXECUTION_AUTHORIZATION`
+
+`CC04_B_CONTRACT: NOT_CREATED`
+
+`CC04_B_EXECUTION: CLOSED_PENDING_SEPARATE_CONTRACT_ACCEPTANCE`
+
+`P2_M5_NEXT_ACTION: PREPARE_SEPARATE_CC04_B_BOUNDED_TASK_CONTRACT_NO_EXECUTION`
+
 ## CC-P2-M5-04-A-D01 accepted; Owner Decision Closure candidate
 
 D01 was accepted at `7659eed48917b1491fd5fc8d18180c28f35944ec` after exact-SHA run `32592430642`, artifact inspection, and independent Security/Sol High reviews. The only next work item is the Owner Decision Closure candidate: record supplied Owner constraints in the decision pack and CC04 governance records. This is documentation only and cannot execute or otherwise prepare a fresh study.
