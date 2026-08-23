@@ -185,7 +185,8 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 - **R:** keep work local and resolve repository authority/visibility with Owner; never work around an unknown state.
 - **S:** unknown or changed visibility means no push.
 - **Current evidence:** `yangyy816/project-mirror` was read-only verified as `PUBLIC` immediately before the D01-A
-  acceptance closure; the reviewed candidate had no private locator/bytes and Gitleaks reported zero findings.
+  acceptance closure. It was reverified as the same `PUBLIC` repository before D01-C repair push; the exact candidate
+  had no private locator/bytes, the local Gitleaks 8.28.0 scan reported zero findings and exact-SHA CI secret-scan passed.
 - **Owner / status / blocked:** Principal / `MITIGATED_MONITORED` / every later push requires the same recheck.
 
 ## R-DEMO-16 — Formal Job cannot express Demo ownership
@@ -219,7 +220,11 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 - **D:** OpenAPI diff/drift and generated-client freshness at every API task acceptance.
 - **R:** serialize regeneration and repair callers; freeze only after D03–D10 contracts are Principal accepted.
 - **S:** D11 cannot start before `DEMO_API_CONTRACT_FREEZE`.
-- **Owner / status / blocked:** Principal + Web owner / `OPEN` / D11.
+- **Current evidence:** D01-C now freezes the complete 23-operation skeleton at `3523d61`, with one OpenAPI/codegen
+  integrator, zero regeneration drift, generated TypeScript freshness/typecheck and exact-SHA CI PASS. D03–D10 may
+  only implement within this authority or return to Principal change control; this is not the later API freeze.
+- **Owner / status / blocked:** Principal + Web owner / `MITIGATED_MONITORED` / D11 remains blocked until
+  `DEMO_API_CONTRACT_FREEZE`.
 
 ## R-DEMO-19 — Hidden public runtime dependency in deterministic core
 
@@ -249,9 +254,12 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
   Principal-accepted; no fake Job or in-memory fallback is permitted.
 - **Current evidence:** D01-C stopped before implementation; CC02 now has a forward prototype migration, immutable
   typed-response authority, 63 focused schema tests, full API/Worker replay, migration lifecycle, concurrency, zero
-  formal-DDL drift and independent Sol High `PASS / ACCEPT` for exact candidate `6981a88`.
-- **Owner / status / blocked:** Principal + data/backend owners / `MITIGATED_MONITORED` / no schema blocker; D01-C must
-  still implement and test replay, conflict reload and transaction integration before contract freeze.
+  formal-DDL drift and independent Sol High `PASS / ACCEPT` for exact candidate `6981a88`. D01-C exact repair
+  `3523d61` adds PostgreSQL replay-first coordination, stateful questionnaire/cancelled-Job replay tests, single-winner
+  concurrency and typed target/digest contracts; the LF-faithful full suite passed `816`, exact-SHA CI passed all three
+  jobs and Sol High reported no new mandatory finding.
+- **Owner / status / blocked:** Principal + data/backend owners / `MITIGATED_MONITORED` / D01-C accepted; later route
+  implementations must reuse this authority and may not introduce in-memory or fake-Job fallbacks.
 
 ## R-DEMO-21 — Formal CI evidence generator rejects prototype migration head
 
@@ -269,5 +277,9 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 - **S:** any condition that suppresses formal evidence on main/formal branches, accepts a Demo head as formal, or skips
   executable quality/integration Gates is rejected.
 - **Current evidence:** run `32631450833` failed only at `Generate Phase 1 CI evidence`; the generator correctly expected
-  `0014_m5_eval_authority` while Alembic correctly reported `demo_0002_p3_p7_command_auth` on the Demo branch.
-- **Owner / status / blocked:** Principal + CI owner / `REPAIR_EXECUTING` / same-SHA Demo CI acceptance closure.
+  `0014_m5_eval_authority` while Alembic correctly reported `demo_0002_p3_p7_command_auth` on the Demo branch. The
+  branch-local repair then produced exact-SHA run `32636591101`: all three jobs passed, executable quality/integration,
+  Docker, browser, dependency and secret Gates remained active, and artifact `9492531462` bound the Demo head while
+  preserving `FORMAL_HEAD_AUTHORITY: 0014_m5_eval_authority` and `PRODUCTION_RELEASE: NOT_AUTHORIZED`.
+- **Owner / status / blocked:** Principal + CI owner / `MITIGATED_MONITORED` / no D01-C blocker; the conditional remains
+  forbidden on main/formal branches.
