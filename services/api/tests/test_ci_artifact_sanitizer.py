@@ -5,6 +5,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[3]
 SANITIZER = ROOT / "scripts" / "ci_artifact_sanitizer.mjs"
 
@@ -34,16 +36,16 @@ def test_ci_artifact_sanitizer_projects_allowlisted_license_and_compose_fields(
     )
     docker_input.write_text(
         json.dumps(
-            [
-                {
-                    "Service": "api",
-                    "State": "running",
-                    "Health": "healthy",
-                    "ExitCode": 0,
-                    "Command": "/home/runner/private command",
-                }
-            ]
-        ),
+            {
+                "Service": "api",
+                "State": "running",
+                "Health": "healthy",
+                "ExitCode": 0,
+                "Command": "/home/runner/private command",
+            }
+        )
+        + "\n"
+        + json.dumps({"Service": "worker", "State": "running", "Health": "", "ExitCode": 0}),
         encoding="utf-8",
     )
 
@@ -82,5 +84,62 @@ def test_ci_artifact_sanitizer_projects_allowlisted_license_and_compose_fields(
     }
     assert json.loads(docker_output.read_text(encoding="utf-8")) == {
         "schema_version": "mirror.ci.compose-status/v1",
-        "containers": [{"service": "api", "state": "running", "health": "healthy", "exit_code": 0}],
+        "containers": [
+            {"service": "api", "state": "running", "health": "healthy", "exit_code": 0},
+            {"service": "worker", "state": "running", "health": None, "exit_code": 0},
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    ("docker_payload", "expected_containers"),
+    [
+        (
+            json.dumps({"Service": "api", "State": "running", "Health": "", "ExitCode": 0}),
+            [{"service": "api", "state": "running", "health": None, "exit_code": 0}],
+        ),
+        (
+            json.dumps(
+                [
+                    {"Service": "api", "State": "running", "Health": "healthy", "ExitCode": 0},
+                    {"Service": "worker", "State": "exited", "Health": "", "ExitCode": 1},
+                ]
+            ),
+            [
+                {"service": "api", "state": "running", "health": "healthy", "exit_code": 0},
+                {"service": "worker", "state": "exited", "health": None, "exit_code": 1},
+            ],
+        ),
+        ("", []),
+    ],
+)
+def test_ci_artifact_sanitizer_accepts_existing_compose_json_forms(
+    tmp_path: Path,
+    docker_payload: str,
+    expected_containers: list[dict[str, str | int | None]],
+) -> None:
+    docker_input = tmp_path / "docker-compose-raw.json"
+    docker_output = tmp_path / "docker-compose-evidence.json"
+    docker_input.write_text(docker_payload, encoding="utf-8")
+
+    node = shutil.which("node")
+    assert node is not None
+    subprocess.run(  # noqa: S603
+        [
+            node,
+            str(SANITIZER),
+            "--docker-input",
+            str(docker_input),
+            "--docker-output",
+            str(docker_output),
+        ],
+        check=True,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(docker_output.read_text(encoding="utf-8")) == {
+        "schema_version": "mirror.ci.compose-status/v1",
+        "containers": expected_containers,
     }

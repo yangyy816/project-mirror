@@ -73,7 +73,13 @@ async function sanitizeLicenses(inputPath, outputPath) {
 
 async function sanitizeDocker(inputPath, outputPath) {
   const rawText = await readFile(inputPath, "utf8");
-  const parsed = rawText.trim() === "" ? [] : JSON.parse(rawText);
+  const trimmed = rawText.trim();
+  let parsed;
+  try {
+    parsed = trimmed === "" ? [] : JSON.parse(trimmed);
+  } catch {
+    parsed = trimmed.split(/\r?\n/).map((line) => JSON.parse(line));
+  }
   const records = Array.isArray(parsed) ? parsed : [parsed];
   const containers = records
     .map((entry) => {
