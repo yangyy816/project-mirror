@@ -1,0 +1,327 @@
+{
+  "schema_version": "mirror.demo/D02DimensionAuthorityManifest/v1",
+  "status": "PREREGISTERED_NOT_EXECUTED",
+  "track": "DEMO_PROTOTYPE",
+  "formal_phase_authority": false,
+  "production_release_authorized": false,
+  "source_candidate_manifest": {
+    "path": "docs/research/P2_M5_CC01C_CANDIDATE_MANIFEST.json",
+    "schema_version": "mirror.p2-m5/CC01CCandidateManifest/v1",
+    "content_digest": "eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4"
+  },
+  "canonicalization": {
+    "version": "demo-canonical-json-v1",
+    "object_key_order": "UTF8_CODEPOINT_ASC",
+    "array_order": "PRESERVED",
+    "numeric_leaves": "INTEGER_ONLY",
+    "raw_decimal_leaves": "NONNEGATIVE_CANONICAL_FIXED18_STRING",
+    "negative_zero": "FORBIDDEN",
+    "digest_function": "sha256(schema_version + LF + canonical_json(payload))"
+  },
+  "coordinate_system": "normalized_image_xy_v1",
+  "normalizer": {
+    "kind": "EUCLIDEAN_DISTANCE_XY",
+    "ordered_anchors": [10, 152],
+    "anchor_order_meaning": ["superior_face_anchor", "inferior_chin_anchor"],
+    "formula": "distance_xy(10,152)",
+    "required_relation": "STRICTLY_POSITIVE",
+    "failure_mapping": "OUT_OF_BOUNDS"
+  },
+  "quantization": {
+    "raw_version": "demo-d02-decimal-fixed18-v1",
+    "projection_version": "demo-d02-morphology-projection-v1",
+    "quantization_version": "demo-d02-round-half-even-ppm-v1",
+    "raw_precision": 50,
+    "rounding": "ROUND_HALF_EVEN",
+    "raw_unit": "FACE_HEIGHT_RATIO_FIXED18",
+    "persisted_unit": "FACE_HEIGHT_PPM",
+    "ppm_multiplier": 1000000,
+    "supported_raw_min_inclusive": "0.000001000000000000",
+    "supported_raw_max_inclusive": "1.000000000000000000",
+    "supported_ppm_min_inclusive": 1,
+    "supported_ppm_max_inclusive": 1000000,
+    "binary_float_allowed": false
+  },
+  "raw_measurement_authority_contract": {
+    "schema_version": "mirror.demo/D02RawMeasurementAuthority/v1",
+    "payload_fields_in_order": [
+      "measurement_version",
+      "decimal_serialization_version",
+      "source_p2_candidate_manifest_content_digest",
+      "dimension_authority_manifest_content_digest",
+      "ordered_entries"
+    ],
+    "ordered_entry_fields": [
+      "dimension_key",
+      "support_state",
+      "raw_value_fixed18",
+      "raw_confidence_fixed18",
+      "raw_reliability_fixed18",
+      "unsupported_reason"
+    ],
+    "canonical_fixed18_regex": "^(0\\.[0-9]{18}|1\\.000000000000000000)$",
+    "leading_plus_allowed": false,
+    "leading_minus_allowed": false,
+    "leading_zero_variants_allowed": false,
+    "exponent_allowed": false,
+    "negative_zero_allowed": false,
+    "digest_field": "raw_measurement_authority_digest",
+    "digest_field_in_payload": false,
+    "digest_function": "sha256(schema_version + LF + canonical_json(payload))",
+    "source_p2_candidate_manifest_content_digest": "eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4",
+    "dimension_authority_manifest_content_digest_source": "BOUND_SOURCE_AUTHORITY_MANIFEST_FIELD"
+  },
+  "support_contract": {
+    "support_states": ["SUPPORTED", "UNSUPPORTED"],
+    "unsupported_reason_codes": [
+      "MISSING_MEASUREMENT",
+      "LOW_CONFIDENCE",
+      "OUT_OF_BOUNDS",
+      "RUNTIME_UNSUPPORTED"
+    ],
+    "supported_shape": {
+      "value_ppm": "INTEGER_1_TO_1000000",
+      "confidence_ppm": "INTEGER_1_TO_1000000",
+      "reliability_ppm": "INTEGER_1_TO_1000000",
+      "unsupported_reason": null
+    },
+    "unsupported_shape": {
+      "value_ppm": null,
+      "confidence_ppm": 0,
+      "reliability_ppm": 0,
+      "unsupported_reason": "NON_NULL_ALLOWLIST_VALUE"
+    },
+    "failure_mapping": {
+      "missing_anchor_or_measurement": "MISSING_MEASUREMENT",
+      "zero_confidence_or_reliability": "LOW_CONFIDENCE",
+      "nonfinite_out_of_image_or_nonpositive_normalizer": "OUT_OF_BOUNDS",
+      "runtime_does_not_emit_dimension": "RUNTIME_UNSUPPORTED",
+      "repeat_digest_disagreement": "RUN_LEVEL_EXECUTION_CARDINALITY_STOP"
+    }
+  },
+  "source_visibility_and_quality": {
+    "repeat_count": 3,
+    "required_face_count_per_repeat": 1,
+    "required_landmark_count_per_repeat": 478,
+    "all_required_anchors_present": true,
+    "all_required_xy_finite": true,
+    "all_required_xy_in_closed_unit_interval": true,
+    "canonical_output_digest_identical_across_repeats": true,
+    "landmark_digest_identical_across_repeats": true,
+    "measurement_digest_identical_across_repeats": true,
+    "formal_or_recovered_source_qa_must_be_accepted": true,
+    "all_six_dimensions_must_be_supported": true,
+    "confidence_and_reliability_must_quantize_to_nonzero_ppm": true
+  },
+  "screening_thresholds": {
+    "policy_class": "DEMO_ONLY_SCREENING_HYPOTHESIS",
+    "target_abs_delta_min_inclusive": "0.000010000000000000",
+    "target_abs_delta_max_inclusive": "0.060000000000000000",
+    "non_target_drift_max_inclusive": "0.020000000000000000",
+    "magnitude_monotonicity": "ABS_DELTA_30000_GTE_ABS_DELTA_15000",
+    "magnitudes_ppm": [15000, 30000],
+    "directions": ["DECREASE", "INCREASE"]
+  },
+  "selection_authority": {
+    "candidate_priority": ["jaw_width", "chin_height", "eye_spacing"],
+    "mandatory_screening_set": ["jaw_width", "chin_height", "eye_spacing"],
+    "optional_screening_set": [],
+    "mandatory_routing_selection_count": 2,
+    "mandatory_routing_selection_rule": "FIRST_TWO_FULLY_ELIGIBLE_BY_CANDIDATE_PRIORITY",
+    "realized_mandatory_dimension_set_before_screening": [],
+    "realized_set_authority": "PASSED_D02_PAIR_SCREENING_REPORT_ONLY",
+    "optional_routing_set_rule": "ELIGIBLE_CANDIDATES_AFTER_MANDATORY_SELECTION",
+    "fewer_than_two_eligible": "NO_BANK_PLATFORM_FAIL_BOUNDED_RECOVERY_REQUIRED",
+    "dimension_status": "DEMO_EXPERIMENTAL_DIMENSION"
+  },
+  "geometry_ontology": {
+    "schema_version": "mirror.demo/D02GeometryOntology/v1",
+    "ordered_projection_dimensions": [
+      "cheekbone_width",
+      "chin_height",
+      "eye_spacing",
+      "jaw_width",
+      "mouth_width",
+      "nose_width"
+    ],
+    "dimensions": [
+      {
+        "dimension_key": "cheekbone_width",
+        "meaning": "source-relative horizontal distance between bilateral cheekbone anchors",
+        "role": "CONTROL_ONLY",
+        "measurement_version": "p2-m5-cheekbone-width-xy-face-height-v1",
+        "measurement_formula": "distance_xy(123,352)/distance_xy(10,152)",
+        "ordered_measurement_anchors": [123, 352],
+        "measurement_anchor_order": ["left", "right"],
+        "required_landmarks": [10, 123, 152, 352],
+        "normalizer_anchors": [10, 152],
+        "unit": "FACE_HEIGHT_RATIO_FIXED18",
+        "valid_range": ["0.000001000000000000", "1.000000000000000000"],
+        "visibility_requirement": "ALL_REQUIRED_LANDMARKS_PRESENT_FINITE_IN_BOUNDS_ALL_REPEATS",
+        "quality_requirement": "SOURCE_QA_ACCEPTED_SUPPORTED_NONZERO_CONFIDENCE_AND_RELIABILITY",
+        "unsupported_reason_codes": [
+          "MISSING_MEASUREMENT",
+          "LOW_CONFIDENCE",
+          "OUT_OF_BOUNDS",
+          "RUNTIME_UNSUPPORTED"
+        ]
+      },
+      {
+        "dimension_key": "chin_height",
+        "meaning": "source-relative vertical chin segment from lower-face reference anchor to chin anchor",
+        "role": "CANDIDATE_TARGET",
+        "candidate_priority_index": 1,
+        "measurement_version": "p2-m5-chin-height-xy-face-height-v1",
+        "measurement_formula": "distance_xy(17,152)/distance_xy(10,152)",
+        "ordered_measurement_anchors": [17, 152],
+        "measurement_anchor_order": [
+          "lower_face_reference",
+          "moving_chin_anchor"
+        ],
+        "required_landmarks": [10, 17, 152],
+        "normalizer_anchors": [10, 152],
+        "unit": "FACE_HEIGHT_RATIO_FIXED18",
+        "valid_range": ["0.000001000000000000", "1.000000000000000000"],
+        "visibility_requirement": "ALL_REQUIRED_LANDMARKS_PRESENT_FINITE_IN_BOUNDS_ALL_REPEATS",
+        "quality_requirement": "SOURCE_QA_ACCEPTED_SUPPORTED_NONZERO_CONFIDENCE_AND_RELIABILITY",
+        "unsupported_reason_codes": [
+          "MISSING_MEASUREMENT",
+          "LOW_CONFIDENCE",
+          "OUT_OF_BOUNDS",
+          "RUNTIME_UNSUPPORTED"
+        ],
+        "plan_builder_version": "p2-m5-chin-height-local-field-v1",
+        "plan_kind": "SINGLE_VERTICAL_GAUSSIAN",
+        "moving_anchor": 152,
+        "sigma_x_formula": "0.18*distance_xy(10,152)",
+        "sigma_y_formula": "0.35*distance_xy(17,152)",
+        "maximum_anchor_displacement_formula": "direction_sign*distance_xy(17,152)*magnitude_ppm/1000000",
+        "ordered_control_dimensions": [
+          "cheekbone_width",
+          "eye_spacing",
+          "jaw_width",
+          "mouth_width",
+          "nose_width"
+        ]
+      },
+      {
+        "dimension_key": "eye_spacing",
+        "meaning": "source-relative horizontal distance between bilateral inner-eye anchors",
+        "role": "CANDIDATE_TARGET",
+        "candidate_priority_index": 2,
+        "measurement_version": "p2-m5-eye-spacing-xy-face-height-v1",
+        "measurement_formula": "distance_xy(133,362)/distance_xy(10,152)",
+        "ordered_measurement_anchors": [133, 362],
+        "measurement_anchor_order": ["left", "right"],
+        "required_landmarks": [10, 133, 152, 362],
+        "normalizer_anchors": [10, 152],
+        "unit": "FACE_HEIGHT_RATIO_FIXED18",
+        "valid_range": ["0.000001000000000000", "1.000000000000000000"],
+        "visibility_requirement": "ALL_REQUIRED_LANDMARKS_PRESENT_FINITE_IN_BOUNDS_ALL_REPEATS",
+        "quality_requirement": "SOURCE_QA_ACCEPTED_SUPPORTED_NONZERO_CONFIDENCE_AND_RELIABILITY",
+        "unsupported_reason_codes": [
+          "MISSING_MEASUREMENT",
+          "LOW_CONFIDENCE",
+          "OUT_OF_BOUNDS",
+          "RUNTIME_UNSUPPORTED"
+        ],
+        "plan_builder_version": "p2-m5-eye-spacing-local-field-v1",
+        "plan_kind": "PAIRED_HORIZONTAL_GAUSSIAN",
+        "sigma_x_formula": "0.50*(source_x(362)-source_x(133))",
+        "sigma_y_formula": "0.07*distance_xy(10,152)",
+        "maximum_anchor_displacement_formula": "direction_sign*(source_x(362)-source_x(133))*magnitude_ppm/2000000",
+        "ordered_control_dimensions": [
+          "cheekbone_width",
+          "chin_height",
+          "jaw_width",
+          "mouth_width",
+          "nose_width"
+        ]
+      },
+      {
+        "dimension_key": "jaw_width",
+        "meaning": "source-relative horizontal distance between bilateral jaw anchors",
+        "role": "CANDIDATE_TARGET",
+        "candidate_priority_index": 0,
+        "measurement_version": "p2-m5-jaw-width-xy-face-height-v1",
+        "measurement_formula": "distance_xy(234,454)/distance_xy(10,152)",
+        "ordered_measurement_anchors": [234, 454],
+        "measurement_anchor_order": ["left", "right"],
+        "required_landmarks": [10, 152, 234, 454],
+        "normalizer_anchors": [10, 152],
+        "unit": "FACE_HEIGHT_RATIO_FIXED18",
+        "valid_range": ["0.000001000000000000", "1.000000000000000000"],
+        "visibility_requirement": "ALL_REQUIRED_LANDMARKS_PRESENT_FINITE_IN_BOUNDS_ALL_REPEATS",
+        "quality_requirement": "SOURCE_QA_ACCEPTED_SUPPORTED_NONZERO_CONFIDENCE_AND_RELIABILITY",
+        "unsupported_reason_codes": [
+          "MISSING_MEASUREMENT",
+          "LOW_CONFIDENCE",
+          "OUT_OF_BOUNDS",
+          "RUNTIME_UNSUPPORTED"
+        ],
+        "plan_builder_version": "p2-m4-t07-jaw-local-field-v1",
+        "plan_kind": "PAIRED_HORIZONTAL_GAUSSIAN",
+        "sigma_x_formula": "0.12*(source_x(454)-source_x(234))",
+        "sigma_y_formula": "0.18*distance_xy(10,152)",
+        "maximum_anchor_displacement_formula": "direction_sign*(source_x(454)-source_x(234))*magnitude_ppm/2000000",
+        "ordered_control_dimensions": [
+          "cheekbone_width",
+          "chin_height",
+          "eye_spacing",
+          "mouth_width",
+          "nose_width"
+        ]
+      },
+      {
+        "dimension_key": "mouth_width",
+        "meaning": "source-relative horizontal distance between bilateral mouth-corner anchors",
+        "role": "CONTROL_ONLY",
+        "measurement_version": "p2-m5-mouth-width-xy-face-height-v1",
+        "measurement_formula": "distance_xy(61,291)/distance_xy(10,152)",
+        "ordered_measurement_anchors": [61, 291],
+        "measurement_anchor_order": ["left", "right"],
+        "required_landmarks": [10, 61, 152, 291],
+        "normalizer_anchors": [10, 152],
+        "unit": "FACE_HEIGHT_RATIO_FIXED18",
+        "valid_range": ["0.000001000000000000", "1.000000000000000000"],
+        "visibility_requirement": "ALL_REQUIRED_LANDMARKS_PRESENT_FINITE_IN_BOUNDS_ALL_REPEATS",
+        "quality_requirement": "SOURCE_QA_ACCEPTED_SUPPORTED_NONZERO_CONFIDENCE_AND_RELIABILITY",
+        "unsupported_reason_codes": [
+          "MISSING_MEASUREMENT",
+          "LOW_CONFIDENCE",
+          "OUT_OF_BOUNDS",
+          "RUNTIME_UNSUPPORTED"
+        ]
+      },
+      {
+        "dimension_key": "nose_width",
+        "meaning": "source-relative horizontal distance between bilateral nose-width anchors",
+        "role": "CONTROL_ONLY",
+        "measurement_version": "p2-m5-nose-width-xy-face-height-v1",
+        "measurement_formula": "distance_xy(98,327)/distance_xy(10,152)",
+        "ordered_measurement_anchors": [98, 327],
+        "measurement_anchor_order": ["left", "right"],
+        "required_landmarks": [10, 98, 152, 327],
+        "normalizer_anchors": [10, 152],
+        "unit": "FACE_HEIGHT_RATIO_FIXED18",
+        "valid_range": ["0.000001000000000000", "1.000000000000000000"],
+        "visibility_requirement": "ALL_REQUIRED_LANDMARKS_PRESENT_FINITE_IN_BOUNDS_ALL_REPEATS",
+        "quality_requirement": "SOURCE_QA_ACCEPTED_SUPPORTED_NONZERO_CONFIDENCE_AND_RELIABILITY",
+        "unsupported_reason_codes": [
+          "MISSING_MEASUREMENT",
+          "LOW_CONFIDENCE",
+          "OUT_OF_BOUNDS",
+          "RUNTIME_UNSUPPORTED"
+        ]
+      }
+    ]
+  },
+  "digest_contract": {
+    "geometry_ontology_payload": "geometry_ontology excluding schema_version",
+    "manifest_payload": "root object excluding schema_version and manifest_content_digest",
+    "geometry_ontology_digest_field": "geometry_ontology_version_digest",
+    "manifest_digest_field": "manifest_content_digest"
+  },
+  "geometry_ontology_version_digest": "d902fe2cfdf69db9f62ccc2e5fa7c569227d652f1204aa683742fc3c592f38b9",
+  "manifest_content_digest": "d4ffa375cf861ec6873270cd4b1c03c4270672f96dee4b8f71ae0678103ad33a"
+}
