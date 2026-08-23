@@ -1,0 +1,193 @@
+{
+  "schema_version": "mirror.p2-m5.cc04-b-v01-admission-runtime-manifest/v1",
+  "manifest_version": "p2-m5-cc04-b-v01-admission-runtime-v1",
+  "qualification": {
+    "qualification_tier": "APPROVED_FOR_INTERNAL_ENGINE",
+    "current_status": "APPROVED_FOR_INTERNAL_ENGINE",
+    "approved_scope": "PRIVATE_SYNTHETIC_P2_M5_CC04_B_NORMALIZATION_FACE_POSE_LANDMARK_RELIABILITY_AND_MORPHOLOGY_ADMISSION_ONLY",
+    "prohibited_scope": [
+      "04_C_TRANSFORM_OR_DIAGNOSTIC_AUTHORITY",
+      "HOLDOUT_ACCESS_OR_EVALUATION",
+      "PRODUCTION",
+      "DISTRIBUTION",
+      "REAL_USER_PROCESSING",
+      "PUBLIC_API",
+      "QUESTION_BANK_RELEASE",
+      "SENSITIVE_INFERENCE",
+      "BEAUTY_OR_AGE_SCORING"
+    ],
+    "canonical_platform": "linux_x86_64_network_none",
+    "supported_platforms": [
+      "linux_x86_64_network_none",
+      "windows_amd64_process_specific_outbound_deny"
+    ],
+    "real_user_data_allowed": false,
+    "production_allowed": false,
+    "network_policy": "ZERO_EGRESS_RUNTIME",
+    "license_status": "PASS_PRIVATE_SYNTHETIC_INTERNAL_ONLY_DISTRIBUTION_BLOCKED",
+    "model_status": "PRIVATE_RESEARCH_ONLY",
+    "distribution_status": "BLOCKED",
+    "reproducibility_level": "TWO_CLEAN_BYTE_IDENTICAL_ROOTS_PER_PLATFORM_PLUS_THREE_ZERO_EGRESS_LIFECYCLE_RUNS_PER_PLATFORM",
+    "sbom_status": "PASS_51_COMPONENT_PRIVATE_CYCLONEDX",
+    "vulnerability_status": "PASS_FOR_EXACT_PRIVATE_SYNTHETIC_CLOSURE_WITH_FOCUSED_OPENCV_DISPOSITIONS",
+    "next_promotion_gate": "NONE_NO_SCOPE_PROMOTION_AUTHORIZED"
+  },
+  "source_and_build": {
+    "upstream_source": "https://github.com/google-ai-edge/mediapipe",
+    "upstream_tag": "v0.10.35",
+    "upstream_commit": "f8ef212d5c962c0e853db7e59d217056b187084b",
+    "effective_build_input_manifest_sha256": "5c4f74bc4dd661582d397e5d1c66d22548d103e70d75cd7a2062cc6f0958a224",
+    "runtime_network_removal_patch_sha256": "cdde123e56bcd637726d7162171a75bed10de415cd323aa95952b1cba7e942eb",
+    "build_lock_patch_sha256": "6b0d8771c1d1660abb6ee4cfca7a88b04ebb787faa36c8fd9cd15ecdbd3ecafa",
+    "crlf_repair_patch_sha256": "a59578edba3a6c350ef78850b26e6cbf5f5929a32048c5199f92b4c526a27823",
+    "opencv_reproducible_path_patch_sha256": "192056a6ad29362442fe440bf24ea4f998b09172ab0807f91bc9c24a96d41c68",
+    "runtime_closure_hardening_patch_sha256": "9c7f6c9032f1ffa050044123e29cc596ca255332e78d5af7fb77cf5f20f65e60",
+    "linux_image_abi_patch_sha256": "8838776b861579a9078868150de1475c9f624b032a67715748799bf04d987d31",
+    "windows_image_abi_patch_sha256": "5bc80bdceea7e902e3af79c59ec1f121b01add2e660831c9aa85d11ac3c1bdb1",
+    "windows_toolchain_path_closure_patch_sha256": "02264c696b85af0637724afc880604c6a3e8bee846d298d39595c2ec0a410cb3",
+    "bazel_version": "7.4.1",
+    "linux_compiler": "gcc-14.2.0-19",
+    "windows_compiler": "msvc-19.44.35228",
+    "windows_sdk": "10.0.26100.0",
+    "python_runtime": "3.13",
+    "project_dependencies_added": false,
+    "model_artifacts_added": false
+  },
+  "runtime_artifacts": {
+    "linux_face_landmarker": {
+      "bytes": 68658408,
+      "sha256": "6a5fb35175efc2f014fb61f7f4abb2c78c38156bd6abf2186d1549cbf3f006a7"
+    },
+    "linux_opencv_core": {
+      "bytes": 4707408,
+      "sha256": "116c2db3b7e149390631af309f910eabeb73bd18281e4174f131ced2a8de4408"
+    },
+    "linux_opencv_imgproc": {
+      "bytes": 7297752,
+      "sha256": "765ebf6c659e523d9d7e9557e63f004a041a9327fcba95e6d4ac0670485241f5"
+    },
+    "windows_face_landmarker": {
+      "bytes": 30476288,
+      "sha256": "1c67ae02b90a5b00b58018c3c04db411134d781c6f53b195e68a6ce6136615ef"
+    },
+    "windows_opencv_core": {
+      "bytes": 2302464,
+      "sha256": "e0415de8bd7dd97f1c2bcccfba627fe6efe4da9441c9b4c9772f3f4faa8f4343"
+    },
+    "windows_opencv_imgproc": {
+      "bytes": 2385408,
+      "sha256": "1aa54040e263be7685f2b8a379cf1f34a275b0718cc8b3a823a1f935c28592b4"
+    }
+  },
+  "model": {
+    "origin": "OFFICIAL_MEDIAPIPE_GCS_OBJECT_GENERATION_1683136941468629",
+    "bytes": 3758596,
+    "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+    "component_model_cards_license": "Apache-2.0",
+    "training_data_provenance": "INCOMPLETE_FOR_DISTRIBUTION_OR_PRODUCTION",
+    "approved_scope": "PRIVATE_SYNTHETIC_INTERNAL_RESEARCH_ONLY"
+  },
+  "supply_chain": {
+    "cyclonedx_component_count": 51,
+    "cyclonedx_sbom_sha256": "902088a0e70d3ce005885c01f7ee472fba19458ae803e09700df52949d152dda",
+    "license_repository_count": 38,
+    "license_file_count": 124,
+    "license_inventory_sha256": "e1e77546b0a2a8148cc2f6ef6b3dc700305edad16311b09d9a836caa3c2742d3",
+    "offline_grype_direct_matches": 0,
+    "opencv_focused_findings": {
+      "CVE-2019-14493": "EXACT_NULL_CHECK_BACKPORT_AND_MALFORMED_FIXTURE_NEGATIVE_CONTROLS_PASS",
+      "CVE-2019-15939": "OBJDETECT_HOG_NOT_BUILT_AND_SYMBOL_ABSENT",
+      "CVE-2019-19624": "VIDEO_DIS_NOT_BUILT_AND_SYMBOL_ABSENT",
+      "CVE-2025-53644": "IMGCODECS_JPEG_NOT_BUILT_AND_SYMBOL_ABSENT"
+    },
+    "official_mediapipe_wheels_status": "REJECTED_FOR_PROJECT_RUNTIME"
+  },
+  "security_and_reproducibility": {
+    "linux_clean_reproduction_roots": 2,
+    "windows_clean_reproduction_roots": 2,
+    "linux_zero_egress_lifecycle_runs": 3,
+    "windows_zero_egress_lifecycle_runs": 3,
+    "linux_observed_network_calls": 0,
+    "windows_observed_outbound_events": 0,
+    "hidden_download_allowed": false,
+    "runtime_telemetry_disposition": "NO_OBSERVED_EXTERNAL_INVOCATION_LOCAL_TFLITE_PROFILER_TYPES_NOT_CLAIMED_ABSENT",
+    "private_path_matches": 0,
+    "clearcut_or_ca_bundle_matches": 0,
+    "known_network_surface_matches": 0,
+    "credentials_required": false,
+    "runtime_substitution_allowed": false
+  },
+  "qa_binding": {
+    "qa_policy_version": "p2-m3-v03-source-built-vision-qa-v1",
+    "qa_policy_content_digest": "8305cfaa25d084138fb67e93043a1e37842543a645085d19d3ef52ac8a6ce15f",
+    "qa_policy_file_sha256": "6328eb82ce4c3477618432fe5911d05e8d10ecef11672e6c308b31acd38c987d",
+    "historical_policy_runtime_hash_note": "POLICY_DOCUMENT_RETAINS_R21_WINDOWS_HASH;R25_CHANGES_ONLY_PORTABLE_TOOL_PATH_INJECTION_AND_REPRODUCES_UNCHANGED_POLICY_CONTENT",
+    "required_landmark_count": 478,
+    "runs_per_output_per_platform": 10,
+    "same_platform_landmark_coordinate_span_maximum": 0.000001,
+    "same_platform_matrix_value_span_maximum": 0.000001,
+    "cross_platform_landmark_coordinate_absolute_difference_maximum": 0.00005,
+    "cross_platform_matrix_value_absolute_difference_maximum": 0.0005,
+    "cross_platform_bbox_area_absolute_difference_maximum": 0.00001,
+    "cross_platform_rotation_absolute_difference_maximum_degrees": 0.01,
+    "face_occupancy_minimum": 0.1,
+    "pose_rotation_absolute_maximum_degrees": 10.0
+  },
+  "morphology_measurement": {
+    "manifest_version": "p2-m5-cc04-b-morphology-admission-v1",
+    "coordinate_space": "NORMALIZED_XY",
+    "distance_operator": "EUCLIDEAN_DISTANCE_XY",
+    "normalizer": "distance_xy(10,152)",
+    "normalizer_rule": "FINITE_AND_STRICTLY_POSITIVE",
+    "primary_cell_rule": "ONLY_THE_IMMUTABLY_PREASSIGNED_REGION_DESCRIPTOR_DETERMINES_THE_ONE_PRIMARY_MORPHOLOGY_CELL;ALL_THREE_CONTINUOUS_DESCRIPTORS_ARE_PRESERVED",
+    "vector_evaluation_rule": "ONE_MEASUREMENT_OPERATION_COMPUTES_ALL_THREE_DESCRIPTORS_FROM_ONE_ACCEPTED_LANDMARK_RESULT",
+    "measurement_repeat_rule": "TEN_RUNS_PER_OUTPUT_PER_SUPPORTED_PLATFORM_MUST_PASS_QA_BINDING_RELIABILITY_LIMITS_BEFORE_ONE_ACCEPTED_LANDMARK_RESULT_IS_USED",
+    "descriptors": [
+      {
+        "region": "UPPER_FACE_GEOMETRY",
+        "descriptor": "eye_spacing_ratio",
+        "formula": "distance_xy(133,362)/distance_xy(10,152)",
+        "units": "ratio",
+        "lower_cell": "FINITE_AND_0_LT_VALUE_LT_0.25",
+        "upper_cell": "FINITE_AND_VALUE_GTE_0.25"
+      },
+      {
+        "region": "MIDFACE_GEOMETRY",
+        "descriptor": "nose_width_ratio",
+        "formula": "distance_xy(98,327)/distance_xy(10,152)",
+        "units": "ratio",
+        "lower_cell": "FINITE_AND_0_LT_VALUE_LT_0.18",
+        "upper_cell": "FINITE_AND_VALUE_GTE_0.18"
+      },
+      {
+        "region": "LOWER_FACE_GEOMETRY",
+        "descriptor": "jaw_width_ratio",
+        "formula": "distance_xy(234,454)/distance_xy(10,152)",
+        "units": "ratio",
+        "lower_cell": "FINITE_AND_0_LT_VALUE_LT_0.75",
+        "upper_cell": "FINITE_AND_VALUE_GTE_0.75"
+      }
+    ],
+    "band_policy": "PREDECLARED_OPERATIONAL_RESEARCH_HYPOTHESIS_NOT_POPULATION_OR_IDEAL_FACE_AUTHORITY",
+    "split_point_provenance": "PRINCIPAL_SELECTED_PRE_DATA_BEFORE_ANY_04_B_GENERATION_OR_MEASUREMENT_WITHOUT_LEGACY_RESULT_HOLDOUT_OR_DOWNSTREAM_PERFORMANCE_INPUT",
+    "split_point_claim": "DETERMINISTIC_COVERAGE_PARTITION_ONLY;NOT_A_POPULATION_MEDIAN_NORM_SCIENTIFIC_THRESHOLD_BEAUTY_STANDARD_OR_VALIDATED_USER_ROUTING_RULE",
+    "split_point_freeze_rule": "IMMUTABLE_FROM_FIRST_E01_CALL_THROUGH_04_B_DISPOSITION;ANY_CHANGE_REQUIRES_FORWARD_CHANGE_CONTROL_AND_A_NEW_COHORT_NOT_RELABELING",
+    "boundary_equality_rule": "EXACT_SPLIT_POINT_BELONGS_TO_UPPER_CELL",
+    "human_morphology_assignment_allowed": false,
+    "human_morphology_repair_or_override_allowed": false,
+    "output_dependent_relabel_allowed": false,
+    "sensitive_trait_semantics": false,
+    "beauty_or_age_semantics": false,
+    "missing_or_unreliable_measurement_outcome": "LANDMARK_OR_MEASUREMENT_RELIABILITY_FAILED",
+    "assignment_mismatch_outcome": "MORPHOLOGY_ASSIGNMENT_MISMATCH"
+  },
+  "evidence_non_inheritance": {
+    "m3_identity_authority_inherited": false,
+    "m3_asset_authority_inherited": false,
+    "m3_output_authority_inherited": false,
+    "m3_measurement_result_authority_inherited": false,
+    "m3_coverage_result_authority_inherited": false,
+    "legacy_private_bytes_accessed_by_v01": false,
+    "runtime_or_model_bytes_created_by_v01": false
+  }
+}
