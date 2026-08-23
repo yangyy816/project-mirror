@@ -229,3 +229,26 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_TASK: T04_ACCEPTANCE_CLOSURE_CI`
+
+## P2-M7-T04 acceptance closure CI confirmation
+
+- The acceptance closure commit `2bf0f2e3795d7497f0e28b630a227a5d09ba735f` completed GitHub Actions run
+  `32623166435`, attempt 1, with `quality-and-integration`, `secret-scan` and `docker-validation` successful on
+  that exact SHA. The closure job again completed PostgreSQL lifecycle, Linux Celery, Python/TypeScript/Browser
+  regressions, contract drift, dependency/license audits and SBOM generation.
+- Principal authenticated and content-inspected the closure run's eight unexpired artifacts, then deleted the
+  task-created temporary directory. The 11 archive members are path-free and payload-free; four retained evidence
+  JSON files bind the closure SHA and migration head `0014_m5_eval_authority`, and Gitleaks SARIF has zero results.
+- The T04 acceptance is now effective. `P2-M7-T05` is the only next implementation task; it remains subject to the
+  frozen recovery/concurrency scope and its own bounded-task, CI and review evidence. M7 Gate remains unevaluated;
+  no production operation is enabled and M5/M6 remain closed.
+
+`P2_M7_T04_ACCEPTANCE_CLOSURE: PASS_AT_2BF0F2E_RUN_32623166435_ATTEMPT_1`
+
+`P2_M7_T05: EXECUTION_READY`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_TASK: T05_AUTHORIZED`
