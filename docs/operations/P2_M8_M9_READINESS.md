@@ -22,6 +22,41 @@ The repository remains authoritative. Dynamic P2-M5 and P2-M6 facts recorded her
 are only a baseline snapshot and must be replaced by their later frozen authorities
 before P2-M8 refinement.
 
+## Readiness task candidate evidence
+
+The bounded readiness matrix candidate was independently exercised without opening
+either downstream Milestone:
+
+- `READINESS_CANDIDATE_COMMIT: 21d2896816c0ac02f46c126a40a5b84dd5b98c60`
+- `READINESS_CANDIDATE_CI_RUN: 32647106032`
+- `READINESS_CANDIDATE_CI_ATTEMPT: 1`
+- `READINESS_CANDIDATE_VERIFICATION: PASS`
+- `READINESS_CANDIDATE_ARTIFACT_COUNT: 8`
+- `READINESS_CANDIDATE_ARTIFACT_MEMBER_MANIFEST_SHA256: f55ab548b41e76ffa471925738001e688c0f672652a883c2011e6d794d30d3a3`
+- `READINESS_CANDIDATE_MIGRATION_HEAD: 0014_m5_eval_authority`
+- `READINESS_CANDIDATE_OPENAPI_SHA256: a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`
+
+The exact-SHA run completed `quality-and-integration`, `secret-scan`, and
+`docker-validation` successfully. Inspection covered all eight non-expired
+artifacts: project audit, P2-M3, P2-M2, P2-M1, Phase 1, Playwright, Docker, and
+Gitleaks. Structured evidence was bound to the candidate SHA and the migration
+head above. The run reported 814 Python tests passed with one pre-existing optional
+M4 private-runtime skip, 54 Node tests passed, five browser tests passed, five
+Docker services running and healthy, and six Celery tasks received and succeeded.
+Ruff, mypy, contract drift, build, PostgreSQL migration lifecycle, Python and Node
+dependency audits, and the three mandatory jobs completed successfully.
+
+Artifact inspection found no Gitleaks results, image bytes, credential assignment,
+private path, signed URL, Prompt/object-key/provider-raw field, path escape, or
+reparse-point evidence. Playwright 1.62.1 installed system dependencies and Chromium
+on their first bounded attempts. The Gitleaks artifact recorded version 8.24.3,
+one scanned commit, and zero leaks. CycloneDX 1.6 evidence contained 105 components.
+
+This is acceptance evidence for the docs-only readiness task, not acceptance or
+entry authority for P2-M8, P2-M9, or Phase 2. The closure commit that records this
+evidence requires its own exact-SHA CI verification; that verification does not
+change the dependency states in this document.
+
 ## Purpose and boundary
 
 The immediate purpose is to preserve useful cross-Milestone planning work while an
