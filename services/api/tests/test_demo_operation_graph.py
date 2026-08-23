@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -298,10 +300,10 @@ def test_scalar_boundaries_zero_and_one_unit_outside_fail_closed(
         raw = _spec(operation_type, parameters)
         raw["expected_effect"] = _effect(operation_type, parameters)
         assert parse_operation_spec(raw).parameters[key] == value
-    for value in (minimum - 1, maximum + 1, 0, True, 1.0, "1"):
+    for invalid_value in (minimum - 1, maximum + 1, 0, True, 1.0, "1"):
         parameters = _spec(operation_type)["parameters"]
         assert isinstance(parameters, dict)
-        parameters[key] = value
+        parameters[key] = invalid_value
         raw = _spec(operation_type, parameters)
         raw["expected_effect"] = _effect(operation_type, parameters)
         _assert_invalid_scalar(lambda raw=raw: parse_operation_spec(raw))
@@ -319,16 +321,16 @@ def test_crop_rotate_geometry_and_transition_parameter_edge_cases() -> None:
             },
         )
     )
-    for parameters in (
+    for crop_parameters in (
         {"left_inset_ppm": 0, "right_inset_ppm": 0, "top_inset_ppm": 0, "bottom_inset_ppm": 0},
         {"left_inset_ppm": -1, "right_inset_ppm": 0, "top_inset_ppm": 0, "bottom_inset_ppm": 0},
         {"left_inset_ppm": 250001, "right_inset_ppm": 0, "top_inset_ppm": 0, "bottom_inset_ppm": 0},
     ):
         _assert_code(
             "INVALID_PARAMETERS",
-            lambda parameters=parameters: parse_operation_spec(_spec("CROP", parameters)),
+            lambda parameters=crop_parameters: parse_operation_spec(_spec("CROP", parameters)),
         )
-    for parameters in (
+    for rotate_parameters in (
         {"angle_mdeg": -15001, "expand_canvas": False},
         {"angle_mdeg": 0, "expand_canvas": False},
         {"angle_mdeg": 15001, "expand_canvas": False},
@@ -336,16 +338,18 @@ def test_crop_rotate_geometry_and_transition_parameter_edge_cases() -> None:
     ):
         _assert_code(
             "INVALID_PARAMETERS",
-            lambda parameters=parameters: parse_operation_spec(_spec("ROTATE", parameters)),
+            lambda parameters=rotate_parameters: parse_operation_spec(_spec("ROTATE", parameters)),
         )
-    for parameters in (
+    for geometry_parameters in (
         {"dimension_key": "Bad", "delta_ppm": 1},
         {"dimension_key": "x" * 49, "delta_ppm": 1},
         {"dimension_key": "jaw", "delta_ppm": 0},
     ):
         _assert_code(
             "INVALID_PARAMETERS",
-            lambda parameters=parameters: parse_operation_spec(_spec("GEOMETRY", parameters)),
+            lambda parameters=geometry_parameters: parse_operation_spec(
+                _spec("GEOMETRY", parameters)
+            ),
         )
     _assert_code(
         "INVALID_ID",
@@ -470,7 +474,7 @@ def test_operation_spec_is_deeply_immutable_and_payload_is_defensively_copied() 
 
 def test_manual_spec_rejects_non_json_and_preserve_mutation_at_construction() -> None:
     valid = parse_operation_spec(_spec("EXPOSURE"))
-    for parameters in (
+    for invalid_parameters in (
         {"exposure_ev_milli": {"set": {1}}},
         {"exposure_ev_milli": (1,)},
         {"exposure_ev_milli": object()},
@@ -480,7 +484,7 @@ def test_manual_spec_rejects_non_json_and_preserve_mutation_at_construction() ->
             OperationSpec(
                 valid.engine,
                 valid.operation_type,
-                parameters,
+                cast(Mapping[str, Any], invalid_parameters),
                 valid.preserve,
                 valid.expected_effect,
             )
@@ -489,12 +493,12 @@ def test_manual_spec_rejects_non_json_and_preserve_mutation_at_construction() ->
         valid.engine,
         valid.operation_type,
         {"exposure_ev_milli": 1},
-        external_preserve,
+        cast(tuple[PreserveKey, ...], external_preserve),
         {"effect_type": "EXPOSURE", "exposure_ev_milli": 1, "target_region": "FULL_IMAGE"},
     )
     external_preserve.clear()
     assert constructed.preserve == (PreserveKey.IDENTITY_REFERENCE_FRAME,)
-    for preserve in (
+    for invalid_preserve in (
         ["IDENTITY_REFERENCE_FRAME"],
         [PreserveKey.POSE, PreserveKey.IDENTITY_REFERENCE_FRAME],
         [PreserveKey.IDENTITY_REFERENCE_FRAME, PreserveKey.IDENTITY_REFERENCE_FRAME],
@@ -505,7 +509,7 @@ def test_manual_spec_rejects_non_json_and_preserve_mutation_at_construction() ->
                 valid.engine,
                 valid.operation_type,
                 {"exposure_ev_milli": 1},
-                preserve,
+                cast(tuple[PreserveKey, ...], invalid_preserve),
                 {"effect_type": "EXPOSURE", "exposure_ev_milli": 1, "target_region": "FULL_IMAGE"},
             )
     _assert_code(
