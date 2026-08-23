@@ -328,15 +328,27 @@ jobs:
           name: p2-m3-ci-evidence
           path: p2-m3-ci-evidence.json
       - name: Dependency and license audits
+        id: dependency_and_license_audits
         run: |
+          set -o pipefail
           pip-audit --local
           pnpm audit --audit-level high
           pip-licenses --format=json --output-file=python-licenses.json
-          pnpm licenses list --json > node-licenses.json
+          node_license_candidate=.node-licenses.candidate.json
+          if [ -e "$node_license_candidate" ] || [ -e node-licenses.json ]; then
+            echo "node license artifact candidate or final target already exists" >&2
+            exit 1
+          fi
+          if ! pnpm licenses list --json | node -e 'const fs = require("node:fs"); const report = JSON.parse(fs.readFileSync(0, "utf8")); for (const packages of Object.values(report)) { for (const packageRecord of packages) { delete packageRecord.paths; } } process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);' > "$node_license_candidate"; then
+            echo "node license inventory or sanitizer failed" >&2
+            exit 1
+          fi
+          node -e 'const fs = require("node:fs"); const report = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); const licenseGroups = Object.keys(report).length; let packageRecords = 0; let pathFields = 0; let absolutePathStrings = 0; for (const packages of Object.values(report)) { if (!Array.isArray(packages)) throw new Error("node license artifact has a non-array license group"); packageRecords += packages.length; } const visit = (value) => { if (typeof value === "string") { if (/^\//.test(value) || /^[A-Za-z]:[\\/]/.test(value) || /^\\\\/.test(value) || /^file:/i.test(value)) absolutePathStrings += 1; return; } if (Array.isArray(value)) { for (const item of value) visit(item); return; } if (value && typeof value === "object") { if (Object.hasOwn(value, "paths")) pathFields += 1; for (const item of Object.values(value)) visit(item); } }; visit(report); if (licenseGroups === 0 || packageRecords === 0 || pathFields !== 0 || absolutePathStrings !== 0) throw new Error(`node license artifact redaction failed: license_groups=${licenseGroups} package_records=${packageRecords} paths=${pathFields} absolute_paths=${absolutePathStrings}`); console.log(`node license artifact redaction: license_groups=${licenseGroups} package_records=${packageRecords} paths=0 absolute_paths=0`);' "$node_license_candidate"
+          node -e 'const crypto = require("node:crypto"); const fs = require("node:fs"); const source = process.argv[1]; const target = process.argv[2]; let linked = false; try { fs.linkSync(source, target); linked = true; const sourceBytes = fs.readFileSync(source); const targetBytes = fs.readFileSync(target); const digest = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex"); if (sourceBytes.length !== targetBytes.length || digest(sourceBytes) !== digest(targetBytes)) throw new Error("node license artifact promotion digest mismatch"); fs.unlinkSync(source); console.log(`node license artifact promotion: byte_size=${targetBytes.length} digest_match=true`); } catch (error) { if (linked) { try { fs.unlinkSync(target); } catch {} } throw error; }' "$node_license_candidate" node-licenses.json
       - name: Generate SBOM
         run: cyclonedx-py environment --output-format JSON --output-file python-sbom.cdx.json
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && steps.dependency_and_license_audits.outcome == 'success' }}
         with:
           name: project-audit-evidence
           path: |
