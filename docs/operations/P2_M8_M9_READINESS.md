@@ -34,7 +34,7 @@ either downstream Milestone:
 - `READINESS_CANDIDATE_ARTIFACT_COUNT: 8`
 - `READINESS_CANDIDATE_ARTIFACT_MEMBER_MANIFEST_SHA256: f55ab548b41e76ffa471925738001e688c0f672652a883c2011e6d794d30d3a3`
 - `READINESS_CANDIDATE_MIGRATION_HEAD: 0014_m5_eval_authority`
-- `READINESS_CANDIDATE_OPENAPI_SHA256: a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`
+- `READINESS_CANDIDATE_PUBLIC_CONTRACT_SHA256: a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841`
 
 The exact-SHA run completed `quality-and-integration`, `secret-scan`, and
 `docker-validation` successfully. Inspection covered all eight non-expired
@@ -56,6 +56,13 @@ This is acceptance evidence for the docs-only readiness task, not acceptance or
 entry authority for P2-M8, P2-M9, or Phase 2. The closure commit that records this
 evidence requires its own exact-SHA CI verification; that verification does not
 change the dependency states in this document.
+
+`P2-CROSS-MILESTONE-READINESS-R01` preserves the first closure attempt as negative
+evidence: commit `1c127dcf5ff3ce3d497eae9c2740d06714e988bf`, run `32648065567`.
+Quality/integration and Docker validation succeeded, while Gitleaks deterministically
+rejected an evidence-field name adjacent to a 64-character public-contract digest
+as `generic-api-key`. The forward repair changes only that field name; it does not
+add an allowlist, weaken secret scanning, or change the recorded digest.
 
 ## Purpose and boundary
 
