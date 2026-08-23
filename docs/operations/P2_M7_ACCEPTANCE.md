@@ -368,3 +368,33 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_TASK: T07_CI_EVIDENCE_IMPLEMENTATION`
+
+## P2-M7-T07 CI evidence and R12 acceptance
+
+- T07 candidate `a0c5481e48787fdb729e2ccc7db5e04b2bbd6ca3` added only the P2-M7 allowlisted evidence
+  generator, its deterministic tests and the existing workflow wiring. Run `32627371712` correctly failed before
+  the new evidence step because `test_ci_evidence_tracks_current_migration_head` still asserted the pre-existing
+  count of four generators. The later Playwright upload error was a consequence of that early Python-test stop, not
+  browser or product evidence.
+- Repair `P2-M7-R12` changes only that assertion to the now-required five generators and records the bounded scope.
+  Its exact candidate `eee43eb04ea04f209857c7980f64f9d32d2ea582` completed run `32627600351`, attempt 1, with
+  `quality-and-integration`, `secret-scan` and `docker-validation` successful.
+- Principal inspected the eight unexpired same-SHA artifacts. They contain 12 fixed-relative members; the new
+  `mirror.p2-m7.ci-evidence/v1` member binds `eee43eb`, migration head `0014_m5_eval_authority`, 62 tests with zero
+  failure/error/skip and eight passed operation-boundary checks. SARIF has zero results, and the content scan found no
+  image, signed URL, raw Provider payload or absolute runner/private path. The task-created inspection root was
+  deleted after review.
+- Principal accepts R12 and T07 subject to this acceptance closure CI. T08 remains closed pending that confirmation;
+  M7 Gate remains unevaluated, production remains disabled, and M5/M6 remain closed.
+
+`P2_M7_R12: PASS_AT_EEE43EB_RUN_32627600351_ATTEMPT_1`
+
+`P2_M7_T07: PASS_PENDING_ACCEPTANCE_CLOSURE_CI_AT_EEE43EB_RUN_32627600351_ATTEMPT_1`
+
+`P2_M7_T08: CLOSED_PENDING_T07_ACCEPTANCE_CLOSURE_CI`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_TASK: T07_ACCEPTANCE_CLOSURE_CI`

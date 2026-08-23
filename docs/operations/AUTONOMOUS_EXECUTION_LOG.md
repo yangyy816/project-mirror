@@ -1293,3 +1293,16 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   findings. The task-created inspection directory was deleted after review.
 - T06 acceptance is effective. T07 is `EXECUTION_READY` for machine-readable CI evidence only; M7 Gate remains
   `NOT_EVALUATED`, production remains disabled, and M5/M6 remain closed.
+
+## 2026-08-23 — P2-M7-T07 CI evidence candidate and R12 repair
+
+- T07 candidate `a0c5481` added the allowlisted `mirror.p2-m7.ci-evidence/v1` generator, deterministic tests and
+  existing-CI wiring. Its run `32627371712` failed deterministically because the existing migration-head coverage
+  test still expected four evidence generators; the later missing Playwright log was a consequence of that early
+  Python-test stop, not a browser failure.
+- R12 `eee43eb` updated only that count to five. Same-SHA run `32627600351` completed all three mandatory jobs.
+  Principal inspected eight unexpired artifacts with 12 fixed-relative members: P2-M7 evidence binds the exact SHA,
+  `0014_m5_eval_authority`, 62 zero-skip tests and eight passed checks; SARIF and protected path/payload/image/
+  credential scans are zero. The task-created inspection root was deleted after review.
+- Principal records R12 and T07 as pending T07 acceptance closure CI. T08 remains closed; M7 Gate stays
+  `NOT_EVALUATED`, production remains disabled, and M5/M6 remain closed.
