@@ -54,6 +54,8 @@ _RESULT_CODES = frozenset(
         "operation_result_request_id_invalid",
         "operation_result_target_invalid",
         "operation_target_invalid",
+        "operation_target_not_found",
+        "operation_stale_expectation",
     }
 )
 

@@ -11,6 +11,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mirror_api.models import (
+    AuditLog,
     GenerationBatch,
     GenerationItem,
     Job,
@@ -453,12 +454,49 @@ class GenerationBatchService:
             return True
 
     async def request_cancel(self, batch_id: str) -> GenerationBatchResult:
+        return await self._request_cancel(batch_id)
+
+    async def request_cancel_with_expectation(
+        self,
+        *,
+        batch_id: str,
+        expected_status: str,
+        actor_reference: str,
+        reason_code: str,
+        request_id: str,
+    ) -> GenerationBatchResult:
+        """Request cancellation atomically with an operator expectation and audit record.
+
+        This is deliberately an additive internal control-plane entry point.  It shares the
+        existing batch/item/job locking and cancellation semantics; it does not alter budget or
+        worker behaviour.  A stale operator never obtains a best-effort cancellation.
+        """
+
+        return await self._request_cancel(
+            batch_id,
+            expected_status=expected_status,
+            actor_reference=actor_reference,
+            reason_code=reason_code,
+            request_id=request_id,
+        )
+
+    async def _request_cancel(
+        self,
+        batch_id: str,
+        *,
+        expected_status: str | None = None,
+        actor_reference: str | None = None,
+        reason_code: str | None = None,
+        request_id: str | None = None,
+    ) -> GenerationBatchResult:
         now = self._now()
         async with _transaction(self._sessions) as session:
             repo = GenerationRepository(session)
             batch = await repo.locked_batch(batch_id)
             if batch is None:
                 raise GenerationOperationRejected("generation_batch_not_found")
+            if expected_status is not None and batch.status != expected_status:
+                raise GenerationOperationRejected("generation_batch_stale_expectation")
             if batch.status not in {"QUEUED", "RUNNING", "CANCELLED"}:
                 raise GenerationOperationRejected("generation_batch_not_cancellable")
             items = await repo.items(batch.id, lock=True)
@@ -484,6 +522,29 @@ class GenerationBatchService:
                     job.updated_at = now
             await session.flush()
             await self._finalize_batch_if_quiescent(repo, batch, now)
+            if request_id is not None:
+                if (
+                    actor_reference is None or reason_code is None
+                ):  # pragma: no cover - caller invariant
+                    raise RuntimeError("operator cancellation audit fields are incomplete")
+                session.add(
+                    AuditLog(
+                        id=new_id(),
+                        actor_type="system_operator",
+                        actor_id=None,
+                        action="synthetic_batch_cancel_requested",
+                        target_type="generation_batch",
+                        target_id=batch.id,
+                        request_id=request_id,
+                        metadata_json={
+                            "actor_reference": actor_reference,
+                            "reason_code": reason_code,
+                            "expected_status": expected_status,
+                            "result_status": batch.status,
+                        },
+                        occurred_at=now,
+                    )
+                )
             await session.flush()
             return self._result(batch, await repo.items(batch.id), created=False)
 
