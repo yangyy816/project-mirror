@@ -1274,3 +1274,12 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   deleted after review.
 - T05 acceptance is effective. T06 is the sole next M7 task; M7 Gate remains `NOT_EVALUATED`, production remains
   disabled, and M5/M6 remain closed.
+
+## 2026-08-23 — P2-M7-T06 independent evaluation candidate
+
+- T06 adds a tests-only independent boundary suite. Under a Linux cached API image, read-only source mount and
+  `--network none`, 14 new tests plus 50 P2-M7 non-integration regressions passed; Ruff and strict mypy passed.
+- Candidate `832f7e9` passed same-SHA run `32625981774` and all eight artifacts were inspected as exact-SHA,
+  path/payload/image/credential-clean evidence before the task-created directory was deleted.
+- Principal records T06 as pending its acceptance closure CI. T07 remains closed; no production or M5/M6 boundary
+  changed.

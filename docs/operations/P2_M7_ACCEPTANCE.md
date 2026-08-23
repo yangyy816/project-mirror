@@ -294,6 +294,35 @@
 
 `P2_M7_NEXT_TASK: T06_AUTHORIZED`
 
+## P2-M7-T06 independent deterministic evaluation acceptance
+
+- Candidate `832f7e9682384253051e4b8ff3d8f884bbd3ba03` completed GitHub Actions run
+  `32625981774`, attempt 1, with all three mandatory jobs successful. The quality job completed the full
+  PostgreSQL/Celery/Python/TypeScript/Browser/contract/supply-chain matrix; Docker validation and Gitleaks also
+  passed on the exact candidate SHA.
+- T06 adds only `test_p2_m7_independent_evaluation.py`. It independently verifies all operation kinds reject
+  production before backend dispatch, unavailable operations fail closed, the batch adapter exposes only accepted
+  operations, CLI output has a fixed allowlist, and the M7 source/public-contract boundaries exclude direct
+  database/Provider/network/public-API paths. It uses no image, private or live-network fixture.
+- In an isolated Linux API container with a read-only source mount and `--network none`, the new suite passed
+  `14` tests; the full P2-M7 non-integration set passed `50` tests with `4` PostgreSQL integration tests explicitly
+  deselected. Ruff and strict mypy passed with the source tree supplied through `MYPYPATH`.
+- Principal inspected all eight unexpired same-SHA artifacts, then deleted the task-created inspection directory.
+  The 11 extracted members are fixed-relative and retained evidence binds `832f7e9`, migration head
+  `0014_m5_eval_authority` and the unchanged recorded OpenAPI digest. Gitleaks SARIF has zero results and the
+  content scan found no image, signed URL, credential assignment, raw Provider payload or absolute runner/private
+  path.
+- Principal accepts T06 subject to this acceptance closure's own CI. T07 remains closed pending that confirmation;
+  M7 Gate remains unevaluated, production remains disabled and M5/M6 remain closed.
+
+`P2_M7_T06: PASS_PENDING_ACCEPTANCE_CLOSURE_CI_AT_832F7E9_RUN_32625981774_ATTEMPT_1`
+
+`P2_M7_T07: CLOSED_PENDING_T06_ACCEPTANCE_CLOSURE_CI`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
 ## P2-M7-T05 acceptance closure CI confirmation
 
 - The acceptance closure commit `379f5c3b108076beba4e8f924b3cb8f8b8e825b2` completed GitHub Actions run
