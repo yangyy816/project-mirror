@@ -3,12 +3,13 @@
 ## Status
 
 ```text
-PREREGISTRATION_ID: P3_P7_D02_PAIR_SCREENING_V8
-REVISION: 8
+PREREGISTRATION_ID: P3_P7_D02_PAIR_SCREENING_V9
+REVISION: 9
 TRACK: DEMO_PROTOTYPE
-SCHEMA: mirror.demo/D02PairScreeningPolicy/v7
+SCHEMA: mirror.demo/D02PairScreeningPolicy/v8
 STATUS: PENDING_INDEPENDENT_SOL_REVIEW
-PRIOR_SOL_DECISION: REVISION_7_REVISE
+PRIOR_SOL_DECISION: REVISION_8_REVISE
+REJECTED_REVISION_8_SHA: d899296388168a12bc6cae9b070c3d77b1415bad
 REJECTED_REVISION_7_SHA: 08399d19bfe0d9e28a21182b3b7588172dbf2af1
 REJECTED_REVISION_6_SHA: 8ab35f4e7d762069eb338c9e4a09a5d632c502c6
 REJECTED_IMPLEMENTATION_SHA: cc56fc144d23d0b8109c1ef231b6afcfb7eb67c1
@@ -16,8 +17,9 @@ REJECTED_IMPLEMENTATION_DECISION: FAIL_REVISE_REQUIRED
 PRIVATE_EXECUTION: NOT_STARTED
 D02_PRIVATE_SCREENING: CLOSED
 D02_REVISION_7_DOCUMENTS: REVISE_REQUIRED
-D02_REVISION_8_DOCUMENTS: PENDING_INDEPENDENT_SOL_REVIEW
-D02_SCHEMA_IMPLEMENTATION: CLOSED_PENDING_REVISION_8_SOL_ACCEPT
+D02_REVISION_8_DOCUMENTS: REVISE_REQUIRED
+D02_REVISION_9_DOCUMENTS: PENDING_INDEPENDENT_SOL_REVIEW
+D02_SCHEMA_IMPLEMENTATION: CLOSED_PENDING_REVISION_9_SOL_ACCEPT
 THRESHOLD_SELECTION_AFTER_RESULTS: FORBIDDEN
 P2_DIMENSION_PROMOTION: FORBIDDEN
 PRODUCTION_RELEASE: NOT_AUTHORIZED
@@ -2227,18 +2229,18 @@ PRODUCTION_RELEASE: NOT_AUTHORIZED
 
 Only a new independent Sol acceptance of the exact Revision 7 document blobs can reopen bounded migration remediation.
 
-## Revision 8 policy-root and scalar closure contract
+## Revision 9 raw-monotonicity and scalar closure contract
 
-This section is normative and supersedes every conflicting Revision 1–7 sentence. Exact-SHA document commit
-`08399d19bfe0d9e28a21182b3b7588172dbf2af1` remains `REVISE_REQUIRED` negative evidence. Revision 8 does not change
-the top-level report schema or the Revision 7 nested schema versions. It closes only the remaining policy-root,
-mixed-peer monotonicity, maximum-control and exceptional-boolean ambiguities. No implementation based on Revision 7
-was accepted, so no stored authority is reinterpreted.
+This section is normative and supersedes every conflicting Revision 1–8 sentence. Exact-SHA document commit
+`d899296388168a12bc6cae9b070c3d77b1415bad` remains `REVISE_REQUIRED` negative evidence. Revision 9 does not change
+the top-level report schema or the Revision 7 nested schema versions. It retains Revision 8's closed policy-root,
+mixed-peer shape and maximum-control decisions while restoring raw fixed18 monotonicity and completing the Boolean
+type set. No implementation based on Revision 8 was accepted, so no stored authority is reinterpreted.
 
 ### Root policy digest authority
 
-`REVISION_8_PREREGISTRATION_SHA256` means the one lowercase SHA-256 value published by the peer
-`P3_P7_D02_AUTHORITY_CHANGE_CONTROL_01.md` Revision 8 section for this exact preregistration blob. It is not supplied by
+`REVISION_9_PREREGISTRATION_SHA256` means the one lowercase SHA-256 value published by the peer
+`P3_P7_D02_AUTHORITY_CHANGE_CONTROL_01.md` Revision 9 section for this exact preregistration blob. It is not supplied by
 the caller, a private receipt, a report or a runtime. Independent Sol acceptance covers both exact document blobs; only
 after that acceptance may the migration embed the published value.
 
@@ -2248,10 +2250,10 @@ The screening-policy root is exactly:
 screening_policy_digest = mirror_demo_digest(
   "mirror.demo/D02ScreeningPolicyRoot/v1",
   {
-    "preregistration_id": "P3_P7_D02_PAIR_SCREENING_V8",
-    "policy_schema": "mirror.demo/D02PairScreeningPolicy/v7",
-    "policy_revision": 8,
-    "preregistration_sha256": REVISION_8_PREREGISTRATION_SHA256
+    "preregistration_id": "P3_P7_D02_PAIR_SCREENING_V9",
+    "policy_schema": "mirror.demo/D02PairScreeningPolicy/v8",
+    "policy_revision": 9,
+    "preregistration_sha256": REVISION_9_PREREGISTRATION_SHA256
   }
 )
 ```
@@ -2274,7 +2276,7 @@ The empty arrays are authoritative, not caller-extensible placeholders. `lock_co
 `PASS_FOR_FROZEN_EMPTY_NEUTRAL_POLICY_ONLY`.
 
 PostgreSQL is the execution authority for both roots. The accepted migration must embed the exact
-`REVISION_8_PREREGISTRATION_SHA256`, recompute both domain-separated digests, require the report-level
+`REVISION_9_PREREGISTRATION_SHA256`, recompute both domain-separated digests, require the report-level
 `screening_policy_digest` and every execution-config/pair copy to equal the screening root, and require every pair's
 `lock_policy_digest` to equal the empty/neutral root. It then recomputes every dependent execution-config, case,
 specification, pair, aggregate and report digest. A private receipt may corroborate the roots but cannot choose or
@@ -2296,8 +2298,8 @@ The Gate state is unique:
 both peers SUPPORTED_EVALUATED:
   both records carry the same magnitude_monotonicity_gate_passed value
   value = AND for repeat_index 1..3 of
-          target_absolute_delta_ppm(30000, repeat_index) >=
-          target_absolute_delta_ppm(15000, repeat_index)
+          Decimal(raw_target_absolute_delta_fixed18(30000, repeat_index)) >=
+          Decimal(raw_target_absolute_delta_fixed18(15000, repeat_index))
 
 this record SUPPORTED_EVALUATED and its peer UNSUPPORTED_EXPLICIT:
   this record remains SUPPORTED_EVALUATED
@@ -2390,16 +2392,21 @@ all_manual_gates_passed
 global_exact_sha_gate_passed
 eligible
 selected
+localhost_and_docker_internal_network
+proxy_environment_present
 ```
 
 `result_m3_repeat_gate_results` is an array whose three elements are each `Bool`; it is not itself a Boolean field.
 Manual artifact fields (`background_seam`, `disconnected_contour`, `duplicated_feature`, `warp_tear`) use `true` to mean
 the artifact is present. `execution_succeeded` must be literal `true`; `false` is an M4 report-admission failure and
-cannot be represented by submitting a `FAILED` report.
+cannot be represented by submitting a `FAILED` report. `localhost_and_docker_internal_network` must be literal `true`
+and `proxy_environment_present` must be literal `false`; any other value or JSON type is a network-boundary
+report-admission failure. Monotonicity uses the signed-free Decimal value parsed from the canonical Fixed18 string
+before ppm quantization; `target_absolute_delta_ppm` remains a persisted projection and is never Gate authority.
 
-### Revision 8 mandatory validation additions
+### Revision 9 mandatory validation additions
 
-In addition to all Revision 6–7 attacks, real PostgreSQL tests must re-canonicalize every enclosing authority and prove:
+In addition to all Revision 6–8 attacks, real PostgreSQL tests must re-canonicalize every enclosing authority and prove:
 
 1. an unauthorized screening-policy digest is rejected even when execution-config, case/specification, pair,
    aggregate and report digests are all recomputed consistently;
@@ -2415,13 +2422,18 @@ In addition to all Revision 6–7 attacks, real PostgreSQL tests must re-canonic
    `source_checksum_unchanged`, `target_and_controls_complete`, `eligible`, `selected`) rejects string/integer
    coercions after all digests and IDs are recomputed;
 10. `execution_succeeded=false` cannot be smuggled into a structurally valid `FAILED` report.
+11. raw `30000 < 15000` with both values quantizing to the same ppm is rejected as non-monotonic after all descendants
+    are recomputed;
+12. `localhost_and_docker_internal_network` and `proxy_environment_present` reject string, integer and null coercions,
+    and reject literal values other than `true` and `false` respectively.
 
-### Revision 8 implementation gate
+### Revision 9 implementation gate
 
 ```text
 D02_REVISION_7_DOCUMENTS: REVISE_REQUIRED
-D02_REVISION_8_DOCUMENTS: PENDING_INDEPENDENT_SOL_REVIEW
-D02_SCHEMA_IMPLEMENTATION: CLOSED_PENDING_REVISION_8_SOL_ACCEPT
+D02_REVISION_8_DOCUMENTS: REVISE_REQUIRED
+D02_REVISION_9_DOCUMENTS: PENDING_INDEPENDENT_SOL_REVIEW
+D02_SCHEMA_IMPLEMENTATION: CLOSED_PENDING_REVISION_9_SOL_ACCEPT
 D02_PRIVATE_SCREENING: CLOSED
 D02_RESULT: NOT_VERIFIED
 D03_D12: DEPENDENCY_GATED
@@ -2429,6 +2441,6 @@ FORMAL_PHASE_AUTHORITY: FALSE
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```
 
-Only a new independent Sol acceptance of the exact Revision 8 document blobs may reopen bounded migration
+Only a new independent Sol acceptance of the exact Revision 9 document blobs may reopen bounded migration
 remediation. That review does not accept any rejected implementation, execute private screening or grant
 `D02 TASK_ACCEPTED`.
