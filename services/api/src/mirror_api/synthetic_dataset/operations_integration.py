@@ -70,6 +70,7 @@ def _succeeded(
 def _rejected(command: DatasetOperationCommand, source_code: str) -> DatasetOperationResult:
     codes = {
         "generation_batch_not_found": "operation_target_not_found",
+        "generation_batch_request_conflict": "operation_rejected",
         "generation_batch_stale_expectation": "operation_stale_expectation",
         "generation_batch_not_cancellable": "operation_rejected",
     }

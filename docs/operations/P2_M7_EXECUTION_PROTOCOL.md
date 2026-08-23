@@ -324,3 +324,25 @@ acceptance evidence, ADR-051, relevant accepted service contracts and the curren
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_ACTION: P2_M7_T08_INDEPENDENT_REVIEW_AND_CLOSURE`
+
+## T08 independent-review finding / R13 entry
+
+- The independent security/privacy/license review passed at `9584177`, but the independent final review failed T08.
+  The installed `mirror-dataset` entrypoint composes no accepted backend, so its real commands remain unavailable;
+  additionally, the existing RUNNING cancellation test did not prove same-request at-least-once replay safety.
+- `P2-M7-R13` is the bounded transaction/concurrency repair. It serializes one operator cancellation request in
+  PostgreSQL, replays only an exact audit fingerprint and rejects changed target/expectation/actor/reason. It adds no
+  schema, authority, dependency, public contract, CLI composition, production, M5 or M6 behavior.
+- R14 real CLI composition remains closed until R13 has exact-SHA CI, artifact inspection and Principal acceptance.
+
+`P2_M7_T08: FAIL_AT_9584177_FINAL_REVIEW`
+
+`P2_M7_R13: READY_FOR_TRACKED_EVIDENCE`
+
+`P2_M7_R14: CLOSED_PENDING_R13_ACCEPTANCE`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_ACTION: P2_M7_R13_TRACKED_EVIDENCE`

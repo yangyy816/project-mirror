@@ -1314,3 +1314,17 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   tests and eight passed checks. SARIF and protected path/payload/image/credential scans are zero.
 - T07 acceptance is effective. T08 is `EXECUTION_READY` for independent review only; M7 Gate remains
   `NOT_EVALUATED`, production remains disabled, and M5/M6 remain closed.
+
+## 2026-08-23 — P2-M7-T08 final-review failure and R13 local candidate
+
+- At `9584177`, the independent security/privacy/license review passed, while the independent final review failed T08:
+  the installed CLI has no real application-service composition, and RUNNING cancellation lacked exact-request replay
+  evidence. Principal independently confirmed both source findings; M7 Gate remains `NOT_EVALUATED`.
+- R13 adds only request-scoped PostgreSQL transaction serialization, exact append-only audit fingerprint replay and
+  changed-input rejection to the accepted cancellation service/adapter. It adds no migration, dependency, public API,
+  CLI composition, production, M5 or M6 behavior.
+- In an isolated PostgreSQL 17 database, 6 focused replay/concurrency/recovery tests and all 65 P2-M7 tests passed with
+  zero skip. Fresh migration, `0014 -> 0013 -> 0014`, Alembic zero drift, Ruff, strict mypy and contract drift passed.
+- One broader collection attempt omitted repository-root research/governance scripts from the read-only container
+  mount and failed before test execution; exact P2-M7 file collection corrected the harness without a product change.
+  R13 is `READY_FOR_TRACKED_EVIDENCE`; R14 remains closed until R13 acceptance.

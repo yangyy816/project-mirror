@@ -419,3 +419,29 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_TASK: T08_INDEPENDENT_REVIEW_AND_CLOSURE`
+
+## P2-M7-T08 independent-review failure / R13 local candidate
+
+- The independent security/privacy/license review passed with no finding. The independent Sol final review returned
+  `FAIL`: the real `mirror-dataset` entrypoint creates an empty operation service, and all positive CLI tests inject a
+  fake backend. The accepted batch and cost backends therefore have no production-code composition. The reviewer also
+  found that the RUNNING cancellation path had no same-request replay test and could append duplicate audit evidence.
+- Principal reproduced both findings from the actual source. No M7 Gate decision is permitted at `9584177`.
+- R13 uses the existing PostgreSQL transaction and append-only `AuditLog`. A request-scoped transaction advisory lock
+  serializes retries; one exact target/expectation/actor/reason fingerprint replays the originally audited response,
+  while changed input fails closed. No schema, new authority, public API or dependency is introduced.
+- Local isolated PostgreSQL evidence passed 6 focused tests and all 65 P2-M7 tests with zero skip. Fresh upgrade,
+  `0014 -> 0013 -> 0014`, zero-drift Alembic check, Ruff, strict mypy and contract drift also passed. R13 remains
+  unaccepted until its own exact-SHA CI and eight artifacts are inspected.
+
+`P2_M7_T08: FAIL_AT_9584177_FINAL_REVIEW`
+
+`P2_M7_R13: READY_FOR_TRACKED_EVIDENCE`
+
+`P2_M7_R14: CLOSED_PENDING_R13_ACCEPTANCE`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_TASK: R13_TRACKED_EVIDENCE`

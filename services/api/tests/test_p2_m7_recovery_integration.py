@@ -113,15 +113,20 @@ async def _batch(sessions: async_sessionmaker[AsyncSession]) -> tuple[Generation
 
 
 def _command(
-    kind: DatasetOperationKind, batch_id: str, request: str, expected: str = "QUEUED"
+    kind: DatasetOperationKind,
+    batch_id: str,
+    request: str,
+    expected: str = "QUEUED",
+    reason: str = "operator_cancel",
+    actor: str = "system.operator",
 ) -> DatasetOperationCommand:
     return DatasetOperationCommand(
         operation=kind,
         environment="ci",
         target_id=batch_id,
         expected_target_state=expected,
-        actor_reference="system.operator",
-        reason_code="operator_cancel",
+        actor_reference=actor,
+        reason_code=reason,
         request_id=request * 32,
     )
 
@@ -202,5 +207,95 @@ async def test_postgresql_cancelled_lease_cannot_resume_after_worker_crash_recov
         observed = await service.get_batch(batch_id)
         assert observed.batch.status == "CANCELLED"
         assert observed.items[0].status == "GENERATION_FAILED"
+        async with sessions() as session:
+            assert await session.scalar(select(func.count()).select_from(AuditLog)) == 1
+
+
+@pytest.mark.asyncio
+async def test_postgresql_running_cancel_same_request_replays_once_serially() -> None:
+    async with _database() as sessions:
+        service, batch_id = await _batch(sessions)
+        reservation = await service.reserve_next_item(batch_id)
+        assert reservation is not None
+        backend = GenerationBatchOperationBackend(generation_batches=service)
+        command = _command(DatasetOperationKind.BATCH_CANCEL, batch_id, "f", "RUNNING")
+
+        first = await backend.execute(command)
+        assert await service.record_attempt_failure(
+            item_id=reservation.item_id,
+            attempt_id=reservation.attempt_id,
+            result_code="worker_response_lost",
+            retryable=True,
+        )
+        replay = await backend.execute(command)
+
+        assert first == replay
+        assert first.outcome is DatasetOperationOutcome.SUCCEEDED
+        assert first.projection is not None and first.projection.target_status == "RUNNING"
+        assert (await service.get_batch(batch_id)).batch.status == "CANCELLED"
+        async with sessions() as session:
+            assert await session.scalar(select(func.count()).select_from(AuditLog)) == 1
+
+
+@pytest.mark.asyncio
+async def test_postgresql_running_cancel_same_request_replays_once_concurrently() -> None:
+    async with _database() as sessions:
+        service, batch_id = await _batch(sessions)
+        assert await service.reserve_next_item(batch_id) is not None
+        backend = GenerationBatchOperationBackend(generation_batches=service)
+        command = _command(DatasetOperationKind.BATCH_CANCEL, batch_id, "6", "RUNNING")
+
+        left, right = await gather(backend.execute(command), backend.execute(command))
+
+        assert left == right
+        assert left.outcome is DatasetOperationOutcome.SUCCEEDED
+        async with sessions() as session:
+            assert await session.scalar(select(func.count()).select_from(AuditLog)) == 1
+
+
+@pytest.mark.asyncio
+async def test_postgresql_cancel_request_reuse_with_changed_inputs_fails_closed() -> None:
+    async with _database() as sessions:
+        service, batch_id = await _batch(sessions)
+        assert await service.reserve_next_item(batch_id) is not None
+        backend = GenerationBatchOperationBackend(generation_batches=service)
+        request = "7"
+        accepted = await backend.execute(
+            _command(DatasetOperationKind.BATCH_CANCEL, batch_id, request, "RUNNING")
+        )
+
+        changed_expectation = await backend.execute(
+            _command(DatasetOperationKind.BATCH_CANCEL, batch_id, request, "QUEUED")
+        )
+        changed_reason = await backend.execute(
+            _command(
+                DatasetOperationKind.BATCH_CANCEL,
+                batch_id,
+                request,
+                "RUNNING",
+                "different_reason",
+            )
+        )
+        changed_actor = await backend.execute(
+            _command(
+                DatasetOperationKind.BATCH_CANCEL,
+                batch_id,
+                request,
+                "RUNNING",
+                "operator_cancel",
+                "different.operator",
+            )
+        )
+        changed_target = await backend.execute(
+            _command(DatasetOperationKind.BATCH_CANCEL, "e" * 32, request, "RUNNING")
+        )
+
+        assert accepted.outcome is DatasetOperationOutcome.SUCCEEDED
+        assert {
+            (changed_expectation.outcome, changed_expectation.code),
+            (changed_reason.outcome, changed_reason.code),
+            (changed_actor.outcome, changed_actor.code),
+            (changed_target.outcome, changed_target.code),
+        } == {(DatasetOperationOutcome.REJECTED, "operation_rejected")}
         async with sessions() as session:
             assert await session.scalar(select(func.count()).select_from(AuditLog)) == 1
