@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-- Status: `LOCAL_CANDIDATE_PENDING_VALIDATION`.
+- Status: `ACCEPTED_HISTORICAL_CONTRACT_RECORD`.
 - Task: `CC-P2-M5-04-A-D01`.
 - Owner decision: `OD-P2-M5-CC04-001` / `PROCEED_WITH_FRESH_EVIDENCE_LINE` dated `2026-08-23`.
 - Retained by: Principal / Sol High.
@@ -79,4 +79,6 @@ This is a governance-only contract for recording the supplied Owner decision in 
 
 ## Principal acceptance
 
-Pending exact-SHA validation, mandatory CI, artifact inspection, independent security review, independent Sol High final review, and Principal acceptance. This section must not be marked accepted by local validation alone.
+Candidate `7659eed48917b1491fd5fc8d18180c28f35944ec` completed exact-SHA run `32592430642`: all mandatory jobs succeeded; eight artifacts were readable, unexpired, and bound to that SHA and `0014_m5_eval_authority`; independent Security and Sol High reviews passed. Principal acceptance is `GRANTED` for this D01 contract only. This historical acceptance opened proposal writing, not study execution or `04-B`.
+
+`CC_P2_M5_04_A_D01_CONTRACT: PASS_AT_7659EED_RUN_32592430642`

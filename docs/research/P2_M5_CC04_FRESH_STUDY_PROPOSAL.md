@@ -3,7 +3,7 @@
 ## Status and authority
 
 - Document version: `p2-m5-cc04-fresh-study-proposal/v1`.
-- Status: `PROPOSAL_ONLY_UNDECIDED_NO_EXECUTION_AUTHORITY`.
+- Status: `OWNER_DECISION_RECORDED_REVIEW_AND_EVIDENCE_GATES_OPEN_NO_EXECUTION_AUTHORITY`.
 - Task: `CC-P2-M5-04-A`.
 - Authority: ADR-041, ADR-047, ADR-049, ADR-050, the CC04 fresh-evidence protocol, and the accepted CC04-A
   proposal-task contract.
@@ -50,16 +50,16 @@ technical or MVR decision.
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Fresh origin and rights                  | source classification, origin, ownership/rights, retention and provenance evidence                                    | `LICENSE_REVIEW_REQUIRED` until accepted                                |
 | Adult and safety boundary                | synthetic-only and adult-boundary evidence; review process that cannot bypass a hard failure                          | `SECURITY_REVIEW_REQUIRED` and `PRIVACY_REVIEW_REQUIRED` until accepted |
-| Candidate-family admission               | evidence that the future candidate family is fresh, non-legacy, synthetic-only and non-sensitive                      | `OWNER_DECISION_REQUIRED` until accepted                                |
-| Bounded resource envelope                | independently justified resource, retry, cost and storage ceilings                                                    | `OWNER_DECISION_REQUIRED` until accepted                                |
+| Candidate-family admission               | fresh candidate manifest compliance with the accepted constraints                                                     | `OWNER_ACCEPTED_FRESH_CANDIDATE_FAMILY_CONSTRAINTS`                     |
+| Bounded resource envelope                | future compliance with the accepted bounded envelope                                                                  | `OWNER_ACCEPTED_BOUNDED_RESOURCE_ENVELOPE`                              |
 | Algorithm, runtime and Provider boundary | qualification tier, model/runtime provenance, license, telemetry and zero-network assessment                          | `LICENSE_REVIEW_REQUIRED` and `SECURITY_REVIEW_REQUIRED` until accepted |
-| Policy and ontology                      | separately versioned policy/ontology authority and validation rules                                                   | `OWNER_DECISION_REQUIRED` until accepted                                |
-| Calibration and holdout separation       | independently defined fresh split authority and identity-disjoint evidence                                            | `OWNER_DECISION_REQUIRED` until accepted                                |
+| Policy and ontology                      | fresh digest-bearing authority matching the accepted versioning constraint                                            | `OWNER_ACCEPTED_NEW_VERSIONED_POLICY_ONTOLOGY_AUTHORITY`                |
+| Calibration and holdout separation       | fresh split implementation matching the accepted sealed isolation rule                                                | `OWNER_ACCEPTED_SEALED_IDENTITY_DISJOINT_SPLIT_RULE`                    |
 | Negative controls                        | explicit controls for legacy reuse, real/User input, malformed/tampered inputs, hidden network and unsupported claims | `SECURITY_REVIEW_REQUIRED` until accepted                               |
 | Private evidence custody                 | ADR-049 task receipt, opaque recoverable locator, digest/type/scope and cleanup plan                                  | `PRIVACY_REVIEW_REQUIRED` until accepted                                |
 | Reproducibility and platform evidence    | version capture, repeatability plan and platform-variance evidence                                                    | `FURTHER_RESEARCH` if insufficient                                      |
 | Diversity and isolation evidence         | non-sensitive morphology/style diversity, duplicate and mode-collapse evidence                                        | `FURTHER_RESEARCH` if insufficient                                      |
-| M5 disposition separation                | evidence that any later technical/MVR decision is outside `04-E`                                                      | `OWNER_DECISION_REQUIRED` until accepted                                |
+| M5 disposition separation                | separate post-`04-E` technical and MVR disposition tasks                                                              | `OWNER_ACCEPTED_SEPARATE_TECHNICAL_AND_MVR_DISPOSITION`                 |
 
 The table states requirements only. It does not freeze a value, select a resource, or create an execution envelope.
 
