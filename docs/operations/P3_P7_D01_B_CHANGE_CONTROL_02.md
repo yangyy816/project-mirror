@@ -7,12 +7,16 @@ CHANGE_CONTROL: CC-P3-P7-DEMO-D01B-02
 TRACK: DEMO_PROTOTYPE
 PLAN_VERSION: P3_P7_ALGORITHMIC_PROTOTYPE_PLATFORM_PLAN_V1_1
 DISCOVERED_BY: D01-C independent contract review
-STATUS: ACCEPTED_FOR_IMPLEMENTATION
-D01_B: REOPENED_FOR_CC02
-D01_C: BLOCKED_BY_SYNCHRONOUS_IDEMPOTENCY_AUTHORITY
+STATUS: IMPLEMENTED_AND_TASK_ACCEPTED
+D01_B: TASK_ACCEPTED
+D01_C: EXECUTION_READY
 FORMAL_PHASE_AUTHORITY: FALSE
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```
+
+Implementation candidate `6981a880388dc3572211eae17a8f29402148c26a` received independent Sol High
+`PASS / ACCEPT` with no mandatory finding. Principal reaccepted D01-B; this opens only D01-C implementation and does
+not assert that synchronous API replay/application semantics are already complete.
 
 The accepted `demo_job_bindings` table is the correct immutable authority for asynchronous commands because each row
 must bind a real formal `Job`. It cannot honestly represent the six synchronous persistence commands below without a
