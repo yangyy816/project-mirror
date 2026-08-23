@@ -139,6 +139,7 @@ jobs:
         shell: bash
         env:
           PLAYWRIGHT_INSTALL_LOG: ${{ runner.temp }}/playwright-chromium-install.log
+          PLAYWRIGHT_RAW_LOG: ${{ runner.temp }}/playwright-chromium-install.raw.log
         run: |
           set -euo pipefail
           readonly max_attempts=3
@@ -147,6 +148,7 @@ jobs:
           playwright_version="$(pnpm --filter @mirror/web exec playwright --version)"
           playwright_version="${playwright_version#Version }"
           : > "$PLAYWRIGHT_INSTALL_LOG"
+          : > "$PLAYWRIGHT_RAW_LOG"
 
           for attempt in $(seq 1 "$max_attempts"); do
             start_epoch="$(date +%s)"
@@ -158,9 +160,7 @@ jobs:
             set +e
             timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" \
               bash -o pipefail -c '
-                pnpm --filter @mirror/web exec playwright install-deps chromium 2>&1 \
-                  | tee -a "$PLAYWRIGHT_INSTALL_LOG"
-                exit "${PIPESTATUS[0]}"
+                pnpm --filter @mirror/web exec playwright install-deps chromium > "$PLAYWRIGHT_RAW_LOG" 2>&1
               '
             install_status="$?"
             set -e
@@ -168,8 +168,10 @@ jobs:
             end_epoch="$(date +%s)"
             end_timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             elapsed_seconds="$((end_epoch - start_epoch))"
-            printf 'event=playwright_system_dependencies attempt=%s/%s end=%s elapsed_seconds=%s exit_status=%s\n' \
-              "$attempt" "$max_attempts" "$end_timestamp" "$elapsed_seconds" "$install_status" \
+            raw_output_bytes="$(wc -c < "$PLAYWRIGHT_RAW_LOG")"
+            raw_output_sha256="$(sha256sum "$PLAYWRIGHT_RAW_LOG" | cut -d' ' -f1)"
+            printf 'event=playwright_system_dependencies attempt=%s/%s end=%s elapsed_seconds=%s exit_status=%s raw_output_bytes=%s raw_output_sha256=%s\n' \
+              "$attempt" "$max_attempts" "$end_timestamp" "$elapsed_seconds" "$install_status" "$raw_output_bytes" "$raw_output_sha256" \
               | tee -a "$PLAYWRIGHT_INSTALL_LOG"
 
             if [[ "$install_status" -eq 0 ]]; then
@@ -194,6 +196,7 @@ jobs:
         shell: bash
         env:
           PLAYWRIGHT_INSTALL_LOG: ${{ runner.temp }}/playwright-chromium-install.log
+          PLAYWRIGHT_RAW_LOG: ${{ runner.temp }}/playwright-chromium-install.raw.log
         run: |
           set -euo pipefail
           readonly max_attempts=3
@@ -216,9 +219,7 @@ jobs:
             set +e
             timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" \
               bash -o pipefail -c '
-                pnpm --filter @mirror/web exec playwright install chromium 2>&1 \
-                  | tee -a "$PLAYWRIGHT_INSTALL_LOG"
-                exit "${PIPESTATUS[0]}"
+                pnpm --filter @mirror/web exec playwright install chromium > "$PLAYWRIGHT_RAW_LOG" 2>&1
               '
             install_status="$?"
             set -e
@@ -226,8 +227,10 @@ jobs:
             end_epoch="$(date +%s)"
             end_timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             elapsed_seconds="$((end_epoch - start_epoch))"
-            printf 'event=playwright_chromium_download attempt=%s/%s end=%s elapsed_seconds=%s exit_status=%s\n' \
-              "$attempt" "$max_attempts" "$end_timestamp" "$elapsed_seconds" "$install_status" \
+            raw_output_bytes="$(wc -c < "$PLAYWRIGHT_RAW_LOG")"
+            raw_output_sha256="$(sha256sum "$PLAYWRIGHT_RAW_LOG" | cut -d' ' -f1)"
+            printf 'event=playwright_chromium_download attempt=%s/%s end=%s elapsed_seconds=%s exit_status=%s raw_output_bytes=%s raw_output_sha256=%s\n' \
+              "$attempt" "$max_attempts" "$end_timestamp" "$elapsed_seconds" "$install_status" "$raw_output_bytes" "$raw_output_sha256" \
               | tee -a "$PLAYWRIGHT_INSTALL_LOG"
 
             if [[ "$install_status" -eq 0 ]]; then
@@ -332,7 +335,11 @@ jobs:
           pip-audit --local
           pnpm audit --audit-level high
           pip-licenses --format=json --output-file=python-licenses.json
-          pnpm licenses list --json > node-licenses.json
+          pnpm licenses list --json > node-licenses.raw.json
+          node scripts/ci_artifact_sanitizer.mjs \
+            --licenses-input node-licenses.raw.json \
+            --licenses-output node-license-evidence.json
+          rm node-licenses.raw.json
       - name: Generate SBOM
         run: cyclonedx-py environment --output-format JSON --output-file python-sbom.cdx.json
       - uses: actions/upload-artifact@v4
@@ -342,7 +349,7 @@ jobs:
           path: |
             celery.log
             python-licenses.json
-            node-licenses.json
+            node-license-evidence.json
             python-sbom.cdx.json
 
   secret-scan:
@@ -379,13 +386,16 @@ jobs:
       - name: Capture container evidence
         if: always()
         run: |
-          docker compose -f compose.yaml ps --all
-          docker compose -f compose.yaml logs --no-color > docker-compose.log
+          docker compose -f compose.yaml ps --all --format json > docker-compose-raw.json
+          node scripts/ci_artifact_sanitizer.mjs \
+            --docker-input docker-compose-raw.json \
+            --docker-output docker-compose-evidence.json
+          rm docker-compose-raw.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: project-docker-evidence
-          path: docker-compose.log
+          path: docker-compose-evidence.json
       - name: Stop Project topology
         if: always()
         run: docker compose -f compose.yaml down --volumes --remove-orphans
