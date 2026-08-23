@@ -252,3 +252,44 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_TASK: T05_AUTHORIZED`
+
+## P2-M7-T05 recovery and concurrency integration acceptance
+
+- Candidate `882168832a2d138474037bd4f8e849a476c9da8c` completed GitHub Actions run
+  `32624641238`, attempt 1, with `quality-and-integration`, `secret-scan` and
+  `docker-validation` all successful on that exact SHA. The quality job completed Python quality,
+  PostgreSQL migration lifecycle, Linux Celery, Python tests, retained Phase 1/P2-M1/P2-M2/P2-M3
+  evidence, TypeScript quality/build, Playwright system dependency and Chromium download, Browser
+  Integration, contract drift, dependency/license audits and SBOM generation.
+- The candidate changes only the existing `GenerationBatchService`, the first-party typed operation
+  result taxonomy, a new application-service-only batch operation backend, and real PostgreSQL
+  recovery/concurrency tests. It introduces no migration, direct SQL path, Provider call, public
+  API/OpenAPI change, runtime dependency, model/data artifact, M5 research execution or M6
+  release/revoke behavior.
+- Principal reviewed the actual diff and its PostgreSQL integration tests. Cancellation locks existing
+  batch/item/job authority, requires the immutable expected status, leaves a single allowlisted audit
+  record in the same transaction, and maps unavailable/stale conditions to the existing redacted
+  operation contract. The tests cover concurrent duplicate cancel, non-mutating stale status/cancel,
+  and a cancelled lease that cannot resume after recovery.
+- Principal authenticated and content-inspected the run's eight unexpired artifacts in a task-created
+  temporary directory, then deleted it. The extracted 11 members use fixed relative names; four
+  retained evidence JSON files bind `8821688` and migration head `0014_m5_eval_authority`, with a
+  consistent OpenAPI digest where recorded. Gitleaks SARIF contains zero results. No image file,
+  signed URL, credential assignment, Provider raw payload or absolute runner/private path was found.
+  Generic lexical hits in license/SBOM dependency names were reviewed as package metadata, not
+  protected operation payload.
+- The normal host Python environment lacks the repository test dependency entry point and existing
+  task pytest roots remain ACL-protected; neither was changed. Linux exact-SHA CI is the authoritative
+  full-integration evidence for this candidate.
+- Principal accepts `P2-M7-T05`. This does not accept T06–T08 or the M7 Gate, enables no production
+  operation, and does not alter M5 or open M6. T06 is the sole next authorized task.
+
+`P2_M7_T05: PASS_AT_8821688_RUN_32624641238_ATTEMPT_1`
+
+`P2_M7_T06: EXECUTION_READY`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_TASK: T06_AUTHORIZED`

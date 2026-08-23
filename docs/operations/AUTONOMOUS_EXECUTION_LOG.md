@@ -1249,3 +1249,18 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   controls remain undecided; `04-A` execution, `04-B–E`, T06, MVR, M6, production geometry and real-user processing
   remain closed. The durable next state is `OWNER_DECISION_REQUIRED` before any separate decision task can be opened.
 - `MEMORY.md`, OpenAPI and `.tmp/` remain protected pre-existing worktree changes and were not modified or staged.
+
+## 2026-08-23 — P2-M7-T05 recovery/concurrency candidate accepted
+
+- Candidate `8821688` completed same-SHA run `32624641238`: quality/integration, secret scan and Docker validation
+  all passed. The exact Linux job completed PostgreSQL lifecycle, Celery, Python/TypeScript/Browser regressions,
+  contract drift and supply-chain stages.
+- Principal reviewed the narrow application-service diff and the real PostgreSQL tests for duplicate cancellation,
+  stale expectations, audit atomicity and cancelled-worker recovery. No schema, public API, Provider, dependency,
+  M5/M6 or production-boundary change occurred.
+- Eight artifacts were authenticated and inspected before the task-created temporary root was deleted. Four retained
+  evidence files bind the candidate SHA and `0014_m5_eval_authority`; SARIF has zero results and no protected
+  payload/path/image finding was present. Dependency-name lexical matches in license/SBOM files were not treated as
+  operation payload.
+- Principal accepts T05. T06 independent deterministic evaluation is now the only authorized M7 implementation
+  follow-up; M7 Gate remains `NOT_EVALUATED`, production remains disabled and M5/M6 remain closed.
