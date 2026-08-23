@@ -81,10 +81,10 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
   concurrency tests prove no capability/evidence/API/rebuildability/formal-authority loss.
 - **R:** the bounded forward repair is implemented on top of the rejected candidate; isolated PostgreSQL, migration,
   full regression and formal-DDL checks are rerun and bound to the remediation candidate.
-- **S:** D01-C remains closed until the remediation candidate passes independent Sol High review and Principal
-  acceptance.
-- **Owner / status / blocked:** Principal + data owner / `RECOVERING` / D01-B acceptance, D01-C and every
-  downstream database consumer.
+- **S:** reopen and stop the affected checkpoint on any future authority-parity, stale-admission or unresolved-lineage
+  regression.
+- **Owner / status / blocked:** Principal + data owner / `MITIGATED_MONITORED` / no current task; D01-C and every
+  downstream database consumer retain regression checks.
 
 ## R-DEMO-07 — Bayesian Newton solver is unstable or non-convergent
 

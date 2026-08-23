@@ -159,3 +159,20 @@ PostgreSQL, Redis, Celery, FastAPI, Next.js and private object storage remain va
 Any core runtime attempt to use public internet must fail closed as `EXTERNAL_RUNTIME_DEPENDENCY_FOUND`. The Gitleaks
 binary was acquired from the exact official v8.28.0 release plus its checksum manifest into Git-external private tool
 storage. No proxy variable or acquired network capability entered a core validation process.
+
+## Remediation outcome
+
+```text
+REMEDIATION_CANDIDATE: dd39b37f5cf9286be0153dd034737865ebf3e0cd
+REMEDIATION_CANDIDATE_TREE: 13b2b09aa507194fa4a5da15cb1c81213dfb0f60
+INDEPENDENT_SOL_IMPLEMENTATION_REVIEW: PASS
+BLOCKING_FINDINGS: 0
+NON_BLOCKING_FINDINGS: 0
+D01_B_PRINCIPAL_ACCEPTANCE: TASK_ACCEPTED
+D01_C: EXECUTION_READY
+FORMAL_P3_P7_STATUS: UNCHANGED
+PRODUCTION_RELEASE: NOT_AUTHORIZED
+```
+
+The rejected parent remains immutable negative evidence. Acceptance applies only to D01-B Demo persistence authority;
+it does not accept D01-C implementation, D02–D12, formal P3–P7 or production release.

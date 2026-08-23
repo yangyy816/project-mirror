@@ -536,3 +536,15 @@
   `D01_A` 置为 `TASK_ACCEPTED` 并只开放 `D01_B`。远端 `yangyy816/project-mirror` 在首次推送前只读核验为
   `PUBLIC`，因此每次 push 必须继续重验 visibility、private bytes 和 Gitleaks；D01-B–D12、formal P3–P7 与
   production authorization 均未因此通过。
+
+- 2026-08-23：D01-B 首个 candidate `4c84f25502486781c6a6613f9e0658406c4602ff` 因缺少 formal Asset/QA
+  snapshot + latest admission 语义及完整 ImageVersion→plan/operation/ToolRun/AssetVariant/verifier authority 而由
+  独立 Sol High 拒绝；该负证据未被改写。前向 remediation `dd39b37f5cf9286be0153dd034737865ebf3e0cd`
+  保留 27 张 Demo prototype tables，并以 85 个精确 FK、advisory-serialized ADMIT/REVOKE/re-admit、deferred
+  ImageVersion↔VerificationResult 和完整 AcceptedVisualEpisode trajectory 关闭两项 CRITICAL。真实 PostgreSQL
+  56/56、完整 API 750 pass/4 explicit skip、Worker 28 pass/6 explicit skip、0014↔Demo migration lifecycle、
+  Alembic check + cycle-FK parity、formal non-Demo DDL byte-identical、Ruff/mypy/Prettier、exact-commit Gitleaks 与
+  private-byte/path scan 均通过；独立 Sol High 对 exact SHA/tree 给出 `PASS / ACCEPT` 且零 finding，Principal
+  接受 D01-B 并只将 D01-C 置为 `EXECUTION_READY`。Gitleaks v8.28.0 仅经 D00-A official-release/checksum-bound
+  acquisition 进入 Git 外工具缓存，核心验证仍无代理和公网。formal P3–P7、D02–D12 与 production release
+  状态不变。
