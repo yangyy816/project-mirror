@@ -1283,3 +1283,13 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   path/payload/image/credential-clean evidence before the task-created directory was deleted.
 - Principal records T06 as pending its acceptance closure CI. T07 remains closed; no production or M5/M6 boundary
   changed.
+
+## 2026-08-23 — P2-M7-T06 acceptance closure CI confirmed
+
+- Closure `9877925` completed same-SHA run `32626264787` with quality/integration, secret scan and Docker
+  validation successful.
+- Principal reauthenticated and inspected all eight unexpired artifacts: 11 fixed-relative members, four exact-SHA
+  and four migration `0014_m5_eval_authority` bindings, SARIF zero results, and zero path/payload/image/credential
+  findings. The task-created inspection directory was deleted after review.
+- T06 acceptance is effective. T07 is `EXECUTION_READY` for machine-readable CI evidence only; M7 Gate remains
+  `NOT_EVALUATED`, production remains disabled, and M5/M6 remain closed.

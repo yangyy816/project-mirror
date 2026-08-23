@@ -346,3 +346,25 @@
 `P2_M7_GATE: NOT_EVALUATED`
 
 `P2_M7_NEXT_TASK: T06_AUTHORIZED`
+
+## P2-M7-T06 acceptance closure CI confirmation
+
+- The acceptance closure commit `98779252c83b18e729750b066d43e2356642a41a` completed GitHub Actions run
+  `32626264787`, attempt 1, with `quality-and-integration`, `secret-scan` and `docker-validation` successful on
+  that exact SHA.
+- Principal reauthenticated and inspected all eight unexpired artifacts. The 11 fixed-relative members contain four
+  exact-SHA bindings and four `0014_m5_eval_authority` bindings; Gitleaks SARIF contains zero results. No image,
+  signed URL, raw Provider payload or absolute runner/private path was found. The task-created inspection root was
+  deleted after review.
+- T06 acceptance is effective. T07 is now execution-ready only for the frozen machine-readable CI-evidence scope;
+  M7 Gate remains unevaluated, production remains disabled, and M5/M6 remain closed.
+
+`P2_M7_T06_ACCEPTANCE_CLOSURE: PASS_AT_9877925_RUN_32626264787_ATTEMPT_1`
+
+`P2_M7_T07: EXECUTION_READY`
+
+`P2_M7_STATE: EXECUTING`
+
+`P2_M7_GATE: NOT_EVALUATED`
+
+`P2_M7_NEXT_TASK: T07_CI_EVIDENCE_IMPLEMENTATION`
