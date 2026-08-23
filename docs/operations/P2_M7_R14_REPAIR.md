@@ -2,7 +2,7 @@
 
 ## Status
 
-`PASS_PENDING_ACCEPTANCE_CLOSURE_CI`
+`PASS`
 
 ## Finding
 
@@ -123,3 +123,26 @@ independent security/privacy/license review, independent Sol final review, and P
 `P2_M7_STATE: EXECUTING`
 
 `P2_M7_NEXT_ACTION: ACCEPTANCE_CLOSURE_CI`
+
+## Acceptance closure confirmation
+
+- Documentation-only closure `3af45337149c791b6c9905db2d7e3b673a83478c` passed exact-SHA run
+  `32638417120`, attempt 1, across all three mandatory jobs.
+- Principal inspected all eight unexpired artifacts and 12 fixed-relative members. Exact SHA, migration head, OpenAPI,
+  M7 tests/checks, Gitleaks, Docker, Playwright, Celery, license/SBOM and protected-content evidence are consistent with
+  the accepted R14 candidate. Inspection/cache roots were deleted and verified absent.
+- R14 acceptance is effective. The milestone technical Gate is `PASS`; production remains `NOT_DEPLOYED`,
+  provenance/QA remain unavailable, and M5/M6 boundaries are unchanged. The separate freeze-state commit still requires
+  its own same-SHA remote Gate before final remote freeze evidence is reported.
+
+`P2_M7_ACCEPTANCE_CLOSURE: PASS_AT_3AF4533_RUN_32638417120_ATTEMPT_1`
+
+`P2_M7_R14: PASS_AT_C15FD29_RUN_32636243642_ATTEMPT_1`
+
+`P2_M7_T08: PASS_AT_C15FD29_RUN_32636243642_ATTEMPT_1`
+
+`P2_M7_GATE: PASS`
+
+`P2_M7_STATE: PASS`
+
+`P2_M7_FREEZE_STATE: PENDING_SAME_SHA_CI`

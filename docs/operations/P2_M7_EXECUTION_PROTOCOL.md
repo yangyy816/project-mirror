@@ -9,8 +9,8 @@
 - Migration head: `0014_m5_eval_authority`
 - Architecture authority: ADR-022, ADR-025, ADR-043, ADR-049 and ADR-051.
 - Public API impact: none.
-- State: `EXECUTING`; T01–T07 and R13 are accepted, while R14/T08 are accepted pending the milestone acceptance
-  closure's own same-SHA Gate.
+- State: `PASS`; T01–T08 and R01–R14 are accepted. The freeze-state candidate still requires its own same-SHA Gate;
+  production remains `NOT_DEPLOYED`, and P2-M8 entry remains dependency-gated by P2-M5 and P2-M6.
 
 ## Objective
 
@@ -450,3 +450,35 @@ acceptance evidence, ADR-051, relevant accepted service contracts and the curren
 `P2_M7_STATE: EXECUTING`
 
 `P2_M7_NEXT_ACTION: ACCEPTANCE_CLOSURE_CI`
+
+## Acceptance closure confirmation / freeze record
+
+- Closure `3af45337149c791b6c9905db2d7e3b673a83478c` completed exact-SHA run `32638417120`, attempt 1, with
+  `quality-and-integration`, `secret-scan` and `docker-validation` successful.
+- Principal inspected eight unexpired artifacts and 12 fixed-relative members. Five retained evidence files bind the
+  closure SHA, `0014_m5_eval_authority` and unchanged OpenAPI digest. M7 evidence records 75 passes, zero
+  failure/error/skip and eight passed checks; the full Python collection records 814 passes plus one existing optional
+  private-runtime skip.
+- Gitleaks has zero results, Docker reports five healthy services, Playwright acquisition and five Browser Integration
+  tests passed, Celery has no failure record, dependency audits report no known vulnerabilities, and license/SBOM
+  evidence is readable. Path/payload/image/credential scans are zero; task-created inspection/cache roots were deleted.
+- The closure is docs-only and preserves every accepted implementation, security, data, license, contract and
+  production boundary. Principal makes R14/T08 acceptance effective, records the M7 Gate as `PASS`, and closes further
+  M7 implementation. This freeze-state candidate must pass its own exact-SHA CI/artifact Gate before a separate final
+  state record may declare `FROZEN`.
+- P2-M8 remains closed pending P2-M5 and P2-M6 frozen dependencies; no work on either parallel track is authorized or
+  changed by this record.
+
+`P2_M7_ACCEPTANCE_CLOSURE: PASS_AT_3AF4533_RUN_32638417120_ATTEMPT_1`
+
+`P2_M7_R14: PASS_AT_C15FD29_RUN_32636243642_ATTEMPT_1`
+
+`P2_M7_T08: PASS_AT_C15FD29_RUN_32636243642_ATTEMPT_1`
+
+`P2_M7_GATE: PASS`
+
+`P2_M7_STATE: PASS`
+
+`P2_M7_FREEZE_STATE: PENDING_SAME_SHA_CI`
+
+`P2_M8_ENTRY: CLOSED_PENDING_P2_M5_AND_P2_M6_FROZEN`

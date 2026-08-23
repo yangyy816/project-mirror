@@ -1390,3 +1390,23 @@ credentials, Prompt plaintext, image bytes, private object keys, signed URLs and
   same-SHA Gate remain mandatory after closure CI.
 - Protected pre-existing `MEMORY.md` changes were not modified or staged. Durable-memory reconciliation is deferred
   until they can be integrated without overwrite or adoption.
+
+## 2026-08-23 — P2-M7 acceptance closure passed / freeze-state checkpoint
+
+- Documentation-only closure `3af45337149c791b6c9905db2d7e3b673a83478c` completed exact-SHA run
+  `32638417120`, attempt 1. Quality/integration, secret scan and Docker validation all passed.
+- Principal downloaded and inspected eight unexpired artifacts with 12 fixed-relative members. Five retained evidence
+  files bind the closure SHA, `0014_m5_eval_authority` and unchanged OpenAPI digest. M7 reports 75 passes and zero
+  skip; full Python reports 814 passes plus one existing optional private-runtime skip. Gitleaks has zero results,
+  Docker has five healthy services, Playwright 1.62.1 dependencies/Chromium and five browser tests passed, and Celery
+  has no failure record.
+- Python license evidence contains 101 entries; Node evidence contains 14 groups and 480 package entries; CycloneDX
+  1.6 contains 105 components; dependency audits report no known vulnerabilities. Path escape, image extension/magic,
+  private path, credential assignment, signed URL, Prompt, object-key and raw Provider payload scans are zero.
+  Task-created artifact and GitHub CLI cache roots were deleted and verified absent.
+- Principal makes R14/T08 acceptance effective and records `P2_M7_GATE: PASS` and `P2_M7_STATE: PASS`. The current
+  docs-only freeze-state candidate requires its own exact-SHA three-job CI and eight-artifact inspection before a
+  separate final state record may declare `FROZEN`. Production remains `NOT_DEPLOYED`; M5/M6 are unchanged and P2-M8
+  remains closed pending both dependencies.
+- Protected pre-existing `MEMORY.md` changes remain untouched and unstaged; durable-memory reconciliation stays
+  deferred.

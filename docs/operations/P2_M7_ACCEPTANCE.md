@@ -3,7 +3,7 @@
 ## Status
 
 - Milestone: `P2-M7 — Internal Operations, Cost and Observability`
-- State: `EXECUTING`
+- State: `PASS`
 - Planning baseline: `fd64a313c3f2da534e3e019991f1cdb8352f5a74`
 - Migration head: `0014_m5_eval_authority`
 - Public API / OpenAPI: unchanged by P2-M7.
@@ -11,18 +11,18 @@
 
 ## Mandatory evidence matrix
 
-| Gate               | Required evidence                                                   | Current status                           |
-| ------------------ | ------------------------------------------------------------------- | ---------------------------------------- |
-| Scope              | internal CLI/application boundary; no public API/M5/M6 bypass       | PASS at `c15fd293`; closure CI pending   |
-| Authority          | PostgreSQL + accepted services remain source of truth               | PASS at `c15fd293`; closure CI pending   |
-| Operator safety    | actor/reason/expected state and explicit environment                | PASS at `c15fd293`; closure CI pending   |
-| Redaction          | no Prompt, key, URL, bytes, payload, path, secret or user data      | PASS at `c15fd293`; closure CI pending   |
-| Cost               | actual/estimated/unavailable distinction and reproducible aggregate | PASS at `c15fd293`; closure CI pending   |
-| Observability      | fixed allowlist, correlation, no collector overclaim                | PASS at `c15fd293`; closure CI pending   |
-| Recovery           | duplicate, stale, cancel/crash/concurrency evidence                 | PASS at `c15fd293`; closure CI pending   |
-| Contracts          | OpenAPI/generated TypeScript unchanged                              | PASS at `c15fd293`; closure CI pending   |
-| CI                 | exact SHA, three jobs, eight readable artifacts                     | PASS — run `32636243642`, attempt 1      |
-| Independent review | security/privacy/license and final review                           | PASS for R14/T08 acceptance prerequisite |
+| Gate               | Required evidence                                                   | Current status                               |
+| ------------------ | ------------------------------------------------------------------- | -------------------------------------------- |
+| Scope              | internal CLI/application boundary; no public API/M5/M6 bypass       | PASS                                         |
+| Authority          | PostgreSQL + accepted services remain source of truth               | PASS                                         |
+| Operator safety    | actor/reason/expected state and explicit environment                | PASS                                         |
+| Redaction          | no Prompt, key, URL, bytes, payload, path, secret or user data      | PASS                                         |
+| Cost               | actual/estimated/unavailable distinction and reproducible aggregate | PASS                                         |
+| Observability      | fixed allowlist, correlation, no collector overclaim                | PASS                                         |
+| Recovery           | duplicate, stale, cancel/crash/concurrency evidence                 | PASS                                         |
+| Contracts          | OpenAPI/generated TypeScript unchanged                              | PASS                                         |
+| CI                 | exact SHA, three jobs, eight readable artifacts                     | PASS — closure `32638417120`, attempt 1      |
+| Independent review | security/privacy/license and final review                           | PASS — R14 exact-SHA acceptance prerequisite |
 
 ## T01 local candidate
 
@@ -577,3 +577,42 @@
 `P2_M7_STATE: EXECUTING`
 
 `P2_M7_NEXT_ACTION: ACCEPTANCE_CLOSURE_CI`
+
+## P2-M7 acceptance closure and freeze decision
+
+- Documentation-only acceptance closure `3af45337149c791b6c9905db2d7e3b673a83478c` completed GitHub Actions run
+  `32638417120`, attempt 1, with all three mandatory jobs successful on that exact SHA.
+- Principal downloaded and inspected all eight unexpired artifacts and 12 fixed-relative members. Five retained
+  evidence documents bind the closure SHA, migration head `0014_m5_eval_authority` and unchanged OpenAPI digest.
+  The fixed P2-M7 slice reports 75 passes and zero failure/error/skip; the full Python collection reports 814 passes
+  with one existing optional private-runtime skip. Strict mypy covered 130 source files, Browser Integration passed
+  five tests, and migration downgrade/upgrade/check completed with no drift.
+- Gitleaks SARIF contains zero results. Docker evidence contains five running/healthy services. Playwright 1.62.1
+  system dependencies and Chromium succeeded on attempt 1 in 17 and 11 seconds. Celery has no failure record. Python
+  licenses contain 101 entries; Node evidence contains 14 license groups and 480 package entries; the CycloneDX 1.6
+  SBOM contains 105 components; dependency audits report no known vulnerabilities.
+- Artifact path-escape, image extension/magic, private path, credential assignment, signed URL, Prompt, object-key and
+  raw Provider payload scans are all zero. The artifact and GitHub CLI cache roots created for this inspection were
+  deleted and verified absent.
+- The closure changes governance documents only and preserves the reviewed R14 implementation, public contracts,
+  migration head, dependency set, production fail-closed behavior, unavailable provenance/QA capabilities, and M5/M6
+  boundaries. Principal therefore makes R14/T08 acceptance effective and records the P2-M7 technical Gate as `PASS`.
+- This is the independent freeze-state candidate. Its own exact-SHA three-job CI and eight-artifact verification are
+  mandatory before a separate final state record may declare `FROZEN`; a failure requires a bounded repair and cannot
+  weaken the Gate. P2-M8 refinement remains closed until P2-M5 and P2-M6 are also frozen.
+- `MEMORY.md` remains a protected pre-existing user modification and is not modified or staged. Durable-memory
+  reconciliation is deferred without changing this tracked acceptance authority.
+
+`P2_M7_ACCEPTANCE_CLOSURE: PASS_AT_3AF4533_RUN_32638417120_ATTEMPT_1`
+
+`P2_M7_R14: PASS_AT_C15FD29_RUN_32636243642_ATTEMPT_1`
+
+`P2_M7_T08: PASS_AT_C15FD29_RUN_32636243642_ATTEMPT_1`
+
+`P2_M7_GATE: PASS`
+
+`P2_M7_STATE: PASS`
+
+`P2_M7_FREEZE_STATE: PENDING_SAME_SHA_CI`
+
+`P2_M8_ENTRY: CLOSED_PENDING_P2_M5_AND_P2_M6_FROZEN`

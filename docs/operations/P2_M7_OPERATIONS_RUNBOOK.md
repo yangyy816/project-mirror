@@ -4,10 +4,11 @@
 
 `NOT_DEPLOYED`. This runbook covers the accepted internal P2 operation contract and the R14 composition of accepted
 batch operations plus the read-only cost projection. Candidate `c15fd293` passed exact-SHA run `32636243642`, all
-eight artifacts were inspected, and the independent security and final reviews passed. R14/T08 and the technical Gate
-are accepted pending the documentation-only milestone acceptance closure CI; P2-M7 remains `EXECUTING` and a separate
-freeze-state Gate is still mandatory. This is not an admin API, dashboard, collector, Provider integration or
-production approval. P2-M5 fresh study and P2-M6 release/revoke remain closed.
+eight artifacts were inspected, and the independent security and final reviews passed. Documentation-only closure
+`3af4533` passed exact-SHA run `32638417120` with eight inspected artifacts, making R14/T08 acceptance effective and
+the technical Gate `PASS`. P2-M7 remains in `PASS` while the current freeze-state candidate awaits its own same-SHA
+remote Gate; only a later final state record may declare `FROZEN`. This is not an admin API, dashboard, collector,
+Provider integration or production approval. P2-M5 fresh study and P2-M6 release/revoke remain closed.
 
 ## Cost projection meaning
 
