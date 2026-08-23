@@ -26,8 +26,19 @@ function safeString(value, expression) {
   return value;
 }
 
+function parseJson(input, errorMessage) {
+  try {
+    return JSON.parse(input);
+  } catch {
+    throw new Error(errorMessage);
+  }
+}
+
 async function sanitizeLicenses(inputPath, outputPath) {
-  const raw = JSON.parse(await readFile(inputPath, "utf8"));
+  const raw = parseJson(
+    await readFile(inputPath, "utf8"),
+    "invalid node license input",
+  );
   if (raw === null || Array.isArray(raw) || typeof raw !== "object") {
     throw new Error("invalid node license input");
   }
@@ -78,7 +89,11 @@ async function sanitizeDocker(inputPath, outputPath) {
   try {
     parsed = trimmed === "" ? [] : JSON.parse(trimmed);
   } catch {
-    parsed = trimmed.split(/\r?\n/).map((line) => JSON.parse(line));
+    try {
+      parsed = trimmed.split(/\r?\n/).map((line) => JSON.parse(line));
+    } catch {
+      throw new Error("invalid compose status input");
+    }
   }
   const records = Array.isArray(parsed) ? parsed : [parsed];
   const containers = records

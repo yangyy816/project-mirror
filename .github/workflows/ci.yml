@@ -359,6 +359,24 @@ jobs:
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+      - name: Prepare Gitleaks SARIF evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f results.sarif
+          mkdir -p "$RUNNER_TEMP/gitleaks-evidence"
+          cp results.sarif "$RUNNER_TEMP/gitleaks-evidence/gitleaks-results.sarif"
+      - name: Upload Gitleaks evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-results.sarif
+          path: ${{ runner.temp }}/gitleaks-evidence/gitleaks-results.sarif
+          if-no-files-found: error
+          retention-days: 14
 
   docker-validation:
     runs-on: ubuntu-latest

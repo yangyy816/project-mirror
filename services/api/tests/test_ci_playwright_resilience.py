@@ -141,3 +141,19 @@ def test_playwright_download_timeout_owns_each_logging_pipeline_and_keeps_retry_
     assert 'if [[ "$install_status" -eq 0 ]]; then' in step
     assert "exit 1" in step
     assert step.index(timeout) < step.index(child_shell) < step.index(pnpm_command)
+
+
+def test_gitleaks_evidence_uses_fixed_staging_filename_without_builtin_upload() -> None:
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    secret_scan = workflow[
+        workflow.index("  secret-scan:\n") : workflow.index("  docker-validation:\n")
+    ]
+
+    assert "gitleaks/gitleaks-action@v2" in secret_scan
+    assert 'GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"' in secret_scan
+    assert "- name: Prepare Gitleaks SARIF evidence" in secret_scan
+    assert "test -f results.sarif" in secret_scan
+    assert 'cp results.sarif "$RUNNER_TEMP/gitleaks-evidence/gitleaks-results.sarif"' in secret_scan
+    assert "- name: Upload Gitleaks evidence" in secret_scan
+    assert "name: gitleaks-results.sarif" in secret_scan
+    assert "path: ${{ runner.temp }}/gitleaks-evidence/gitleaks-results.sarif" in secret_scan

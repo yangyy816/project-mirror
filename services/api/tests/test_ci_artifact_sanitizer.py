@@ -143,3 +143,39 @@ def test_ci_artifact_sanitizer_accepts_existing_compose_json_forms(
         "schema_version": "mirror.ci.compose-status/v1",
         "containers": expected_containers,
     }
+
+
+def test_ci_artifact_sanitizer_does_not_echo_malformed_compose_json_lines(
+    tmp_path: Path,
+) -> None:
+    marker = "synthetic-private-marker-must-not-echo"
+    docker_input = tmp_path / "docker-compose-raw.json"
+    docker_output = tmp_path / "docker-compose-evidence.json"
+    docker_input.write_text(
+        json.dumps({"Service": "api", "State": "running", "Health": "", "ExitCode": 0})
+        + "\n"
+        + marker,
+        encoding="utf-8",
+    )
+
+    node = shutil.which("node")
+    assert node is not None
+    result = subprocess.run(  # noqa: S603
+        [
+            node,
+            str(SANITIZER),
+            "--docker-input",
+            str(docker_input),
+            "--docker-output",
+            str(docker_output),
+        ],
+        check=False,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert marker not in result.stdout
+    assert marker not in result.stderr
+    assert not docker_output.exists()
