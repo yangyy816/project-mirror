@@ -132,6 +132,14 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
         index=True,
         nullable=False,
     )
+    formal_canonical_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    formal_canonical_asset_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    formal_accepted_qa_run_id: Mapped[str] = mapped_column(
+        ForeignKey("synthetic_qa_runs.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    formal_accepted_qa_snapshot_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     admission_sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     admission_action: Mapped[str] = mapped_column(String(16), nullable=False)
     admission_config_digest: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -146,6 +154,10 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
             "admission_sequence",
             name="uq_demo_synthetic_identities_formal_sequence",
         ),
+        UniqueConstraint(
+            "supersedes_id",
+            name="uq_demo_synthetic_identities_supersedes_id",
+        ),
         CheckConstraint("admission_sequence > 0", name="positive_admission_sequence"),
         CheckConstraint(
             "admission_action IN ('ADMIT','REVOKE')",
@@ -154,6 +166,14 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
         CheckConstraint(
             "admission_config_digest ~ '^[0-9a-f]{64}$'",
             name="admission_config_digest_shape",
+        ),
+        CheckConstraint(
+            "formal_canonical_asset_sha256 ~ '^[0-9a-f]{64}$'",
+            name="formal_canonical_asset_sha_shape",
+        ),
+        CheckConstraint(
+            "formal_accepted_qa_snapshot_digest ~ '^[0-9a-f]{64}$'",
+            name="qa_snapshot_digest_shape",
         ),
         CheckConstraint(
             "supersedes_id IS NULL OR supersedes_id <> id", name="not_self_superseding"
@@ -954,11 +974,16 @@ class DemoImageVersion(DemoAuthorityMixin, Base):
     source_asset_id: Mapped[str] = mapped_column(
         ForeignKey("assets.id", ondelete="RESTRICT"), index=True, nullable=False
     )
+    source_asset_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     result_asset_id: Mapped[str] = mapped_column(
         ForeignKey("assets.id", ondelete="RESTRICT"), index=True, unique=True, nullable=False
     )
-    result_asset_variant_id: Mapped[str | None] = mapped_column(
-        ForeignKey("asset_variants.id", ondelete="RESTRICT"), index=True, unique=True
+    result_asset_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_asset_variant_id: Mapped[str] = mapped_column(
+        ForeignKey("asset_variants.id", ondelete="RESTRICT"),
+        index=True,
+        unique=True,
+        nullable=False,
     )
     version_kind: Mapped[str] = mapped_column(String(24), nullable=False)
     plan_digest: Mapped[str | None] = mapped_column(String(64))
@@ -977,6 +1002,30 @@ class DemoImageVersion(DemoAuthorityMixin, Base):
             name="fk_demo_image_versions_editing_session_owner",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["plan_digest"],
+            ["demo_edit_plans.content_digest"],
+            name="fk_demo_image_versions_plan_digest_demo_edit_plans",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        ForeignKeyConstraint(
+            ["tool_run_digest"],
+            ["demo_tool_runs.content_digest"],
+            name="fk_demo_image_versions_tool_run_digest_demo_tool_runs",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        ForeignKeyConstraint(
+            ["verifier_digest"],
+            ["demo_verification_results.content_digest"],
+            name="fk_demo_image_versions_verifier_digest_demo_verification_results",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
         UniqueConstraint(
             "editing_session_id",
             "sequence",
@@ -990,11 +1039,17 @@ class DemoImageVersion(DemoAuthorityMixin, Base):
         ),
         CheckConstraint("sequence >= 0", name="nonnegative_sequence"),
         CheckConstraint(
-            "(sequence = 0 AND parent_version_id IS NULL) OR "
-            "(sequence > 0 AND parent_version_id IS NOT NULL)",
-            name="lineage_shape",
+            "(sequence = 0 AND parent_version_id IS NULL AND version_kind = 'ORIGINAL' "
+            "AND plan_digest IS NULL AND tool_run_digest IS NULL AND verifier_digest IS NULL) OR "
+            "(sequence > 0 AND parent_version_id IS NOT NULL "
+            "AND version_kind IN ('EDITED','RESTORED','ROLLED_BACK','QUARANTINED') "
+            "AND plan_digest IS NOT NULL AND tool_run_digest IS NOT NULL "
+            "AND verifier_digest IS NOT NULL)",
+            name="lineage_authority_shape",
         ),
         CheckConstraint("source_asset_id <> result_asset_id", name="distinct_source_result"),
+        CheckConstraint("source_asset_sha256 ~ '^[0-9a-f]{64}$'", name="source_asset_sha_shape"),
+        CheckConstraint("result_asset_sha256 ~ '^[0-9a-f]{64}$'", name="result_asset_sha_shape"),
         CheckConstraint(
             "version_kind IN ('ORIGINAL','EDITED','RESTORED','ROLLED_BACK','QUARANTINED')",
             name="version_kind",
@@ -1160,6 +1215,7 @@ class DemoToolRun(DemoAuthorityMixin, Base):
     demo_actor_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     demo_session_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     edit_operation_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    edit_operation_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     demo_job_binding_id: Mapped[str] = mapped_column(
         ForeignKey(
             "demo_job_bindings.id",
@@ -1168,11 +1224,10 @@ class DemoToolRun(DemoAuthorityMixin, Base):
             initially="DEFERRED",
         ),
         index=True,
-        unique=True,
         nullable=False,
     )
     formal_job_attempt_id: Mapped[str] = mapped_column(
-        ForeignKey("job_attempts.id", ondelete="RESTRICT"), index=True, unique=True, nullable=False
+        ForeignKey("job_attempts.id", ondelete="RESTRICT"), index=True, nullable=False
     )
     tool_name: Mapped[str] = mapped_column(String(64), nullable=False)
     tool_version: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -1199,6 +1254,19 @@ class DemoToolRun(DemoAuthorityMixin, Base):
             name="fk_demo_tool_runs_operation_owner",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["edit_operation_digest"],
+            ["demo_edit_operations.content_digest"],
+            name="fk_demo_tool_runs_edit_operation_digest_demo_edit_operations",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        UniqueConstraint(
+            "formal_job_attempt_id",
+            "edit_operation_id",
+            name="uq_demo_tool_runs_attempt_operation",
+        ),
         UniqueConstraint(
             "id",
             "demo_actor_id",
@@ -1206,6 +1274,10 @@ class DemoToolRun(DemoAuthorityMixin, Base):
             name="uq_demo_tool_runs_id_actor_session",
         ),
         CheckConstraint("input_asset_sha256 ~ '^[0-9a-f]{64}$'", name="input_sha_shape"),
+        CheckConstraint(
+            "edit_operation_digest ~ '^[0-9a-f]{64}$'",
+            name="edit_operation_digest_shape",
+        ),
         CheckConstraint(
             "(output_asset_id IS NULL AND output_asset_sha256 IS NULL) OR "
             "(output_asset_id IS NOT NULL AND output_asset_sha256 ~ '^[0-9a-f]{64}$')",
@@ -1233,7 +1305,9 @@ class DemoVerificationResult(DemoAuthorityMixin, Base):
     demo_actor_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     demo_session_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     tool_run_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True, unique=True)
-    image_version_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    image_version_id: Mapped[str] = mapped_column(
+        String(32), index=True, unique=True, nullable=False
+    )
     demo_job_binding_id: Mapped[str] = mapped_column(
         ForeignKey(
             "demo_job_bindings.id",
@@ -1277,6 +1351,8 @@ class DemoVerificationResult(DemoAuthorityMixin, Base):
             ],
             name="fk_demo_verification_results_image_version_owner",
             ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
         ),
         CheckConstraint("output_asset_sha256 ~ '^[0-9a-f]{64}$'", name="output_sha_shape"),
         CheckConstraint("config_digest ~ '^[0-9a-f]{64}$'", name="config_digest_shape"),

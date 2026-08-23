@@ -45,13 +45,13 @@ column, trigger, constraint, index, current pointer or preference/profile payloa
 
 ## Five mandatory preservation proofs
 
-| Proof                           | Design result | Implementation result | Reason                                                                                                 |
-| ------------------------------- | ------------- | --------------------- | ------------------------------------------------------------------------------------------------------ |
-| `NO_CAPABILITY_LOSS`            | `PASS`        | `PASS`                | All 26 logical entities plus `demo_job_binding` retain a unique physical authority.                    |
-| `NO_EVIDENCE_LOSS`              | `PASS`        | `PASS`                | Evidence/version entities retain digest, lineage, append-only or rebuildable semantics.                |
-| `NO_API_LOSS`                   | `PASS`        | `PASS`                | The physical graph supports every frozen `/api/v1/demo/*` ownership, job, trace and rebuild operation. |
-| `NO_REBUILDABILITY_LOSS`        | `PASS`        | `PASS`                | Derived state uses evidence watermark/version inputs and has no mutable current pointer.               |
-| `NO_FORMAL_AUTHORITY_POLLUTION` | `PASS`        | `PASS`                | Formal reuse is reference/operation-only and `demo_0001` performs no formal-table DDL.                 |
+| Proof                           | Design result | Implementation result            | Reason                                                                                      |
+| ------------------------------- | ------------- | -------------------------------- | ------------------------------------------------------------------------------------------- |
+| `NO_CAPABILITY_LOSS`            | `PASS`        | `PASS_FOR_REMEDIATION_CANDIDATE` | All 26 entities plus the Job bridge retain one tested authority.                            |
+| `NO_EVIDENCE_LOSS`              | `PASS`        | `PASS_FOR_REMEDIATION_CANDIDATE` | Admission snapshots and the complete image execution chain are enforced.                    |
+| `NO_API_LOSS`                   | `PASS`        | `PASS_FOR_REMEDIATION_CANDIDATE` | The physical graph represents every frozen API authority without implementing D01-C routes. |
+| `NO_REBUILDABILITY_LOSS`        | `PASS`        | `PASS_FOR_REMEDIATION_CANDIDATE` | Append-only evidence, lineage, watermarks and exact digests remain reconstructable.         |
+| `NO_FORMAL_AUTHORITY_POLLUTION` | `PASS`        | `PASS_FOR_REMEDIATION_CANDIDATE` | Non-Demo table DDL is byte-identical at 0014 and Demo head.                                 |
 
 Design `PASS` authorizes implementation only. D01-B remains incomplete until real PostgreSQL migration, invariants,
 concurrency, populated downgrade, ORM consistency and independent review pass.
@@ -258,18 +258,18 @@ LOGICAL_ENTITY: demo_synthetic_identity
 EXISTING_FORMAL_ENTITY: SyntheticIdentity
 SEMANTIC_EQUIVALENCE: PARTIAL; formal owns canonical Asset, QA, adult attestation and provenance
 REUSE_POSSIBLE: REFERENCE_ONLY
-EXTENSION_REQUIRED: Demo admission, cohort role, eligibility and admission config digest
+EXTENSION_REQUIRED: Demo admission, frozen canonical Asset/QA snapshot, latest-row eligibility and admission config digest
 NEW_PROTOTYPE_TABLE_REQUIRED: YES
 DEMO_AUTHORITATIVE_SOURCE: demo_synthetic_identities for admission only
 AUTHORITY_OWNER: split by field; formal identity facts remain formal
 OWNER_BINDING: global Demo corpus; no actor binding
-APPEND_ONLY_MECHANISM: immutable admission rows; revocation is a new row
-DIGEST_INPUTS: formal identity id, canonical Asset/QA digests, admission/config versions
+APPEND_ONLY_MECHANISM: immutable actor-independent admission rows; advisory-serialized revocation/re-admission is a new row
+DIGEST_INPUTS: formal identity id, canonical Asset id/SHA, accepted QA run/deterministic snapshot digest, sequence/action/config/supersedes
 DELETE_OR_TOMBSTONE_SEMANTICS: append admission revocation; never rewrite formal identity
 FORMAL_AUTHORITY_POLLUTION_RISK: MEDIUM
 MIGRATION_OBJECT: demo_synthetic_identities with RESTRICT FK to synthetic_identities
 PROMOTION_STRATEGY: FWD_CONVERSION of admission metadata only
-DECISION_EVIDENCE: ADR-050, Fast Track Contract, formal SyntheticIdentity authority
+DECISION_EVIDENCE: ADR-050, Fast Track Contract, formal SyntheticIdentity authority, P3_P7_D01_B_CC_01
 ```
 
 ### P3 authority
@@ -586,13 +586,13 @@ NEW_PROTOTYPE_TABLE_REQUIRED: YES
 DEMO_AUTHORITATIVE_SOURCE: demo_image_versions
 AUTHORITY_OWNER: Demo P6 version authority; formal owns bytes/variant lineage
 OWNER_BINDING: actor through editing session
-APPEND_ONLY_MECHANISM: immutable; unique session sequence; guarded same-session parent
-DIGEST_INPUTS: session/parent/source/result checksums and plan/tool/verifier digests
+APPEND_ONLY_MECHANISM: immutable; unique session sequence; guarded same-session parent; deferred bidirectional verifier edge
+DIGEST_INPUTS: session/parent/source/result Asset ids and SHA snapshots, AssetVariant id, kind and resolved plan/tool/verifier digests
 DELETE_OR_TOMBSTONE_SEMANTICS: rejection/quarantine never mutates prior version; Asset deletion is formal
 FORMAL_AUTHORITY_POLLUTION_RISK: MEDIUM
 MIGRATION_OBJECT: demo_image_versions
 PROMOTION_STRATEGY: retain/remap formal Assets; metadata uses FWD_CONVERSION
-DECISION_EVIDENCE: Fast Track Contract P6, formal ImageVersion/AssetVariant
+DECISION_EVIDENCE: Fast Track Contract P6, formal ImageVersion/AssetVariant, P3_P7_D01_B_CC_01
 ```
 
 #### `demo_edit_plan`
@@ -650,12 +650,12 @@ DEMO_AUTHORITATIVE_SOURCE: demo_tool_runs
 AUTHORITY_OWNER: Demo P6 tool evidence; formal owns attempt lifecycle
 OWNER_BINDING: actor/session, job binding and edit operation
 APPEND_ONLY_MECHANISM: immutable result; retry creates new JobAttempt/tool run
-DIGEST_INPUTS: operation/plan/job/attempt, tool/version, input/output checksums and effect contract
+DIGEST_INPUTS: operation id/digest, plan/job/attempt, tool/version, input/output checksums and effect contract
 DELETE_OR_TOMBSTONE_SEMANTICS: failed/rejected rows remain; output Asset deletion stays formal
 FORMAL_AUTHORITY_POLLUTION_RISK: MEDIUM
 MIGRATION_OBJECT: demo_tool_runs
 PROMOTION_STRATEGY: FWD_CONVERSION; prototype jobs are not automatically promoted
-DECISION_EVIDENCE: Fast Track Contract P6, formal JobAttempt/ModelRun
+DECISION_EVIDENCE: Fast Track Contract P6, formal JobAttempt/ModelRun, P3_P7_D01_B_CC_01
 ```
 
 #### `demo_verification_result`
@@ -670,13 +670,13 @@ NEW_PROTOTYPE_TABLE_REQUIRED: YES
 DEMO_AUTHORITATIVE_SOURCE: demo_verification_results
 AUTHORITY_OWNER: Demo P6 verifier evidence
 OWNER_BINDING: actor through tool run and image version
-APPEND_ONLY_MECHANISM: immutable result rows
+APPEND_ONLY_MECHANISM: immutable result rows; mandatory unique ImageVersion id and deferred bidirectional binding
 DIGEST_INPUTS: tool/image/output checksum, verifier/config, integer metrics/thresholds and outcome
 DELETE_OR_TOMBSTONE_SEMANTICS: failed evidence remains; quarantined bytes may be formally deleted
 FORMAL_AUTHORITY_POLLUTION_RISK: LOW
 MIGRATION_OBJECT: demo_verification_results
 PROMOTION_STRATEGY: FWD_CONVERSION
-DECISION_EVIDENCE: Fast Track Contract P6 verifier
+DECISION_EVIDENCE: Fast Track Contract P6 verifier, P3_P7_D01_B_CC_01
 ```
 
 ### P7 authority
@@ -720,7 +720,7 @@ DELETE_OR_TOMBSTONE_SEMANTICS: append ledger tombstone/delete; Asset bytes use f
 FORMAL_AUTHORITY_POLLUTION_RISK: LOW
 MIGRATION_OBJECT: demo_accepted_visual_episodes
 PROMOTION_STRATEGY: FWD_CONVERSION
-DECISION_EVIDENCE: Fast Track Contract P7, Visual Memory OS
+DECISION_EVIDENCE: Fast Track Contract P7, Visual Memory OS, P3_P7_D01_B_CC_01 complete trajectory binding
 ```
 
 #### `demo_aesthetic_profile`
@@ -815,10 +815,12 @@ that follows this document; it does not assert implementation or PostgreSQL succ
 After implementation, an independent Sol review must verify the actual diff and real PostgreSQL evidence. Until then:
 
 ```text
-D01_B_IMPLEMENTATION: READY_FOR_INDEPENDENT_REVIEW
+D01_B_IMPLEMENTATION: REMEDIATION_VALIDATED_PENDING_INDEPENDENT_REVIEW
 D01_C: CLOSED
-DEMO_MIGRATION_LIFECYCLE: PASS
-POSTGRESQL_AUTHORITY: PASS
+DEMO_MIGRATION_LIFECYCLE: PASS_FOR_REMEDIATION_CANDIDATE
+POSTGRESQL_AUTHORITY: PASS_FOR_REMEDIATION_CANDIDATE
+INDEPENDENT_SOL_IMPLEMENTATION_REVIEW: PENDING
+PRINCIPAL_TASK_ACCEPTANCE: BLOCKED_PENDING_INDEPENDENT_REVIEW
 FORMAL_P3_P7_STATUS: UNCHANGED
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```

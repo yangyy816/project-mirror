@@ -13,9 +13,10 @@ from typing import Any
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import JSON, create_engine, delete, select, text, update
+from sqlalchemy import JSON, create_engine, delete, inspect, select, text, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import conv
 from test_geometry_variant_authority_invariants import _canonical_source, _result_asset
 
 from mirror_api.demo_models import (
@@ -86,18 +87,18 @@ def _authority_time(value: datetime) -> str:
     return value.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
-def _insert_demo_row(
-    session: Session,
+def _build_demo_row(
     model: type[Any],
     /,
     *,
+    row_id: str | None = None,
     created_at: datetime | None = None,
     **authority_fields: Any,
 ) -> Any:
     authority_created_at = created_at or datetime(2026, 8, 23, 3, 0, tzinfo=UTC)
     schema_version = f"mirror.demo/{model.__name__}/v1"
     row = model(
-        id=new_id(),
+        id=row_id or new_id(),
         schema_version=schema_version,
         canonical_payload={},
         content_digest="0" * 64,
@@ -115,9 +116,59 @@ def _insert_demo_row(
             payload[column.name] = _authority_time(value) if isinstance(value, datetime) else value
     row.canonical_payload = payload
     row.content_digest = _digest(schema_version, payload)
+    return row
+
+
+def _insert_demo_row(
+    session: Session,
+    model: type[Any],
+    /,
+    *,
+    created_at: datetime | None = None,
+    **authority_fields: Any,
+) -> Any:
+    row = _build_demo_row(
+        model,
+        created_at=created_at,
+        **authority_fields,
+    )
     session.add(row)
     session.commit()
     return row
+
+
+def _formal_qa_snapshot_digest(session: Session, identity: SyntheticIdentity) -> str:
+    assert identity.accepted_qa_run_id is not None
+    result = session.scalar(
+        text("SELECT mirror_demo_formal_qa_snapshot_digest(:qa_run_id)"),
+        {"qa_run_id": identity.accepted_qa_run_id},
+    )
+    assert isinstance(result, str)
+    return result
+
+
+def _synthetic_admission_fields(
+    session: Session,
+    source_asset: Asset,
+    formal_identity: SyntheticIdentity,
+    *,
+    sequence: int,
+    action: str,
+    supersedes_id: str | None,
+    config_marker: str,
+) -> dict[str, Any]:
+    assert formal_identity.accepted_qa_run_id is not None
+    return {
+        "formal_synthetic_identity_id": formal_identity.id,
+        "formal_canonical_asset_id": source_asset.id,
+        "formal_canonical_asset_sha256": source_asset.sha256,
+        "formal_accepted_qa_run_id": formal_identity.accepted_qa_run_id,
+        "formal_accepted_qa_snapshot_digest": _formal_qa_snapshot_digest(session, formal_identity),
+        "admission_sequence": sequence,
+        "admission_action": action,
+        "admission_config_digest": hashlib.sha256(config_marker.encode()).hexdigest(),
+        "supersedes_id": supersedes_id,
+    }
 
 
 def _insert_job_binding(
@@ -370,6 +421,391 @@ def _insert_episode(
     )
 
 
+def _prepare_followup_execution(
+    session: Session,
+    graph: dict[str, Any],
+    *,
+    image_overrides: dict[str, Any] | None = None,
+    verification_overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    actor = graph["actor"]
+    demo_session = graph["session"]
+    editing_session = graph["editing_session"]
+    parent_image = graph["image1"]
+    parent_asset = graph["image1_asset"]
+    desired_delta = graph["desired_delta"]
+    style = graph["style"]
+    constraints = graph["constraints"]
+    operation_spec: dict[str, Any] = {
+        "engine": "RASTER",
+        "operation_type": "fixture_contrast",
+        "parameters": {"contrast_ppm": 25_000},
+        "preserve": ["identity"],
+        "expected_effect": {"contrast_ppm": 25_000},
+    }
+    plan_fields = {
+        "demo_actor_id": actor.id,
+        "demo_session_id": demo_session.id,
+        "editing_session_id": editing_session.id,
+        "input_image_version_id": parent_image.id,
+        "plan_version": 2,
+        "desired_delta_profile_digest": desired_delta.content_digest,
+        "style_profile_digest": style.content_digest,
+        "identity_constraints_digest": constraints.content_digest,
+        "instruction_digest": editing_session.instruction_digest,
+        "planner_version": "fixture-planner-v1",
+        "tool_registry_version": editing_session.tool_registry_version,
+    }
+    request_plan = _insert_demo_row(
+        session,
+        DemoEditPlan,
+        **plan_fields,
+        record_kind="REQUEST",
+        request_plan_id=None,
+        operation_specs=[],
+    )
+    result_plan = _insert_demo_row(
+        session,
+        DemoEditPlan,
+        **plan_fields,
+        record_kind="RESULT",
+        request_plan_id=request_plan.id,
+        operation_specs=[operation_spec],
+    )
+    operation = _insert_demo_row(
+        session,
+        DemoEditOperation,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        edit_plan_id=result_plan.id,
+        operation_index=0,
+        engine=operation_spec["engine"],
+        operation_type=operation_spec["operation_type"],
+        parameters=operation_spec["parameters"],
+        preserve=operation_spec["preserve"],
+        expected_effect=operation_spec["expected_effect"],
+    )
+    execution_job, execution_binding = _insert_job_binding(
+        session,
+        actor,
+        endpoint_operation="edit_plan.execute",
+        target_type="EDIT_PLAN",
+        target_id=result_plan.id,
+        demo_session=demo_session,
+    )
+    attempt = JobAttempt(
+        id=new_id(),
+        job_id=execution_job.id,
+        attempt=1,
+        status="PENDING",
+        started_at=utcnow(),
+    )
+    session.add(attempt)
+    session.commit()
+    output_asset, output_variant = _result_variant(
+        session,
+        parent_asset,
+        sha=hashlib.sha256(new_id().encode()).hexdigest(),
+        variant_type="demo_p3_p7_followup_result",
+    )
+    tool_run = _insert_demo_row(
+        session,
+        DemoToolRun,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        edit_operation_id=operation.id,
+        edit_operation_digest=operation.content_digest,
+        demo_job_binding_id=execution_binding.id,
+        formal_job_attempt_id=attempt.id,
+        tool_name="fixture-contrast",
+        tool_version="fixture-contrast-v1",
+        input_asset_id=parent_asset.id,
+        input_asset_sha256=parent_asset.sha256,
+        output_asset_id=output_asset.id,
+        output_asset_sha256=output_asset.sha256,
+        effect_contract={"identity_preserved": 1},
+        outcome="COMPLETED",
+    )
+    _, verification_binding = _insert_job_binding(
+        session,
+        actor,
+        endpoint_operation="tool.verify",
+        target_type="TOOL_RUN",
+        target_id=tool_run.id,
+        demo_session=demo_session,
+    )
+    image_id = new_id()
+    verification_fields: dict[str, Any] = {
+        "demo_actor_id": actor.id,
+        "demo_session_id": demo_session.id,
+        "tool_run_id": tool_run.id,
+        "image_version_id": image_id,
+        "demo_job_binding_id": verification_binding.id,
+        "output_asset_id": output_asset.id,
+        "output_asset_sha256": output_asset.sha256,
+        "verifier_version": "fixture-verify-v1",
+        "config_digest": "f" * 64,
+        "metrics": {"identity_ppm": 1_000_000},
+        "thresholds": {"identity_min_ppm": 900_000},
+        "outcome": "PASS",
+        "reason_codes": [],
+    }
+    if verification_overrides:
+        verification_fields.update(verification_overrides)
+    verification = _build_demo_row(DemoVerificationResult, **verification_fields)
+    image_fields: dict[str, Any] = {
+        "demo_actor_id": actor.id,
+        "demo_session_id": demo_session.id,
+        "editing_session_id": editing_session.id,
+        "sequence": 2,
+        "parent_version_id": parent_image.id,
+        "source_asset_id": parent_asset.id,
+        "source_asset_sha256": parent_asset.sha256,
+        "result_asset_id": output_asset.id,
+        "result_asset_sha256": output_asset.sha256,
+        "result_asset_variant_id": output_variant.id,
+        "version_kind": "EDITED",
+        "plan_digest": result_plan.content_digest,
+        "tool_run_digest": tool_run.content_digest,
+        "verifier_digest": verification.content_digest,
+    }
+    if image_overrides:
+        image_fields.update(image_overrides)
+    image = _build_demo_row(DemoImageVersion, row_id=image_id, **image_fields)
+    return {
+        "image": image,
+        "verification": verification,
+        "request_plan": request_plan,
+        "result_plan": result_plan,
+        "operation": operation,
+        "tool_run": tool_run,
+        "output_asset": output_asset,
+        "output_variant": output_variant,
+        "execution_binding": execution_binding,
+        "attempt": attempt,
+    }
+
+
+def _prepare_execution_step(
+    session: Session,
+    graph: dict[str, Any],
+    *,
+    parent_image: DemoImageVersion,
+    parent_asset: Asset,
+    result_plan: DemoEditPlan,
+    operation: DemoEditOperation,
+    execution_binding: DemoJobBinding,
+    attempt: JobAttempt,
+    sequence: int,
+    marker: str,
+    version_kind: str = "EDITED",
+    verification_outcome: str = "PASS",
+) -> dict[str, Any]:
+    actor = graph["actor"]
+    demo_session = graph["session"]
+    editing_session = graph["editing_session"]
+    output_asset, output_variant = _result_variant(
+        session,
+        parent_asset,
+        sha=hashlib.sha256(f"{marker}-{new_id()}".encode()).hexdigest(),
+        variant_type=f"demo_p3_p7_{marker}",
+    )
+    tool_run = _insert_demo_row(
+        session,
+        DemoToolRun,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        edit_operation_id=operation.id,
+        edit_operation_digest=operation.content_digest,
+        demo_job_binding_id=execution_binding.id,
+        formal_job_attempt_id=attempt.id,
+        tool_name=f"fixture-{marker}",
+        tool_version="fixture-step-v1",
+        input_asset_id=parent_asset.id,
+        input_asset_sha256=parent_asset.sha256,
+        output_asset_id=output_asset.id,
+        output_asset_sha256=output_asset.sha256,
+        effect_contract={"identity_preserved": 1},
+        outcome="COMPLETED",
+    )
+    _, verification_binding = _insert_job_binding(
+        session,
+        actor,
+        endpoint_operation="tool.verify",
+        target_type="TOOL_RUN",
+        target_id=tool_run.id,
+        demo_session=demo_session,
+    )
+    image_id = new_id()
+    verification = _build_demo_row(
+        DemoVerificationResult,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        tool_run_id=tool_run.id,
+        image_version_id=image_id,
+        demo_job_binding_id=verification_binding.id,
+        output_asset_id=output_asset.id,
+        output_asset_sha256=output_asset.sha256,
+        verifier_version="fixture-verify-v1",
+        config_digest=hashlib.sha256(f"verify-{marker}".encode()).hexdigest(),
+        metrics={"identity_ppm": 1_000_000},
+        thresholds={"identity_min_ppm": 900_000},
+        outcome=verification_outcome,
+        reason_codes=[] if verification_outcome == "PASS" else ["fixture_rejected"],
+    )
+    image = _build_demo_row(
+        DemoImageVersion,
+        row_id=image_id,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        editing_session_id=editing_session.id,
+        sequence=sequence,
+        parent_version_id=parent_image.id,
+        source_asset_id=parent_asset.id,
+        source_asset_sha256=parent_asset.sha256,
+        result_asset_id=output_asset.id,
+        result_asset_sha256=output_asset.sha256,
+        result_asset_variant_id=output_variant.id,
+        version_kind=version_kind,
+        plan_digest=result_plan.content_digest,
+        tool_run_digest=tool_run.content_digest,
+        verifier_digest=verification.content_digest,
+    )
+    return {
+        "image": image,
+        "verification": verification,
+        "tool_run": tool_run,
+        "output_asset": output_asset,
+        "output_variant": output_variant,
+    }
+
+
+def _commit_execution_pair(session: Session, step: dict[str, Any]) -> None:
+    session.add(step["image"])
+    session.flush()
+    session.add(step["verification"])
+    session.commit()
+
+
+def _insert_two_operation_execution(session: Session, graph: dict[str, Any]) -> dict[str, Any]:
+    actor = graph["actor"]
+    demo_session = graph["session"]
+    editing_session = graph["editing_session"]
+    operation_specs: list[dict[str, Any]] = [
+        {
+            "engine": "RASTER",
+            "operation_type": "fixture_exposure",
+            "parameters": {"exposure_ppm": 15_000},
+            "preserve": ["identity"],
+            "expected_effect": {"exposure_ppm": 15_000},
+        },
+        {
+            "engine": "RASTER",
+            "operation_type": "fixture_saturation",
+            "parameters": {"saturation_ppm": 20_000},
+            "preserve": ["identity"],
+            "expected_effect": {"saturation_ppm": 20_000},
+        },
+    ]
+    plan_fields = {
+        "demo_actor_id": actor.id,
+        "demo_session_id": demo_session.id,
+        "editing_session_id": editing_session.id,
+        "input_image_version_id": graph["image1"].id,
+        "plan_version": 2,
+        "desired_delta_profile_digest": graph["desired_delta"].content_digest,
+        "style_profile_digest": graph["style"].content_digest,
+        "identity_constraints_digest": graph["constraints"].content_digest,
+        "instruction_digest": editing_session.instruction_digest,
+        "planner_version": "fixture-planner-v1",
+        "tool_registry_version": editing_session.tool_registry_version,
+    }
+    request_plan = _insert_demo_row(
+        session,
+        DemoEditPlan,
+        **plan_fields,
+        record_kind="REQUEST",
+        request_plan_id=None,
+        operation_specs=[],
+    )
+    result_plan = _insert_demo_row(
+        session,
+        DemoEditPlan,
+        **plan_fields,
+        record_kind="RESULT",
+        request_plan_id=request_plan.id,
+        operation_specs=operation_specs,
+    )
+    operations = [
+        _insert_demo_row(
+            session,
+            DemoEditOperation,
+            demo_actor_id=actor.id,
+            demo_session_id=demo_session.id,
+            edit_plan_id=result_plan.id,
+            operation_index=index,
+            engine=operation_spec["engine"],
+            operation_type=operation_spec["operation_type"],
+            parameters=operation_spec["parameters"],
+            preserve=operation_spec["preserve"],
+            expected_effect=operation_spec["expected_effect"],
+        )
+        for index, operation_spec in enumerate(operation_specs)
+    ]
+    execution_job, execution_binding = _insert_job_binding(
+        session,
+        actor,
+        endpoint_operation="edit_plan.execute",
+        target_type="EDIT_PLAN",
+        target_id=result_plan.id,
+        demo_session=demo_session,
+    )
+    attempt = JobAttempt(
+        id=new_id(),
+        job_id=execution_job.id,
+        attempt=1,
+        status="PENDING",
+        started_at=utcnow(),
+    )
+    session.add(attempt)
+    session.commit()
+    first_step = _prepare_execution_step(
+        session,
+        graph,
+        parent_image=graph["image1"],
+        parent_asset=graph["image1_asset"],
+        result_plan=result_plan,
+        operation=operations[0],
+        execution_binding=execution_binding,
+        attempt=attempt,
+        sequence=2,
+        marker="multi_operation_0",
+    )
+    _commit_execution_pair(session, first_step)
+    second_step = _prepare_execution_step(
+        session,
+        graph,
+        parent_image=first_step["image"],
+        parent_asset=first_step["output_asset"],
+        result_plan=result_plan,
+        operation=operations[1],
+        execution_binding=execution_binding,
+        attempt=attempt,
+        sequence=3,
+        marker="multi_operation_1",
+    )
+    _commit_execution_pair(session, second_step)
+    return {
+        "request_plan": request_plan,
+        "result_plan": result_plan,
+        "operations": operations,
+        "execution_binding": execution_binding,
+        "attempt": attempt,
+        "first_step": first_step,
+        "second_step": second_step,
+    }
+
+
 def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -> dict[str, Any]:
     """Insert one valid authority lineage spanning every Demo table."""
 
@@ -383,6 +819,10 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         session,
         DemoSyntheticIdentity,
         formal_synthetic_identity_id=formal_identity.id,
+        formal_canonical_asset_id=source_asset.id,
+        formal_canonical_asset_sha256=source_asset.sha256,
+        formal_accepted_qa_run_id=formal_identity.accepted_qa_run_id,
+        formal_accepted_qa_snapshot_digest=_formal_qa_snapshot_digest(session, formal_identity),
         admission_sequence=1,
         admission_action="ADMIT",
         admission_config_digest=digest("1"),
@@ -650,7 +1090,12 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         closed_at=None,
         tombstoned_at=None,
     )
-    image0_asset = _result_asset(session, source_asset, sha=digest("d"))
+    image0_asset, image0_variant = _result_variant(
+        session,
+        source_asset,
+        sha=digest("d"),
+        variant_type="demo_p3_p7_original_snapshot",
+    )
     image0 = _insert_demo_row(
         session,
         DemoImageVersion,
@@ -660,8 +1105,10 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         sequence=0,
         parent_version_id=None,
         source_asset_id=source_asset.id,
+        source_asset_sha256=source_asset.sha256,
         result_asset_id=image0_asset.id,
-        result_asset_variant_id=None,
+        result_asset_sha256=image0_asset.sha256,
+        result_asset_variant_id=image0_variant.id,
         version_kind="ORIGINAL",
         plan_digest=None,
         tool_run_digest=None,
@@ -688,13 +1135,20 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         request_plan_id=None,
         operation_specs=[],
     )
+    operation_spec: dict[str, Any] = {
+        "engine": "GEOMETRY",
+        "operation_type": "fixture_warp",
+        "parameters": {"delta_ppm": 10_000},
+        "preserve": ["identity"],
+        "expected_effect": {"jaw_width_ppm": 10_000},
+    }
     result_plan = _insert_demo_row(
         session,
         DemoEditPlan,
         **plan_fields,
         record_kind="RESULT",
         request_plan_id=request_plan.id,
-        operation_specs=[{"operation": "fixture"}],
+        operation_specs=[operation_spec],
     )
     operation = _insert_demo_row(
         session,
@@ -703,11 +1157,11 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         demo_session_id=demo_session.id,
         edit_plan_id=result_plan.id,
         operation_index=0,
-        engine="GEOMETRY",
-        operation_type="fixture_warp",
-        parameters={"delta_ppm": 10_000},
-        preserve=["identity"],
-        expected_effect={"jaw_width_ppm": 10_000},
+        engine=operation_spec["engine"],
+        operation_type=operation_spec["operation_type"],
+        parameters=operation_spec["parameters"],
+        preserve=operation_spec["preserve"],
+        expected_effect=operation_spec["expected_effect"],
     )
     execution_job, execution_binding = _insert_job_binding(
         session,
@@ -735,6 +1189,7 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         demo_actor_id=actor.id,
         demo_session_id=demo_session.id,
         edit_operation_id=operation.id,
+        edit_operation_digest=operation.content_digest,
         demo_job_binding_id=execution_binding.id,
         formal_job_attempt_id=attempt.id,
         tool_name="fixture-tool",
@@ -746,22 +1201,6 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         effect_contract={"identity_preserved": 1},
         outcome="COMPLETED",
     )
-    image1 = _insert_demo_row(
-        session,
-        DemoImageVersion,
-        demo_actor_id=actor.id,
-        demo_session_id=demo_session.id,
-        editing_session_id=editing_session.id,
-        sequence=1,
-        parent_version_id=image0.id,
-        source_asset_id=image0_asset.id,
-        result_asset_id=image1_asset.id,
-        result_asset_variant_id=image1_variant.id,
-        version_kind="EDITED",
-        plan_digest=result_plan.content_digest,
-        tool_run_digest=tool_run.content_digest,
-        verifier_digest=digest("f"),
-    )
     _, verification_binding = _insert_job_binding(
         session,
         actor,
@@ -770,13 +1209,13 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         target_id=tool_run.id,
         demo_session=demo_session,
     )
-    verification = _insert_demo_row(
-        session,
+    image1_id = new_id()
+    verification = _build_demo_row(
         DemoVerificationResult,
         demo_actor_id=actor.id,
         demo_session_id=demo_session.id,
         tool_run_id=tool_run.id,
-        image_version_id=image1.id,
+        image_version_id=image1_id,
         demo_job_binding_id=verification_binding.id,
         output_asset_id=image1_asset.id,
         output_asset_sha256=image1_asset.sha256,
@@ -787,6 +1226,28 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         outcome="PASS",
         reason_codes=[],
     )
+    image1 = _build_demo_row(
+        DemoImageVersion,
+        row_id=image1_id,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        editing_session_id=editing_session.id,
+        sequence=1,
+        parent_version_id=image0.id,
+        source_asset_id=image0_asset.id,
+        source_asset_sha256=image0_asset.sha256,
+        result_asset_id=image1_asset.id,
+        result_asset_sha256=image1_asset.sha256,
+        result_asset_variant_id=image1_variant.id,
+        version_kind="EDITED",
+        plan_digest=result_plan.content_digest,
+        tool_run_digest=tool_run.content_digest,
+        verifier_digest=verification.content_digest,
+    )
+    session.add(image1)
+    session.flush()
+    session.add(verification)
+    session.commit()
     accepted_event = _insert_preference_event(
         session,
         actor,
@@ -841,6 +1302,7 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         "actor": actor,
         "session": demo_session,
         "source_asset": source_asset,
+        "formal_identity": formal_identity,
         "synthetic_identity": synthetic_identity,
         "observation": observation,
         "repeats": repeats,
@@ -860,6 +1322,8 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         "reference_profile": reference_profile,
         "editing_session": editing_session,
         "image0": image0,
+        "image0_asset": image0_asset,
+        "image0_variant": image0_variant,
         "request_plan": request_plan,
         "result_plan": result_plan,
         "operation": operation,
@@ -867,6 +1331,7 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         "tool_run": tool_run,
         "image1": image1,
         "image1_asset": image1_asset,
+        "image1_variant": image1_variant,
         "verification": verification,
         "accepted_event": accepted_event,
         "aesthetic_profile": aesthetic_profile,
@@ -878,6 +1343,856 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
             session, graph, [image0.content_digest, image1.content_digest]
         )
     return graph
+
+
+def test_formal_qa_snapshot_digest_is_deterministic_and_frozen(
+    session: Session,
+) -> None:
+    source_asset, formal_identity = _accepted_synthetic_source(session)
+    first_digest = _formal_qa_snapshot_digest(session, formal_identity)
+    second_digest = _formal_qa_snapshot_digest(session, formal_identity)
+    assert first_digest == second_digest
+
+    admission = _insert_demo_row(
+        session,
+        DemoSyntheticIdentity,
+        **_synthetic_admission_fields(
+            session,
+            source_asset,
+            formal_identity,
+            sequence=1,
+            action="ADMIT",
+            supersedes_id=None,
+            config_marker="deterministic-admit",
+        ),
+    )
+    assert admission.formal_accepted_qa_snapshot_digest == first_digest
+    assert admission.formal_canonical_asset_sha256 == source_asset.sha256
+
+
+def test_synthetic_admission_rejects_mismatched_formal_snapshot(session: Session) -> None:
+    source_asset, formal_identity = _accepted_synthetic_source(session)
+    alternate_asset = _result_asset(
+        session,
+        source_asset,
+        sha=hashlib.sha256(b"alternate-admission-asset").hexdigest(),
+    )
+    valid_fields = _synthetic_admission_fields(
+        session,
+        source_asset,
+        formal_identity,
+        sequence=1,
+        action="ADMIT",
+        supersedes_id=None,
+        config_marker="snapshot-mismatch",
+    )
+    mismatches = (
+        {"formal_canonical_asset_sha256": hashlib.sha256(b"wrong-sha").hexdigest()},
+        {"formal_accepted_qa_snapshot_digest": hashlib.sha256(b"wrong-qa-snapshot").hexdigest()},
+        {
+            "formal_canonical_asset_id": alternate_asset.id,
+            "formal_canonical_asset_sha256": alternate_asset.sha256,
+        },
+    )
+    for mismatch in mismatches:
+        fields = {**valid_fields, **mismatch}
+        with pytest.raises(
+            DBAPIError,
+            match="Demo synthetic identity snapshot does not match formal authority",
+        ):
+            _insert_demo_row(session, DemoSyntheticIdentity, **fields)
+        session.rollback()
+
+
+def test_synthetic_admission_allows_admit_revoke_readmit_chain(session: Session) -> None:
+    source_asset, formal_identity = _accepted_synthetic_source(session)
+    first_admit = _insert_demo_row(
+        session,
+        DemoSyntheticIdentity,
+        **_synthetic_admission_fields(
+            session,
+            source_asset,
+            formal_identity,
+            sequence=1,
+            action="ADMIT",
+            supersedes_id=None,
+            config_marker="chain-admit-1",
+        ),
+    )
+    revoke = _insert_demo_row(
+        session,
+        DemoSyntheticIdentity,
+        **_synthetic_admission_fields(
+            session,
+            source_asset,
+            formal_identity,
+            sequence=2,
+            action="REVOKE",
+            supersedes_id=first_admit.id,
+            config_marker="chain-revoke",
+        ),
+    )
+    second_admit = _insert_demo_row(
+        session,
+        DemoSyntheticIdentity,
+        **_synthetic_admission_fields(
+            session,
+            source_asset,
+            formal_identity,
+            sequence=3,
+            action="ADMIT",
+            supersedes_id=revoke.id,
+            config_marker="chain-admit-2",
+        ),
+    )
+    assert second_admit.admission_sequence == 3
+    assert second_admit.supersedes_id == revoke.id
+    assert second_admit.formal_accepted_qa_snapshot_digest == (
+        first_admit.formal_accepted_qa_snapshot_digest
+    )
+
+
+def test_synthetic_admission_rejects_invalid_successor_chain_and_snapshot(
+    session: Session,
+) -> None:
+    source_asset, formal_identity = _accepted_synthetic_source(session)
+    first_admit = _insert_demo_row(
+        session,
+        DemoSyntheticIdentity,
+        **_synthetic_admission_fields(
+            session,
+            source_asset,
+            formal_identity,
+            sequence=1,
+            action="ADMIT",
+            supersedes_id=None,
+            config_marker="invalid-successor-root",
+        ),
+    )
+    invalid_chains = (
+        {
+            "admission_sequence": 3,
+            "admission_action": "REVOKE",
+            "supersedes_id": first_admit.id,
+        },
+        {
+            "admission_sequence": 2,
+            "admission_action": "REVOKE",
+            "supersedes_id": new_id(),
+        },
+        {
+            "admission_sequence": 2,
+            "admission_action": "ADMIT",
+            "supersedes_id": first_admit.id,
+        },
+    )
+    for chain_override in invalid_chains:
+        fields = _synthetic_admission_fields(
+            session,
+            source_asset,
+            formal_identity,
+            sequence=2,
+            action="REVOKE",
+            supersedes_id=first_admit.id,
+            config_marker=f"invalid-chain-{chain_override}",
+        )
+        fields.update(chain_override)
+        with pytest.raises(
+            DBAPIError,
+            match="Demo synthetic identity admission chain is not latest",
+        ):
+            _insert_demo_row(session, DemoSyntheticIdentity, **fields)
+        session.rollback()
+
+    wrong_snapshot = _synthetic_admission_fields(
+        session,
+        source_asset,
+        formal_identity,
+        sequence=2,
+        action="REVOKE",
+        supersedes_id=first_admit.id,
+        config_marker="invalid-revoke-snapshot",
+    )
+    wrong_snapshot["formal_canonical_asset_sha256"] = hashlib.sha256(
+        b"invalid-revoke-snapshot"
+    ).hexdigest()
+    with pytest.raises(
+        DBAPIError,
+        match="Demo synthetic revocation must copy the frozen snapshot",
+    ):
+        _insert_demo_row(session, DemoSyntheticIdentity, **wrong_snapshot)
+    session.rollback()
+
+
+def test_stale_synthetic_admission_cannot_create_observation_or_pair(
+    session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    stale_admit = graph["synthetic_identity"]
+    revoke = _insert_demo_row(
+        session,
+        DemoSyntheticIdentity,
+        **_synthetic_admission_fields(
+            session,
+            graph["source_asset"],
+            graph["formal_identity"],
+            sequence=2,
+            action="REVOKE",
+            supersedes_id=stale_admit.id,
+            config_marker="stale-revoke",
+        ),
+    )
+    assert revoke.admission_action == "REVOKE"
+
+    observation = graph["observation"]
+    with pytest.raises(
+        DBAPIError,
+        match="Demo synthetic admission is not the current eligible row",
+    ):
+        _insert_demo_row(
+            session,
+            DemoFaceObservation,
+            demo_actor_id=observation.demo_actor_id,
+            demo_session_id=observation.demo_session_id,
+            demo_synthetic_identity_id=stale_admit.id,
+            source_asset_id=observation.source_asset_id,
+            source_asset_sha256=observation.source_asset_sha256,
+            analyzer_version=observation.analyzer_version,
+            runtime_manifest_digest=observation.runtime_manifest_digest,
+            config_digest=observation.config_digest,
+            repeat_count=observation.repeat_count,
+            observation_state=observation.observation_state,
+            unsupported_reason=observation.unsupported_reason,
+        )
+    session.rollback()
+
+    pair = graph["question_pair"]
+    with pytest.raises(
+        DBAPIError,
+        match="Demo synthetic admission is not the current eligible row",
+    ):
+        _insert_demo_row(
+            session,
+            DemoQuestionPair,
+            question_bank_id=pair.question_bank_id,
+            demo_synthetic_identity_id=stale_admit.id,
+            source_asset_id=pair.source_asset_id,
+            source_asset_sha256=pair.source_asset_sha256,
+            left_asset_id=pair.left_asset_id,
+            left_asset_sha256=pair.left_asset_sha256,
+            right_asset_id=pair.right_asset_id,
+            right_asset_sha256=pair.right_asset_sha256,
+            left_asset_variant_id=pair.left_asset_variant_id,
+            right_asset_variant_id=pair.right_asset_variant_id,
+            dimension_key=pair.dimension_key,
+            magnitude_ppm=pair.magnitude_ppm,
+            left_delta_ppm=pair.left_delta_ppm,
+            right_delta_ppm=pair.right_delta_ppm,
+            pair_quality_ppm=pair.pair_quality_ppm,
+            qa_payload=pair.qa_payload,
+        )
+    session.rollback()
+
+
+def test_revoke_can_capture_formal_asset_tombstone_but_readmit_fails_closed(
+    session: Session,
+) -> None:
+    source_asset, formal_identity = _accepted_synthetic_source(session)
+    admit = _insert_demo_row(
+        session,
+        DemoSyntheticIdentity,
+        **_synthetic_admission_fields(
+            session,
+            source_asset,
+            formal_identity,
+            sequence=1,
+            action="ADMIT",
+            supersedes_id=None,
+            config_marker="tombstone-admit",
+        ),
+    )
+    savepoint = session.begin_nested()
+    try:
+        source_asset.deleted_at = datetime(2026, 8, 23, 8, 0, tzinfo=UTC)
+        session.flush()
+        revoke = _build_demo_row(
+            DemoSyntheticIdentity,
+            **_synthetic_admission_fields(
+                session,
+                source_asset,
+                formal_identity,
+                sequence=2,
+                action="REVOKE",
+                supersedes_id=admit.id,
+                config_marker="tombstone-revoke",
+            ),
+        )
+        session.add(revoke)
+        session.flush()
+        assert revoke.formal_canonical_asset_sha256 == admit.formal_canonical_asset_sha256
+
+        readmit = _build_demo_row(
+            DemoSyntheticIdentity,
+            **_synthetic_admission_fields(
+                session,
+                source_asset,
+                formal_identity,
+                sequence=3,
+                action="ADMIT",
+                supersedes_id=revoke.id,
+                config_marker="tombstone-readmit",
+            ),
+        )
+        session.add(readmit)
+        with pytest.raises(
+            DBAPIError,
+            match="Demo synthetic identity snapshot does not match formal authority",
+        ):
+            session.flush()
+    finally:
+        savepoint.rollback()
+        session.expire_all()
+    restored_asset = session.get(Asset, source_asset.id)
+    assert restored_asset is not None
+    assert restored_asset.deleted_at is None
+
+
+def test_concurrent_synthetic_admission_successor_has_one_winner(
+    session: Session,
+) -> None:
+    source_asset, formal_identity = _accepted_synthetic_source(session)
+    first_admit = _insert_demo_row(
+        session,
+        DemoSyntheticIdentity,
+        **_synthetic_admission_fields(
+            session,
+            source_asset,
+            formal_identity,
+            sequence=1,
+            action="ADMIT",
+            supersedes_id=None,
+            config_marker="concurrent-admit",
+        ),
+    )
+    database_url = os.environ["TEST_DATABASE_URL"]
+    base_fields = _synthetic_admission_fields(
+        session,
+        source_asset,
+        formal_identity,
+        sequence=2,
+        action="REVOKE",
+        supersedes_id=first_admit.id,
+        config_marker="concurrent-placeholder",
+    )
+    barrier = Barrier(2)
+
+    def append_successor(marker: str) -> str:
+        engine = create_engine(database_url)
+        try:
+            with Session(engine) as worker_session:
+                fields = {
+                    **base_fields,
+                    "admission_config_digest": hashlib.sha256(marker.encode()).hexdigest(),
+                }
+                worker_session.add(_build_demo_row(DemoSyntheticIdentity, **fields))
+                barrier.wait(timeout=10)
+                try:
+                    worker_session.commit()
+                except (DBAPIError, IntegrityError):
+                    worker_session.rollback()
+                    return "conflict"
+                return "created"
+        finally:
+            engine.dispose()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = sorted(executor.map(append_successor, ("left", "right")))
+    assert results == ["conflict", "created"]
+    session.expire_all()
+    latest = session.scalar(
+        select(DemoSyntheticIdentity)
+        .where(DemoSyntheticIdentity.formal_synthetic_identity_id == formal_identity.id)
+        .order_by(DemoSyntheticIdentity.admission_sequence.desc())
+    )
+    assert latest is not None
+    assert latest.admission_sequence == 2
+    assert latest.admission_action == "REVOKE"
+
+
+def test_image_verification_matching_bidirectional_edge_commits(session: Session) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    step = _prepare_followup_execution(session, graph)
+    _commit_execution_pair(session, step)
+    assert step["image"].sequence == 2
+    assert step["verification"].image_version_id == step["image"].id
+    assert step["image"].verifier_digest == step["verification"].content_digest
+
+
+def test_original_image_rejects_execution_authority(session: Session) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    editing_session = _insert_demo_row(
+        session,
+        DemoEditingSession,
+        demo_actor_id=graph["actor"].id,
+        demo_session_id=graph["session"].id,
+        source_asset_id=graph["source_asset"].id,
+        source_asset_sha256=graph["source_asset"].sha256,
+        desired_delta_profile_digest=graph["desired_delta"].content_digest,
+        style_profile_digest=graph["style"].content_digest,
+        identity_constraints_digest=graph["constraints"].content_digest,
+        context_digest=hashlib.sha256(b"second-editing-context").hexdigest(),
+        instruction_digest=hashlib.sha256(b"second-editing-instruction").hexdigest(),
+        tool_registry_version="fixture-tools-v1",
+        closed_at=None,
+        tombstoned_at=None,
+    )
+    result_asset, result_variant = _result_variant(
+        session,
+        graph["source_asset"],
+        sha=hashlib.sha256(b"invalid-original-execution").hexdigest(),
+        variant_type="demo_p3_p7_invalid_original",
+    )
+    original = _build_demo_row(
+        DemoImageVersion,
+        demo_actor_id=graph["actor"].id,
+        demo_session_id=graph["session"].id,
+        editing_session_id=editing_session.id,
+        sequence=0,
+        parent_version_id=None,
+        source_asset_id=graph["source_asset"].id,
+        source_asset_sha256=graph["source_asset"].sha256,
+        result_asset_id=result_asset.id,
+        result_asset_sha256=result_asset.sha256,
+        result_asset_variant_id=result_variant.id,
+        version_kind="ORIGINAL",
+        plan_digest=graph["result_plan"].content_digest,
+        tool_run_digest=None,
+        verifier_digest=None,
+    )
+    session.add(original)
+    with pytest.raises(DBAPIError):
+        session.flush()
+    session.rollback()
+
+
+@pytest.mark.parametrize("edge", ("image", "verification"))
+def test_image_verification_half_edge_fails_at_commit(session: Session, edge: str) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    step = _prepare_followup_execution(session, graph)
+    session.add(step[edge])
+    with pytest.raises(DBAPIError):
+        session.commit()
+    session.rollback()
+
+
+@pytest.mark.parametrize(
+    ("digest_field", "digest_value"),
+    (
+        ("plan_digest", None),
+        ("tool_run_digest", None),
+        ("verifier_digest", None),
+        ("plan_digest", "1" * 64),
+        ("tool_run_digest", "2" * 64),
+        ("verifier_digest", "3" * 64),
+    ),
+)
+def test_derived_image_rejects_missing_or_arbitrary_lineage_digest(
+    session: Session, digest_field: str, digest_value: str | None
+) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    step = _prepare_followup_execution(
+        session,
+        graph,
+        image_overrides={digest_field: digest_value},
+    )
+    session.add(step["image"])
+    with pytest.raises(DBAPIError):
+        session.flush()
+        session.add(step["verification"])
+        session.commit()
+    session.rollback()
+
+
+@pytest.mark.parametrize("mismatch", ("source_sha", "result_sha", "asset_variant"))
+def test_derived_image_rejects_asset_snapshot_or_variant_mismatch(
+    session: Session, mismatch: str
+) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    override = {
+        "source_sha": {"source_asset_sha256": hashlib.sha256(b"wrong-source-sha").hexdigest()},
+        "result_sha": {"result_asset_sha256": hashlib.sha256(b"wrong-result-sha").hexdigest()},
+        "asset_variant": {"result_asset_variant_id": graph["image1_variant"].id},
+    }[mismatch]
+    step = _prepare_followup_execution(session, graph, image_overrides=override)
+    session.add(step["image"])
+    with pytest.raises(DBAPIError):
+        session.flush()
+    session.rollback()
+
+
+@pytest.mark.parametrize(
+    ("version_kind", "verification_outcome"),
+    (("QUARANTINED", "FAIL"), ("QUARANTINED", "HUMAN_REVIEW")),
+)
+def test_image_verifier_valid_outcome_mapping_commits(
+    session: Session, version_kind: str, verification_outcome: str
+) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    step = _prepare_followup_execution(
+        session,
+        graph,
+        image_overrides={"version_kind": version_kind},
+        verification_overrides={"outcome": verification_outcome},
+    )
+    _commit_execution_pair(session, step)
+    assert step["image"].version_kind == version_kind
+    assert step["verification"].outcome == verification_outcome
+
+
+@pytest.mark.parametrize(
+    ("version_kind", "verification_outcome"),
+    (
+        ("EDITED", "FAIL"),
+        ("RESTORED", "HUMAN_REVIEW"),
+        ("ROLLED_BACK", "FAIL"),
+        ("QUARANTINED", "PASS"),
+    ),
+)
+def test_image_verifier_invalid_outcome_mapping_fails_closed(
+    session: Session, version_kind: str, verification_outcome: str
+) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    step = _prepare_followup_execution(
+        session,
+        graph,
+        image_overrides={"version_kind": version_kind},
+        verification_overrides={"outcome": verification_outcome},
+    )
+    session.add(step["image"])
+    session.flush()
+    session.add(step["verification"])
+    with pytest.raises(DBAPIError):
+        session.commit()
+    session.rollback()
+
+
+def test_tool_run_requires_exact_operation_digest(session: Session) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    binding = graph["execution_binding"]
+    attempt = JobAttempt(
+        id=new_id(),
+        job_id=binding.job_id,
+        attempt=2,
+        status="PENDING",
+        started_at=utcnow(),
+    )
+    session.add(attempt)
+    session.commit()
+    output_asset = _result_asset(
+        session,
+        graph["image0_asset"],
+        sha=hashlib.sha256(b"operation-digest-output").hexdigest(),
+    )
+    with pytest.raises(DBAPIError, match="Demo ToolRun JobAttempt ownership mismatch"):
+        _insert_demo_row(
+            session,
+            DemoToolRun,
+            demo_actor_id=graph["actor"].id,
+            demo_session_id=graph["session"].id,
+            edit_operation_id=graph["operation"].id,
+            edit_operation_digest=hashlib.sha256(b"wrong-operation-digest").hexdigest(),
+            demo_job_binding_id=binding.id,
+            formal_job_attempt_id=attempt.id,
+            tool_name="fixture-wrong-operation",
+            tool_version="fixture-v1",
+            input_asset_id=graph["image0_asset"].id,
+            input_asset_sha256=graph["image0_asset"].sha256,
+            output_asset_id=output_asset.id,
+            output_asset_sha256=output_asset.sha256,
+            effect_contract={"identity_preserved": 1},
+            outcome="COMPLETED",
+        )
+    session.rollback()
+
+
+def test_image_execution_rejects_cross_owner_plan_digest(session: Session) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    other_actor = _insert_actor(session)
+    other_session = _insert_session(session, other_actor, config={"foreign-plan": 1})
+    other_editing = _insert_demo_row(
+        session,
+        DemoEditingSession,
+        demo_actor_id=other_actor.id,
+        demo_session_id=other_session.id,
+        source_asset_id=graph["source_asset"].id,
+        source_asset_sha256=graph["source_asset"].sha256,
+        desired_delta_profile_digest="4" * 64,
+        style_profile_digest="5" * 64,
+        identity_constraints_digest="6" * 64,
+        context_digest="7" * 64,
+        instruction_digest="8" * 64,
+        tool_registry_version="fixture-tools-v1",
+        closed_at=None,
+        tombstoned_at=None,
+    )
+    other_image_asset, other_image_variant = _result_variant(
+        session,
+        graph["source_asset"],
+        sha=hashlib.sha256(b"foreign-plan-original").hexdigest(),
+        variant_type="demo_p3_p7_foreign_plan_original",
+    )
+    other_image = _insert_demo_row(
+        session,
+        DemoImageVersion,
+        demo_actor_id=other_actor.id,
+        demo_session_id=other_session.id,
+        editing_session_id=other_editing.id,
+        sequence=0,
+        parent_version_id=None,
+        source_asset_id=graph["source_asset"].id,
+        source_asset_sha256=graph["source_asset"].sha256,
+        result_asset_id=other_image_asset.id,
+        result_asset_sha256=other_image_asset.sha256,
+        result_asset_variant_id=other_image_variant.id,
+        version_kind="ORIGINAL",
+        plan_digest=None,
+        tool_run_digest=None,
+        verifier_digest=None,
+    )
+    foreign_plan_fields = {
+        "demo_actor_id": other_actor.id,
+        "demo_session_id": other_session.id,
+        "editing_session_id": other_editing.id,
+        "input_image_version_id": other_image.id,
+        "plan_version": 1,
+        "desired_delta_profile_digest": "4" * 64,
+        "style_profile_digest": "5" * 64,
+        "identity_constraints_digest": "6" * 64,
+        "instruction_digest": other_editing.instruction_digest,
+        "planner_version": "fixture-planner-v1",
+        "tool_registry_version": other_editing.tool_registry_version,
+    }
+    foreign_request = _insert_demo_row(
+        session,
+        DemoEditPlan,
+        **foreign_plan_fields,
+        record_kind="REQUEST",
+        request_plan_id=None,
+        operation_specs=[],
+    )
+    foreign_result = _insert_demo_row(
+        session,
+        DemoEditPlan,
+        **foreign_plan_fields,
+        record_kind="RESULT",
+        request_plan_id=foreign_request.id,
+        operation_specs=[
+            {
+                "engine": "RASTER",
+                "operation_type": "fixture_foreign",
+                "parameters": {"contrast_ppm": 1},
+                "preserve": ["identity"],
+                "expected_effect": {"contrast_ppm": 1},
+            }
+        ],
+    )
+    step = _prepare_followup_execution(
+        session,
+        graph,
+        image_overrides={"plan_digest": foreign_result.content_digest},
+    )
+    session.add(step["image"])
+    session.flush()
+    session.add(step["verification"])
+    with pytest.raises(DBAPIError, match="Demo image execution plan digest mismatch"):
+        session.commit()
+    session.rollback()
+
+
+def test_plan_operation_spec_mismatch_rejects_tool_run(session: Session) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    operation_spec = {
+        "engine": "RASTER",
+        "operation_type": "fixture_contrast",
+        "parameters": {"contrast_ppm": 25_000},
+        "preserve": ["identity"],
+        "expected_effect": {"contrast_ppm": 25_000},
+    }
+    plan_fields = {
+        "demo_actor_id": graph["actor"].id,
+        "demo_session_id": graph["session"].id,
+        "editing_session_id": graph["editing_session"].id,
+        "input_image_version_id": graph["image1"].id,
+        "plan_version": 2,
+        "desired_delta_profile_digest": graph["desired_delta"].content_digest,
+        "style_profile_digest": graph["style"].content_digest,
+        "identity_constraints_digest": graph["constraints"].content_digest,
+        "instruction_digest": graph["editing_session"].instruction_digest,
+        "planner_version": "fixture-planner-v1",
+        "tool_registry_version": graph["editing_session"].tool_registry_version,
+    }
+    request_plan = _insert_demo_row(
+        session,
+        DemoEditPlan,
+        **plan_fields,
+        record_kind="REQUEST",
+        request_plan_id=None,
+        operation_specs=[],
+    )
+    result_plan = _insert_demo_row(
+        session,
+        DemoEditPlan,
+        **plan_fields,
+        record_kind="RESULT",
+        request_plan_id=request_plan.id,
+        operation_specs=[operation_spec],
+    )
+    mismatched_operation = _insert_demo_row(
+        session,
+        DemoEditOperation,
+        demo_actor_id=graph["actor"].id,
+        demo_session_id=graph["session"].id,
+        edit_plan_id=result_plan.id,
+        operation_index=0,
+        engine=operation_spec["engine"],
+        operation_type=operation_spec["operation_type"],
+        parameters={"contrast_ppm": 30_000},
+        preserve=operation_spec["preserve"],
+        expected_effect=operation_spec["expected_effect"],
+    )
+    execution_job, execution_binding = _insert_job_binding(
+        session,
+        graph["actor"],
+        endpoint_operation="edit_plan.execute",
+        target_type="EDIT_PLAN",
+        target_id=result_plan.id,
+        demo_session=graph["session"],
+    )
+    attempt = JobAttempt(
+        id=new_id(),
+        job_id=execution_job.id,
+        attempt=1,
+        status="PENDING",
+        started_at=utcnow(),
+    )
+    session.add(attempt)
+    session.commit()
+    output_asset = _result_asset(
+        session,
+        graph["image1_asset"],
+        sha=hashlib.sha256(b"spec-mismatch-output").hexdigest(),
+    )
+    with pytest.raises(DBAPIError, match="Demo ToolRun JobAttempt ownership mismatch"):
+        _insert_demo_row(
+            session,
+            DemoToolRun,
+            demo_actor_id=graph["actor"].id,
+            demo_session_id=graph["session"].id,
+            edit_operation_id=mismatched_operation.id,
+            edit_operation_digest=mismatched_operation.content_digest,
+            demo_job_binding_id=execution_binding.id,
+            formal_job_attempt_id=attempt.id,
+            tool_name="fixture-spec-mismatch",
+            tool_version="fixture-v1",
+            input_asset_id=graph["image1_asset"].id,
+            input_asset_sha256=graph["image1_asset"].sha256,
+            output_asset_id=output_asset.id,
+            output_asset_sha256=output_asset.sha256,
+            effect_contract={"identity_preserved": 1},
+            outcome="COMPLETED",
+        )
+    session.rollback()
+
+
+def test_multi_operation_plan_shares_execution_binding_and_attempt(
+    session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    execution = _insert_two_operation_execution(session, graph)
+    first_step = execution["first_step"]
+    second_step = execution["second_step"]
+    assert first_step["tool_run"].demo_job_binding_id == (
+        second_step["tool_run"].demo_job_binding_id
+    )
+    assert first_step["tool_run"].formal_job_attempt_id == (
+        second_step["tool_run"].formal_job_attempt_id
+    )
+    assert first_step["image"].sequence == 2
+    assert second_step["image"].sequence == 3
+    assert second_step["image"].parent_version_id == first_step["image"].id
+
+
+def test_accepted_episode_traverses_complete_multi_operation_execution(
+    session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    execution = _insert_two_operation_execution(session, graph)
+    first_step = execution["first_step"]
+    second_step = execution["second_step"]
+    final_event = _insert_preference_event(
+        session,
+        graph["actor"],
+        sequence=3,
+        previous_digest=graph["accepted_event"].content_digest,
+        signal={"accepted": 1},
+        demo_session=graph["session"],
+        event_type="IMAGE_ACCEPTED",
+        source_type="EXPLICIT_USER_ACTION",
+        target_type="IMAGE_VERSION",
+        target_id=second_step["image"].id,
+    )
+    final_graph = {
+        **graph,
+        "image1": second_step["image"],
+        "image1_asset": second_step["output_asset"],
+        "verification": second_step["verification"],
+        "accepted_event": final_event,
+    }
+    trajectory = [
+        graph["image0"].content_digest,
+        graph["image1"].content_digest,
+        first_step["image"].content_digest,
+        second_step["image"].content_digest,
+    ]
+    episode = _insert_episode(session, final_graph, trajectory)
+    assert episode.accepted_image_version_id == second_step["image"].id
+
+    wrong_verifier_graph = {
+        **final_graph,
+        "verification": first_step["verification"],
+    }
+    with pytest.raises(
+        DBAPIError,
+        match="Only verified user-accepted Demo image versions may become episodes",
+    ):
+        _insert_episode(session, wrong_verifier_graph, trajectory)
+    session.rollback()
+
+    nonfinal_event = _insert_preference_event(
+        session,
+        graph["actor"],
+        sequence=4,
+        previous_digest=final_event.content_digest,
+        signal={"accepted": 1},
+        demo_session=graph["session"],
+        event_type="IMAGE_ACCEPTED",
+        source_type="EXPLICIT_USER_ACTION",
+        target_type="IMAGE_VERSION",
+        target_id=first_step["image"].id,
+    )
+    nonfinal_graph = {
+        **graph,
+        "image1": first_step["image"],
+        "image1_asset": first_step["output_asset"],
+        "verification": first_step["verification"],
+        "accepted_event": nonfinal_event,
+    }
+    with pytest.raises(
+        DBAPIError,
+        match="Only verified user-accepted Demo image versions may become episodes",
+    ):
+        _insert_episode(session, nonfinal_graph, trajectory[:-1])
+    session.rollback()
 
 
 def test_full_demo_authority_graph_covers_every_table(session: Session) -> None:
@@ -938,7 +2253,12 @@ def test_cross_owner_and_session_references_fail_closed(session: Session) -> Non
         )
     session.rollback()
 
-    foreign_result = _result_asset(session, source_asset, sha="b" * 64)
+    foreign_result, foreign_variant = _result_variant(
+        session,
+        source_asset,
+        sha="b" * 64,
+        variant_type="demo_p3_p7_cross_owner_probe",
+    )
     with pytest.raises(DBAPIError):
         _insert_demo_row(
             session,
@@ -949,8 +2269,10 @@ def test_cross_owner_and_session_references_fail_closed(session: Session) -> Non
             sequence=0,
             parent_version_id=None,
             source_asset_id=source_asset.id,
+            source_asset_sha256=source_asset.sha256,
             result_asset_id=foreign_result.id,
-            result_asset_variant_id=None,
+            result_asset_sha256=foreign_result.sha256,
+            result_asset_variant_id=foreign_variant.id,
             version_kind="ORIGINAL",
             plan_digest=None,
             tool_run_digest=None,
@@ -1230,6 +2552,63 @@ def test_demo_metadata_and_database_objects_match(session: Session) -> None:
         text("SELECT to_regprocedure('mirror_demo_validate_terminal_binding()') IS NOT NULL")
     )
     assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+
+
+def test_demo_orm_and_database_foreign_keys_match(session: Session) -> None:
+    """Cover the cyclic foreign keys Alembic cannot include in its sort-based drift check."""
+
+    database = inspect(session.bind)
+    metadata = DemoActor.metadata
+    preparer = session.bind.dialect.identifier_preparer
+
+    def normalize(value: object) -> str:
+        return "" if value is None else str(value).upper()
+
+    def expected_foreign_keys(table_name: str) -> set[tuple[object, ...]]:
+        rows: set[tuple[object, ...]] = set()
+        for constraint in metadata.tables[table_name].foreign_key_constraints:
+            elements = list(constraint.elements)
+            rendered_name = preparer.truncate_and_render_constraint_name(conv(str(constraint.name)))
+            rows.add(
+                (
+                    rendered_name,
+                    tuple(element.parent.name for element in elements),
+                    elements[0].column.table.name,
+                    tuple(element.column.name for element in elements),
+                    normalize(constraint.ondelete),
+                    bool(constraint.deferrable),
+                    normalize(constraint.initially),
+                )
+            )
+        return rows
+
+    def actual_foreign_keys(table_name: str) -> set[tuple[object, ...]]:
+        rows: set[tuple[object, ...]] = set()
+        for foreign_key in database.get_foreign_keys(table_name):
+            options = foreign_key.get("options") or {}
+            rows.add(
+                (
+                    foreign_key.get("name") or "",
+                    tuple(foreign_key["constrained_columns"]),
+                    foreign_key["referred_table"],
+                    tuple(foreign_key["referred_columns"]),
+                    normalize(options.get("ondelete")),
+                    bool(options.get("deferrable")),
+                    normalize(options.get("initially")),
+                )
+            )
+        return rows
+
+    expected_count = 0
+    actual_count = 0
+    for table_name in DEMO_TABLE_NAMES:
+        expected = expected_foreign_keys(table_name)
+        actual = actual_foreign_keys(table_name)
+        expected_count += len(expected)
+        actual_count += len(actual)
+        assert actual == expected, table_name
+
+    assert expected_count == actual_count == 85
 
 
 def test_canonical_json_digest_and_integer_numeric_authority(session: Session) -> None:

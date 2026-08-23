@@ -130,6 +130,10 @@ def _create_session_and_p3_tables() -> None:
         "demo_synthetic_identities",
         *_common_columns(),
         sa.Column("formal_synthetic_identity_id", sa.String(length=32), nullable=False),
+        sa.Column("formal_canonical_asset_id", sa.String(length=32), nullable=False),
+        sa.Column("formal_canonical_asset_sha256", sa.String(length=64), nullable=False),
+        sa.Column("formal_accepted_qa_run_id", sa.String(length=32), nullable=False),
+        sa.Column("formal_accepted_qa_snapshot_digest", sa.String(length=64), nullable=False),
         sa.Column("admission_sequence", sa.Integer(), nullable=False),
         sa.Column("admission_action", sa.String(length=16), nullable=False),
         sa.Column("admission_config_digest", sa.String(length=64), nullable=False),
@@ -144,6 +148,18 @@ def _create_session_and_p3_tables() -> None:
             ondelete="RESTRICT",
         ),
         sa.ForeignKeyConstraint(
+            ["formal_canonical_asset_id"],
+            ["assets.id"],
+            name=op.f("fk_demo_synthetic_identities_formal_canonical_asset_id_assets"),
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["formal_accepted_qa_run_id"],
+            ["synthetic_qa_runs.id"],
+            name=op.f("fk_demo_synthetic_identities_formal_accepted_qa_run_id_synthetic_qa_runs"),
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
             ["supersedes_id"],
             ["demo_synthetic_identities.id"],
             name=op.f("fk_demo_synthetic_identities_supersedes_id_demo_synthetic_identities"),
@@ -153,6 +169,10 @@ def _create_session_and_p3_tables() -> None:
             "formal_synthetic_identity_id",
             "admission_sequence",
             name=op.f("uq_demo_synthetic_identities_formal_sequence"),
+        ),
+        sa.UniqueConstraint(
+            "supersedes_id",
+            name=op.f("uq_demo_synthetic_identities_supersedes_id"),
         ),
         sa.CheckConstraint(
             "admission_sequence > 0",
@@ -165,6 +185,14 @@ def _create_session_and_p3_tables() -> None:
         sa.CheckConstraint(
             "admission_config_digest ~ '^[0-9a-f]{64}$'",
             name=op.f("ck_demo_synthetic_identities_admission_config_digest_shape"),
+        ),
+        sa.CheckConstraint(
+            "formal_canonical_asset_sha256 ~ '^[0-9a-f]{64}$'",
+            name=op.f("ck_demo_synthetic_identities_formal_canonical_asset_sha_shape"),
+        ),
+        sa.CheckConstraint(
+            "formal_accepted_qa_snapshot_digest ~ '^[0-9a-f]{64}$'",
+            name=op.f("ck_demo_synthetic_identities_qa_snapshot_digest_shape"),
         ),
         sa.CheckConstraint(
             "supersedes_id IS NULL OR supersedes_id <> id",
@@ -1124,8 +1152,10 @@ def _create_p6_tables() -> None:
         sa.Column("sequence", sa.Integer(), nullable=False),
         sa.Column("parent_version_id", sa.String(length=32), nullable=True),
         sa.Column("source_asset_id", sa.String(length=32), nullable=False),
+        sa.Column("source_asset_sha256", sa.String(length=64), nullable=False),
         sa.Column("result_asset_id", sa.String(length=32), nullable=False),
-        sa.Column("result_asset_variant_id", sa.String(length=32), nullable=True),
+        sa.Column("result_asset_sha256", sa.String(length=64), nullable=False),
+        sa.Column("result_asset_variant_id", sa.String(length=32), nullable=False),
         sa.Column("version_kind", sa.String(length=24), nullable=False),
         sa.Column("plan_digest", sa.String(length=64), nullable=True),
         sa.Column("tool_run_digest", sa.String(length=64), nullable=True),
@@ -1181,13 +1211,25 @@ def _create_p6_tables() -> None:
             name=op.f("ck_demo_image_versions_nonnegative_sequence"),
         ),
         sa.CheckConstraint(
-            "(sequence = 0 AND parent_version_id IS NULL) OR "
-            "(sequence > 0 AND parent_version_id IS NOT NULL)",
-            name=op.f("ck_demo_image_versions_lineage_shape"),
+            "(sequence = 0 AND parent_version_id IS NULL AND version_kind = 'ORIGINAL' "
+            "AND plan_digest IS NULL AND tool_run_digest IS NULL AND verifier_digest IS NULL) OR "
+            "(sequence > 0 AND parent_version_id IS NOT NULL "
+            "AND version_kind IN ('EDITED','RESTORED','ROLLED_BACK','QUARANTINED') "
+            "AND plan_digest IS NOT NULL AND tool_run_digest IS NOT NULL "
+            "AND verifier_digest IS NOT NULL)",
+            name=op.f("ck_demo_image_versions_lineage_authority_shape"),
         ),
         sa.CheckConstraint(
             "source_asset_id <> result_asset_id",
             name=op.f("ck_demo_image_versions_distinct_source_result"),
+        ),
+        sa.CheckConstraint(
+            "source_asset_sha256 ~ '^[0-9a-f]{64}$'",
+            name=op.f("ck_demo_image_versions_source_asset_sha_shape"),
+        ),
+        sa.CheckConstraint(
+            "result_asset_sha256 ~ '^[0-9a-f]{64}$'",
+            name=op.f("ck_demo_image_versions_result_asset_sha_shape"),
         ),
         sa.CheckConstraint(
             "version_kind IN ('ORIGINAL','EDITED','RESTORED','ROLLED_BACK','QUARANTINED')",
@@ -1363,6 +1405,7 @@ def _create_p6_tables() -> None:
         sa.Column("demo_actor_id", sa.String(length=32), nullable=False),
         sa.Column("demo_session_id", sa.String(length=32), nullable=False),
         sa.Column("edit_operation_id", sa.String(length=32), nullable=False),
+        sa.Column("edit_operation_digest", sa.String(length=64), nullable=False),
         sa.Column("demo_job_binding_id", sa.String(length=32), nullable=False),
         sa.Column("formal_job_attempt_id", sa.String(length=32), nullable=False),
         sa.Column("tool_name", sa.String(length=64), nullable=False),
@@ -1408,6 +1451,15 @@ def _create_p6_tables() -> None:
             "demo_session_id",
             name=op.f("uq_demo_tool_runs_id_actor_session"),
         ),
+        sa.UniqueConstraint(
+            "formal_job_attempt_id",
+            "edit_operation_id",
+            name=op.f("uq_demo_tool_runs_attempt_operation"),
+        ),
+        sa.CheckConstraint(
+            "edit_operation_digest ~ '^[0-9a-f]{64}$'",
+            name=op.f("ck_demo_tool_runs_edit_operation_digest_shape"),
+        ),
         sa.CheckConstraint(
             "input_asset_sha256 ~ '^[0-9a-f]{64}$'",
             name=op.f("ck_demo_tool_runs_input_sha_shape"),
@@ -1437,7 +1489,7 @@ def _create_p6_tables() -> None:
         sa.Column("demo_actor_id", sa.String(length=32), nullable=False),
         sa.Column("demo_session_id", sa.String(length=32), nullable=False),
         sa.Column("tool_run_id", sa.String(length=32), nullable=False),
-        sa.Column("image_version_id", sa.String(length=32), nullable=True),
+        sa.Column("image_version_id", sa.String(length=32), nullable=False),
         sa.Column("demo_job_binding_id", sa.String(length=32), nullable=False),
         sa.Column("output_asset_id", sa.String(length=32), nullable=False),
         sa.Column("output_asset_sha256", sa.String(length=64), nullable=False),
@@ -1467,6 +1519,8 @@ def _create_p6_tables() -> None:
             ],
             name=op.f("fk_demo_verification_results_image_version_owner"),
             ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
         ),
         sa.ForeignKeyConstraint(
             ["output_asset_id"],
@@ -1878,9 +1932,55 @@ def _create_deferred_job_binding_foreign_keys() -> None:
         )
 
 
+def _create_deferred_image_execution_foreign_keys() -> None:
+    for local_column, remote_table in (
+        ("plan_digest", "demo_edit_plans"),
+        ("tool_run_digest", "demo_tool_runs"),
+        ("verifier_digest", "demo_verification_results"),
+    ):
+        op.create_foreign_key(
+            op.f(f"fk_demo_image_versions_{local_column}_{remote_table}"),
+            "demo_image_versions",
+            remote_table,
+            [local_column],
+            ["content_digest"],
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        )
+    op.create_foreign_key(
+        op.f("fk_demo_tool_runs_edit_operation_digest_demo_edit_operations"),
+        "demo_tool_runs",
+        "demo_edit_operations",
+        ["edit_operation_digest"],
+        ["content_digest"],
+        ondelete="RESTRICT",
+        deferrable=True,
+        initially="DEFERRED",
+    )
+
+
+def _drop_deferred_image_execution_foreign_keys() -> None:
+    for local_column, remote_table in (
+        ("plan_digest", "demo_edit_plans"),
+        ("tool_run_digest", "demo_tool_runs"),
+        ("verifier_digest", "demo_verification_results"),
+    ):
+        op.drop_constraint(
+            op.f(f"fk_demo_image_versions_{local_column}_{remote_table}"),
+            "demo_image_versions",
+            type_="foreignkey",
+        )
+
+
 _SINGLE_COLUMN_INDEXES: dict[str, tuple[str, ...]] = {
     "demo_sessions": ("demo_actor_id",),
-    "demo_synthetic_identities": ("formal_synthetic_identity_id", "supersedes_id"),
+    "demo_synthetic_identities": (
+        "formal_synthetic_identity_id",
+        "formal_canonical_asset_id",
+        "formal_accepted_qa_run_id",
+        "supersedes_id",
+    ),
     "demo_face_observations": (
         "demo_actor_id",
         "demo_session_id",
@@ -1967,13 +2067,14 @@ _SINGLE_COLUMN_INDEXES: dict[str, tuple[str, ...]] = {
         "demo_actor_id",
         "demo_session_id",
         "edit_operation_id",
+        "demo_job_binding_id",
+        "formal_job_attempt_id",
         "input_asset_id",
         "output_asset_id",
     ),
     "demo_verification_results": (
         "demo_actor_id",
         "demo_session_id",
-        "image_version_id",
         "output_asset_id",
     ),
     "demo_preference_events": ("demo_actor_id", "demo_session_id"),
@@ -1997,8 +2098,11 @@ _SINGLE_COLUMN_INDEXES: dict[str, tuple[str, ...]] = {
 _UNIQUE_SINGLE_COLUMN_INDEXES: dict[str, tuple[str, ...]] = {
     "demo_self_transfer_runs": ("demo_job_binding_id",),
     "demo_image_versions": ("result_asset_id", "result_asset_variant_id"),
-    "demo_tool_runs": ("demo_job_binding_id", "formal_job_attempt_id"),
-    "demo_verification_results": ("demo_job_binding_id", "tool_run_id"),
+    "demo_verification_results": (
+        "demo_job_binding_id",
+        "tool_run_id",
+        "image_version_id",
+    ),
     "demo_accepted_visual_episodes": ("acceptance_event_id", "accepted_image_version_id"),
     "demo_context_compilations": ("demo_job_binding_id",),
     "demo_job_bindings": ("job_id",),
@@ -2243,6 +2347,176 @@ BEGIN
     RETURN NEW;
 END;
 $function$;
+
+CREATE OR REPLACE FUNCTION mirror_demo_require_image_execution_binding(
+    authority_image_version_id text
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+    image_row record;
+    parent_row record;
+    plan_row record;
+    tool_row record;
+    operation_row record;
+    verification_row record;
+BEGIN
+    SELECT * INTO image_row
+    FROM demo_image_versions
+    WHERE id = authority_image_version_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Demo image execution binding lacks ImageVersion';
+    END IF;
+
+    PERFORM mirror_demo_require_asset(
+        image_row.source_asset_id,
+        image_row.source_asset_sha256
+    );
+    PERFORM mirror_demo_require_asset(
+        image_row.result_asset_id,
+        image_row.result_asset_sha256
+    );
+    IF NOT EXISTS (
+        SELECT 1 FROM asset_variants variant_row
+        WHERE variant_row.id = image_row.result_asset_variant_id
+          AND variant_row.source_asset_id = image_row.source_asset_id
+          AND variant_row.result_asset_id = image_row.result_asset_id
+          AND variant_row.variant_type LIKE 'demo_p3_p7\_%' ESCAPE '\'
+    ) THEN
+        RAISE EXCEPTION 'Demo image execution binding has invalid AssetVariant';
+    END IF;
+
+    IF image_row.sequence = 0 THEN
+        IF image_row.version_kind <> 'ORIGINAL'
+            OR image_row.parent_version_id IS NOT NULL
+            OR image_row.plan_digest IS NOT NULL
+            OR image_row.tool_run_digest IS NOT NULL
+            OR image_row.verifier_digest IS NOT NULL
+            OR EXISTS (
+                SELECT 1 FROM demo_verification_results verification
+                WHERE verification.image_version_id = image_row.id
+            ) THEN
+            RAISE EXCEPTION 'Original Demo ImageVersion has execution authority';
+        END IF;
+        RETURN;
+    END IF;
+
+    SELECT * INTO parent_row
+    FROM demo_image_versions
+    WHERE id = image_row.parent_version_id
+      AND demo_actor_id = image_row.demo_actor_id
+      AND demo_session_id = image_row.demo_session_id
+      AND editing_session_id = image_row.editing_session_id
+      AND sequence = image_row.sequence - 1
+      AND result_asset_id = image_row.source_asset_id
+      AND result_asset_sha256 = image_row.source_asset_sha256;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Demo image execution parent binding mismatch';
+    END IF;
+
+    SELECT * INTO plan_row
+    FROM demo_edit_plans
+    WHERE content_digest = image_row.plan_digest
+      AND record_kind = 'RESULT'
+      AND demo_actor_id = image_row.demo_actor_id
+      AND demo_session_id = image_row.demo_session_id
+      AND editing_session_id = image_row.editing_session_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Demo image execution plan digest mismatch';
+    END IF;
+
+    SELECT * INTO tool_row
+    FROM demo_tool_runs
+    WHERE content_digest = image_row.tool_run_digest
+      AND demo_actor_id = image_row.demo_actor_id
+      AND demo_session_id = image_row.demo_session_id
+      AND outcome = 'COMPLETED'
+      AND input_asset_id = parent_row.result_asset_id
+      AND input_asset_sha256 = parent_row.result_asset_sha256
+      AND output_asset_id = image_row.result_asset_id
+      AND output_asset_sha256 = image_row.result_asset_sha256;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Demo image execution ToolRun digest mismatch';
+    END IF;
+
+    SELECT * INTO operation_row
+    FROM demo_edit_operations
+    WHERE id = tool_row.edit_operation_id
+      AND content_digest = tool_row.edit_operation_digest
+      AND edit_plan_id = plan_row.id
+      AND demo_actor_id = image_row.demo_actor_id
+      AND demo_session_id = image_row.demo_session_id;
+    IF NOT FOUND
+        OR operation_row.operation_index < 0
+        OR operation_row.operation_index >= jsonb_array_length(plan_row.operation_specs)
+        OR plan_row.operation_specs -> operation_row.operation_index IS DISTINCT FROM
+           jsonb_build_object(
+               'engine', operation_row.engine,
+               'operation_type', operation_row.operation_type,
+               'parameters', operation_row.parameters,
+               'preserve', operation_row.preserve,
+               'expected_effect', operation_row.expected_effect
+           ) THEN
+        RAISE EXCEPTION 'Demo image execution operation digest or specification mismatch';
+    END IF;
+
+    IF operation_row.operation_index = 0 THEN
+        IF plan_row.input_image_version_id IS DISTINCT FROM parent_row.id THEN
+            RAISE EXCEPTION 'First Demo plan operation does not consume plan input';
+        END IF;
+    ELSIF parent_row.plan_digest IS DISTINCT FROM plan_row.content_digest OR NOT EXISTS (
+        SELECT 1
+        FROM demo_tool_runs previous_tool
+        JOIN demo_edit_operations previous_operation
+          ON previous_operation.id = previous_tool.edit_operation_id
+        WHERE previous_tool.content_digest = parent_row.tool_run_digest
+          AND previous_operation.edit_plan_id = plan_row.id
+          AND previous_operation.operation_index = operation_row.operation_index - 1
+          AND previous_tool.demo_job_binding_id = tool_row.demo_job_binding_id
+          AND previous_tool.formal_job_attempt_id = tool_row.formal_job_attempt_id
+    ) THEN
+        RAISE EXCEPTION 'Demo multi-operation plan execution is not contiguous';
+    END IF;
+
+    SELECT * INTO verification_row
+    FROM demo_verification_results
+    WHERE content_digest = image_row.verifier_digest
+      AND image_version_id = image_row.id
+      AND tool_run_id = tool_row.id
+      AND demo_actor_id = image_row.demo_actor_id
+      AND demo_session_id = image_row.demo_session_id
+      AND output_asset_id = image_row.result_asset_id
+      AND output_asset_sha256 = image_row.result_asset_sha256;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Demo image execution verifier digest mismatch';
+    END IF;
+
+    IF (image_row.version_kind IN ('EDITED','RESTORED','ROLLED_BACK')
+            AND verification_row.outcome <> 'PASS')
+        OR (image_row.version_kind = 'QUARANTINED'
+            AND verification_row.outcome NOT IN ('FAIL','HUMAN_REVIEW'))
+        OR image_row.version_kind NOT IN (
+            'EDITED','RESTORED','ROLLED_BACK','QUARANTINED'
+        ) THEN
+        RAISE EXCEPTION 'Demo ImageVersion kind and verifier outcome disagree';
+    END IF;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION mirror_demo_validate_image_execution_binding()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+    IF TG_TABLE_NAME = 'demo_image_versions' THEN
+        PERFORM mirror_demo_require_image_execution_binding(NEW.id);
+    ELSE
+        PERFORM mirror_demo_require_image_execution_binding(NEW.image_version_id);
+    END IF;
+    RETURN NEW;
+END;
+$function$;
 """
 
 
@@ -2270,6 +2544,201 @@ BEGIN
     END IF;
     IF expected_sha256 IS NOT NULL AND asset_row.sha256 IS DISTINCT FROM expected_sha256 THEN
         RAISE EXCEPTION 'Demo asset checksum mismatch';
+    END IF;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION mirror_demo_formal_qa_snapshot_digest(
+    authority_qa_run_id text
+)
+RETURNS text
+LANGUAGE plpgsql
+STABLE
+STRICT
+AS $function$
+DECLARE
+    snapshot_payload jsonb;
+BEGIN
+    SELECT jsonb_build_object(
+        'qa_run', jsonb_build_object(
+            'id', qa_row.id,
+            'schema_version', qa_row.schema_version,
+            'subject_kind', qa_row.subject_kind,
+            'synthetic_asset_record_id', qa_row.synthetic_asset_record_id,
+            'transform_run_id', qa_row.transform_run_id,
+            'normalized_asset_id', qa_row.normalized_asset_id,
+            'qa_policy_id', qa_row.qa_policy_id,
+            'vision_provider_reference', qa_row.vision_provider_reference,
+            'vision_algorithm_reference', qa_row.vision_algorithm_reference,
+            'status', qa_row.status,
+            'result_code', qa_row.result_code,
+            'started_at', to_char(
+                qa_row.started_at AT TIME ZONE 'UTC',
+                'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+            ),
+            'finalized_at', to_char(
+                qa_row.finalized_at AT TIME ZONE 'UTC',
+                'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+            )
+        ),
+        'qa_policy', jsonb_build_object(
+            'id', policy_row.id,
+            'schema_version', policy_row.schema_version,
+            'version', policy_row.version,
+            'content_digest', policy_row.content_digest,
+            'approval_status', policy_row.approval_status,
+            'approved_at', to_char(
+                policy_row.approved_at AT TIME ZONE 'UTC',
+                'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+            )
+        ),
+        'measurements', (
+            SELECT jsonb_agg(
+                jsonb_build_object(
+                    'schema_version', measurement_row.schema_version,
+                    'measurement_kind', measurement_row.measurement_kind,
+                    'measurement_code', measurement_row.measurement_code,
+                    'payload_digest', measurement_row.payload_digest,
+                    'algorithm_reference', measurement_row.algorithm_reference,
+                    'algorithm_version', measurement_row.algorithm_version,
+                    'confidence_scaled_1e7', CASE
+                        WHEN measurement_row.confidence IS NULL THEN NULL
+                        ELSE (measurement_row.confidence * 10000000)::bigint
+                    END,
+                    'hard_gate', measurement_row.hard_gate,
+                    'threshold_outcome', measurement_row.threshold_outcome,
+                    'reason_code', measurement_row.reason_code
+                )
+                ORDER BY measurement_row.measurement_code COLLATE "C"
+            )
+            FROM synthetic_qa_measurements measurement_row
+            WHERE measurement_row.qa_run_id = qa_row.id
+        ),
+        'reviews', (
+            SELECT jsonb_agg(
+                jsonb_build_object(
+                    'schema_version', review_row.schema_version,
+                    'review_kind', review_row.review_kind,
+                    'decision', review_row.decision,
+                    'reason_code', review_row.reason_code,
+                    'actor_reference', review_row.actor_reference,
+                    'reviewed_at', to_char(
+                        review_row.reviewed_at AT TIME ZONE 'UTC',
+                        'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+                    )
+                )
+                ORDER BY review_row.review_kind COLLATE "C"
+            )
+            FROM synthetic_qa_review_decisions review_row
+            WHERE review_row.qa_run_id = qa_row.id
+        )
+    )
+    INTO snapshot_payload
+    FROM synthetic_qa_runs qa_row
+    JOIN synthetic_qa_policies policy_row ON policy_row.id = qa_row.qa_policy_id
+    WHERE qa_row.id = authority_qa_run_id
+      AND qa_row.subject_kind = 'CANONICAL_BASE'
+      AND qa_row.status = 'PASSED'
+      AND qa_row.started_at IS NOT NULL
+      AND qa_row.finalized_at IS NOT NULL
+      AND policy_row.approval_status = 'APPROVED'
+      AND policy_row.approved_at IS NOT NULL
+      AND EXISTS (
+          SELECT 1 FROM synthetic_qa_measurements measurement_row
+          WHERE measurement_row.qa_run_id = qa_row.id
+      )
+      AND NOT EXISTS (
+          SELECT 1 FROM synthetic_qa_measurements measurement_row
+          WHERE measurement_row.qa_run_id = qa_row.id
+            AND measurement_row.hard_gate
+            AND measurement_row.threshold_outcome <> 'PASSED'
+      )
+      AND (
+          SELECT count(*)
+          FROM synthetic_qa_review_decisions review_row
+          WHERE review_row.qa_run_id = qa_row.id
+            AND review_row.review_kind IN (
+                'adult_presentation', 'likeness_risk', 'license_rights'
+            )
+            AND review_row.decision = 'PASSED'
+      ) = 3;
+
+    IF snapshot_payload IS NULL THEN
+        RAISE EXCEPTION 'Formal synthetic QA snapshot is not eligible for Demo admission';
+    END IF;
+    RETURN encode(
+        sha256(
+            convert_to(
+                'mirror.demo/FormalSyntheticQASnapshot/v1' || E'\n' ||
+                mirror_demo_canonical_json(snapshot_payload),
+                'UTF8'
+            )
+        ),
+        'hex'
+    );
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION mirror_demo_require_current_synthetic_admission(
+    authority_admission_id text
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+    admission_row record;
+    latest_admission_id text;
+BEGIN
+    SELECT * INTO admission_row
+    FROM demo_synthetic_identities
+    WHERE id = authority_admission_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Demo synthetic admission authority does not exist';
+    END IF;
+
+    PERFORM pg_advisory_xact_lock(
+        hashtextextended(
+            'mirror.demo.synthetic-admission/' || admission_row.formal_synthetic_identity_id,
+            0
+        )
+    );
+    SELECT id INTO latest_admission_id
+    FROM demo_synthetic_identities
+    WHERE formal_synthetic_identity_id = admission_row.formal_synthetic_identity_id
+    ORDER BY admission_sequence DESC
+    LIMIT 1;
+
+    IF latest_admission_id IS DISTINCT FROM admission_row.id
+        OR admission_row.admission_action <> 'ADMIT' THEN
+        RAISE EXCEPTION 'Demo synthetic admission is not the current eligible row';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM synthetic_identities identity_row
+        JOIN synthetic_qa_runs qa_row
+          ON qa_row.id = identity_row.accepted_qa_run_id
+        JOIN assets asset_row
+          ON asset_row.id = identity_row.canonical_asset_id
+        WHERE identity_row.id = admission_row.formal_synthetic_identity_id
+          AND identity_row.bank_version_id IS NULL
+          AND identity_row.authority_kind = 'CANONICAL_QA'
+          AND identity_row.adult_synthetic_attested
+          AND identity_row.canonical_asset_id = admission_row.formal_canonical_asset_id
+          AND identity_row.accepted_qa_run_id = admission_row.formal_accepted_qa_run_id
+          AND qa_row.subject_kind = 'CANONICAL_BASE'
+          AND qa_row.status = 'PASSED'
+          AND qa_row.normalized_asset_id = admission_row.formal_canonical_asset_id
+          AND asset_row.owner_user_id IS NULL
+          AND asset_row.asset_role = 'synthetic'
+          AND asset_row.internal_purpose = 'synthetic_dataset'
+          AND asset_row.synthetic
+          AND asset_row.deleted_at IS NULL
+          AND asset_row.sha256 = admission_row.formal_canonical_asset_sha256
+          AND mirror_demo_formal_qa_snapshot_digest(qa_row.id) =
+              admission_row.formal_accepted_qa_snapshot_digest
+    ) THEN
+        RAISE EXCEPTION 'Demo synthetic admission live authority no longer matches snapshot';
     END IF;
 END;
 $function$;
@@ -2380,53 +2849,92 @@ DECLARE
     source_item jsonb;
     source_view_count integer;
     binding_job_id text;
+    previous_admission record;
+    has_previous_admission boolean;
+    expected_qa_snapshot_digest text;
 BEGIN
     CASE TG_TABLE_NAME
         WHEN 'demo_synthetic_identities' THEN
-            IF NOT EXISTS (
-                SELECT 1
-                FROM synthetic_identities identity_row
-                JOIN synthetic_qa_runs qa_row
-                  ON qa_row.id = identity_row.accepted_qa_run_id
-                JOIN assets asset_row
-                  ON asset_row.id = identity_row.canonical_asset_id
-                WHERE identity_row.id = NEW.formal_synthetic_identity_id
-                  AND identity_row.bank_version_id IS NULL
-                  AND identity_row.authority_kind = 'CANONICAL_QA'
-                  AND identity_row.adult_synthetic_attested
-                  AND qa_row.status = 'PASSED'
-                  AND qa_row.normalized_asset_id = identity_row.canonical_asset_id
-                  AND asset_row.owner_user_id IS NULL
-                  AND asset_row.synthetic
-                  AND asset_row.deleted_at IS NULL
-            ) THEN
-                RAISE EXCEPTION 'Demo synthetic identity lacks accepted adult synthetic authority';
-            END IF;
-            IF NEW.admission_sequence = 1 THEN
-                IF NEW.admission_action <> 'ADMIT' OR NEW.supersedes_id IS NOT NULL THEN
+            PERFORM pg_advisory_xact_lock(
+                hashtextextended(
+                    'mirror.demo.synthetic-admission/' || NEW.formal_synthetic_identity_id,
+                    0
+                )
+            );
+            SELECT * INTO previous_admission
+            FROM demo_synthetic_identities
+            WHERE formal_synthetic_identity_id = NEW.formal_synthetic_identity_id
+            ORDER BY admission_sequence DESC
+            LIMIT 1
+            FOR UPDATE;
+            has_previous_admission := FOUND;
+
+            IF NOT has_previous_admission THEN
+                IF NEW.admission_sequence <> 1
+                    OR NEW.admission_action <> 'ADMIT'
+                    OR NEW.supersedes_id IS NOT NULL THEN
                     RAISE EXCEPTION 'First Demo synthetic identity event must be ADMIT';
                 END IF;
-            ELSIF NEW.supersedes_id IS NULL OR NOT EXISTS (
-                SELECT 1
-                FROM demo_synthetic_identities previous_row
-                WHERE previous_row.id = NEW.supersedes_id
-                  AND previous_row.formal_synthetic_identity_id = NEW.formal_synthetic_identity_id
-                  AND previous_row.admission_sequence = NEW.admission_sequence - 1
-                  AND previous_row.admission_action <> NEW.admission_action
-            ) THEN
-                RAISE EXCEPTION 'Demo synthetic identity admission chain is invalid';
+            ELSIF NEW.admission_sequence <> previous_admission.admission_sequence + 1
+                OR NEW.supersedes_id IS DISTINCT FROM previous_admission.id
+                OR NEW.admission_action = previous_admission.admission_action THEN
+                RAISE EXCEPTION 'Demo synthetic identity admission chain is not latest';
+            END IF;
+
+            IF NEW.admission_action = 'REVOKE' THEN
+                IF NOT has_previous_admission
+                    OR NEW.formal_canonical_asset_id IS DISTINCT FROM
+                       previous_admission.formal_canonical_asset_id
+                    OR NEW.formal_canonical_asset_sha256 IS DISTINCT FROM
+                       previous_admission.formal_canonical_asset_sha256
+                    OR NEW.formal_accepted_qa_run_id IS DISTINCT FROM
+                       previous_admission.formal_accepted_qa_run_id
+                    OR NEW.formal_accepted_qa_snapshot_digest IS DISTINCT FROM
+                       previous_admission.formal_accepted_qa_snapshot_digest THEN
+                    RAISE EXCEPTION 'Demo synthetic revocation must copy the frozen snapshot';
+                END IF;
+            ELSE
+                expected_qa_snapshot_digest := mirror_demo_formal_qa_snapshot_digest(
+                    NEW.formal_accepted_qa_run_id
+                );
+                IF expected_qa_snapshot_digest IS DISTINCT FROM
+                   NEW.formal_accepted_qa_snapshot_digest OR NOT EXISTS (
+                    SELECT 1
+                    FROM synthetic_identities identity_row
+                    JOIN synthetic_qa_runs qa_row
+                      ON qa_row.id = identity_row.accepted_qa_run_id
+                    JOIN assets asset_row
+                      ON asset_row.id = identity_row.canonical_asset_id
+                    WHERE identity_row.id = NEW.formal_synthetic_identity_id
+                      AND identity_row.bank_version_id IS NULL
+                      AND identity_row.authority_kind = 'CANONICAL_QA'
+                      AND identity_row.adult_synthetic_attested
+                      AND identity_row.canonical_asset_id = NEW.formal_canonical_asset_id
+                      AND identity_row.accepted_qa_run_id = NEW.formal_accepted_qa_run_id
+                      AND qa_row.subject_kind = 'CANONICAL_BASE'
+                      AND qa_row.status = 'PASSED'
+                      AND qa_row.normalized_asset_id = NEW.formal_canonical_asset_id
+                      AND asset_row.owner_user_id IS NULL
+                      AND asset_row.asset_role = 'synthetic'
+                      AND asset_row.internal_purpose = 'synthetic_dataset'
+                      AND asset_row.synthetic
+                      AND asset_row.deleted_at IS NULL
+                      AND asset_row.sha256 = NEW.formal_canonical_asset_sha256
+                ) THEN
+                    RAISE EXCEPTION 'Demo synthetic identity snapshot does not match formal authority';
+                END IF;
             END IF;
 
         WHEN 'demo_face_observations' THEN
             PERFORM mirror_demo_require_asset(NEW.source_asset_id, NEW.source_asset_sha256);
-            IF NEW.demo_synthetic_identity_id IS NOT NULL AND NOT EXISTS (
-                SELECT 1
-                FROM demo_synthetic_identities demo_identity
-                JOIN synthetic_identities formal_identity
-                  ON formal_identity.id = demo_identity.formal_synthetic_identity_id
+            PERFORM mirror_demo_require_current_synthetic_admission(
+                NEW.demo_synthetic_identity_id
+            );
+            IF NOT EXISTS (
+                SELECT 1 FROM demo_synthetic_identities demo_identity
                 WHERE demo_identity.id = NEW.demo_synthetic_identity_id
-                  AND demo_identity.admission_action = 'ADMIT'
-                  AND formal_identity.canonical_asset_id = NEW.source_asset_id
+                  AND demo_identity.formal_canonical_asset_id = NEW.source_asset_id
+                  AND demo_identity.formal_canonical_asset_sha256 = NEW.source_asset_sha256
             ) THEN
                 RAISE EXCEPTION 'Demo face observation source does not match synthetic identity';
             END IF;
@@ -2451,14 +2959,14 @@ BEGIN
             PERFORM mirror_demo_require_asset(NEW.source_asset_id, NEW.source_asset_sha256);
             PERFORM mirror_demo_require_asset(NEW.left_asset_id, NEW.left_asset_sha256);
             PERFORM mirror_demo_require_asset(NEW.right_asset_id, NEW.right_asset_sha256);
+            PERFORM mirror_demo_require_current_synthetic_admission(
+                NEW.demo_synthetic_identity_id
+            );
             IF NOT EXISTS (
-                SELECT 1
-                FROM demo_synthetic_identities demo_identity
-                JOIN synthetic_identities formal_identity
-                  ON formal_identity.id = demo_identity.formal_synthetic_identity_id
+                SELECT 1 FROM demo_synthetic_identities demo_identity
                 WHERE demo_identity.id = NEW.demo_synthetic_identity_id
-                  AND demo_identity.admission_action = 'ADMIT'
-                  AND formal_identity.canonical_asset_id = NEW.source_asset_id
+                  AND demo_identity.formal_canonical_asset_id = NEW.source_asset_id
+                  AND demo_identity.formal_canonical_asset_sha256 = NEW.source_asset_sha256
             ) THEN
                 RAISE EXCEPTION 'Demo question pair source identity lineage mismatch';
             END IF;
@@ -2672,8 +3180,14 @@ BEGIN
             PERFORM mirror_demo_require_asset(NEW.source_asset_id, NEW.source_asset_sha256);
 
         WHEN 'demo_image_versions' THEN
-            PERFORM mirror_demo_require_asset(NEW.source_asset_id, NULL);
-            PERFORM mirror_demo_require_asset(NEW.result_asset_id, NULL);
+            PERFORM mirror_demo_require_asset(
+                NEW.source_asset_id,
+                NEW.source_asset_sha256
+            );
+            PERFORM mirror_demo_require_asset(
+                NEW.result_asset_id,
+                NEW.result_asset_sha256
+            );
             IF NEW.sequence = 0 THEN
                 IF NOT EXISTS (
                     SELECT 1 FROM demo_editing_sessions editing_row
@@ -2681,6 +3195,7 @@ BEGIN
                       AND editing_row.demo_actor_id = NEW.demo_actor_id
                       AND editing_row.demo_session_id = NEW.demo_session_id
                       AND editing_row.source_asset_id = NEW.source_asset_id
+                      AND editing_row.source_asset_sha256 = NEW.source_asset_sha256
                 ) THEN
                     RAISE EXCEPTION 'Initial Demo image version source mismatch';
                 END IF;
@@ -2692,10 +3207,11 @@ BEGIN
                   AND parent_row.demo_session_id = NEW.demo_session_id
                   AND parent_row.sequence = NEW.sequence - 1
                   AND parent_row.result_asset_id = NEW.source_asset_id
+                  AND parent_row.result_asset_sha256 = NEW.source_asset_sha256
             ) THEN
                 RAISE EXCEPTION 'Demo image version parent lineage mismatch';
             END IF;
-            IF NEW.result_asset_variant_id IS NOT NULL AND NOT EXISTS (
+            IF NOT EXISTS (
                 SELECT 1 FROM asset_variants variant_row
                 WHERE variant_row.id = NEW.result_asset_variant_id
                   AND variant_row.source_asset_id = NEW.source_asset_id
@@ -2706,6 +3222,35 @@ BEGIN
             END IF;
 
         WHEN 'demo_edit_plans' THEN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM demo_image_versions input_row
+                WHERE input_row.id = NEW.input_image_version_id
+                  AND input_row.demo_actor_id = NEW.demo_actor_id
+                  AND input_row.demo_session_id = NEW.demo_session_id
+                  AND input_row.editing_session_id = NEW.editing_session_id
+                  AND input_row.version_kind <> 'QUARANTINED'
+                  AND (
+                      input_row.sequence = 0 OR EXISTS (
+                          SELECT 1
+                          FROM demo_edit_plans prior_plan
+                          JOIN demo_tool_runs prior_tool
+                            ON prior_tool.content_digest = input_row.tool_run_digest
+                          JOIN demo_edit_operations prior_operation
+                            ON prior_operation.id = prior_tool.edit_operation_id
+                           AND prior_operation.edit_plan_id = prior_plan.id
+                          JOIN demo_verification_results prior_verification
+                            ON prior_verification.content_digest = input_row.verifier_digest
+                           AND prior_verification.image_version_id = input_row.id
+                          WHERE prior_plan.content_digest = input_row.plan_digest
+                            AND prior_operation.operation_index =
+                                jsonb_array_length(prior_plan.operation_specs) - 1
+                            AND prior_verification.outcome = 'PASS'
+                      )
+                  )
+            ) THEN
+                RAISE EXCEPTION 'Demo EditPlan input must be an original or final verified plan output';
+            END IF;
             IF NEW.record_kind = 'RESULT' AND NOT EXISTS (
                 SELECT 1 FROM demo_edit_plans request_row
                 WHERE request_row.id = NEW.request_plan_id
@@ -2744,7 +3289,42 @@ BEGIN
               AND binding_row.endpoint_operation = 'edit_plan.execute'
               AND binding_row.target_type = 'EDIT_PLAN'
               AND binding_row.target_id = plan_row.id
-              AND input_version.result_asset_id = NEW.input_asset_id;
+              AND plan_row.record_kind = 'RESULT'
+              AND operation_row.content_digest = NEW.edit_operation_digest
+              AND operation_row.operation_index >= 0
+              AND operation_row.operation_index < jsonb_array_length(plan_row.operation_specs)
+              AND plan_row.operation_specs -> operation_row.operation_index = jsonb_build_object(
+                  'engine', operation_row.engine,
+                  'operation_type', operation_row.operation_type,
+                  'parameters', operation_row.parameters,
+                  'preserve', operation_row.preserve,
+                  'expected_effect', operation_row.expected_effect
+              )
+              AND (
+                  (
+                      operation_row.operation_index = 0
+                      AND input_version.result_asset_id = NEW.input_asset_id
+                      AND input_version.result_asset_sha256 = NEW.input_asset_sha256
+                  ) OR (
+                      operation_row.operation_index > 0
+                      AND EXISTS (
+                          SELECT 1
+                          FROM demo_image_versions previous_image
+                          JOIN demo_tool_runs previous_tool
+                            ON previous_tool.content_digest = previous_image.tool_run_digest
+                          JOIN demo_edit_operations previous_operation
+                            ON previous_operation.id = previous_tool.edit_operation_id
+                          WHERE previous_image.plan_digest = plan_row.content_digest
+                            AND previous_operation.edit_plan_id = plan_row.id
+                            AND previous_operation.operation_index =
+                                operation_row.operation_index - 1
+                            AND previous_image.result_asset_id = NEW.input_asset_id
+                            AND previous_image.result_asset_sha256 = NEW.input_asset_sha256
+                            AND previous_tool.demo_job_binding_id = NEW.demo_job_binding_id
+                            AND previous_tool.formal_job_attempt_id = NEW.formal_job_attempt_id
+                      )
+                  )
+              );
             IF binding_job_id IS NULL OR NOT EXISTS (
                 SELECT 1 FROM job_attempts attempt_row
                 WHERE attempt_row.id = NEW.formal_job_attempt_id
@@ -2760,27 +3340,33 @@ BEGIN
                 FROM demo_tool_runs tool_row
                 JOIN demo_job_bindings binding_row
                   ON binding_row.id = NEW.demo_job_binding_id
+                JOIN demo_image_versions image_row
+                  ON image_row.id = NEW.image_version_id
                 WHERE tool_row.id = NEW.tool_run_id
                   AND tool_row.demo_actor_id = NEW.demo_actor_id
                   AND tool_row.demo_session_id = NEW.demo_session_id
                   AND tool_row.outcome = 'COMPLETED'
                   AND tool_row.output_asset_id = NEW.output_asset_id
+                  AND tool_row.output_asset_sha256 = NEW.output_asset_sha256
                   AND binding_row.demo_actor_id = NEW.demo_actor_id
                   AND binding_row.demo_session_id = NEW.demo_session_id
                   AND binding_row.endpoint_operation = 'tool.verify'
                   AND binding_row.target_type = 'TOOL_RUN'
                   AND binding_row.target_id = tool_row.id
-            ) THEN
-                RAISE EXCEPTION 'Demo verification ToolRun ownership mismatch';
-            END IF;
-            IF NEW.image_version_id IS NOT NULL AND NOT EXISTS (
-                SELECT 1 FROM demo_image_versions image_row
-                WHERE image_row.id = NEW.image_version_id
                   AND image_row.demo_actor_id = NEW.demo_actor_id
                   AND image_row.demo_session_id = NEW.demo_session_id
+                  AND image_row.tool_run_digest = tool_row.content_digest
+                  AND image_row.verifier_digest = NEW.content_digest
                   AND image_row.result_asset_id = NEW.output_asset_id
+                  AND image_row.result_asset_sha256 = NEW.output_asset_sha256
+                  AND (
+                      (image_row.version_kind IN ('EDITED','RESTORED','ROLLED_BACK')
+                       AND NEW.outcome = 'PASS')
+                      OR (image_row.version_kind = 'QUARANTINED'
+                          AND NEW.outcome IN ('FAIL','HUMAN_REVIEW'))
+                  )
             ) THEN
-                RAISE EXCEPTION 'Demo verification ImageVersion lineage mismatch';
+                RAISE EXCEPTION 'Demo verification ToolRun ownership mismatch';
             END IF;
 
         WHEN 'demo_aesthetic_profiles' THEN
@@ -3315,6 +3901,7 @@ DECLARE
     expected_trajectory jsonb;
     trajectory_count integer;
     terminal_sequence integer;
+    trajectory_image_id text;
 BEGIN
     PERFORM mirror_demo_require_asset(NEW.source_asset_id, NEW.source_asset_sha256);
     PERFORM mirror_demo_require_asset(NEW.final_asset_id, NEW.final_asset_sha256);
@@ -3364,11 +3951,37 @@ BEGIN
         OR expected_trajectory IS DISTINCT FROM NEW.trajectory_digests THEN
         RAISE EXCEPTION 'Demo accepted episode trajectory lineage mismatch';
     END IF;
+
+    FOR trajectory_image_id IN
+        WITH RECURSIVE image_chain AS (
+            SELECT image_row.id, image_row.parent_version_id, image_row.sequence
+            FROM demo_image_versions image_row
+            WHERE image_row.id = NEW.accepted_image_version_id
+
+            UNION ALL
+
+            SELECT parent_row.id, parent_row.parent_version_id, parent_row.sequence
+            FROM demo_image_versions parent_row
+            JOIN image_chain child_row ON child_row.parent_version_id = parent_row.id
+        )
+        SELECT image_chain.id FROM image_chain ORDER BY image_chain.sequence
+    LOOP
+        PERFORM mirror_demo_require_image_execution_binding(trajectory_image_id);
+    END LOOP;
+
     IF NOT EXISTS (
         SELECT 1
         FROM demo_image_versions image_row
         JOIN demo_editing_sessions editing_row
           ON editing_row.id = image_row.editing_session_id
+        JOIN demo_edit_plans plan_row
+          ON plan_row.content_digest = image_row.plan_digest
+        JOIN demo_tool_runs tool_row
+          ON tool_row.content_digest = image_row.tool_run_digest
+        JOIN demo_edit_operations operation_row
+          ON operation_row.id = tool_row.edit_operation_id
+         AND operation_row.content_digest = tool_row.edit_operation_digest
+         AND operation_row.edit_plan_id = plan_row.id
         JOIN demo_verification_results verification_row
           ON verification_row.id = NEW.verification_result_id
         JOIN demo_preference_events event_row
@@ -3378,11 +3991,19 @@ BEGIN
           AND image_row.demo_session_id = NEW.demo_session_id
           AND image_row.editing_session_id = NEW.editing_session_id
           AND image_row.result_asset_id = NEW.final_asset_id
+          AND image_row.result_asset_sha256 = NEW.final_asset_sha256
+          AND image_row.version_kind IN ('EDITED','RESTORED','ROLLED_BACK')
           AND editing_row.source_asset_id = NEW.source_asset_id
+          AND editing_row.source_asset_sha256 = NEW.source_asset_sha256
+          AND plan_row.record_kind = 'RESULT'
+          AND operation_row.operation_index = jsonb_array_length(plan_row.operation_specs) - 1
           AND verification_row.demo_actor_id = NEW.demo_actor_id
           AND verification_row.demo_session_id = NEW.demo_session_id
           AND verification_row.image_version_id = image_row.id
+          AND verification_row.tool_run_id = tool_row.id
+          AND verification_row.content_digest = image_row.verifier_digest
           AND verification_row.output_asset_id = NEW.final_asset_id
+          AND verification_row.output_asset_sha256 = NEW.final_asset_sha256
           AND verification_row.outcome = 'PASS'
           AND event_row.demo_actor_id = NEW.demo_actor_id
           AND event_row.demo_session_id = NEW.demo_session_id
@@ -3563,6 +4184,16 @@ def _create_database_authority() -> None:
                 "FOR EACH ROW EXECUTE FUNCTION mirror_demo_validate_references()"
             )
         )
+    for table_name in ("demo_image_versions", "demo_verification_results"):
+        op.execute(
+            sa.text(
+                f"CREATE CONSTRAINT TRIGGER trg_demo_image_execution_binding_{table_name} "
+                f"AFTER INSERT ON {table_name} "
+                "DEFERRABLE INITIALLY DEFERRED "
+                "FOR EACH ROW EXECUTE FUNCTION "
+                "mirror_demo_validate_image_execution_binding()"
+            )
+        )
     op.execute(
         "CREATE TRIGGER trg_demo_job_binding_validation "
         "BEFORE INSERT ON demo_job_bindings "
@@ -3602,19 +4233,25 @@ def upgrade() -> None:
     _create_p6_tables()
     _create_p7_and_job_tables()
     _create_deferred_job_binding_foreign_keys()
+    _create_deferred_image_execution_foreign_keys()
     _create_indexes()
     _create_database_authority()
 
 
 def downgrade() -> None:
     op.execute(_POPULATED_DOWNGRADE_SQL)
+    _drop_deferred_image_execution_foreign_keys()
     for table_name in _DEMO_TABLE_DROP_ORDER:
         op.drop_table(table_name)
     op.execute("DROP FUNCTION IF EXISTS mirror_demo_validate_accepted_episode()")
+    op.execute("DROP FUNCTION IF EXISTS mirror_demo_validate_image_execution_binding()")
+    op.execute("DROP FUNCTION IF EXISTS mirror_demo_require_image_execution_binding(text)")
     op.execute("DROP FUNCTION IF EXISTS mirror_demo_validate_terminal_binding()")
     op.execute("DROP FUNCTION IF EXISTS mirror_demo_validate_preference_event()")
     op.execute("DROP FUNCTION IF EXISTS mirror_demo_validate_job_binding()")
     op.execute("DROP FUNCTION IF EXISTS mirror_demo_validate_references()")
+    op.execute("DROP FUNCTION IF EXISTS mirror_demo_require_current_synthetic_admission(text)")
+    op.execute("DROP FUNCTION IF EXISTS mirror_demo_formal_qa_snapshot_digest(text)")
     op.execute("DROP FUNCTION IF EXISTS mirror_demo_evidence_owned_by(text, text)")
     op.execute("DROP FUNCTION IF EXISTS mirror_demo_require_asset(text, text)")
     op.execute("DROP FUNCTION IF EXISTS mirror_demo_guard_authority()")

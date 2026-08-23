@@ -73,12 +73,18 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 
 - **Probability / impact:** Medium / High
 - **Description:** reuse creates two sources that both claim authority or silently forks v0.2 semantics.
-- **Early signal:** duplicate owner fields, derived state reads both tables, missing promotion plan or unexplained physical substitution.
-- **P:** accepted `DEMO_SCHEMA_REUSE_MATRIX` with exactly one Demo authoritative source per logical entity.
-- **D:** invariants and lineage tests prove no capability/evidence/API/rebuildability/formal-authority loss.
-- **R:** redo the physical mapping/migration before data admission; retain independent `demo_*` table when equivalence is incomplete.
-- **S:** prohibit table creation or D01-B acceptance for an unresolved entity.
-- **Owner / status / blocked:** Principal + data owner / `MITIGATED_MONITORED` / no current task; downstream compiler and D12 authority checks remain monitored.
+- **Early signal:** duplicate owner fields, stale admission remains eligible, external authority facts are not snapshotted,
+  unresolved lineage digests, missing promotion plan or unexplained physical substitution.
+- **P:** accepted `DEMO_SCHEMA_REUSE_MATRIX`, `P3_P7_D01_B_CC_01`, exactly one Demo authoritative source per logical
+  entity, frozen formal QA snapshot and bidirectional image-execution binding.
+- **D:** revoked-admission, snapshot mismatch, arbitrary/missing/cross-owner lineage, half-edge, AcceptedEpisode and
+  concurrency tests prove no capability/evidence/API/rebuildability/formal-authority loss.
+- **R:** the bounded forward repair is implemented on top of the rejected candidate; isolated PostgreSQL, migration,
+  full regression and formal-DDL checks are rerun and bound to the remediation candidate.
+- **S:** D01-C remains closed until the remediation candidate passes independent Sol High review and Principal
+  acceptance.
+- **Owner / status / blocked:** Principal + data owner / `RECOVERING` / D01-B acceptance, D01-C and every
+  downstream database consumer.
 
 ## R-DEMO-07 — Bayesian Newton solver is unstable or non-convergent
 
@@ -122,7 +128,8 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 - **D:** staged/scoped diff scan, Gitleaks, artifact inventory and private-byte/path negative scan before commit/push.
 - **R:** immediately isolate the candidate and stop processing; Principal handles repository/credential incident disposition.
 - **S:** stop all private work and do not push while any leak or custody uncertainty exists.
-- **Owner / status / blocked:** Principal / `OPEN` / every private task and push.
+- **Owner / status / blocked:** Principal / `MITIGATED_MONITORED` / this candidate has zero Gitleaks, locator/path and
+  binary-byte findings; every later private task and push must rerun the same stop rule.
 
 ## R-DEMO-11 — Real runtime performance causes browser timeout
 

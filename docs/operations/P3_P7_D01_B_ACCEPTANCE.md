@@ -10,8 +10,9 @@ BASE_SHA: d134517fa97132b180a82c69c617b8f65d3b282e
 BRANCH: codex/p3-p7-core-demo
 REVISION: demo_0001_p3_p7_core
 DOWN_REVISION: 0014_m5_eval_authority
-STATUS: READY_FOR_INDEPENDENT_REVIEW
-PRINCIPAL_TASK_ACCEPTANCE: PENDING
+REMEDIATION_CANDIDATE: THIS_COMMIT
+STATUS: REMEDIATION_VALIDATED_PENDING_INDEPENDENT_REVIEW
+PRINCIPAL_TASK_ACCEPTANCE: BLOCKED_PENDING_INDEPENDENT_REVIEW
 INDEPENDENT_SOL_IMPLEMENTATION_REVIEW: PENDING
 D01_C: CLOSED
 PRODUCTION_RELEASE: NOT_AUTHORIZED
@@ -45,6 +46,7 @@ Governance evidence:
 ```text
 docs/operations/P3_P7_DEMO_SCHEMA_REUSE_MATRIX.md
 docs/operations/P3_P7_DEMO_RISK_REGISTER.md
+docs/operations/P3_P7_D01_B_CHANGE_CONTROL_01.md
 docs/operations/P3_P7_D01_B_ACCEPTANCE.md
 ```
 
@@ -88,11 +90,11 @@ formal table.
 The five physical-reuse proofs are:
 
 ```text
-NO_CAPABILITY_LOSS: PASS
-NO_EVIDENCE_LOSS: PASS
-NO_API_LOSS_FROM_PHYSICAL_MAPPING: PASS
-NO_REBUILDABILITY_LOSS: PASS
-NO_FORMAL_AUTHORITY_POLLUTION: PASS
+NO_CAPABILITY_LOSS: PASS_FOR_REMEDIATION_CANDIDATE
+NO_EVIDENCE_LOSS: PASS_FOR_REMEDIATION_CANDIDATE
+NO_API_LOSS_FROM_PHYSICAL_MAPPING: PASS_FOR_REMEDIATION_CANDIDATE
+NO_REBUILDABILITY_LOSS: PASS_FOR_REMEDIATION_CANDIDATE
+NO_FORMAL_AUTHORITY_POLLUTION: PASS_FOR_REMEDIATION_CANDIDATE
 ```
 
 `NO_API_LOSS_FROM_PHYSICAL_MAPPING` means the schema can represent the frozen API authority. It does not claim that
@@ -131,8 +133,11 @@ not a canonical authority.
 - Typed Job bindings validate actor, optional session, endpoint operation, request digest, formal Job namespace and
   target ownership. PostgreSQL uniqueness selects one concurrent canonical idempotency winner.
 - Preference events use actor-scoped sequence and previous-digest chaining with PostgreSQL advisory transaction locks.
-- AcceptedVisualEpisode validation proves a complete, same-owner trajectory through editing session, image version,
-  plan, operations, ToolRun and Verifier authority.
+- Synthetic admission freezes the formal canonical Asset and deterministic QA snapshot, serializes successor selection,
+  rejects stale ADMIT rows and permits evidence-preserving post-tombstone REVOKE.
+- ImageVersion resolves exact plan/operation/ToolRun/AssetVariant/verifier authority, freezes source/result SHA values
+  and requires a commit-time bidirectional VerificationResult edge. AcceptedVisualEpisode traverses the complete
+  root-to-leaf execution graph.
 
 Actor/session/editing-session terminal headers are materialized only with matching append-only lifecycle events in the
 same transaction. Four `DEFERRABLE INITIALLY DEFERRED` constraint triggers validate both directions at commit:
@@ -158,8 +163,8 @@ DIRECT_MAINLINE_CHERRY_PICK: FORBIDDEN
 ```
 
 Executed on an empty isolated PostgreSQL database from a read-only source mount in a temporary container attached only
-to the D00 `internal=true` runtime network. All proxy variables were empty and an outbound connection probe to a public
-TEST-NET address was denied while Docker-internal PostgreSQL remained reachable:
+to `mirror-d01b-remediation-01`, a Docker `internal=true` network with no published PostgreSQL port. All proxy variables
+were empty; Docker-internal PostgreSQL remained reachable while public egress was unavailable by topology:
 
 ```text
 fresh -> demo_0001_p3_p7_core: PASS
@@ -170,7 +175,12 @@ demo_0001_p3_p7_core -> 0014_m5_eval_authority: PASS
 ALEMBIC_HEADS: exactly demo_0001_p3_p7_core
 ALEMBIC_CURRENT: demo_0001_p3_p7_core
 ALEMBIC_CHECK: No new upgrade operations detected
-SCHEMA_DRIFT: 0
+ALEMBIC_CYCLE_WARNING: five deferred execution tables cannot be topologically sorted
+SUPPLEMENTARY_ORM_DATABASE_FK_PARITY: PASS, 27 tables / 85 foreign keys
+SCHEMA_DRIFT: 0, including explicit cycle-FK parity
+FORMAL_NON_DEMO_TABLE_DDL_SHA256_AT_0014: 3a24974137509a6b81be483f667d5060ca89749c70b7a46ac365285ca06927e7
+FORMAL_NON_DEMO_TABLE_DDL_SHA256_AT_DEMO_HEAD: 3a24974137509a6b81be483f667d5060ca89749c70b7a46ac365285ca06927e7
+FORMAL_TABLE_DDL_DIFF: 0
 ```
 
 Populated downgrade tests prove that Demo authority rows, `demo_p3_p7.*` Jobs/JobAttempts and
@@ -183,24 +193,38 @@ promotion/conversion strategy. This migration cannot become the formal productio
 
 ## Validation evidence
 
-The final D01-B targeted and migration-lifecycle Gates ran in the D00 Docker-internal topology with every proxy
-variable unset:
+All remediation validation used a byte-faithful source snapshot created with `git -c core.autocrlf=false archive HEAD`
+plus the filtered current diff. Source was mounted read-only; writable caches and local object storage were confined to
+ephemeral container `/tmp`. Core validation used Docker internal or `--network none` and explicitly empty proxy values.
 
 ```text
 PUBLIC_INTERNET_EGRESS_POLICY: DENIED_FOR_D01_B_TARGETED_AND_MIGRATION_GATES
 DOCKER_RUNTIME_NETWORK_INTERNAL: TRUE
 PUBLIC_TEST_NET_EGRESS_PROBE: DENIED
 DOCKER_INTERNAL_POSTGRESQL: AVAILABLE
-D00_A_ACQUISITION_DURING_D01_B: 0
+D00_A_ACQUISITION_DURING_D01_B: Gitleaks v8.28.0 only
+D00_A_GITLEAKS_EXPECTED_SHA256: da6458e8864af553807de1c46a7a8eac0880bd6b99ba56288e87e86a45af884f
+D00_A_GITLEAKS_ACTUAL_SHA256: da6458e8864af553807de1c46a7a8eac0880bd6b99ba56288e87e86a45af884f
+D00_A_PROXY_SCOPE: ACQUISITION_ONLY
 PRODUCTION_PROVIDER_CALLS: 0
 
-D01_B_TARGETED_POSTGRESQL_SUITE: 24 PASS, 0 SKIP
-FULL_API_COLLECTION: 722
-FULL_API_RESULT: 718 PASS, 4 ENVIRONMENT-SCOPED SKIP
+D01_B_TARGETED_POSTGRESQL_SUITE: 56 PASS, 0 SKIP
+FULL_API_COLLECTION: 754
+FULL_API_RESULT: 750 PASS, 4 ENVIRONMENT-SCOPED SKIP
+WORKER_COLLECTION: 34
+WORKER_RESULT: 28 PASS, 6 ENVIRONMENT-SCOPED SKIP
 RUFF_FORMAT_CHECK: 222 files formatted
 RUFF_CHECK: PASS
 STRICT_MYPY: PASS, 125 source files
+ALEMBIC_LIFECYCLE_AND_CHECK: PASS
+ORM_DATABASE_FK_PARITY: PASS, 85/85
+FORMAL_TABLE_DDL_DIFF: 0
+GITLEAKS_WORKTREE_SCAN: PASS, 6.16 MB, 0 findings
+GITLEAKS_EXACT_COMMIT_SCAN: PENDING_POST_COMMIT_BINDING
+PRIVATE_LOCATOR_AND_BYTE_SCAN: PASS, 7 scoped text files, 0 absolute-path or NUL/binary hits
 GIT_DIFF_CHECK: PASS
+REMOTE_REPOSITORY: yangyy816/project-mirror
+REMOTE_VISIBILITY: PUBLIC, VERIFIED_READ_ONLY_BEFORE_CANDIDATE_COMMIT
 ```
 
 The four full-suite skips are retained as negative evidence and are outside this schema checkpoint:
@@ -215,39 +239,34 @@ P2-M4 orchestration: private M4 Celery runtime not injected into this test proce
 D00 separately established the real local Redis/Celery/runtime topology. These skips are not reclassified as PASS and
 do not verify D01-C, Worker or runtime integration.
 
-The 722-item full API regression used the existing D00 API container with all proxy variables unset. That container is
-also attached to the host-facing ingress network, so the full-suite result is regression evidence, not the egress
-containment proof. The internal-only targeted and migration runs above are the D01-B containment evidence.
+The API and Worker tests reuse the accepted local API image only as a frozen dependency runtime. Test processes run on
+the D01-B internal network or with `--network none`; they are not attached to the D00 ingress network.
 
-## Repair evidence retained
+## Negative and excluded validation evidence
 
-The first LF-normalized complete regression exposed five old migration tests that still expected
-`0014_m5_eval_authority` after `upgrade head` or a failed downgrade. All five failures had an actual current revision
-of `demo_0001_p3_p7_core`; the migration transaction and authority rows were intact. The repair only updates those
-branch-local expected-head assertions, after which all five and the complete suite pass.
-
-A manual focused replay intentionally left a durable M5 authority row in its database. Reusing that database for a
-subsequent deep legacy downgrade correctly failed with `0014 downgrade would discard durable M5 evaluation authority`.
-The final full regression therefore uses a fresh isolated database and passes. This is fail-closed evidence, not a
-flaky retry or migration bypass.
-
-Ruff also detected mixed Windows line endings introduced by the five-line assertion repair. The four affected files
-were formatted with the repository Ruff and the complete format/check Gate then passed.
-
-The first internal-only read-only-container attempt denied public egress as required but stopped during application
-import because the default local object-storage root pointed inside the read-only source mount. The accepted retry set
-`LOCAL_STORAGE_ROOT` to an ephemeral container `/tmp` directory; source remained read-only, the network boundary did
-not change, no acquisition occurred and all 24 tests passed.
+- The rejected `4c84f255...` result remains `FAIL`; its historical `24 PASS / 718 PASS` cannot support this candidate.
+- The first remediation full replay found one real Alembic drift defect: four redundant ORM-only digest indexes and one
+  overlong QA constraint name. Both were repaired, then `alembic check` passed.
+- Five checksum-bound legacy tests failed on the Windows CRLF checkout. A first attempted normalization was invalid
+  because it also altered the PNG magic literal; that run produced 29 image-chain failures and is excluded. A second
+  `git archive` snapshot inherited global `core.autocrlf=true` and is also excluded.
+- The accepted snapshot construction disables checkout conversion before archive and verifies zero CR bytes in the
+  three checksum authorities and `image_sanitizer.py`. Checksum/private-replay plus sanitizer tests then passed 56/56.
+- A read-only container import initially failed because local object storage targeted the source mount. The accepted
+  retry uses ephemeral `/tmp`; it does not widen network or filesystem authority.
+- The PostgreSQL container's persisted local-test password differed from its current image environment metadata. The
+  task-scoped accepted local credential was verified without logging it and no production credential was used.
 
 ## Risk disposition
 
 ```text
 R-DEMO-05 migration conflict: MITIGATED_MONITORED
-R-DEMO-06 competing authority: MITIGATED_MONITORED
+R-DEMO-06 competing authority: RECOVERING_PENDING_INDEPENDENT_REVIEW
+R-DEMO-10 private bytes in Git/CI: MITIGATED_MONITORED for this candidate
 R-DEMO-08 raw-float digest drift: SCHEMA_LAYER_MITIGATED; D04/D10 remain OPEN
 R-DEMO-09 implicit rebuild time: SCHEMA_LAYER_MITIGATED; D10 remains OPEN
 R-DEMO-16 Job ownership bridge: PARTIALLY_MITIGATED; D01-C/D03-D10 remain OPEN
-R-DEMO-19 hidden public runtime dependency: MITIGATED_MONITORED; core runtime Gates remain mandatory
+R-DEMO-19 hidden public runtime dependency: MITIGATED_MONITORED; Gitleaks acquisition was D00-A-only
 ```
 
 ## Formal boundary and remaining Gate
@@ -260,8 +279,9 @@ REAL_USER_VALIDITY: NOT_EVALUATED
 PRODUCTION_SECURITY: DEFERRED_FOR_FORMAL_PHASE
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 
-D01_B_INDEPENDENT_REVIEW: PENDING
-D01_B_PRINCIPAL_ACCEPTANCE: PENDING
+D01_B_REJECTED_CANDIDATE_REVIEW: FAIL_FOR_4c84f255
+D01_B_REMEDIATION_CANDIDATE_REVIEW: PENDING
+D01_B_PRINCIPAL_ACCEPTANCE: BLOCKED_PENDING_INDEPENDENT_REVIEW
 D01_C: CLOSED
 D02_D12: NOT_VERIFIED
 ```
