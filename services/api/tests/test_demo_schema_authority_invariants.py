@@ -6,6 +6,7 @@ import os
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from decimal import ROUND_HALF_EVEN, Decimal
 from pathlib import Path
 from threading import Barrier
 from typing import Any
@@ -511,10 +512,10 @@ def _insert_local_d02_identity(
         asset_role="synthetic",
         internal_purpose="synthetic_dataset",
         storage_key=f"demo-d02-recovered/{marker}/{new_id()}",
-        mime_type="image/png",
-        byte_size=68,
-        width=1,
-        height=1,
+        mime_type="image/jpeg",
+        byte_size=4096,
+        width=64,
+        height=64,
         sha256=hashlib.sha256(f"d02-source/{marker}/{new_id()}".encode()).hexdigest(),
         synthetic=True,
         is_ai_generated=True,
@@ -643,83 +644,187 @@ def _insert_local_d02_identity(
     return source_asset, admission
 
 
+_D02_PREREGISTRATION_SHA256 = "3fb0a1192d006560d45083b8d9d933f15a22648c0108f81ef305d31980073ba3"
+_D02_SOURCE_MANIFEST_DIGEST = "eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4"
+_D02_DIMENSION_MANIFEST_DIGEST = "d4ffa375cf861ec6873270cd4b1c03c4270672f96dee4b8f71ae0678103ad33a"
+_D02_GEOMETRY_ONTOLOGY_DIGEST = "d902fe2cfdf69db9f62ccc2e5fa7c569227d652f1204aa683742fc3c592f38b9"
+_D02_CANDIDATE_DIMENSIONS = ("jaw_width", "chin_height", "eye_spacing")
+_D02_DIRECTIONS = ("DECREASE", "INCREASE")
+_D02_MAGNITUDES = (15_000, 30_000)
+_D02_CONTROL_DIMENSIONS = {
+    "jaw_width": (
+        "cheekbone_width",
+        "chin_height",
+        "eye_spacing",
+        "mouth_width",
+        "nose_width",
+    ),
+    "chin_height": (
+        "cheekbone_width",
+        "eye_spacing",
+        "jaw_width",
+        "mouth_width",
+        "nose_width",
+    ),
+    "eye_spacing": (
+        "cheekbone_width",
+        "chin_height",
+        "jaw_width",
+        "mouth_width",
+        "nose_width",
+    ),
+}
+
+
+def _d02_fixed18(value: Decimal | int | str) -> str:
+    decimal_value = Decimal(value)
+    if decimal_value == 0:
+        decimal_value = Decimal(0)
+    return format(
+        decimal_value.quantize(Decimal("0.000000000000000001"), rounding=ROUND_HALF_EVEN),
+        ".18f",
+    )
+
+
+def _d02_ppm(value: Decimal | str) -> int:
+    return int(
+        (Decimal(value) * Decimal(1_000_000)).quantize(Decimal("1"), rounding=ROUND_HALF_EVEN)
+    )
+
+
+def _d02_record(
+    schema_version: str,
+    payload: dict[str, Any],
+    *,
+    digest_key: str = "record_digest",
+) -> dict[str, Any]:
+    record = {"schema_version": schema_version, **payload}
+    record[digest_key] = _digest(schema_version, payload)
+    return record
+
+
+def _d02_derived_id(schema_version: str, payload: dict[str, Any]) -> str:
+    return _digest(schema_version, payload)[:32]
+
+
+def _d02_screening_policy_digest() -> str:
+    return _digest(
+        "mirror.demo/D02ScreeningPolicyRoot/v1",
+        {
+            "preregistration_id": "P3_P7_D02_PAIR_SCREENING_V9",
+            "policy_schema": "mirror.demo/D02PairScreeningPolicy/v8",
+            "policy_revision": 9,
+            "preregistration_sha256": _D02_PREREGISTRATION_SHA256,
+        },
+    )
+
+
+def _d02_lock_policy_digest() -> str:
+    return _digest(
+        "mirror.demo/D02EmptyNeutralLockPolicy/v1",
+        {
+            "policy_id": "D02_FROZEN_EMPTY_NEUTRAL_POLICY_V1",
+            "ordered_feature_locks": [],
+            "ordered_temporary_session_overrides": [],
+            "ordered_prohibited_operations": [],
+        },
+    )
+
+
 def _insert_d02_question_bank(
     session: Session,
     primary_source: Asset,
     primary_admission: DemoSyntheticIdentity,
 ) -> tuple[DemoQuestionBank, DemoQuestionPair]:
+    """Build the complete Revision 9 report DAG and its selected 16-pair bank."""
+
+    # The full graph may pass a formal Phase-2 source here. D02 report authority is
+    # deliberately rebuilt from four local recovered-copy admissions only.
+    _ = primary_source, primary_admission
     marker = new_id()
 
-    source_authorities: list[tuple[Asset, DemoSyntheticIdentity]] = [
-        (primary_source, primary_admission)
-    ]
-    for source_index in range(1, 4):
-        source_asset, admission = _insert_local_d02_identity(
-            session, marker=f"{marker}-{source_index}"
-        )
-        source_authorities.append((source_asset, admission))
-    source_authorities.sort(
-        key=lambda authority: (
-            str(authority[1].source_authority_key),
-            authority[1].id,
-        )
-    )
-
-    selected_dimensions = ("jaw_width", "chin_height")
-    magnitudes = (15_000, 30_000)
-
     def evidence_digest(label: str) -> str:
-        return hashlib.sha256(f"d02/{marker}/{label}".encode()).hexdigest()
-
-    selected_records: list[dict[str, Any]] = []
-    for source_index, (_, admission) in enumerate(source_authorities):
-        for dimension_key in selected_dimensions:
-            for magnitude_ppm in magnitudes:
-                selected_records.append(
-                    {
-                        "dimension_key": dimension_key,
-                        "magnitude_ppm": magnitude_ppm,
-                        "pair_screening_record_digest": evidence_digest(
-                            f"pair/{source_index}/{dimension_key}/{magnitude_ppm}"
-                        ),
-                        "source_admission_event_id": admission.id,
-                    }
-                )
-
-    ordered_source_manifest = [
-        {
-            "source_admission_event_id": admission.id,
-            "source_asset_id": source_asset.id,
-            "source_asset_sha256": source_asset.sha256,
-            "source_authority_key": admission.source_authority_key,
-        }
-        for source_asset, admission in source_authorities
-    ]
-    ordered_case_manifest = [
-        {"case_index": index, "case_digest": evidence_digest(f"case/{index}")}
-        for index in range(48)
-    ]
-    dimension_eligibility = [
-        {
-            "dimension_key": dimension_key,
-            "priority_index": priority_index,
-            "eligible": priority_index <= 2,
-            "sixteen_side_gate_digest": evidence_digest(f"dimension/{dimension_key}/sixteen-side"),
-            "eight_pair_gate_digest": evidence_digest(f"dimension/{dimension_key}/eight-pair"),
-            "failure_reasons": [] if priority_index <= 2 else ["NOT_SELECTED"],
-        }
-        for priority_index, dimension_key in enumerate(
-            ("jaw_width", "chin_height", "eye_spacing"), start=1
+        return _digest(
+            "mirror.demo/D02FixtureEvidence/v1",
+            {"label": label, "marker": marker},
         )
+
+    source_authorities = [
+        _insert_local_d02_identity(session, marker=f"{marker}-source-{source_index}")
+        for source_index in range(1, 5)
     ]
-    source_manifest_digest = _digest(
-        "mirror.demo/D02SourceAuthorityManifest/v1", ordered_source_manifest
+    source_authorities.sort(
+        key=lambda authority: (str(authority[1].source_authority_key), authority[1].id)
     )
-    case_manifest_digest = _digest("mirror.demo/D02GeometryCaseManifest/v1", ordered_case_manifest)
+
+    source_entries: list[dict[str, Any]] = []
+    source_fixtures: list[dict[str, Any]] = []
+    for source_ordinal, (source_asset, admission) in enumerate(source_authorities, start=1):
+        raw_entries = admission.source_fact_snapshot["raw_measurement_authority"]["ordered_entries"]
+        projection_entries = admission.source_measurement_projection["ordered_entries"]
+        ordered_measurements = [
+            {
+                "schema_version": "mirror.demo/D02SupportedSourceMeasurement/v1",
+                "dimension_key": str(raw_entry["dimension_key"]),
+                "raw_value_fixed18": str(raw_entry["raw_value_fixed18"]),
+                "raw_confidence_fixed18": str(raw_entry["raw_confidence_fixed18"]),
+                "raw_reliability_fixed18": str(raw_entry["raw_reliability_fixed18"]),
+                "value_ppm": int(projection_entry["value_ppm"]),
+                "confidence_ppm": int(projection_entry["confidence_ppm"]),
+                "reliability_ppm": int(projection_entry["reliability_ppm"]),
+                "unit": "FACE_HEIGHT_PPM",
+            }
+            for raw_entry, projection_entry in zip(raw_entries, projection_entries, strict=True)
+        ]
+        source_entry = _d02_record(
+            "mirror.demo/D02SourceAuthorityManifestEntry/v2",
+            {
+                "source_ordinal": source_ordinal,
+                "source_authority_kind": "DEMO_LOCAL_IMPORTED_COPY",
+                "source_authority_key": admission.source_authority_key,
+                "source_admission_event_id": admission.id,
+                "source_admission_content_digest": admission.content_digest,
+                "source_output_id": admission.source_output_id,
+                "source_asset_id": source_asset.id,
+                "source_asset_sha256": source_asset.sha256,
+                "source_asset_byte_size": source_asset.byte_size,
+                "source_asset_mime_type": source_asset.mime_type,
+                "source_asset_width": source_asset.width,
+                "source_asset_height": source_asset.height,
+                "source_receipt_digest": admission.source_receipt_digest,
+                "source_authority_digest": admission.source_authority_digest,
+                "source_qa_snapshot_digest": admission.source_qa_snapshot_digest,
+                "source_landmark_digest": admission.source_landmark_digest,
+                "source_measurement_digest": admission.source_measurement_digest,
+                "source_provenance_digest": admission.source_provenance_digest,
+                "source_fact_snapshot_digest": admission.source_fact_snapshot_digest,
+                "raw_measurement_authority_digest": admission.source_measurement_digest,
+                "source_measurement_projection_digest": (
+                    admission.source_measurement_projection_digest
+                ),
+                "adult_synthetic_attested": True,
+                "original_formal_identity_id_status": ("UNKNOWN_REDACTED_NOT_RECOVERED"),
+                "source_p2_candidate_manifest_content_digest": (_D02_SOURCE_MANIFEST_DIGEST),
+                "dimension_authority_manifest_content_digest": (_D02_DIMENSION_MANIFEST_DIGEST),
+                "ordered_supported_measurements": ordered_measurements,
+            },
+        )
+        source_entries.append(source_entry)
+        source_fixtures.append(
+            {
+                "asset": source_asset,
+                "admission": admission,
+                "entry": source_entry,
+                "measurements": {str(item["dimension_key"]): item for item in ordered_measurements},
+            }
+        )
+
+    source_manifest_digest = _digest("mirror.demo/D02SourceAuthorityManifest/v1", source_entries)
+    screening_policy_digest = _d02_screening_policy_digest()
+    lock_policy_digest = _d02_lock_policy_digest()
     report_digests = {
         "source_manifest_digest": source_manifest_digest,
-        "case_manifest_digest": case_manifest_digest,
-        "screening_policy_digest": evidence_digest("screening-policy"),
+        "screening_policy_digest": screening_policy_digest,
         "runtime_manifest_digest": evidence_digest("runtime-manifest"),
         "vision_model_manifest_digest": evidence_digest("vision-model-manifest"),
         "topology_digest": evidence_digest("topology"),
@@ -728,59 +833,931 @@ def _insert_d02_question_bank(
         "duplicate_policy_digest": evidence_digest("duplicate-policy"),
         "phash_implementation_digest": evidence_digest("phash-implementation"),
     }
-    report_payload: dict[str, Any] = {
-        "schema_and_policy": report_digests,
-        "ordered_source_manifest": ordered_source_manifest,
+    execution_config_payload = {
+        "screening_policy_digest": screening_policy_digest,
+        "runtime_manifest_digest": report_digests["runtime_manifest_digest"],
+        "vision_model_manifest_digest": report_digests["vision_model_manifest_digest"],
+        "topology_digest": report_digests["topology_digest"],
+        "measurement_config_digest": report_digests["measurement_config_digest"],
+        "manual_review_policy_digest": report_digests["manual_review_policy_digest"],
+        "duplicate_policy_digest": report_digests["duplicate_policy_digest"],
+        "phash_implementation_digest": report_digests["phash_implementation_digest"],
+        "geometry_algorithm_version": "demo-d02-geometry-v1",
+        "runtime_config_digest": evidence_digest("runtime-config"),
+        "output_policy_version": "demo-d02-output-jpeg-v1",
+        "output_width": 64,
+        "output_height": 64,
+        "determinism_level": "BIT_EXACT",
+    }
+    execution_config_digest = _digest(
+        "mirror.demo/D02ExecutionConfiguration/v1", execution_config_payload
+    )
+
+    case_fixtures: list[dict[str, Any]] = []
+    case_by_key: dict[tuple[int, str, str, int], dict[str, Any]] = {}
+    for source_fixture in source_fixtures:
+        source_entry = source_fixture["entry"]
+        for priority_index, dimension_key in enumerate(_D02_CANDIDATE_DIMENSIONS, start=1):
+            for direction_index, direction in enumerate(_D02_DIRECTIONS, start=1):
+                for magnitude_index, magnitude_ppm in enumerate(_D02_MAGNITUDES, start=1):
+                    case_ordinal = len(case_fixtures) + 1
+                    case_id_payload = {
+                        "source_manifest_digest": source_manifest_digest,
+                        "source_authority_key": source_entry["source_authority_key"],
+                        "source_admission_event_id": source_entry["source_admission_event_id"],
+                        "source_asset_sha256": source_entry["source_asset_sha256"],
+                        "source_p2_candidate_manifest_content_digest": (
+                            _D02_SOURCE_MANIFEST_DIGEST
+                        ),
+                        "dimension_authority_manifest_content_digest": (
+                            _D02_DIMENSION_MANIFEST_DIGEST
+                        ),
+                        "dimension_key": dimension_key,
+                        "direction": direction,
+                        "magnitude_ppm": magnitude_ppm,
+                        "execution_config_digest": execution_config_digest,
+                    }
+                    case_id = _d02_derived_id("mirror.demo/D02GeometryCaseId/v1", case_id_payload)
+                    ordered_controls = list(_D02_CONTROL_DIMENSIONS[dimension_key])
+                    warp_plan_digest = evidence_digest(f"warp-plan/{case_id}")
+                    specification_payload = {
+                        "source_manifest_digest": source_manifest_digest,
+                        "source_ordinal": source_entry["source_ordinal"],
+                        "source_authority_key": source_entry["source_authority_key"],
+                        "source_admission_event_id": source_entry["source_admission_event_id"],
+                        "source_asset_id": source_entry["source_asset_id"],
+                        "source_asset_sha256": source_entry["source_asset_sha256"],
+                        "source_qa_snapshot_digest": source_entry["source_qa_snapshot_digest"],
+                        "source_measurement_projection_digest": source_entry[
+                            "source_measurement_projection_digest"
+                        ],
+                        "source_p2_candidate_manifest_content_digest": (
+                            _D02_SOURCE_MANIFEST_DIGEST
+                        ),
+                        "dimension_authority_manifest_content_digest": (
+                            _D02_DIMENSION_MANIFEST_DIGEST
+                        ),
+                        "geometry_ontology_version_digest": (_D02_GEOMETRY_ONTOLOGY_DIGEST),
+                        "dimension_key": dimension_key,
+                        "priority_index": priority_index,
+                        "direction": direction,
+                        "direction_index": direction_index,
+                        "magnitude_ppm": magnitude_ppm,
+                        "magnitude_index": magnitude_index,
+                        "ordered_control_dimensions": ordered_controls,
+                        "warp_plan_digest": warp_plan_digest,
+                        "geometry_algorithm_version": execution_config_payload[
+                            "geometry_algorithm_version"
+                        ],
+                        "runtime_manifest_digest": report_digests["runtime_manifest_digest"],
+                        "runtime_config_digest": execution_config_payload["runtime_config_digest"],
+                        "output_policy_version": execution_config_payload["output_policy_version"],
+                        "output_width": 64,
+                        "output_height": 64,
+                        "determinism_level": "BIT_EXACT",
+                        "execution_config_digest": execution_config_digest,
+                    }
+                    case_specification_digest = _digest(
+                        "mirror.demo/D02GeometryCaseSpecification/v1",
+                        specification_payload,
+                    )
+                    case_entry = _d02_record(
+                        "mirror.demo/D02GeometryCaseManifestEntry/v3",
+                        {
+                            "case_ordinal": case_ordinal,
+                            "case_id": case_id,
+                            **specification_payload,
+                            "case_specification_digest": case_specification_digest,
+                        },
+                    )
+                    result_sha256 = evidence_digest(f"result-bytes/{case_id}")
+                    result_output_id = f"d02-result-{case_id}"
+                    result_asset_id = evidence_digest(f"result-asset/{case_id}")[:32]
+                    asset_variant_id = evidence_digest(f"variant/{case_id}")[:32]
+                    fixture = {
+                        "source": source_fixture,
+                        "entry": case_entry,
+                        "result_output_id": result_output_id,
+                        "result_sha256": result_sha256,
+                        "result_asset_id": result_asset_id,
+                        "asset_variant_id": asset_variant_id,
+                    }
+                    case_fixtures.append(fixture)
+                    case_by_key[
+                        (
+                            int(source_entry["source_ordinal"]),
+                            dimension_key,
+                            direction,
+                            magnitude_ppm,
+                        )
+                    ] = fixture
+
+    ordered_case_manifest = [fixture["entry"] for fixture in case_fixtures]
+    case_manifest_digest = _digest("mirror.demo/D02GeometryCaseManifest/v1", ordered_case_manifest)
+    report_digests["case_manifest_digest"] = case_manifest_digest
+
+    source_m3_records: list[dict[str, Any]] = []
+    for source_fixture in source_fixtures:
+        source_entry = source_fixture["entry"]
+        for repeat_index in range(1, 4):
+            id_payload = {
+                "source_manifest_digest": source_manifest_digest,
+                "source_authority_key": source_entry["source_authority_key"],
+                "source_admission_event_id": source_entry["source_admission_event_id"],
+                "source_asset_id": source_entry["source_asset_id"],
+                "source_asset_sha256": source_entry["source_asset_sha256"],
+                "repeat_index": repeat_index,
+                "vision_model_manifest_digest": report_digests["vision_model_manifest_digest"],
+                "runtime_manifest_digest": report_digests["runtime_manifest_digest"],
+                "topology_digest": report_digests["topology_digest"],
+            }
+            source_m3_records.append(
+                _d02_record(
+                    "mirror.demo/D02SourceM3RepeatRecord/v1",
+                    {
+                        "source_m3_record_id": _d02_derived_id(
+                            "mirror.demo/D02SourceM3RecordId/v1", id_payload
+                        ),
+                        "source_ordinal": source_entry["source_ordinal"],
+                        "source_authority_key": source_entry["source_authority_key"],
+                        "source_admission_event_id": source_entry["source_admission_event_id"],
+                        "source_asset_id": source_entry["source_asset_id"],
+                        "source_asset_sha256": source_entry["source_asset_sha256"],
+                        "repeat_index": repeat_index,
+                        "execution_receipt_digest": evidence_digest(
+                            f"source-m3-receipt/{source_entry['source_ordinal']}/{repeat_index}"
+                        ),
+                        "vision_model_manifest_digest": report_digests[
+                            "vision_model_manifest_digest"
+                        ],
+                        "runtime_manifest_digest": report_digests["runtime_manifest_digest"],
+                        "topology_digest": report_digests["topology_digest"],
+                        "canonical_output_digest": source_entry["source_qa_snapshot_digest"],
+                        "landmark_digest": source_entry["source_landmark_digest"],
+                        "measurement_digest": source_entry["source_measurement_digest"],
+                        "face_count": 1,
+                        "landmark_count": 478,
+                        "coordinates_finite": True,
+                        "coordinates_in_bounds": True,
+                        "repeat_gate_passed": True,
+                    },
+                )
+            )
+
+    m4_records: list[dict[str, Any]] = []
+    result_m3_records: list[dict[str, Any]] = []
+    for case_fixture in case_fixtures:
+        case_entry = case_fixture["entry"]
+        source_entry = case_fixture["source"]["entry"]
+        case_m4_records: list[dict[str, Any]] = []
+        for replay_index in range(1, 3):
+            id_payload = {
+                "case_id": case_entry["case_id"],
+                "case_specification_digest": case_entry["case_specification_digest"],
+                "replay_index": replay_index,
+                "geometry_algorithm_version": case_entry["geometry_algorithm_version"],
+                "runtime_manifest_digest": case_entry["runtime_manifest_digest"],
+                "runtime_config_digest": case_entry["runtime_config_digest"],
+                "determinism_level": case_entry["determinism_level"],
+            }
+            record = _d02_record(
+                "mirror.demo/D02M4ExecutionRecord/v1",
+                {
+                    "m4_execution_record_id": _d02_derived_id(
+                        "mirror.demo/D02M4ExecutionRecordId/v1", id_payload
+                    ),
+                    "case_id": case_entry["case_id"],
+                    "case_specification_digest": case_entry["case_specification_digest"],
+                    "replay_index": replay_index,
+                    "source_output_id": source_entry["source_output_id"],
+                    "source_asset_id": source_entry["source_asset_id"],
+                    "source_asset_sha256": source_entry["source_asset_sha256"],
+                    "result_output_id": case_fixture["result_output_id"],
+                    "result_sha256": case_fixture["result_sha256"],
+                    "result_byte_size": 4096,
+                    "result_mime_type": "image/jpeg",
+                    "result_width": 64,
+                    "result_height": 64,
+                    "changed_pixel_count": 64,
+                    "warp_plan_digest": case_entry["warp_plan_digest"],
+                    "geometry_algorithm_version": case_entry["geometry_algorithm_version"],
+                    "runtime_manifest_digest": case_entry["runtime_manifest_digest"],
+                    "runtime_config_digest": case_entry["runtime_config_digest"],
+                    "determinism_level": case_entry["determinism_level"],
+                    "execution_receipt_digest": evidence_digest(
+                        f"m4-receipt/{case_entry['case_id']}/{replay_index}"
+                    ),
+                    "execution_succeeded": True,
+                },
+            )
+            case_m4_records.append(record)
+            m4_records.append(record)
+        case_fixture["m4_records"] = case_m4_records
+
+        case_result_m3: list[dict[str, Any]] = []
+        for repeat_index in range(1, 4):
+            id_payload = {
+                "case_id": case_entry["case_id"],
+                "case_specification_digest": case_entry["case_specification_digest"],
+                "result_output_id": case_fixture["result_output_id"],
+                "result_sha256": case_fixture["result_sha256"],
+                "repeat_index": repeat_index,
+                "vision_model_manifest_digest": report_digests["vision_model_manifest_digest"],
+                "runtime_manifest_digest": report_digests["runtime_manifest_digest"],
+                "topology_digest": report_digests["topology_digest"],
+            }
+            record = _d02_record(
+                "mirror.demo/D02ResultM3RepeatRecord/v1",
+                {
+                    "result_m3_record_id": _d02_derived_id(
+                        "mirror.demo/D02ResultM3RecordId/v1", id_payload
+                    ),
+                    "case_id": case_entry["case_id"],
+                    "case_specification_digest": case_entry["case_specification_digest"],
+                    "result_output_id": case_fixture["result_output_id"],
+                    "result_sha256": case_fixture["result_sha256"],
+                    "repeat_index": repeat_index,
+                    "execution_receipt_digest": evidence_digest(
+                        f"result-m3-receipt/{case_entry['case_id']}/{repeat_index}"
+                    ),
+                    "vision_model_manifest_digest": report_digests["vision_model_manifest_digest"],
+                    "runtime_manifest_digest": report_digests["runtime_manifest_digest"],
+                    "topology_digest": report_digests["topology_digest"],
+                    "canonical_output_digest": evidence_digest(
+                        f"result-canonical/{case_entry['case_id']}"
+                    ),
+                    "landmark_digest": evidence_digest(f"result-landmarks/{case_entry['case_id']}"),
+                    "measurement_observation_digest": evidence_digest(
+                        f"result-measurement/{case_entry['case_id']}"
+                    ),
+                    "face_count": 1,
+                    "landmark_count": 478,
+                    "coordinates_finite": True,
+                    "coordinates_in_bounds": True,
+                    "observation_state": "SUPPORTED",
+                    "repeat_gate_passed": True,
+                },
+            )
+            case_result_m3.append(record)
+            result_m3_records.append(record)
+        case_fixture["result_m3_records"] = case_result_m3
+
+    measurement_records: list[dict[str, Any]] = []
+    structure_records: list[dict[str, Any]] = []
+    for case_fixture in case_fixtures:
+        case_entry = case_fixture["entry"]
+        source_measurements = case_fixture["source"]["measurements"]
+        target_measurement = dict(source_measurements[case_entry["dimension_key"]])
+        control_measurements = [
+            dict(source_measurements[dimension_key])
+            for dimension_key in case_entry["ordered_control_dimensions"]
+        ]
+        source_target = Decimal(target_measurement["raw_value_fixed18"])
+        delta = Decimal(case_entry["magnitude_ppm"]) / Decimal(1_000_000)
+        signed_delta = -delta if case_entry["direction"] == "DECREASE" else delta
+        raw_result_target = source_target + signed_delta
+        result_measurements: list[dict[str, Any]] = []
+        for repeat_index, result_m3 in enumerate(case_fixture["result_m3_records"], start=1):
+            control_deltas = [
+                {
+                    "schema_version": "mirror.demo/D02ControlDelta/v1",
+                    "control_ordinal": control_ordinal,
+                    "dimension_key": control_measurement["dimension_key"],
+                    "raw_source_value_fixed18": control_measurement["raw_value_fixed18"],
+                    "raw_result_value_fixed18": control_measurement["raw_value_fixed18"],
+                    "raw_absolute_delta_fixed18": _d02_fixed18(0),
+                    "drift_ppm": 0,
+                }
+                for control_ordinal, control_measurement in enumerate(control_measurements, start=1)
+            ]
+            result_measurements.append(
+                {
+                    "schema_version": ("mirror.demo/D02SupportedResultMeasurement/v1"),
+                    "repeat_index": repeat_index,
+                    "result_m3_record_digest": result_m3["record_digest"],
+                    "raw_result_target_fixed18": _d02_fixed18(raw_result_target),
+                    "raw_signed_target_delta_fixed18": _d02_fixed18(signed_delta),
+                    "raw_target_absolute_delta_fixed18": _d02_fixed18(delta),
+                    "ordered_control_deltas": control_deltas,
+                    "winning_control_ordinal": 1,
+                    "max_control_dimension_key": control_deltas[0]["dimension_key"],
+                    "raw_max_control_drift_fixed18": _d02_fixed18(0),
+                    "measured_signed_delta_ppm": _d02_ppm(signed_delta),
+                    "target_absolute_delta_ppm": _d02_ppm(delta),
+                    "drift_ppm": 0,
+                    "direction_gate_passed": True,
+                    "target_min_gate_passed": True,
+                    "target_max_gate_passed": True,
+                    "control_drift_gate_passed": True,
+                }
+            )
+        peer_fixture = case_by_key[
+            (
+                int(case_entry["source_ordinal"]),
+                str(case_entry["dimension_key"]),
+                str(case_entry["direction"]),
+                30_000 if case_entry["magnitude_ppm"] == 15_000 else 15_000,
+            )
+        ]
+        measurement_record = _d02_record(
+            "mirror.demo/D02MeasurementGateRecord/v3",
+            {
+                "case_id": case_entry["case_id"],
+                "case_specification_digest": case_entry["case_specification_digest"],
+                "dimension_key": case_entry["dimension_key"],
+                "requested_direction": case_entry["direction"],
+                "requested_magnitude_ppm": case_entry["magnitude_ppm"],
+                "monotonicity_peer_case_id": peer_fixture["entry"]["case_id"],
+                "source_target_measurement": target_measurement,
+                "ordered_source_control_measurements": control_measurements,
+                "ordered_result_repeat_measurements": result_measurements,
+                "measurement_evaluation_state": "SUPPORTED_EVALUATED",
+                "gate_evaluation": {
+                    "schema_version": ("mirror.demo/D02SupportedMeasurementGateEvaluation/v1"),
+                    "direction_gate_passed": True,
+                    "target_min_gate_passed": True,
+                    "target_max_gate_passed": True,
+                    "control_drift_gate_passed": True,
+                    "magnitude_monotonicity_gate_passed": True,
+                    "measurement_gate_passed": True,
+                },
+            },
+        )
+        case_fixture["measurement_record"] = measurement_record
+        measurement_records.append(measurement_record)
+
+        result_image_id = _d02_derived_id(
+            "mirror.demo/D02ResultImageAuthorityRecordId/v1",
+            {
+                "authority_role": "RESULT",
+                "source_authority_key": case_fixture["source"]["entry"]["source_authority_key"],
+                "source_admission_event_id": case_fixture["source"]["entry"][
+                    "source_admission_event_id"
+                ],
+                "case_id": case_entry["case_id"],
+                "case_specification_digest": case_entry["case_specification_digest"],
+                "result_output_id": case_fixture["result_output_id"],
+                "deterministic_result_asset_id": case_fixture["result_asset_id"],
+                "sha256": case_fixture["result_sha256"],
+            },
+        )
+        case_fixture["result_image_id"] = result_image_id
+        structure_record = _d02_record(
+            "mirror.demo/D02DecodeStructureImmutabilityRecord/v1",
+            {
+                "case_id": case_entry["case_id"],
+                "case_specification_digest": case_entry["case_specification_digest"],
+                "source_asset_id": case_entry["source_asset_id"],
+                "source_asset_sha256": case_entry["source_asset_sha256"],
+                "m4_execution_record_digests": [
+                    record["record_digest"] for record in case_fixture["m4_records"]
+                ],
+                "result_output_id": case_fixture["result_output_id"],
+                "result_sha256": case_fixture["result_sha256"],
+                "result_byte_size": 4096,
+                "result_mime_type": "image/jpeg",
+                "result_width": 64,
+                "result_height": 64,
+                "result_image_record_id": result_image_id,
+                "source_decode_valid": True,
+                "result_decode_valid": True,
+                "bounded_dimensions_passed": True,
+                "source_checksum_unchanged": True,
+                "m4_replay_bytes_equal": True,
+                "m4_replay_dimensions_equal": True,
+                "changed_pixel_count_equal": True,
+                "changed_pixel_count_positive": True,
+                "immutable_result_binding_passed": True,
+                "exact_lineage_passed": True,
+                "target_and_controls_complete": True,
+                "structure_gate_passed": True,
+            },
+        )
+        case_fixture["structure_record"] = structure_record
+        structure_records.append(structure_record)
+
+    manual_records: list[dict[str, Any]] = []
+    manual_by_case: dict[str, dict[str, Any]] = {}
+    for decision_sequence, case_fixture in enumerate(
+        sorted(case_fixtures, key=lambda fixture: fixture["entry"]["case_id"]),
+        start=1,
+    ):
+        case_id = case_fixture["entry"]["case_id"]
+        manual_record = _d02_record(
+            "mirror.demo/D02ManualArtifactDecision/v1",
+            {
+                "case_id": case_id,
+                "result_sha256": case_fixture["result_sha256"],
+                "manual_review_version": "demo-d02-manual-review-v1",
+                "manual_review_policy_digest": report_digests["manual_review_policy_digest"],
+                "decision_sequence": decision_sequence,
+                "background_seam": False,
+                "disconnected_contour": False,
+                "duplicated_feature": False,
+                "warp_tear": False,
+                "verdict": "PASS",
+                "review_authority_digest": evidence_digest(f"manual-review-authority/{case_id}"),
+            },
+            digest_key="manual_decision_digest",
+        )
+        manual_records.append(manual_record)
+        manual_by_case[case_id] = manual_record
+        case_fixture["manual_record"] = manual_record
+
+    image_record_payloads: list[dict[str, Any]] = []
+    for source_fixture in source_fixtures:
+        source_entry = source_fixture["entry"]
+        image_record_id = _d02_derived_id(
+            "mirror.demo/D02SourceImageAuthorityRecordId/v1",
+            {
+                "authority_role": "SOURCE",
+                "source_authority_key": source_entry["source_authority_key"],
+                "source_admission_event_id": source_entry["source_admission_event_id"],
+                "source_asset_id": source_entry["source_asset_id"],
+                "sha256": source_entry["source_asset_sha256"],
+            },
+        )
+        image_record_payloads.append(
+            {
+                "schema_version": "mirror.demo/D02SourceImageAuthorityRecord/v2",
+                "image_record_id": image_record_id,
+                "authority_role": "SOURCE",
+                "source_ordinal": source_entry["source_ordinal"],
+                "source_authority_key": source_entry["source_authority_key"],
+                "source_admission_event_id": source_entry["source_admission_event_id"],
+                "source_asset_id": source_entry["source_asset_id"],
+                "sha256": source_entry["source_asset_sha256"],
+                "byte_size": source_entry["source_asset_byte_size"],
+                "mime_type": source_entry["source_asset_mime_type"],
+                "width": source_entry["source_asset_width"],
+                "height": source_entry["source_asset_height"],
+            }
+        )
+    for case_fixture in case_fixtures:
+        source_entry = case_fixture["source"]["entry"]
+        case_entry = case_fixture["entry"]
+        image_record_payloads.append(
+            {
+                "schema_version": "mirror.demo/D02ResultImageAuthorityRecord/v2",
+                "image_record_id": case_fixture["result_image_id"],
+                "authority_role": "RESULT",
+                "source_ordinal": source_entry["source_ordinal"],
+                "source_authority_key": source_entry["source_authority_key"],
+                "source_admission_event_id": source_entry["source_admission_event_id"],
+                "case_id": case_entry["case_id"],
+                "case_specification_digest": case_entry["case_specification_digest"],
+                "result_output_id": case_fixture["result_output_id"],
+                "deterministic_result_asset_id": case_fixture["result_asset_id"],
+                "sha256": case_fixture["result_sha256"],
+                "byte_size": 4096,
+                "mime_type": "image/jpeg",
+                "width": 64,
+                "height": 64,
+            }
+        )
+    image_record_payloads.sort(
+        key=lambda record: (str(record["sha256"]), str(record["image_record_id"]))
+    )
+    image_records: list[dict[str, Any]] = []
+    image_by_id: dict[str, dict[str, Any]] = {}
+    for image_record_ordinal, record_payload in enumerate(image_record_payloads, start=1):
+        schema_version = str(record_payload.pop("schema_version"))
+        image_record = _d02_record(
+            schema_version,
+            {"image_record_ordinal": image_record_ordinal, **record_payload},
+            digest_key="image_record_digest",
+        )
+        image_records.append(image_record)
+        image_by_id[str(image_record["image_record_id"])] = image_record
+
+    signatures: list[dict[str, Any]] = []
+    for image_record in image_records:
+        phash_hex = f"{int(image_record['image_record_ordinal']):016x}"
+        signatures.append(
+            _d02_record(
+                "mirror.demo/D02PHashSignatureRecord/v1",
+                {
+                    "image_record_ordinal": image_record["image_record_ordinal"],
+                    "image_record_id": image_record["image_record_id"],
+                    "image_record_digest": image_record["image_record_digest"],
+                    "image_sha256": image_record["sha256"],
+                    "phash_hex": phash_hex,
+                },
+                digest_key="signature_digest",
+            )
+        )
+    comparisons: list[dict[str, Any]] = []
+    comparison_ordinal = 0
+    for left_index in range(52):
+        for right_index in range(left_index + 1, 52):
+            comparison_ordinal += 1
+            left_signature = signatures[left_index]
+            right_signature = signatures[right_index]
+            distance = (
+                int(str(left_signature["phash_hex"]), 16)
+                ^ int(str(right_signature["phash_hex"]), 16)
+            ).bit_count()
+            comparisons.append(
+                _d02_record(
+                    "mirror.demo/D02PHashComparisonRecord/v1",
+                    {
+                        "comparison_ordinal": comparison_ordinal,
+                        "left_image_record_ordinal": left_index + 1,
+                        "left_image_record_id": left_signature["image_record_id"],
+                        "left_signature_digest": left_signature["signature_digest"],
+                        "right_image_record_ordinal": right_index + 1,
+                        "right_image_record_id": right_signature["image_record_id"],
+                        "right_signature_digest": right_signature["signature_digest"],
+                        "hamming_distance": distance,
+                    },
+                    digest_key="comparison_digest",
+                )
+            )
+
+    pair_wrappers: list[dict[str, Any]] = []
+    pair_fixtures: list[dict[str, Any]] = []
+    for source_fixture in source_fixtures:
+        source_entry = source_fixture["entry"]
+        for priority_index, dimension_key in enumerate(_D02_CANDIDATE_DIMENSIONS, start=1):
+            for magnitude_ppm in _D02_MAGNITUDES:
+                left_case = case_by_key[
+                    (
+                        int(source_entry["source_ordinal"]),
+                        dimension_key,
+                        "DECREASE",
+                        magnitude_ppm,
+                    )
+                ]
+                right_case = case_by_key[
+                    (
+                        int(source_entry["source_ordinal"]),
+                        dimension_key,
+                        "INCREASE",
+                        magnitude_ppm,
+                    )
+                ]
+
+                def pair_side(
+                    case_fixture: dict[str, Any],
+                    *,
+                    side_schema: str,
+                    magnitude_ppm: int,
+                    source_entry: dict[str, Any],
+                ) -> dict[str, Any]:
+                    case_entry = case_fixture["entry"]
+                    measurement_record = case_fixture["measurement_record"]
+                    result_measurement = measurement_record["ordered_result_repeat_measurements"][0]
+                    structure_record = case_fixture["structure_record"]
+                    manual_record = case_fixture["manual_record"]
+                    image_record = image_by_id[case_fixture["result_image_id"]]
+                    result_m3_digests = [
+                        record["record_digest"] for record in case_fixture["result_m3_records"]
+                    ]
+                    automated_gate_payload = {
+                        "case_id": case_entry["case_id"],
+                        "case_specification_digest": case_entry["case_specification_digest"],
+                        "result_m3_record_digests": result_m3_digests,
+                        "result_m3_repeat_gate_results": [True, True, True],
+                        "measurement_gate_record_digest": measurement_record["record_digest"],
+                        "measurement_evaluation_state": ("SUPPORTED_EVALUATED"),
+                        "measurement_gate_passed": True,
+                        "decode_structure_record_digest": structure_record["record_digest"],
+                        "structure_gate_passed": True,
+                        "automated_gate_passed": True,
+                    }
+                    return {
+                        "schema_version": side_schema,
+                        "measurement_evaluation_state": "SUPPORTED_EVALUATED",
+                        "case_id": case_entry["case_id"],
+                        "case_specification_digest": case_entry["case_specification_digest"],
+                        "requested_direction": case_entry["direction"],
+                        "requested_magnitude_ppm": magnitude_ppm,
+                        "result_output_id": case_fixture["result_output_id"],
+                        "result_asset_id": case_fixture["result_asset_id"],
+                        "result_asset_sha256": case_fixture["result_sha256"],
+                        "result_asset_byte_size": 4096,
+                        "result_asset_mime_type": "image/jpeg",
+                        "result_asset_width": 64,
+                        "result_asset_height": 64,
+                        "asset_variant_id": case_fixture["asset_variant_id"],
+                        "asset_variant_type": "demo_p3_p7_geometry_v1",
+                        "lineage_digest": _digest(
+                            "mirror.demo/D02AssetVariantLineage/v1",
+                            {
+                                "variant_type": "demo_p3_p7_geometry_v1",
+                                "source_asset_id": source_entry["source_asset_id"],
+                                "source_asset_sha256": source_entry["source_asset_sha256"],
+                                "result_asset_id": case_fixture["result_asset_id"],
+                                "result_asset_sha256": case_fixture["result_sha256"],
+                            },
+                        ),
+                        "image_record_id": image_record["image_record_id"],
+                        "image_record_digest": image_record["image_record_digest"],
+                        "result_m3_record_digests": result_m3_digests,
+                        "measurement_gate_record_digest": measurement_record["record_digest"],
+                        "decode_structure_record_digest": structure_record["record_digest"],
+                        "manual_decision_digest": manual_record["manual_decision_digest"],
+                        "raw_signed_target_delta_fixed18": result_measurement[
+                            "raw_signed_target_delta_fixed18"
+                        ],
+                        "raw_target_absolute_delta_fixed18": result_measurement[
+                            "raw_target_absolute_delta_fixed18"
+                        ],
+                        "raw_max_control_drift_fixed18": result_measurement[
+                            "raw_max_control_drift_fixed18"
+                        ],
+                        "measured_signed_delta_ppm": result_measurement[
+                            "measured_signed_delta_ppm"
+                        ],
+                        "drift_ppm": result_measurement["drift_ppm"],
+                        "automated_gate_digest": _digest(
+                            "mirror.demo/D02AutomatedSideGate/v1",
+                            automated_gate_payload,
+                        ),
+                        "automated_gate_passed": True,
+                        "manual_gate_passed": True,
+                        "side_gate_passed": True,
+                        "side_quality_state": "COMPUTED",
+                        "side_quality_component_ppm": 1_000_000,
+                    }
+
+                left = pair_side(
+                    left_case,
+                    side_schema="mirror.demo/D02EvaluatedPairSide/v3",
+                    magnitude_ppm=magnitude_ppm,
+                    source_entry=source_entry,
+                )
+                right = pair_side(
+                    right_case,
+                    side_schema="mirror.demo/D02EvaluatedPairSide/v3",
+                    magnitude_ppm=magnitude_ppm,
+                    source_entry=source_entry,
+                )
+                pair_id_payload = {
+                    "source_authority_key": source_entry["source_authority_key"],
+                    "source_admission_event_id": source_entry["source_admission_event_id"],
+                    "source_asset_sha256": source_entry["source_asset_sha256"],
+                    "dimension_key": dimension_key,
+                    "priority_index": priority_index,
+                    "magnitude_ppm": magnitude_ppm,
+                    "left_case_id": left["case_id"],
+                    "right_case_id": right["case_id"],
+                    "screening_policy_digest": screening_policy_digest,
+                    "lock_policy_digest": lock_policy_digest,
+                }
+                pair_payload = {
+                    "pair_record_id": _d02_derived_id(
+                        "mirror.demo/D02PairScreeningRecordId/v1", pair_id_payload
+                    ),
+                    "source_ordinal": source_entry["source_ordinal"],
+                    "source_authority_key": source_entry["source_authority_key"],
+                    "source_admission_event_id": source_entry["source_admission_event_id"],
+                    "source_asset_id": source_entry["source_asset_id"],
+                    "source_asset_sha256": source_entry["source_asset_sha256"],
+                    "dimension_key": dimension_key,
+                    "priority_index": priority_index,
+                    "magnitude_ppm": magnitude_ppm,
+                    "screening_policy_digest": screening_policy_digest,
+                    "left": left,
+                    "right": right,
+                    "same_source_gate_passed": True,
+                    "opposed_direction_gate_passed": True,
+                    "equal_magnitude_gate_passed": True,
+                    "pair_side_gates_passed": True,
+                    "empty_lock_policy_gate_passed": True,
+                    "pair_quality_state": "COMPUTED",
+                    "pair_quality_ppm": 1_000_000,
+                    "lock_conclusion": ("PASS_FOR_FROZEN_EMPTY_NEUTRAL_POLICY_ONLY"),
+                    "lock_policy_digest": lock_policy_digest,
+                    "pair_gate_passed": True,
+                }
+                pair_digest = _digest("mirror.demo/D02PairScreeningRecord/v3", pair_payload)
+                wrapper = {
+                    "schema_version": "mirror.demo/D02PairScreeningRecord/v3",
+                    "pair_screening_record_payload": pair_payload,
+                    "pair_screening_record_digest": pair_digest,
+                }
+                pair_wrappers.append(wrapper)
+                pair_fixtures.append(
+                    {
+                        "wrapper": wrapper,
+                        "payload": pair_payload,
+                        "left_case": left_case,
+                        "right_case": right_case,
+                    }
+                )
+
+    dimension_records: list[dict[str, Any]] = []
+    dimension_by_key: dict[str, dict[str, Any]] = {}
+    for priority_index, dimension_key in enumerate(_D02_CANDIDATE_DIMENSIONS, start=1):
+        dimension_pairs = [
+            fixture
+            for fixture in pair_fixtures
+            if fixture["payload"]["dimension_key"] == dimension_key
+        ]
+        side_entries: list[dict[str, Any]] = []
+        pair_entries: list[dict[str, Any]] = []
+        for pair_fixture in dimension_pairs:
+            pair_payload = pair_fixture["payload"]
+            for side_name, side_key in (("LEFT", "left"), ("RIGHT", "right")):
+                side = pair_payload[side_key]
+                side_entries.append(
+                    {
+                        "schema_version": ("mirror.demo/D02DimensionSideGateEntry/v1"),
+                        "source_ordinal": pair_payload["source_ordinal"],
+                        "magnitude_ppm": pair_payload["magnitude_ppm"],
+                        "side": side_name,
+                        "case_id": side["case_id"],
+                        "automated_gate_digest": side["automated_gate_digest"],
+                        "manual_decision_digest": side["manual_decision_digest"],
+                        "automated_gate_passed": side["automated_gate_passed"],
+                        "manual_gate_passed": side["manual_gate_passed"],
+                        "side_gate_passed": side["side_gate_passed"],
+                    }
+                )
+            pair_entries.append(
+                {
+                    "schema_version": "mirror.demo/D02DimensionPairGateEntry/v1",
+                    "source_ordinal": pair_payload["source_ordinal"],
+                    "magnitude_ppm": pair_payload["magnitude_ppm"],
+                    "pair_record_id": pair_payload["pair_record_id"],
+                    "pair_screening_record_digest": pair_fixture["wrapper"][
+                        "pair_screening_record_digest"
+                    ],
+                    "pair_gate_passed": pair_payload["pair_gate_passed"],
+                }
+            )
+        sixteen_side_gate_digest = _digest(
+            "mirror.demo/D02SixteenSideGate/v1",
+            {
+                "dimension_key": dimension_key,
+                "priority_index": priority_index,
+                "ordered_side_gate_entries": side_entries,
+            },
+        )
+        eight_pair_gate_digest = _digest(
+            "mirror.demo/D02EightPairGate/v1",
+            {
+                "dimension_key": dimension_key,
+                "priority_index": priority_index,
+                "ordered_pair_gate_entries": pair_entries,
+            },
+        )
+        dimension_record = _d02_record(
+            "mirror.demo/D02DimensionEligibilityRecord/v3",
+            {
+                "dimension_key": dimension_key,
+                "priority_index": priority_index,
+                "ordered_pair_screening_record_digests": [
+                    fixture["wrapper"]["pair_screening_record_digest"]
+                    for fixture in dimension_pairs
+                ],
+                "ordered_side_automated_gate_digests": [
+                    entry["automated_gate_digest"] for entry in side_entries
+                ],
+                "sixteen_side_gate_digest": sixteen_side_gate_digest,
+                "eight_pair_gate_digest": eight_pair_gate_digest,
+                "all_sixteen_side_gates_passed": True,
+                "all_eight_pair_gates_passed": True,
+                "all_manual_gates_passed": True,
+                "global_exact_sha_gate_passed": True,
+                "empty_lock_policy_gate_passed": True,
+                "eligible": True,
+                "failure_reasons": [],
+            },
+        )
+        dimension_records.append(dimension_record)
+        dimension_by_key[dimension_key] = dimension_record
+
+    selection_trace: list[dict[str, Any]] = []
+    for priority_index, dimension_key in enumerate(_D02_CANDIDATE_DIMENSIONS, start=1):
+        if priority_index == 1:
+            decision, slot, selected = "SELECTED_SLOT_1", 1, True
+        elif priority_index == 2:
+            decision, slot, selected = "SELECTED_SLOT_2", 2, True
+        else:
+            decision, slot, selected = (
+                "ELIGIBLE_NOT_SELECTED_CAPACITY",
+                0,
+                False,
+            )
+        selection_trace.append(
+            _d02_record(
+                "mirror.demo/D02SelectionTraceRecord/v2",
+                {
+                    "selection_step": priority_index,
+                    "dimension_key": dimension_key,
+                    "priority_index": priority_index,
+                    "dimension_eligibility_record_digest": dimension_by_key[dimension_key][
+                        "record_digest"
+                    ],
+                    "eligible": True,
+                    "eligible_rank": priority_index,
+                    "selection_decision": decision,
+                    "selection_slot": slot,
+                    "selected": selected,
+                },
+            )
+        )
+
+    selected_manifest: list[dict[str, Any]] = []
+    selected_pair_fixtures: list[dict[str, Any]] = []
+    for selected_dimension_slot, dimension_key in enumerate(_D02_CANDIDATE_DIMENSIONS[:2], start=1):
+        for pair_fixture in pair_fixtures:
+            pair_payload = pair_fixture["payload"]
+            if pair_payload["dimension_key"] != dimension_key:
+                continue
+            selected_pair_fixtures.append(pair_fixture)
+            left = pair_payload["left"]
+            right = pair_payload["right"]
+            selected_manifest.append(
+                _d02_record(
+                    "mirror.demo/D02SelectedPairManifestEntry/v2",
+                    {
+                        "selected_pair_ordinal": len(selected_manifest) + 1,
+                        "selected_dimension_slot": selected_dimension_slot,
+                        "dimension_key": dimension_key,
+                        "priority_index": pair_payload["priority_index"],
+                        "source_ordinal": pair_payload["source_ordinal"],
+                        "source_authority_key": pair_payload["source_authority_key"],
+                        "source_admission_event_id": pair_payload["source_admission_event_id"],
+                        "magnitude_ppm": pair_payload["magnitude_ppm"],
+                        "pair_record_id": pair_payload["pair_record_id"],
+                        "pair_screening_record_digest": pair_fixture["wrapper"][
+                            "pair_screening_record_digest"
+                        ],
+                        "left_case_id": left["case_id"],
+                        "left_result_asset_id": left["result_asset_id"],
+                        "left_result_asset_sha256": left["result_asset_sha256"],
+                        "left_asset_variant_id": left["asset_variant_id"],
+                        "right_case_id": right["case_id"],
+                        "right_result_asset_id": right["result_asset_id"],
+                        "right_result_asset_sha256": right["result_asset_sha256"],
+                        "right_asset_variant_id": right["asset_variant_id"],
+                    },
+                    digest_key="entry_digest",
+                )
+            )
+
+    selected_pair_manifest_digest = _digest(
+        "mirror.demo/D02SelectedPairManifest/v2", selected_manifest
+    )
+    report_payload = {
+        "schema_and_policy": {
+            "schema_version": "mirror.demo/D02SchemaAndPolicyBinding/v1",
+            **report_digests,
+        },
+        "ordered_source_manifest": source_entries,
         "ordered_case_manifest": ordered_case_manifest,
-        "source_m3_repeat_evidence": [evidence_digest(f"source-m3/{index}") for index in range(12)],
-        "m4_repeat_evidence": [evidence_digest(f"m4/{index}") for index in range(96)],
-        "result_m3_repeat_evidence": [
-            evidence_digest(f"result-m3/{index}") for index in range(144)
-        ],
-        "measurement_gate_evidence": [
-            evidence_digest(f"measurement-gate/{index}") for index in range(48)
-        ],
-        "decode_structure_immutability_evidence": [
-            evidence_digest(f"decode/{index}") for index in range(48)
-        ],
-        "manual_review_evidence": [evidence_digest(f"manual/{index}") for index in range(48)],
+        "source_m3_repeat_evidence": source_m3_records,
+        "m4_repeat_evidence": m4_records,
+        "result_m3_repeat_evidence": result_m3_records,
+        "measurement_gate_evidence": measurement_records,
+        "decode_structure_immutability_evidence": structure_records,
+        "manual_review_evidence": manual_records,
         "exact_duplicate_evidence": {
-            "image_records": [evidence_digest(f"image-record/{index}") for index in range(52)],
+            "schema_version": "mirror.demo/D02ExactDuplicateEvidence/v2",
+            "image_records": image_records,
+            "all_record_sha_unique": True,
+            "source_sha_unique": True,
+            "result_sha_unique": True,
+            "source_result_sha_disjoint": True,
             "exact_sha_gate_passed": True,
         },
         "phash_observation_evidence": {
+            "schema_version": "mirror.demo/D02PHashObservationEvidence/v2",
             "implementation_digest": report_digests["phash_implementation_digest"],
-            "comparisons": [evidence_digest(f"phash/{index}") for index in range(1326)],
+            "bit_width": 64,
+            "threshold_policy": "OBSERVATION_ONLY_NO_THRESHOLD",
+            "ordered_record_signatures": signatures,
+            "comparisons": comparisons,
         },
-        "pair_quality_evidence": [evidence_digest(f"pair-quality/{index}") for index in range(24)],
-        "dimension_eligibility": dimension_eligibility,
-        "fixed_priority_selection_trace": [
-            {"dimension_key": entry["dimension_key"], "selected": index < 2}
-            for index, entry in enumerate(dimension_eligibility)
-        ],
-        "selected_pair_manifest": selected_records,
+        "pair_quality_evidence": pair_wrappers,
+        "dimension_eligibility": dimension_records,
+        "fixed_priority_selection_trace": selection_trace,
+        "selected_pair_manifest": selected_manifest,
         "network_and_runtime_boundary": {
+            "schema_version": "mirror.demo/D02NetworkRuntimeBoundary/v2",
             "public_internet_egress": "DENIED",
             "localhost_and_docker_internal_network": True,
+            "proxy_environment_present": False,
             "production_provider_calls": 0,
             "runtime_generation_calls": 0,
+            "boundary_receipt_digest": evidence_digest("network-boundary"),
         },
     }
     report_schema = "mirror.demo/D02PairScreeningReport/v1"
     report_digest = _digest(report_schema, report_payload)
-    selected_pair_manifest_digest = _digest(
-        "mirror.demo/D02SelectedPairManifest/v1", selected_records
-    )
     report = _build_demo_row(
         DemoPairScreeningReport,
-        row_id=_digest(
+        row_id=_d02_derived_id(
             "mirror.demo/D02PairScreeningReportId/v1",
             {"report_digest": report_digest},
-        )[:32],
+        ),
         authority_schema_version=report_schema,
-        source_manifest_digest=report_digests["source_manifest_digest"],
-        case_manifest_digest=report_digests["case_manifest_digest"],
-        screening_policy_digest=report_digests["screening_policy_digest"],
+        source_manifest_digest=source_manifest_digest,
+        case_manifest_digest=case_manifest_digest,
+        screening_policy_digest=screening_policy_digest,
         runtime_manifest_digest=report_digests["runtime_manifest_digest"],
         vision_model_manifest_digest=report_digests["vision_model_manifest_digest"],
         topology_digest=report_digests["topology_digest"],
@@ -802,198 +1779,139 @@ def _insert_d02_question_bank(
         candidate_pair_count=24,
         selected_pair_count=16,
         selected_result_side_count=32,
-        eligible_dimension_keys=list(selected_dimensions),
-        selected_dimension_keys=list(selected_dimensions),
+        eligible_dimension_keys=list(_D02_CANDIDATE_DIMENSIONS),
+        selected_dimension_keys=list(_D02_CANDIDATE_DIMENSIONS[:2]),
         selected_pair_manifest_digest=selected_pair_manifest_digest,
     )
     session.add(report)
     session.commit()
 
-    algorithm_config_digest = evidence_digest("algorithm-config")
+    algorithm_config_digest = evidence_digest("questionnaire-algorithm-config")
     dimension_manifest = {
         "schema_version": "mirror.demo/D02QuestionBankDimensionManifest/v1",
         "screening_report_id": report.id,
         "screening_report_digest": report.report_digest,
         "source_manifest_digest": report.source_manifest_digest,
-        "source_p2_candidate_manifest_content_digest": (
-            "eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4"
-        ),
-        "dimension_authority_manifest_content_digest": (
-            "d4ffa375cf861ec6873270cd4b1c03c4270672f96dee4b8f71ae0678103ad33a"
-        ),
+        "source_p2_candidate_manifest_content_digest": _D02_SOURCE_MANIFEST_DIGEST,
+        "dimension_authority_manifest_content_digest": (_D02_DIMENSION_MANIFEST_DIGEST),
         "selected_pair_manifest_digest": selected_pair_manifest_digest,
         "selected_dimensions": [
             {
-                "dimension_key": entry["dimension_key"],
-                "priority_index": entry["priority_index"],
-                "sixteen_side_gate_digest": entry["sixteen_side_gate_digest"],
-                "eight_pair_gate_digest": entry["eight_pair_gate_digest"],
+                "dimension_key": dimension_key,
+                "priority_index": dimension_by_key[dimension_key]["priority_index"],
+                "sixteen_side_gate_digest": dimension_by_key[dimension_key][
+                    "sixteen_side_gate_digest"
+                ],
+                "eight_pair_gate_digest": dimension_by_key[dimension_key]["eight_pair_gate_digest"],
             }
-            for entry in dimension_eligibility[:2]
+            for dimension_key in _D02_CANDIDATE_DIMENSIONS[:2]
         ],
     }
-    bank_id = _digest(
+    bank_id = _d02_derived_id(
         "mirror.demo/D02QuestionBankId/v1",
         {
-            "algorithm_config_digest": algorithm_config_digest,
-            "screening_report_digest": report.report_digest,
             "screening_report_id": report.id,
+            "screening_report_digest": report.report_digest,
             "selected_pair_manifest_digest": selected_pair_manifest_digest,
+            "algorithm_config_digest": algorithm_config_digest,
         },
-    )[:32]
+    )
     bank = _build_demo_row(
         DemoQuestionBank,
         row_id=bank_id,
         authority_schema_version="mirror.demo/DemoQuestionBank/v2",
-        version=f"fixture-bank-{marker}",
+        version=f"fixture-bank-r9-{marker}",
         algorithm_config_digest=algorithm_config_digest,
-        routing_version="fixture-route-v2",
-        stopping_version="fixture-stop-v2",
-        neighborhood_version="fixture-neighborhood-v2",
+        routing_version="demo-bayesian-pairwise-logistic-v1",
+        stopping_version="demo-p4-stopping-v1",
+        neighborhood_version="demo-morphology-neighborhood-v1",
         pair_manifest_digest=selected_pair_manifest_digest,
         dimension_manifest=dimension_manifest,
         screening_report_id=report.id,
         screening_report_digest=report.report_digest,
     )
 
-    pair_materials: list[tuple[dict[str, Any], Asset, AssetVariant, Asset, AssetVariant]] = []
-    for pair_index, selected_record in enumerate(selected_records):
-        source_asset, _ = source_authorities[pair_index // 4]
-        left_asset, left_variant = _d02_result_variant(
-            session, source_asset, marker=f"{marker}/{pair_index}/left"
-        )
-        right_asset, right_variant = _d02_result_variant(
-            session, source_asset, marker=f"{marker}/{pair_index}/right"
-        )
-        pair_materials.append(
-            (selected_record, left_asset, left_variant, right_asset, right_variant)
-        )
-    session.commit()
-
+    result_assets: list[Asset] = []
+    result_variants: list[AssetVariant] = []
     pairs: list[DemoQuestionPair] = []
-    for pair_index, material in enumerate(pair_materials):
-        selected_record, left_asset, left_variant, right_asset, right_variant = material
-        source_asset, admission = source_authorities[pair_index // 4]
-        dimension_key = str(selected_record["dimension_key"])
-        magnitude_ppm = int(selected_record["magnitude_ppm"])
-        magnitude_fixed18 = f"0.{magnitude_ppm:06d}{'0' * 12}"
-
-        def side_payload(
-            *,
-            side: str,
-            result_asset: Asset,
-            result_variant: AssetVariant,
-            pair_index_value: int,
-            source_asset_value: Asset,
-            magnitude_ppm_value: int,
-            magnitude_fixed18_value: str,
-        ) -> dict[str, Any]:
-            requested_direction = "DECREASE" if side == "left" else "INCREASE"
-            signed_delta = -magnitude_ppm_value if side == "left" else magnitude_ppm_value
-            return {
-                "case_id": new_id(),
-                "case_specification_digest": evidence_digest(
-                    f"case-spec/{pair_index_value}/{side}"
-                ),
-                "result_asset_id": result_asset.id,
-                "result_asset_sha256": result_asset.sha256,
-                "asset_variant_id": result_variant.id,
-                "asset_variant_type": "demo_p3_p7_geometry_v1",
-                "lineage_digest": _digest(
-                    "mirror.demo/D02AssetVariantLineage/v1",
-                    {
-                        "result_asset_id": result_asset.id,
-                        "result_asset_sha256": result_asset.sha256,
-                        "source_asset_id": source_asset_value.id,
-                        "source_asset_sha256": source_asset_value.sha256,
-                        "variant_type": "demo_p3_p7_geometry_v1",
-                    },
-                ),
-                "requested_direction": requested_direction,
-                "requested_magnitude_ppm": magnitude_ppm_value,
-                "raw_signed_target_delta_fixed18": (
-                    f"-{magnitude_fixed18_value}" if side == "left" else magnitude_fixed18_value
-                ),
-                "raw_target_absolute_delta_fixed18": magnitude_fixed18_value,
-                "raw_max_control_drift_fixed18": "0.000000000000000000",
-                "measured_signed_delta_ppm": signed_delta,
-                "drift_ppm": 0,
-                "automated_gate_digest": evidence_digest(
-                    f"automated-gate/{pair_index_value}/{side}"
-                ),
-                "manual_decision_digest": evidence_digest(
-                    f"manual-decision/{pair_index_value}/{side}"
-                ),
-                "side_quality_component_ppm": 900_000,
-            }
-
+    for pair_fixture in selected_pair_fixtures:
+        pair_payload = pair_fixture["payload"]
+        source_fixture = source_fixtures[int(pair_payload["source_ordinal"]) - 1]
+        source_asset = source_fixture["asset"]
+        for side_name in ("left", "right"):
+            side = pair_payload[side_name]
+            result_assets.append(
+                Asset(
+                    id=side["result_asset_id"],
+                    owner_user_id=None,
+                    asset_role="synthetic",
+                    internal_purpose="synthetic_dataset",
+                    storage_key=(f"demo-d02-selected-r9/{marker}/{side['result_asset_id']}"),
+                    mime_type=side["result_asset_mime_type"],
+                    byte_size=side["result_asset_byte_size"],
+                    width=side["result_asset_width"],
+                    height=side["result_asset_height"],
+                    sha256=side["result_asset_sha256"],
+                    synthetic=True,
+                    is_ai_generated=False,
+                    is_ai_modified=True,
+                )
+            )
+            result_variants.append(
+                AssetVariant(
+                    id=side["asset_variant_id"],
+                    source_asset_id=source_asset.id,
+                    result_asset_id=side["result_asset_id"],
+                    variant_type="demo_p3_p7_geometry_v1",
+                )
+            )
         qa_payload = {
-            "schema_version": "mirror.demo/D02QuestionPairQAPayload/v1",
+            "schema_version": "mirror.demo/D02QuestionPairQAPayload/v2",
             "screening_report_id": report.id,
             "screening_report_digest": report.report_digest,
-            "pair_screening_record_digest": selected_record["pair_screening_record_digest"],
-            "source_authority_key": admission.source_authority_key,
-            "source_admission_event_id": admission.id,
-            "source_asset": {"id": source_asset.id, "sha256": source_asset.sha256},
-            "dimension_key": dimension_key,
-            "magnitude_ppm": magnitude_ppm,
-            "left": side_payload(
-                side="left",
-                result_asset=left_asset,
-                result_variant=left_variant,
-                pair_index_value=pair_index,
-                source_asset_value=source_asset,
-                magnitude_ppm_value=magnitude_ppm,
-                magnitude_fixed18_value=magnitude_fixed18,
-            ),
-            "right": side_payload(
-                side="right",
-                result_asset=right_asset,
-                result_variant=right_variant,
-                pair_index_value=pair_index,
-                source_asset_value=source_asset,
-                magnitude_ppm_value=magnitude_ppm,
-                magnitude_fixed18_value=magnitude_fixed18,
-            ),
-            "pair_quality_ppm": 900_000,
-            "lock_conclusion": "COMPATIBLE",
-            "lock_policy_digest": evidence_digest(f"lock-policy/{pair_index}"),
+            "pair_screening_record_schema_version": ("mirror.demo/D02PairScreeningRecord/v3"),
+            "pair_screening_record_digest": pair_fixture["wrapper"]["pair_screening_record_digest"],
+            "pair_screening_record_payload": pair_payload,
         }
-        pair_id = _digest(
+        pair_id = _d02_derived_id(
             "mirror.demo/D02QuestionPairId/v1",
             {
-                "dimension_key": dimension_key,
-                "magnitude_ppm": magnitude_ppm,
-                "pair_screening_record_digest": selected_record["pair_screening_record_digest"],
                 "question_bank_id": bank.id,
-                "source_admission_event_id": admission.id,
+                "pair_screening_record_digest": qa_payload["pair_screening_record_digest"],
+                "source_admission_event_id": pair_payload["source_admission_event_id"],
+                "dimension_key": pair_payload["dimension_key"],
+                "magnitude_ppm": pair_payload["magnitude_ppm"],
             },
-        )[:32]
+        )
         pairs.append(
             _build_demo_row(
                 DemoQuestionPair,
                 row_id=pair_id,
                 authority_schema_version="mirror.demo/DemoQuestionPair/v2",
                 question_bank_id=bank.id,
-                demo_synthetic_identity_id=admission.id,
-                source_asset_id=source_asset.id,
-                source_asset_sha256=source_asset.sha256,
-                left_asset_id=left_asset.id,
-                left_asset_sha256=left_asset.sha256,
-                right_asset_id=right_asset.id,
-                right_asset_sha256=right_asset.sha256,
-                left_asset_variant_id=left_variant.id,
-                right_asset_variant_id=right_variant.id,
-                dimension_key=dimension_key,
-                magnitude_ppm=magnitude_ppm,
-                left_delta_ppm=-magnitude_ppm,
-                right_delta_ppm=magnitude_ppm,
-                pair_quality_ppm=900_000,
+                demo_synthetic_identity_id=pair_payload["source_admission_event_id"],
+                source_asset_id=pair_payload["source_asset_id"],
+                source_asset_sha256=pair_payload["source_asset_sha256"],
+                left_asset_id=pair_payload["left"]["result_asset_id"],
+                left_asset_sha256=pair_payload["left"]["result_asset_sha256"],
+                right_asset_id=pair_payload["right"]["result_asset_id"],
+                right_asset_sha256=pair_payload["right"]["result_asset_sha256"],
+                left_asset_variant_id=pair_payload["left"]["asset_variant_id"],
+                right_asset_variant_id=pair_payload["right"]["asset_variant_id"],
+                dimension_key=pair_payload["dimension_key"],
+                magnitude_ppm=pair_payload["magnitude_ppm"],
+                left_delta_ppm=pair_payload["left"]["measured_signed_delta_ppm"],
+                right_delta_ppm=pair_payload["right"]["measured_signed_delta_ppm"],
+                pair_quality_ppm=pair_payload["pair_quality_ppm"],
                 qa_payload=qa_payload,
                 screening_report_id=report.id,
                 screening_report_digest=report.report_digest,
             )
         )
+    session.add_all(result_assets)
+    session.flush()
+    session.add_all(result_variants)
+    session.flush()
     session.add(bank)
     session.add_all(pairs)
     session.commit()
@@ -2170,12 +3088,29 @@ def test_stale_synthetic_admission_cannot_create_observation_or_pair(
         )
     session.rollback()
 
-    pair = session.scalar(
-        select(DemoQuestionPair)
-        .where(DemoQuestionPair.demo_synthetic_identity_id == stale_admit.id)
-        .order_by(DemoQuestionPair.id)
-    )
+    pair = session.scalar(select(DemoQuestionPair).order_by(DemoQuestionPair.id))
     assert pair is not None
+    pair_admit = session.get(DemoSyntheticIdentity, pair.demo_synthetic_identity_id)
+    assert pair_admit is not None
+    pair_admit_fields = {
+        column.name: getattr(pair_admit, column.name)
+        for column in pair_admit.__table__.columns
+        if column.name
+        not in _NON_AUTHORITY_COLUMNS | {"source_authority_kind", "source_authority_key"}
+    }
+    pair_admit_fields.update(
+        admission_sequence=2,
+        admission_action="REVOKE",
+        admission_config_digest=hashlib.sha256(b"stale-pair-revoke").hexdigest(),
+        supersedes_id=pair_admit.id,
+    )
+    pair_revoke = _insert_demo_row(
+        session,
+        DemoSyntheticIdentity,
+        **pair_admit_fields,
+    )
+    assert pair_revoke.admission_action == "REVOKE"
+
     with pytest.raises(
         DBAPIError,
         match="Demo synthetic admission is not the current eligible row",
@@ -2185,7 +3120,7 @@ def test_stale_synthetic_admission_cannot_create_observation_or_pair(
             DemoQuestionPair,
             authority_schema_version=pair.schema_version,
             question_bank_id=pair.question_bank_id,
-            demo_synthetic_identity_id=stale_admit.id,
+            demo_synthetic_identity_id=pair_admit.id,
             source_asset_id=pair.source_asset_id,
             source_asset_sha256=pair.source_asset_sha256,
             left_asset_id=pair.left_asset_id,

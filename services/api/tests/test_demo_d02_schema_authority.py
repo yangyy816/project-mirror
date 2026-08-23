@@ -159,8 +159,53 @@ def _authority_fields(authority_row: Any) -> dict[str, Any]:
     }
 
 
-def _clone_v2_bank(bank: DemoQuestionBank, *, marker: str) -> DemoQuestionBank:
+def _redigest_d02_record(record: dict[str, Any], *, digest_key: str = "record_digest") -> None:
+    record[digest_key] = _digest(
+        str(record["schema_version"]),
+        {key: value for key, value in record.items() if key not in {"schema_version", digest_key}},
+    )
+
+
+def _clone_d02_report(
+    report: DemoPairScreeningReport,
+    *,
+    report_payload: dict[str, Any],
+    field_overrides: dict[str, Any] | None = None,
+) -> DemoPairScreeningReport:
+    fields = _authority_fields(report)
+    report_digest = _digest(report.schema_version, report_payload)
+    fields.update(report_payload=report_payload, report_digest=report_digest)
+    if field_overrides:
+        fields.update(field_overrides)
+    cloned_report = cast(
+        DemoPairScreeningReport,
+        _build_demo_row(
+            DemoPairScreeningReport,
+            row_id=_digest(
+                "mirror.demo/D02PairScreeningReportId/v1",
+                {"report_digest": report_digest},
+            )[:32],
+            authority_schema_version=report.schema_version,
+            **fields,
+        ),
+    )
+    if cloned_report.selected_pair_manifest_digest is None:
+        cloned_report.canonical_payload.pop("selected_pair_manifest_digest", None)
+        cloned_report.content_digest = _digest(
+            cloned_report.schema_version, cloned_report.canonical_payload
+        )
+    return cloned_report
+
+
+def _clone_v2_bank(
+    bank: DemoQuestionBank,
+    *,
+    marker: str,
+    dimension_manifest: dict[str, Any] | None = None,
+) -> DemoQuestionBank:
     fields = _authority_fields(bank)
+    if dimension_manifest is not None:
+        fields["dimension_manifest"] = dimension_manifest
     fields["version"] = f"d02-neg-{marker[:16]}-{new_id()}"
     fields["algorithm_config_digest"] = hashlib.sha256(
         f"d02-negative-algorithm/{marker}".encode()
@@ -222,11 +267,190 @@ def _clone_v2_pair(
 def _failed_report_from(report: DemoPairScreeningReport) -> DemoPairScreeningReport:
     fields = _authority_fields(report)
     report_payload = copy.deepcopy(report.report_payload)
-    report_payload["selected_pair_manifest"] = []
-    report_payload["fixed_priority_selection_trace"] = [
-        {"dimension_key": entry["dimension_key"], "selected": False}
-        for entry in report_payload["dimension_eligibility"]
+
+    def redigest_record(record: dict[str, Any], *, digest_key: str = "record_digest") -> None:
+        record[digest_key] = _digest(
+            str(record["schema_version"]),
+            {
+                key: value
+                for key, value in record.items()
+                if key not in {"schema_version", digest_key}
+            },
+        )
+
+    pair_wrappers = report_payload["pair_quality_evidence"]
+    manual_records = report_payload["manual_review_evidence"]
+    for failed_dimension in ("chin_height", "eye_spacing"):
+        wrapper = next(
+            candidate
+            for candidate in pair_wrappers
+            if candidate["pair_screening_record_payload"]["dimension_key"] == failed_dimension
+        )
+        pair_payload = wrapper["pair_screening_record_payload"]
+        failed_side = pair_payload["left"]
+        manual_record = next(
+            candidate
+            for candidate in manual_records
+            if candidate["case_id"] == failed_side["case_id"]
+        )
+        manual_record["background_seam"] = True
+        manual_record["verdict"] = "FAIL"
+        redigest_record(manual_record, digest_key="manual_decision_digest")
+
+        failed_side["manual_decision_digest"] = manual_record["manual_decision_digest"]
+        failed_side["manual_gate_passed"] = False
+        failed_side["side_gate_passed"] = False
+        failed_side["side_quality_state"] = "NOT_COMPUTED_GATE_FAILED"
+        failed_side["side_quality_component_ppm"] = 0
+        pair_payload["pair_side_gates_passed"] = False
+        pair_payload["pair_gate_passed"] = False
+        pair_payload["pair_quality_state"] = "NOT_COMPUTED_GATE_FAILED"
+        pair_payload["pair_quality_ppm"] = 0
+        wrapper["pair_screening_record_digest"] = _digest(
+            "mirror.demo/D02PairScreeningRecord/v3", pair_payload
+        )
+
+    dimension_records = report_payload["dimension_eligibility"]
+    dimension_by_key = {record["dimension_key"]: record for record in dimension_records}
+    exact_sha_gate = bool(report_payload["exact_duplicate_evidence"]["exact_sha_gate_passed"])
+    failure_reason_order = (
+        ("ONE_OR_MORE_SIDE_GATES_FAILED", "all_sixteen_side_gates_passed"),
+        ("ONE_OR_MORE_PAIR_GATES_FAILED", "all_eight_pair_gates_passed"),
+        ("ONE_OR_MORE_MANUAL_GATES_FAILED", "all_manual_gates_passed"),
+        ("GLOBAL_EXACT_SHA_GATE_FAILED", "global_exact_sha_gate_passed"),
+        ("EMPTY_LOCK_POLICY_GATE_FAILED", "empty_lock_policy_gate_passed"),
+    )
+    for dimension_record in dimension_records:
+        dimension_key = str(dimension_record["dimension_key"])
+        priority_index = int(dimension_record["priority_index"])
+        dimension_wrappers = [
+            wrapper
+            for wrapper in pair_wrappers
+            if wrapper["pair_screening_record_payload"]["dimension_key"] == dimension_key
+        ]
+        side_entries: list[dict[str, Any]] = []
+        pair_entries: list[dict[str, Any]] = []
+        for wrapper in dimension_wrappers:
+            pair_payload = wrapper["pair_screening_record_payload"]
+            for side_label, side_key in (("LEFT", "left"), ("RIGHT", "right")):
+                side = pair_payload[side_key]
+                side_entries.append(
+                    {
+                        "schema_version": "mirror.demo/D02DimensionSideGateEntry/v1",
+                        "source_ordinal": pair_payload["source_ordinal"],
+                        "magnitude_ppm": pair_payload["magnitude_ppm"],
+                        "side": side_label,
+                        "case_id": side["case_id"],
+                        "automated_gate_digest": side["automated_gate_digest"],
+                        "manual_decision_digest": side["manual_decision_digest"],
+                        "automated_gate_passed": side["automated_gate_passed"],
+                        "manual_gate_passed": side["manual_gate_passed"],
+                        "side_gate_passed": side["side_gate_passed"],
+                    }
+                )
+            pair_entries.append(
+                {
+                    "schema_version": "mirror.demo/D02DimensionPairGateEntry/v1",
+                    "source_ordinal": pair_payload["source_ordinal"],
+                    "magnitude_ppm": pair_payload["magnitude_ppm"],
+                    "pair_record_id": pair_payload["pair_record_id"],
+                    "pair_screening_record_digest": wrapper["pair_screening_record_digest"],
+                    "pair_gate_passed": pair_payload["pair_gate_passed"],
+                }
+            )
+
+        all_side = all(bool(entry["side_gate_passed"]) for entry in side_entries)
+        all_pair = all(bool(entry["pair_gate_passed"]) for entry in pair_entries)
+        all_manual = all(bool(entry["manual_gate_passed"]) for entry in side_entries)
+        all_lock = all(
+            bool(wrapper["pair_screening_record_payload"]["empty_lock_policy_gate_passed"])
+            for wrapper in dimension_wrappers
+        )
+        dimension_record.update(
+            ordered_pair_screening_record_digests=[
+                wrapper["pair_screening_record_digest"] for wrapper in dimension_wrappers
+            ],
+            ordered_side_automated_gate_digests=[
+                entry["automated_gate_digest"] for entry in side_entries
+            ],
+            sixteen_side_gate_digest=_digest(
+                "mirror.demo/D02SixteenSideGate/v1",
+                {
+                    "dimension_key": dimension_key,
+                    "priority_index": priority_index,
+                    "ordered_side_gate_entries": side_entries,
+                },
+            ),
+            eight_pair_gate_digest=_digest(
+                "mirror.demo/D02EightPairGate/v1",
+                {
+                    "dimension_key": dimension_key,
+                    "priority_index": priority_index,
+                    "ordered_pair_gate_entries": pair_entries,
+                },
+            ),
+            all_sixteen_side_gates_passed=all_side,
+            all_eight_pair_gates_passed=all_pair,
+            all_manual_gates_passed=all_manual,
+            global_exact_sha_gate_passed=exact_sha_gate,
+            empty_lock_policy_gate_passed=all_lock,
+        )
+        dimension_record["eligible"] = all(
+            (
+                all_side,
+                all_pair,
+                all_manual,
+                exact_sha_gate,
+                all_lock,
+            )
+        )
+        dimension_record["failure_reasons"] = [
+            reason
+            for reason, field_name in failure_reason_order
+            if not bool(dimension_record[field_name])
+        ]
+        redigest_record(dimension_record)
+
+    eligible_dimensions = [
+        str(record["dimension_key"]) for record in dimension_records if bool(record["eligible"])
     ]
+    eligible_rank = 0
+    selection_trace = report_payload["fixed_priority_selection_trace"]
+    for selection_step, trace_record in enumerate(selection_trace, start=1):
+        dimension_record = dimension_by_key[str(trace_record["dimension_key"])]
+        eligible = bool(dimension_record["eligible"])
+        if eligible:
+            eligible_rank += 1
+            rank = eligible_rank
+        else:
+            rank = 0
+        if not eligible:
+            decision, slot, selected = "INELIGIBLE", 0, False
+        elif len(eligible_dimensions) < 2:
+            decision, slot, selected = (
+                "ELIGIBLE_NOT_SELECTED_INSUFFICIENT_SET",
+                0,
+                False,
+            )
+        elif rank == 1:
+            decision, slot, selected = "SELECTED_SLOT_1", 1, True
+        elif rank == 2:
+            decision, slot, selected = "SELECTED_SLOT_2", 2, True
+        else:
+            decision, slot, selected = "ELIGIBLE_NOT_SELECTED_CAPACITY", 0, False
+        trace_record.update(
+            selection_step=selection_step,
+            priority_index=selection_step,
+            dimension_eligibility_record_digest=dimension_record["record_digest"],
+            eligible=eligible,
+            eligible_rank=rank,
+            selection_decision=decision,
+            selection_slot=slot,
+            selected=selected,
+        )
+        redigest_record(trace_record)
+
+    report_payload["selected_pair_manifest"] = []
     report_digest = _digest(report.schema_version, report_payload)
     fields.update(
         report_payload=report_payload,
@@ -234,6 +458,7 @@ def _failed_report_from(report: DemoPairScreeningReport) -> DemoPairScreeningRep
         status="FAILED",
         selected_pair_count=0,
         selected_result_side_count=0,
+        eligible_dimension_keys=eligible_dimensions,
         selected_dimension_keys=[],
         selected_pair_manifest_digest=None,
     )
@@ -241,7 +466,7 @@ def _failed_report_from(report: DemoPairScreeningReport) -> DemoPairScreeningRep
         "mirror.demo/D02PairScreeningReportId/v1",
         {"report_digest": report_digest},
     )[:32]
-    return cast(
+    failed_report = cast(
         DemoPairScreeningReport,
         _build_demo_row(
             DemoPairScreeningReport,
@@ -250,6 +475,11 @@ def _failed_report_from(report: DemoPairScreeningReport) -> DemoPairScreeningRep
             **fields,
         ),
     )
+    failed_report.canonical_payload.pop("selected_pair_manifest_digest", None)
+    failed_report.content_digest = _digest(
+        failed_report.schema_version, failed_report.canonical_payload
+    )
+    return failed_report
 
 
 def _insert_legacy_v1_graph(
@@ -667,7 +897,7 @@ def test_populated_report_authority_is_counted_before_any_downgrade_ddl(
     try:
         with pytest.raises(
             DBAPIError,
-            match=(r"incompatible authority: identity=4, report=1, bank=0, pair=0"),
+            match=(r"incompatible authority: identity=5, report=1, bank=0, pair=0"),
         ):
             command.downgrade(config, D02_DOWN_REVISION)
         engine = create_engine(database_url)
@@ -715,7 +945,7 @@ def test_populated_v2_bank_and_pairs_are_all_counted_before_any_downgrade_ddl(
     try:
         with pytest.raises(
             DBAPIError,
-            match=(r"incompatible authority: identity=4, report=1, bank=1, pair=16"),
+            match=(r"incompatible authority: identity=5, report=1, bank=1, pair=16"),
         ):
             command.downgrade(config, D02_DOWN_REVISION)
         engine = create_engine(database_url)
@@ -775,7 +1005,7 @@ def test_screening_report_forgery_and_failed_report_bank_binding_fail_closed(
         **forged_fields,
     )
     session.add(forged_report)
-    with pytest.raises(DBAPIError, match="manifest or report digest mismatch"):
+    with pytest.raises(DBAPIError, match="report fixed counts or digest are invalid"):
         session.commit()
     session.rollback()
 
@@ -821,6 +1051,123 @@ def test_screening_report_forgery_and_failed_report_bank_binding_fail_closed(
 
 
 @pytest.mark.parametrize(
+    ("attack", "expected_error"),
+    (
+        ("SCREENING_POLICY_ROOT", "screening policy root is not the accepted Revision 9 root"),
+        ("NETWORK_BOOLEAN", "Revision 9 network boundary is invalid"),
+        ("EXECUTION_FALSE", "M4 record or execution precondition is invalid"),
+        ("MANUAL_BOOLEAN", "manual decision authority is invalid"),
+        ("RAW_MEASUREMENT_BINDING", "source manifest does not match current local authority"),
+    ),
+)
+def test_revision9_recanonicalized_report_attacks_fail_closed(
+    session: Session,
+    attack: str,
+    expected_error: str,
+) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    report = graph["pair_screening_report"]
+    report_payload = copy.deepcopy(report.report_payload)
+    field_overrides: dict[str, Any] = {}
+
+    if attack == "SCREENING_POLICY_ROOT":
+        forged_root = hashlib.sha256(b"d02-forged-screening-policy-root").hexdigest()
+        report_payload["schema_and_policy"]["screening_policy_digest"] = forged_root
+        field_overrides["screening_policy_digest"] = forged_root
+    elif attack == "NETWORK_BOOLEAN":
+        report_payload["network_and_runtime_boundary"]["localhost_and_docker_internal_network"] = (
+            "true"
+        )
+    elif attack == "EXECUTION_FALSE":
+        execution_record = report_payload["m4_repeat_evidence"][0]
+        execution_record["execution_succeeded"] = False
+        _redigest_d02_record(execution_record)
+    elif attack == "MANUAL_BOOLEAN":
+        manual_record = report_payload["manual_review_evidence"][0]
+        manual_record["background_seam"] = "false"
+        _redigest_d02_record(manual_record, digest_key="manual_decision_digest")
+    else:
+        source_entry = report_payload["ordered_source_manifest"][0]
+        source_entry["raw_measurement_authority_digest"] = hashlib.sha256(
+            b"d02-forged-raw-measurement-authority"
+        ).hexdigest()
+        _redigest_d02_record(source_entry)
+        source_manifest_digest = _digest(
+            "mirror.demo/D02SourceAuthorityManifest/v1",
+            report_payload["ordered_source_manifest"],
+        )
+        report_payload["schema_and_policy"]["source_manifest_digest"] = source_manifest_digest
+        field_overrides["source_manifest_digest"] = source_manifest_digest
+
+    attacked_report = _clone_d02_report(
+        report,
+        report_payload=report_payload,
+        field_overrides=field_overrides,
+    )
+    session.add(attacked_report)
+    with pytest.raises(DBAPIError, match=expected_error):
+        session.commit()
+    session.rollback()
+
+
+def test_question_bank_rejects_recanonicalized_dimension_summary_forgery(
+    session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    original_bank = graph["bank"]
+    dimension_manifest = copy.deepcopy(original_bank.dimension_manifest)
+    dimension_manifest["selected_dimensions"][0]["sixteen_side_gate_digest"] = hashlib.sha256(
+        b"d02-forged-sixteen-side-summary"
+    ).hexdigest()
+    forged_bank = _clone_v2_bank(
+        original_bank,
+        marker="dimension-summary-forgery",
+        dimension_manifest=dimension_manifest,
+    )
+    session.add(forged_bank)
+    with pytest.raises(DBAPIError, match="selected dimension authority is invalid"):
+        session.flush()
+    session.rollback()
+
+
+def test_question_pair_rejects_recanonicalized_payload_not_in_report(
+    session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    original_bank = graph["bank"]
+    original_pair = session.scalars(
+        select(DemoQuestionPair)
+        .where(DemoQuestionPair.question_bank_id == original_bank.id)
+        .order_by(DemoQuestionPair.id)
+    ).first()
+    assert original_pair is not None
+
+    cloned_bank = _clone_v2_bank(original_bank, marker="qa-structural-forgery")
+    qa_payload = copy.deepcopy(original_pair.qa_payload)
+    pair_payload = qa_payload["pair_screening_record_payload"]
+    pair_payload["pair_quality_ppm"] = 999_999
+    qa_payload["pair_screening_record_digest"] = _digest(
+        "mirror.demo/D02PairScreeningRecord/v3", pair_payload
+    )
+    forged_pair = _clone_v2_pair(
+        original_pair,
+        question_bank_id=cloned_bank.id,
+        qa_payload=qa_payload,
+        field_overrides={"pair_quality_ppm": 999_999},
+    )
+
+    session.add(cloned_bank)
+    session.flush()
+    session.add(forged_pair)
+    with pytest.raises(
+        DBAPIError,
+        match="question pair QA does not resolve one exact report record",
+    ):
+        session.flush()
+    session.rollback()
+
+
+@pytest.mark.parametrize(
     "failure_mode",
     ("MISSING_PAIR", "DUPLICATE_SIDE", "SWAPPED_SELECTED_RECORD"),
 )
@@ -854,8 +1201,8 @@ def test_complete_bank_rejects_incomplete_or_mismatched_selected_authority(
             == original_pairs[0].demo_synthetic_identity_id
         )
         duplicate_source = original_pairs[0]
-        duplicate_side = pair_payloads[source_index]["left"]
-        source_side = duplicate_source.qa_payload["left"]
+        duplicate_side = pair_payloads[source_index]["pair_screening_record_payload"]["left"]
+        source_side = duplicate_source.qa_payload["pair_screening_record_payload"]["left"]
         for key in (
             "result_asset_id",
             "result_asset_sha256",
@@ -891,10 +1238,12 @@ def test_complete_bank_rejects_incomplete_or_mismatched_selected_authority(
     ]
     session.add(bank)
     session.add_all(cloned_pairs)
-    with pytest.raises(
-        DBAPIError,
-        match="not the complete selected 16-pair authority",
-    ):
+    expected_failure = (
+        "not the complete selected 16-pair authority"
+        if failure_mode == "MISSING_PAIR"
+        else "question pair QA does not resolve one exact report record"
+    )
+    with pytest.raises(DBAPIError, match=expected_failure):
         session.commit()
     session.rollback()
 
