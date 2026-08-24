@@ -585,3 +585,11 @@
   v2 cross-link/八字段 ID preimage、固定 unsupported precedence 与 deterministic digest replay；当前只开放两个
   新文件范围的 pure authority builder Packet B。`demo_0004` migration/ORM、private screening、D02
   `TASK_ACCEPTED`、D03、formal P3–P7 与 production release 继续关闭。
+
+- 2026-08-24：D09 exact implementation `17b790de6393434430d8462195a87c548c1fa15a` 通过两轮独立 Sol
+  repaired-snapshot/commit-bound 审查与 same-SHA run `32701906246` 三 jobs 全绿。Principal 接受 actor-serialized
+  digest-chain PreferenceEvent、原子 Final Save event+AcceptedVisualEpisode、并发唯一 winner、取消/失败回滚、
+  strict-earlier RESET 和 event-only/non-learning negatives；branch-local `demo_0004_d09_episode_prov` 以
+  `ACCESS EXCLUSIVE` upgrade/downgrade 与独立 `demo_0003` function baseline 强制 episode=editing=terminal RESULT
+  plan 的 profile/instruction provenance。范围仅为 Demo D09 ledger/Final Save domain；D10仍等待D05/D06，Profile/
+  Context Compiler、formal P7、真实用户有效性与production release均未接受。

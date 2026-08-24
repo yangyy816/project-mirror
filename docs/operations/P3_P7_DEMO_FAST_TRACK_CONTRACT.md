@@ -177,13 +177,19 @@ DOWN_REVISION: demo_0003_d02_import_auth
 POSTGRESQL_PROVENANCE_EQUALITY: EPISODE_EQUALS_EDITING_SESSION_EQUALS_TERMINAL_RESULT_PLAN
 MIGRATION_AUTHORITY_LOCK: ACCESS_EXCLUSIVE_UNTIL_TRANSACTION_COMMIT
 INDEPENDENT_SOL_EXACT_SHA_REVIEW: PASS_FOR_5c2dfff4f93626d1bda2131350756e9bf35a25d5
-D09_TASK_ACCEPTED: NO
+IMPLEMENTATION_SHA: 17b790de6393434430d8462195a87c548c1fa15a
+INDEPENDENT_SOL_REPAIRED_SNAPSHOT_REVIEW: PASS
+INDEPENDENT_SOL_EXACT_COMMIT_REVIEW: PASS
+SAME_SHA_CI: PASS_RUN_32701906246
+D09_TASK_ACCEPTED: YES
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```
 
 The complete authority, migration, downgrade and concurrent-writer test contract is frozen in
 `P3_P7_D09_AUTHORITY_CHANGE_CONTROL_02.md`. Historical CC01 implementation and CI remain evidence for the semantics they
-actually tested; they do not prove the corrective PostgreSQL Gate.
+actually tested; they do not prove the corrective PostgreSQL Gate. Exact implementation `17b790d...` and same-SHA run
+`32701906246` prove the corrective Gate and are accepted only for the Demo D09 ledger/Final Save domain. D10 remains
+blocked on D05 and D06; formal P7 and production authority remain unchanged.
 
 ## D00 two-stage contract
 

@@ -6,15 +6,21 @@
 CHANGE_CONTROL_ID: CC-P3-P7-DEMO-D09-02
 TRACK: DEMO_PROTOTYPE
 PLAN_VERSION: P3_P7_ALGORITHMIC_PROTOTYPE_PLATFORM_PLAN_V1_1
-STATUS: PRINCIPAL_ACCEPTED_FOR_IMPLEMENTATION
+STATUS: IMPLEMENTED_AND_TASK_ACCEPTED
 DISCOVERED_BY: D09 exact-SHA review and Principal adversarial PostgreSQL replay
 BASE_SHA: 0c83682599da5794dc562cb710f2da8d36cf5cff
 INDEPENDENT_SOL_EXACT_SHA_REVIEW: PASS_FOR_5c2dfff4f93626d1bda2131350756e9bf35a25d5
+IMPLEMENTATION_SHA: 17b790de6393434430d8462195a87c548c1fa15a
+IMPLEMENTATION_PARENT: cacf86cfebb1a32598228c0dec0cff711514a92d
+IMPLEMENTATION_TREE: 9b22612a9a27590d9497ef6151c95f0196f41525
+INDEPENDENT_REPAIRED_SNAPSHOT_REVIEW: PASS
+INDEPENDENT_EXACT_COMMIT_REVIEW: PASS
+SAME_SHA_CI: PASS_RUN_32701906246
 REVIEW_FINDINGS_P0: 0
 REVIEW_FINDINGS_P1: 0
 REVIEW_FINDINGS_P2: 0
-D09_TASK_ACCEPTED: NO
-D10: BLOCKED
+D09_TASK_ACCEPTED: YES
+D10: BLOCKED_PENDING_D05_AND_D06_TASK_ACCEPTED
 FORMAL_PHASE_AUTHORITY: FALSE
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```
@@ -125,8 +131,8 @@ rewriting. Principal must stop and open a separate data-disposition change contr
 
 ## Required application and PostgreSQL evidence
 
-The epoch 2 implementation must retain the two epoch 1 application files, add terminal-plan tool-registry equality at
-the service boundary, and prove the following on real PostgreSQL with zero skipped cases:
+The accepted epoch 2 implementation retains the two epoch 1 application files, adds terminal-plan tool-registry
+equality at the service boundary, and proves the following on real PostgreSQL with zero skipped cases:
 
 1. legal service Final Save persists one event and one episode with the frozen provenance values;
 2. separately re-signed profile-only, context-only and instruction-only direct-SQL forgeries are rejected;
@@ -168,6 +174,32 @@ Targeted D09 tests, Demo schema invariant tests, affected migration regressions,
 Gitleaks, exact-SHA CI and an independent Sol exact-SHA implementation review are all mandatory. Historical CC01 CI
 does not verify CC02.
 
+## Accepted implementation evidence
+
+Exact implementation SHA `17b790de6393434430d8462195a87c548c1fa15a` changes only the accepted migration,
+ledger domain/tests, central PostgreSQL tests, CI Demo-head wiring and four migration-head assertions. It adds no table,
+column, ORM model or public API.
+
+```text
+REPAIRED_TARGETED_REGRESSIONS: 3/3 PASS
+COMPLETE_DEMO_SCHEMA_SUITE: 77/77 PASS
+D09_LEDGER_SUITE: 27/27 PASS
+AFFECTED_FORMAL_AUTHORITY_REGRESSIONS: 34/34 PASS
+D02_SCHEMA_REGRESSIONS: 30/30 PASS
+RUFF_FORMAT_AND_CHECK: PASS
+STRICT_MYPY: 133 source files PASS
+ALEMBIC_SINGLE_HEAD_AND_CHECK: PASS
+SCOPED_GITLEAKS: PASS
+INDEPENDENT_SOL_REPAIRED_SNAPSHOT_REVIEW: PASS
+INDEPENDENT_SOL_EXACT_COMMIT_REVIEW: PASS
+SAME_SHA_CI_RUN_32701906246: PASS_3_OF_3
+```
+
+The final repair preserves migration and production bytes while adding two mutation-proof direct-SQL tests where the
+episode and editing session remain equal and only the terminal RESULT plan profile or instruction drifts. The empty
+downgrade regression independently reconstructs the legacy function through `0014 -> demo_0003` before comparing
+`pg_get_functiondef`. Full evidence is recorded in `P3_P7_D09_ACCEPTANCE.md`.
+
 ## File and ownership boundary
 
 Only the Integration Principal owns the migration, central migration tests, CI head/history wiring, change-control
@@ -178,9 +210,9 @@ domain/test files and may not commit migration, ORM, router, OpenAPI, generated 
 
 ```text
 CC_P3_P7_DEMO_D09_02_ACCEPTED: YES
-D09_POSTGRESQL_PROVENANCE: IMPLEMENTATION_NOT_VERIFIED
-D09_TASK_ACCEPTED: NO
-D10: BLOCKED
+D09_POSTGRESQL_PROVENANCE: PASS
+D09_TASK_ACCEPTED: YES
+D10: BLOCKED_PENDING_D05_AND_D06_TASK_ACCEPTED
 FORMAL_MAINLINE_IMPACT: NONE_EXPECTED
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```
