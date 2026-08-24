@@ -548,3 +548,24 @@
   接受 D01-B 并只将 D01-C 置为 `EXECUTION_READY`。Gitleaks v8.28.0 仅经 D00-A official-release/checksum-bound
   acquisition 进入 Git 外工具缓存，核心验证仍无代理和公网。formal P3–P7、D02–D12 与 production release
   状态不变。
+
+- 2026-08-24：D01-C repair candidate `3523d61f92030e4d30876ee1aa5b4265d4d57200` 的 run
+  `32636591101` 三 jobs 全绿，独立 Sol exact-SHA review PASS。Principal 接受 23 个 `x-demo-only` Demo
+  operations、严格 schema、14 个创建型接口的 actor/operation/key PostgreSQL 幂等 authority、owner-bound Job
+  查询/取消和 OpenAPI→generated TypeScript 单向契约；仅 `/capabilities` 为成功路径，其余未实现操作继续返回
+  structured `501 CAPABILITY_NOT_IMPLEMENTED`。D01-C `TASK_ACCEPTED` 只开放 D02、D04-A、D07-A、D09；不代表
+  API contract freeze、P3–P7 算法、Web、formal Gate 或 production authorization。
+
+- 2026-08-24：D04-A 最终集成 SHA `b8fa8edfb1c20731413e3a569cf5ac3eea0ba9ae` 的 run
+  `32661895322` 三 jobs 全绿，两轮独立 Sol review 均 PASS。Principal 接受每维独立一维 Bayesian
+  pairwise-logistic MAP/Laplace domain、32 次 Newton/KKT fail-closed、integer-ppm canonical authority、冲突
+  uncertainty floor 及 grid/finite-difference/symmetry/reversal/monotonic/no-response/non-convergence/deterministic
+  replay 验证；49/49 targeted tests PASS。D04-A `TASK_ACCEPTED` 不开放 D04-B，后者继续等待 D02 与 D03
+  `TASK_ACCEPTED`，P4 multi-dimension routing 与 morphology neighborhood 仍 `NOT_VERIFIED`。
+
+- 2026-08-24：D07-A 最终 repair handoff `a6776f5536e40559c2aed81a071a6904bd3f7923` 集成为
+  `38d152f969d1235b2fc6ae39076adc79d4e72683`；外部 mutable node list 被防御性冻结，非法或事后可变 graph
+  state fail closed，`mirror.demo/OperationGraph/v2` golden digest `22e06819...` 保持不变。39/39 targeted
+  tests、Ruff、strict mypy、standalone transplant、独立 Sol review与 same-SHA run `32677991401` 三 jobs均
+  PASS，Gitleaks零结果。Principal接受的范围仅为typed deterministic Operation Graph domain；D07-B继续等待
+  D02/D03，editor runtime、Tool registry/planner/verifier/ImageVersion、formal P6 Gate与production use均未接受。
