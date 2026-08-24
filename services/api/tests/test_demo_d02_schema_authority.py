@@ -16,15 +16,16 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 from test_demo_schema_authority_invariants import (
     D02_DOWN_REVISION,
+    D02_QUALITY_DOWN_REVISION,
     DEMO_REVISION,
     _accepted_synthetic_source,
     _build_demo_row,
     _canonical_json,
     _digest,
-    _insert_d02_question_bank,
     _insert_demo_row,
     _insert_full_demo_graph,
-    _insert_local_d02_identity,
+    _insert_legacy_d02_question_bank_fixture,
+    _insert_legacy_local_d02_identity,
     _result_variant,
     _synthetic_admission_fields,
     _truncate_demo_authority,
@@ -76,6 +77,23 @@ def session() -> Generator[Session]:
         db_session.rollback()
         _truncate_demo_authority(db_session)
     engine.dispose()
+
+
+@pytest.fixture
+def revision9_session(session: Session, monkeypatch: pytest.MonkeyPatch) -> Generator[Session]:
+    """Run a test against the frozen Revision 9 authority, not the v10 head."""
+
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _alembic_config(database_url)
+    session.close()
+    command.downgrade(config, D02_QUALITY_DOWN_REVISION)
+    try:
+        yield session
+    finally:
+        session.rollback()
+        session.close()
+        command.upgrade(config, DEMO_REVISION)
 
 
 def _alembic_config(database_url: str) -> Config:
@@ -812,6 +830,12 @@ def test_populated_v2_identity_blocks_demo_0003_downgrade_before_ddl(
     monkeypatch: pytest.MonkeyPatch,
     source_kind: str,
 ) -> None:
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _alembic_config(database_url)
+    session.close()
+    command.downgrade(config, D02_QUALITY_DOWN_REVISION)
+
     if source_kind == "FORMAL_REFERENCE":
         source_asset, formal_identity = _accepted_synthetic_source(session)
         authority_row = _insert_demo_row(
@@ -828,12 +852,11 @@ def test_populated_v2_identity_blocks_demo_0003_downgrade_before_ddl(
             ),
         )
     else:
-        _, authority_row = _insert_local_d02_identity(session, marker=f"local-downgrade-{new_id()}")
+        _, authority_row = _insert_legacy_local_d02_identity(
+            session, marker=f"local-downgrade-{new_id()}"
+        )
     authority_id = authority_row.id
     authority_digest = authority_row.content_digest
-    database_url = os.environ["TEST_DATABASE_URL"]
-    monkeypatch.setenv("DATABASE_URL", database_url)
-    config = _alembic_config(database_url)
     session.close()
 
     try:
@@ -845,7 +868,7 @@ def test_populated_v2_identity_blocks_demo_0003_downgrade_before_ddl(
         engine = create_engine(database_url)
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-                DEMO_REVISION
+                D02_QUALITY_DOWN_REVISION
             )
             assert connection.execute(
                 text(
@@ -874,10 +897,16 @@ def test_populated_report_authority_is_counted_before_any_downgrade_ddl(
     session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    source_asset, admission = _insert_local_d02_identity(
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _alembic_config(database_url)
+    session.close()
+    command.downgrade(config, D02_QUALITY_DOWN_REVISION)
+
+    source_asset, admission = _insert_legacy_local_d02_identity(
         session, marker=f"report-only-downgrade-{new_id()}"
     )
-    bank, _ = _insert_d02_question_bank(session, source_asset, admission)
+    bank, _ = _insert_legacy_d02_question_bank_fixture(session, source_asset, admission)
     report_id = bank.screening_report_id
     report_digest = bank.screening_report_digest
     assert report_id is not None
@@ -889,9 +918,6 @@ def test_populated_report_authority_is_counted_before_any_downgrade_ddl(
     assert session.scalar(text("SELECT count(*) FROM demo_question_banks")) == 0
     assert session.scalar(text("SELECT count(*) FROM demo_question_pairs")) == 0
 
-    database_url = os.environ["TEST_DATABASE_URL"]
-    monkeypatch.setenv("DATABASE_URL", database_url)
-    config = _alembic_config(database_url)
     session.close()
 
     try:
@@ -903,7 +929,7 @@ def test_populated_report_authority_is_counted_before_any_downgrade_ddl(
         engine = create_engine(database_url)
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-                DEMO_REVISION
+                D02_QUALITY_DOWN_REVISION
             )
             assert connection.execute(
                 text(
@@ -925,10 +951,16 @@ def test_populated_v2_bank_and_pairs_are_all_counted_before_any_downgrade_ddl(
     session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    source_asset, admission = _insert_local_d02_identity(
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _alembic_config(database_url)
+    session.close()
+    command.downgrade(config, D02_QUALITY_DOWN_REVISION)
+
+    source_asset, admission = _insert_legacy_local_d02_identity(
         session, marker=f"bank-pair-downgrade-{new_id()}"
     )
-    bank, pair = _insert_d02_question_bank(session, source_asset, admission)
+    bank, pair = _insert_legacy_d02_question_bank_fixture(session, source_asset, admission)
     bank_id = bank.id
     bank_digest = bank.content_digest
     pair_id = pair.id
@@ -937,9 +969,6 @@ def test_populated_v2_bank_and_pairs_are_all_counted_before_any_downgrade_ddl(
     assert session.scalar(text("SELECT count(*) FROM demo_question_banks")) == 1
     assert session.scalar(text("SELECT count(*) FROM demo_question_pairs")) == 16
 
-    database_url = os.environ["TEST_DATABASE_URL"]
-    monkeypatch.setenv("DATABASE_URL", database_url)
-    config = _alembic_config(database_url)
     session.close()
 
     try:
@@ -951,7 +980,7 @@ def test_populated_v2_bank_and_pairs_are_all_counted_before_any_downgrade_ddl(
         engine = create_engine(database_url)
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-                DEMO_REVISION
+                D02_QUALITY_DOWN_REVISION
             )
             assert (
                 connection.scalar(
@@ -1061,10 +1090,11 @@ def test_screening_report_forgery_and_failed_report_bank_binding_fail_closed(
     ),
 )
 def test_revision9_recanonicalized_report_attacks_fail_closed(
-    session: Session,
+    revision9_session: Session,
     attack: str,
     expected_error: str,
 ) -> None:
+    session = revision9_session
     graph = _insert_full_demo_graph(session, include_episode=False)
     report = graph["pair_screening_report"]
     report_payload = copy.deepcopy(report.report_payload)

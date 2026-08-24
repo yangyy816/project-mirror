@@ -4,13 +4,14 @@ import hashlib
 import json
 import os
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_EVEN, Decimal
 from pathlib import Path
 from threading import Barrier, Event
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from alembic import command
@@ -19,8 +20,15 @@ from sqlalchemy import JSON, create_engine, delete, inspect, select, text, updat
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import conv
+from test_demo_d02_authority import (
+    _complete_report_fixture,
+    _facts_identity_manifest,
+    _resign_report_row,
+)
 from test_geometry_variant_authority_invariants import _canonical_source, _result_asset
 
+from mirror_api.demo_d02_authority import derive_asset_variant_id
+from mirror_api.demo_measurement_quality import IMPORT_CONFIG_DIGEST
 from mirror_api.demo_models import (
     DEMO_TABLE_NAMES,
     DemoAcceptedVisualEpisode,
@@ -64,7 +72,8 @@ from mirror_api.models import (
     utcnow,
 )
 
-DEMO_REVISION = "demo_0004_d09_episode_prov"
+DEMO_REVISION = "demo_0005_d02_quality_auth"
+D02_QUALITY_DOWN_REVISION = "demo_0004_d09_episode_prov"
 D09_DOWN_REVISION = "demo_0003_d02_import_auth"
 D02_DOWN_REVISION = "demo_0002_p3_p7_command_auth"
 BASE_DEMO_REVISION = "demo_0001_p3_p7_core"
@@ -105,7 +114,11 @@ def _build_demo_row(
 ) -> Any:
     authority_created_at = created_at or datetime(2026, 8, 23, 3, 0, tzinfo=UTC)
     schema_version = authority_schema_version or (
-        "mirror.demo/DemoSyntheticIdentity/v2"
+        (
+            "mirror.demo/DemoSyntheticIdentity/v3"
+            if authority_fields.get("importer_version") == "demo-d02-identity-importer-v3"
+            else "mirror.demo/DemoSyntheticIdentity/v2"
+        )
         if model is DemoSyntheticIdentity
         else f"mirror.demo/{model.__name__}/v1"
     )
@@ -126,7 +139,7 @@ def _build_demo_row(
             payload[column.name] = None
         else:
             payload[column.name] = _authority_time(value) if isinstance(value, datetime) else value
-    if model is DemoSyntheticIdentity and schema_version.endswith("/v2"):
+    if model is DemoSyntheticIdentity and schema_version.endswith(("/v2", "/v3")):
         formal_identity_id = authority_fields.get("formal_synthetic_identity_id")
         if formal_identity_id is not None:
             source_authority_kind = "FORMAL_REFERENCE"
@@ -153,7 +166,11 @@ def _build_demo_row(
         payload["source_authority_key"] = source_authority_key
     row.canonical_payload = payload
     row.content_digest = _digest(schema_version, payload)
-    if model is DemoSyntheticIdentity and schema_version.endswith("/v2") and row_id is None:
+    if (
+        model is DemoSyntheticIdentity
+        and schema_version.endswith(("/v2", "/v3"))
+        and row_id is None
+    ):
         row.id = _digest(
             "mirror.demo/DemoSyntheticIdentityAdmissionEventId/v2",
             {
@@ -505,9 +522,11 @@ def _d02_result_variant(
     return result_asset, variant
 
 
-def _insert_local_d02_identity(
+def _insert_legacy_local_d02_identity(
     session: Session, *, marker: str
 ) -> tuple[Asset, DemoSyntheticIdentity]:
+    """Persist the frozen Revision 9 local-copy authority for migration tests."""
+
     source_asset = Asset(
         id=new_id(),
         owner_user_id=None,
@@ -646,6 +665,58 @@ def _insert_local_d02_identity(
     return source_asset, admission
 
 
+def _insert_local_d02_identity(
+    session: Session, *, marker: str
+) -> tuple[Asset, DemoSyntheticIdentity]:
+    source_marker = marker[-1].lower()
+    facts, identity_authority, _ = _facts_identity_manifest(source_marker=source_marker)
+    asset_id = cast(str, identity_authority["formal_canonical_asset_id"])
+    source_asset = session.get(Asset, asset_id)
+    if source_asset is None:
+        source_asset = Asset(
+            id=asset_id,
+            owner_user_id=None,
+            asset_role="synthetic",
+            internal_purpose="synthetic_dataset",
+            storage_key=f"demo-d02-recovered/{marker}/{new_id()}",
+            mime_type=facts["source_asset_mime_type"],
+            byte_size=facts["source_asset_byte_size"],
+            width=facts["source_asset_width"],
+            height=facts["source_asset_height"],
+            sha256=facts["source_asset_sha256"],
+            synthetic=True,
+            is_ai_generated=True,
+            is_ai_modified=False,
+        )
+        session.add(source_asset)
+        session.commit()
+    else:
+        assert source_asset.owner_user_id is None
+        assert source_asset.asset_role == "synthetic"
+        assert source_asset.internal_purpose == "synthetic_dataset"
+        assert source_asset.mime_type == facts["source_asset_mime_type"]
+        assert source_asset.byte_size == facts["source_asset_byte_size"]
+        assert source_asset.width == facts["source_asset_width"]
+        assert source_asset.height == facts["source_asset_height"]
+        assert source_asset.sha256 == facts["source_asset_sha256"]
+        assert source_asset.synthetic is True
+        assert source_asset.is_ai_generated is True
+        assert source_asset.is_ai_modified is False
+        assert source_asset.deleted_at is None
+    identity_fields = {
+        column.name: identity_authority[column.name]
+        for column in DemoSyntheticIdentity.__table__.columns
+        if column.name in identity_authority and column.computed is None
+    }
+    identity_fields["created_at"] = datetime.fromisoformat(
+        str(identity_authority["created_at"]).replace("Z", "+00:00")
+    )
+    admission = DemoSyntheticIdentity(**identity_fields)
+    session.add(admission)
+    session.commit()
+    return source_asset, admission
+
+
 _D02_PREREGISTRATION_SHA256 = "3fb0a1192d006560d45083b8d9d933f15a22648c0108f81ef305d31980073ba3"
 _D02_SOURCE_MANIFEST_DIGEST = "eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4"
 _D02_DIMENSION_MANIFEST_DIGEST = "d4ffa375cf861ec6873270cd4b1c03c4270672f96dee4b8f71ae0678103ad33a"
@@ -733,7 +804,7 @@ def _d02_lock_policy_digest() -> str:
     )
 
 
-def _insert_d02_question_bank(
+def _insert_legacy_d02_question_bank_fixture(
     session: Session,
     primary_source: Asset,
     primary_admission: DemoSyntheticIdentity,
@@ -752,7 +823,7 @@ def _insert_d02_question_bank(
         )
 
     source_authorities = [
-        _insert_local_d02_identity(session, marker=f"{marker}-source-{source_index}")
+        _insert_legacy_local_d02_identity(session, marker=f"{marker}-source-{source_index}")
         for source_index in range(1, 5)
     ]
     source_authorities.sort(
@@ -1920,6 +1991,309 @@ def _insert_d02_question_bank(
     return bank, pairs[0]
 
 
+def _insert_d02_question_bank(
+    session: Session,
+    primary_source: Asset,
+    primary_admission: DemoSyntheticIdentity,
+    *,
+    report_mutator: Callable[[dict[str, Any]], None] | None = None,
+) -> tuple[DemoQuestionBank, DemoQuestionPair]:
+    """Persist the accepted v10 Report v2 graph and its selected 16-pair bank."""
+
+    _ = primary_source, primary_admission
+    report_authority, source_packets, variant_bindings = _complete_report_fixture(passing=True)
+    if report_mutator is not None:
+        report_authority = deepcopy(report_authority)
+        report_mutator(report_authority)
+        _resign_report_row(report_authority)
+
+    def ensure_asset(**fields: Any) -> Asset:
+        asset_id = cast(str, fields["id"])
+        existing = session.get(Asset, asset_id)
+        if existing is not None:
+            for key in (
+                "owner_user_id",
+                "asset_role",
+                "internal_purpose",
+                "mime_type",
+                "byte_size",
+                "width",
+                "height",
+                "sha256",
+                "synthetic",
+                "is_ai_generated",
+                "is_ai_modified",
+            ):
+                assert getattr(existing, key) == fields[key]
+            assert existing.deleted_at is None
+            return existing
+        asset = Asset(**fields)
+        session.add(asset)
+        session.commit()
+        return asset
+
+    identity_by_id: dict[str, DemoSyntheticIdentity] = {}
+    for packet in source_packets:
+        facts = cast(dict[str, Any], packet["facts"])
+        identity_authority = cast(dict[str, Any], packet["identity_row"])
+        assert identity_authority["import_config_digest"] == IMPORT_CONFIG_DIGEST
+        ensure_asset(
+            id=identity_authority["formal_canonical_asset_id"],
+            owner_user_id=None,
+            asset_role="synthetic",
+            internal_purpose="synthetic_dataset",
+            storage_key=(f"demo-d02-v10/source/{identity_authority['formal_canonical_asset_id']}"),
+            mime_type=facts["source_asset_mime_type"],
+            byte_size=facts["source_asset_byte_size"],
+            width=facts["source_asset_width"],
+            height=facts["source_asset_height"],
+            sha256=facts["source_asset_sha256"],
+            synthetic=True,
+            is_ai_generated=True,
+            is_ai_modified=False,
+        )
+        identity_fields = {
+            column.name: identity_authority[column.name]
+            for column in DemoSyntheticIdentity.__table__.columns
+            if column.name in identity_authority and column.computed is None
+        }
+        identity_fields["created_at"] = datetime.fromisoformat(
+            cast(str, identity_authority["created_at"]).replace("Z", "+00:00")
+        )
+        identity_row = DemoSyntheticIdentity(**identity_fields)
+        session.add(identity_row)
+        session.commit()
+        identity_by_id[identity_row.id] = identity_row
+
+    image_by_case = {
+        cast(str, image["case_id"]): cast(dict[str, Any], image)
+        for image in cast(
+            list[dict[str, Any]],
+            report_authority["report_payload"]["exact_duplicate_evidence"]["image_records"],
+        )
+        if image["authority_role"] == "RESULT"
+    }
+    variants: list[AssetVariant] = []
+    for case_id, raw_binding in cast(dict[str, Any], variant_bindings).items():
+        binding = cast(dict[str, Any], raw_binding)
+        image = image_by_case[case_id]
+        assert image["deterministic_result_asset_id"] == binding["result_asset_id"]
+        assert image["sha256"] == binding["result_asset_sha256"]
+        expected_variant_id = derive_asset_variant_id(
+            variant_type=binding["asset_variant_type"],
+            source_asset_id=binding["source_asset_id"],
+            source_asset_sha256=binding["source_asset_sha256"],
+            result_asset_id=binding["result_asset_id"],
+            result_asset_sha256=binding["result_asset_sha256"],
+            case_specification_digest=binding["case_specification_digest"],
+        )
+        assert expected_variant_id == binding["asset_variant_id"]
+        ensure_asset(
+            id=binding["result_asset_id"],
+            owner_user_id=None,
+            asset_role="synthetic",
+            internal_purpose="synthetic_dataset",
+            storage_key=f"demo-d02-v10/result/{binding['result_asset_id']}",
+            mime_type=image["mime_type"],
+            byte_size=image["byte_size"],
+            width=image["width"],
+            height=image["height"],
+            sha256=binding["result_asset_sha256"],
+            synthetic=True,
+            is_ai_generated=False,
+            is_ai_modified=True,
+        )
+        variants.append(
+            AssetVariant(
+                id=binding["asset_variant_id"],
+                source_asset_id=binding["source_asset_id"],
+                result_asset_id=binding["result_asset_id"],
+                variant_type=binding["asset_variant_type"],
+            )
+        )
+    session.add_all(variants)
+    session.commit()
+
+    report_fields = {
+        column.name: report_authority[column.name]
+        for column in DemoPairScreeningReport.__table__.columns
+        if column.name in report_authority and column.computed is None
+    }
+    report_fields["created_at"] = datetime.fromisoformat(
+        cast(str, report_authority["created_at"]).replace("Z", "+00:00")
+    )
+    report = DemoPairScreeningReport(**report_fields)
+    session.add(report)
+    session.commit()
+
+    report_payload = cast(dict[str, Any], report.report_payload)
+    execution_config = cast(
+        dict[str, Any],
+        report_payload["schema_and_policy"]["measurement_execution_config"],
+    )
+    eligibility_by_key = {
+        cast(str, entry["dimension_key"]): cast(dict[str, Any], entry)
+        for entry in cast(list[dict[str, Any]], report_payload["dimension_eligibility"])
+    }
+    selected_dimensions = cast(list[str], report.selected_dimension_keys)
+    algorithm_config_digest = _digest(
+        "mirror.demo/D02QuestionnaireAlgorithmConfig/v1",
+        {
+            "routing_version": "demo-bayesian-pairwise-logistic-v1",
+            "stopping_version": "demo-p4-stopping-v1",
+            "neighborhood_version": "demo-morphology-neighborhood-v1",
+            "screening_report_digest": report.report_digest,
+        },
+    )
+    dimension_manifest = {
+        "schema_version": "mirror.demo/D02QuestionBankDimensionManifest/v1",
+        "screening_report_id": report.id,
+        "screening_report_digest": report.report_digest,
+        "source_manifest_digest": report.source_manifest_digest,
+        "source_p2_candidate_manifest_content_digest": execution_config[
+            "source_p2_candidate_manifest_content_digest"
+        ],
+        "dimension_authority_manifest_content_digest": execution_config[
+            "dimension_authority_manifest_content_digest"
+        ],
+        "selected_pair_manifest_digest": report.selected_pair_manifest_digest,
+        "selected_dimensions": [
+            {
+                "dimension_key": dimension_key,
+                "priority_index": eligibility_by_key[dimension_key]["priority_index"],
+                "sixteen_side_gate_digest": eligibility_by_key[dimension_key][
+                    "sixteen_side_gate_digest"
+                ],
+                "eight_pair_gate_digest": eligibility_by_key[dimension_key][
+                    "eight_pair_gate_digest"
+                ],
+            }
+            for dimension_key in selected_dimensions
+        ],
+    }
+    assert report.selected_pair_manifest_digest is not None
+    bank_id = _d02_derived_id(
+        "mirror.demo/D02QuestionBankId/v1",
+        {
+            "screening_report_id": report.id,
+            "screening_report_digest": report.report_digest,
+            "selected_pair_manifest_digest": report.selected_pair_manifest_digest,
+            "algorithm_config_digest": algorithm_config_digest,
+        },
+    )
+    bank = _build_demo_row(
+        DemoQuestionBank,
+        row_id=bank_id,
+        authority_schema_version="mirror.demo/DemoQuestionBank/v2",
+        version=f"d02-v10-{report.id}",
+        algorithm_config_digest=algorithm_config_digest,
+        routing_version="demo-bayesian-pairwise-logistic-v1",
+        stopping_version="demo-p4-stopping-v1",
+        neighborhood_version="demo-morphology-neighborhood-v1",
+        pair_manifest_digest=report.selected_pair_manifest_digest,
+        dimension_manifest=dimension_manifest,
+        screening_report_id=report.id,
+        screening_report_digest=report.report_digest,
+    )
+
+    wrappers_by_digest = {
+        cast(str, wrapper["pair_screening_record_digest"]): cast(dict[str, Any], wrapper)
+        for wrapper in cast(list[dict[str, Any]], report_payload["pair_quality_evidence"])
+    }
+    pairs: list[DemoQuestionPair] = []
+    for selected_entry in cast(list[dict[str, Any]], report_payload["selected_pair_manifest"]):
+        pair_digest = cast(str, selected_entry["pair_screening_record_digest"])
+        wrapper = wrappers_by_digest[pair_digest]
+        pair_payload = cast(dict[str, Any], wrapper["pair_screening_record_payload"])
+        source_identity_id = cast(str, pair_payload["source_admission_event_id"])
+        assert source_identity_id in identity_by_id
+        left = cast(dict[str, Any], pair_payload["left"])
+        right = cast(dict[str, Any], pair_payload["right"])
+        qa_payload = {
+            "schema_version": "mirror.demo/D02QuestionPairQAPayload/v2",
+            "screening_report_id": report.id,
+            "screening_report_digest": report.report_digest,
+            "pair_screening_record_schema_version": wrapper["schema_version"],
+            "pair_screening_record_digest": pair_digest,
+            "pair_screening_record_payload": pair_payload,
+        }
+        pair_id = _d02_derived_id(
+            "mirror.demo/D02QuestionPairId/v1",
+            {
+                "question_bank_id": bank.id,
+                "pair_screening_record_digest": pair_digest,
+                "source_admission_event_id": source_identity_id,
+                "dimension_key": pair_payload["dimension_key"],
+                "magnitude_ppm": pair_payload["magnitude_ppm"],
+            },
+        )
+        pairs.append(
+            _build_demo_row(
+                DemoQuestionPair,
+                row_id=pair_id,
+                authority_schema_version="mirror.demo/DemoQuestionPair/v2",
+                question_bank_id=bank.id,
+                demo_synthetic_identity_id=source_identity_id,
+                source_asset_id=pair_payload["source_asset_id"],
+                source_asset_sha256=pair_payload["source_asset_sha256"],
+                left_asset_id=left["result_asset_id"],
+                left_asset_sha256=left["result_asset_sha256"],
+                right_asset_id=right["result_asset_id"],
+                right_asset_sha256=right["result_asset_sha256"],
+                left_asset_variant_id=left["asset_variant_id"],
+                right_asset_variant_id=right["asset_variant_id"],
+                dimension_key=pair_payload["dimension_key"],
+                magnitude_ppm=pair_payload["magnitude_ppm"],
+                left_delta_ppm=left["measured_signed_delta_ppm"],
+                right_delta_ppm=right["measured_signed_delta_ppm"],
+                pair_quality_ppm=pair_payload["pair_quality_ppm"],
+                qa_payload=qa_payload,
+                screening_report_id=report.id,
+                screening_report_digest=report.report_digest,
+            )
+        )
+    session.add(bank)
+    session.add_all(pairs)
+    session.commit()
+    return bank, pairs[0]
+
+
+def _insert_mutated_d02_report_graph(
+    session: Session,
+    report_mutator: Callable[[dict[str, Any]], None],
+) -> None:
+    source_asset, formal_identity = _accepted_synthetic_source(session)
+    primary_admission = _insert_demo_row(
+        session,
+        DemoSyntheticIdentity,
+        **_synthetic_admission_fields(
+            session,
+            source_asset,
+            formal_identity,
+            sequence=1,
+            action="ADMIT",
+            supersedes_id=None,
+            config_marker=f"d02-v10-report-attack-{new_id()}",
+        ),
+    )
+    _insert_d02_question_bank(
+        session,
+        source_asset,
+        primary_admission,
+        report_mutator=report_mutator,
+    )
+
+
+def _resign_d02_record(record: dict[str, Any]) -> None:
+    schema_version = cast(str, record["schema_version"])
+    payload = {
+        key: value
+        for key, value in record.items()
+        if key not in {"schema_version", "record_digest"}
+    }
+    record["record_digest"] = _digest(schema_version, payload)
+
+
 def _insert_episode(
     session: Session, graph: dict[str, Any], trajectory_digests: list[str]
 ) -> DemoAcceptedVisualEpisode:
@@ -2457,7 +2831,21 @@ def _insert_full_demo_graph(
         uncertainty={"jaw_width_ppm": 0},
         routing_eligibility={"eligible": 1},
     )
-    bank, question_pair = _insert_d02_question_bank(session, source_asset, synthetic_identity)
+    v10_report_validator_present = bool(
+        session.scalar(
+            text(
+                "SELECT to_regprocedure("
+                "'mirror_demo_validate_d02_screening_report_v10()'"
+                ") IS NOT NULL"
+            )
+        )
+    )
+    insert_question_bank = (
+        _insert_d02_question_bank
+        if v10_report_validator_present
+        else _insert_legacy_d02_question_bank_fixture
+    )
+    bank, question_pair = insert_question_bank(session, source_asset, synthetic_identity)
     pair_screening_report = session.get(DemoPairScreeningReport, bank.screening_report_id)
     assert pair_screening_report is not None
     questionnaire_run = _insert_demo_row(
@@ -3390,7 +3778,7 @@ def test_local_synthetic_revocation_copies_import_config_authority(
 
     with pytest.raises(
         DBAPIError,
-        match="D02 local revocation must copy recovered authority",
+        match="D02 v10 identity/facts canonical equality is invalid",
     ):
         _insert_demo_row(
             session,
@@ -3409,6 +3797,87 @@ def test_local_synthetic_revocation_copies_import_config_authority(
     )
     assert revoke.admission_action == "REVOKE"
     assert revoke.import_config_digest == first_admit.import_config_digest
+
+
+@pytest.mark.parametrize(
+    ("attack", "expected_error"),
+    (
+        (
+            "observation_payload_digest_split",
+            "D02 v10 observation envelope or digest is invalid",
+        ),
+        ("certificate_gate_mismatch", "D02 v10 Gate graph binding is invalid"),
+        (
+            "mixed_source_m3_version",
+            "D02 record shape or digest mismatch: mirror.demo/D02SourceM3RepeatRecord/v2",
+        ),
+    ),
+)
+def test_d02_v10_postgresql_rejects_resigned_graph_attacks(
+    session: Session,
+    attack: str,
+    expected_error: str,
+) -> None:
+    def mutate(report: dict[str, Any]) -> None:
+        payload = cast(dict[str, Any], report["report_payload"])
+        if attack == "observation_payload_digest_split":
+            record = cast(dict[str, Any], payload["result_m3_repeat_evidence"][0])
+            observation = cast(dict[str, Any], record["measurement_observation"])
+            measurement = cast(dict[str, Any], observation["ordered_measurements"][0])
+            measurement["raw_value_fixed18"] = "0.424242424242424242"
+            _resign_d02_record(record)
+            return
+        if attack == "certificate_gate_mismatch":
+            gate = cast(dict[str, Any], payload["measurement_gate_evidence"][0])
+            gate["result_repeat_certification_digest"] = "e" * 64
+            _resign_d02_record(gate)
+            return
+        if attack == "mixed_source_m3_version":
+            record = cast(dict[str, Any], payload["source_m3_repeat_evidence"][0])
+            record["schema_version"] = "mirror.demo/D02SourceM3RepeatRecord/v1"
+            _resign_d02_record(record)
+            return
+        raise AssertionError(f"unknown D02 attack: {attack}")
+
+    with pytest.raises(DBAPIError, match=expected_error):
+        _insert_mutated_d02_report_graph(session, mutate)
+    session.rollback()
+
+
+@pytest.mark.parametrize(
+    "authority_key",
+    (
+        "measurement_config_digest",
+        "measurement_quality_config_digest",
+        "runtime_manifest_digest",
+        "vision_model_manifest_digest",
+        "topology_digest",
+    ),
+)
+def test_d02_v10_postgresql_rejects_stale_schema_policy_authority(
+    session: Session,
+    authority_key: str,
+) -> None:
+    def mutate(report: dict[str, Any]) -> None:
+        payload = cast(dict[str, Any], report["report_payload"])
+        binding = cast(dict[str, Any], payload["schema_and_policy"])
+        binding[authority_key] = "0" * 64
+
+    with pytest.raises(DBAPIError, match="D02 v10 schema/policy authority is invalid"):
+        _insert_mutated_d02_report_graph(session, mutate)
+    session.rollback()
+
+
+def test_d02_v10_rejects_new_legacy_local_identity_write(session: Session) -> None:
+    with pytest.raises(
+        DBAPIError,
+        match="New Demo local synthetic identity events must use v3 authority",
+    ):
+        _insert_legacy_local_d02_identity(
+            session,
+            marker=f"legacy-write-rejected-{new_id()}",
+        )
+    session.rollback()
 
 
 def test_image_verification_matching_bidirectional_edge_commits(session: Session) -> None:
@@ -5223,11 +5692,62 @@ def _demo_alembic_config(database_url: str) -> Config:
 
 
 def _accepted_episode_function_definition(session: Session) -> str:
+    return _postgres_function_definition(
+        session,
+        "mirror_demo_validate_accepted_episode()",
+    )
+
+
+def _postgres_function_definition(session: Session, signature: str) -> str:
     definition = session.scalar(
-        text("SELECT pg_get_functiondef('mirror_demo_validate_accepted_episode()'::regprocedure)")
+        text("SELECT pg_get_functiondef(to_regprocedure(:signature))"),
+        {"signature": signature},
     )
     assert isinstance(definition, str)
     return definition
+
+
+def _d02_authority_snapshot(session: Session) -> dict[str, Any]:
+    queries = {
+        "identities": (
+            "SELECT COALESCE(jsonb_agg(to_jsonb(row_value) ORDER BY row_value.id), "
+            "'[]'::jsonb) FROM demo_synthetic_identities AS row_value"
+        ),
+        "reports": (
+            "SELECT COALESCE(jsonb_agg(to_jsonb(row_value) ORDER BY row_value.id), "
+            "'[]'::jsonb) FROM demo_pair_screening_reports AS row_value"
+        ),
+        "banks": (
+            "SELECT COALESCE(jsonb_agg(to_jsonb(row_value) ORDER BY row_value.id), "
+            "'[]'::jsonb) FROM demo_question_banks AS row_value"
+        ),
+        "pairs": (
+            "SELECT COALESCE(jsonb_agg(to_jsonb(row_value) ORDER BY row_value.id), "
+            "'[]'::jsonb) FROM demo_question_pairs AS row_value"
+        ),
+    }
+    return {name: session.scalar(text(query)) for name, query in queries.items()}
+
+
+def _d02_trigger_definitions(session: Session) -> list[tuple[str, str, str]]:
+    rows = session.execute(
+        text(
+            "SELECT trigger_row.tgrelid::regclass::text, trigger_row.tgname, "
+            "pg_get_triggerdef(trigger_row.oid) "
+            "FROM pg_trigger AS trigger_row "
+            "WHERE NOT trigger_row.tgisinternal "
+            "AND trigger_row.tgrelid IN ("
+            "'demo_synthetic_identities'::regclass, "
+            "'demo_pair_screening_reports'::regclass, "
+            "'demo_question_banks'::regclass, "
+            "'demo_question_pairs'::regclass) "
+            "ORDER BY trigger_row.tgrelid::regclass::text, trigger_row.tgname"
+        )
+    ).all()
+    return [
+        (cast(str, table), cast(str, name), cast(str, definition))
+        for table, name, definition in rows
+    ]
 
 
 def _wait_for_episode_access_exclusive_lock(
@@ -5270,6 +5790,129 @@ def _insert_episode_values_in_new_connection(
     finally:
         engine.dispose()
     return "inserted"
+
+
+def test_d02_quality_round_trip_preserves_legacy_rows_and_rejects_new_v1_report(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _truncate_demo_authority(session)
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    command.downgrade(config, D02_QUALITY_DOWN_REVISION)
+
+    source_asset, formal_identity = _accepted_synthetic_source(session)
+    primary_admission = _insert_demo_row(
+        session,
+        DemoSyntheticIdentity,
+        **_synthetic_admission_fields(
+            session,
+            source_asset,
+            formal_identity,
+            sequence=1,
+            action="ADMIT",
+            supersedes_id=None,
+            config_marker=f"d02-legacy-round-trip-{new_id()}",
+        ),
+    )
+    bank, _ = _insert_legacy_d02_question_bank_fixture(
+        session,
+        source_asset,
+        primary_admission,
+    )
+    report = session.get(DemoPairScreeningReport, bank.screening_report_id)
+    assert report is not None
+    report_values = {
+        column.name: getattr(report, column.name)
+        for column in DemoPairScreeningReport.__table__.columns
+        if column.computed is None
+    }
+    legacy_snapshot = _d02_authority_snapshot(session)
+    d09_definition = _accepted_episode_function_definition(session)
+    legacy_guard_definition = _postgres_function_definition(
+        session,
+        "mirror_demo_guard_authority()",
+    )
+    session.commit()
+
+    try:
+        command.upgrade(config, DEMO_REVISION)
+        assert _d02_authority_snapshot(session) == legacy_snapshot
+        assert _accepted_episode_function_definition(session) == d09_definition
+        session.commit()
+
+        with pytest.raises(
+            DBAPIError,
+            match="New D02 screening reports must use v2 authority",
+        ):
+            session.execute(DemoPairScreeningReport.__table__.insert().values(**report_values))
+            session.commit()
+        session.rollback()
+
+        command.downgrade(config, D02_QUALITY_DOWN_REVISION)
+        assert _d02_authority_snapshot(session) == legacy_snapshot
+        assert _accepted_episode_function_definition(session) == d09_definition
+        assert (
+            _postgres_function_definition(session, "mirror_demo_guard_authority()")
+            == legacy_guard_definition
+        )
+        assert session.scalar(
+            text(
+                "SELECT to_regprocedure('mirror_demo_validate_d02_screening_report_v10()') IS NULL"
+            )
+        )
+        session.commit()
+    finally:
+        session.rollback()
+        current_revision = session.scalar(text("SELECT version_num FROM alembic_version"))
+        session.commit()
+        if current_revision != DEMO_REVISION:
+            command.upgrade(config, DEMO_REVISION)
+
+
+def test_d02_quality_populated_downgrade_fails_closed_without_side_effects(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _insert_full_demo_graph(session)
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    authority_snapshot = _d02_authority_snapshot(session)
+    d09_definition = _accepted_episode_function_definition(session)
+    v10_definition = _postgres_function_definition(
+        session,
+        "mirror_demo_validate_d02_screening_report_v10()",
+    )
+    trigger_definitions = _d02_trigger_definitions(session)
+    session.commit()
+
+    try:
+        with pytest.raises(
+            DBAPIError,
+            match="Cannot downgrade populated D02 v3 identity authority",
+        ):
+            command.downgrade(config, D02_QUALITY_DOWN_REVISION)
+
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+        assert _d02_authority_snapshot(session) == authority_snapshot
+        assert _accepted_episode_function_definition(session) == d09_definition
+        assert (
+            _postgres_function_definition(
+                session,
+                "mirror_demo_validate_d02_screening_report_v10()",
+            )
+            == v10_definition
+        )
+        assert _d02_trigger_definitions(session) == trigger_definitions
+    finally:
+        session.rollback()
+        current_revision = session.scalar(text("SELECT version_num FROM alembic_version"))
+        session.commit()
+        if current_revision != DEMO_REVISION:
+            _truncate_demo_authority(session)
+            command.upgrade(config, DEMO_REVISION)
 
 
 def test_d09_empty_function_round_trip_restores_frozen_definitions(
@@ -5385,26 +6028,34 @@ def test_d09_populated_downgrade_fails_closed_with_function_unchanged(
     session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    graph = _insert_full_demo_graph(session)
-    episode_id = graph["episode"].id
+    _truncate_demo_authority(session)
     database_url = os.environ["TEST_DATABASE_URL"]
     monkeypatch.setenv("DATABASE_URL", database_url)
     config = _demo_alembic_config(database_url)
+    command.downgrade(config, D02_QUALITY_DOWN_REVISION)
+    graph = _insert_full_demo_graph(session)
+    episode_id = graph["episode"].id
     hardened_definition = _accepted_episode_function_definition(session)
     session.commit()
 
-    with pytest.raises(DBAPIError, match="downgrade blocked by existing evidence"):
-        command.downgrade(config, D09_DOWN_REVISION)
+    try:
+        with pytest.raises(DBAPIError, match="downgrade blocked by existing evidence"):
+            command.downgrade(config, D09_DOWN_REVISION)
 
-    assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
-    assert _accepted_episode_function_definition(session) == hardened_definition
-    assert (
-        session.scalar(
-            text("SELECT count(*) FROM demo_accepted_visual_episodes WHERE id=:episode_id"),
-            {"episode_id": episode_id},
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
+            D02_QUALITY_DOWN_REVISION
         )
-        == 1
-    )
+        assert _accepted_episode_function_definition(session) == hardened_definition
+        assert (
+            session.scalar(
+                text("SELECT count(*) FROM demo_accepted_visual_episodes WHERE id=:episode_id"),
+                {"episode_id": episode_id},
+            )
+            == 1
+        )
+    finally:
+        session.rollback()
+        command.upgrade(config, DEMO_REVISION)
 
 
 def test_d09_upgrade_serializes_concurrent_forged_insert_until_hardened_commit(
@@ -5467,6 +6118,7 @@ def test_d09_downgrade_serializes_insert_past_empty_check_and_restoration(
     database_url = os.environ["TEST_DATABASE_URL"]
     monkeypatch.setenv("DATABASE_URL", database_url)
     config = _demo_alembic_config(database_url)
+    command.downgrade(config, D02_QUALITY_DOWN_REVISION)
     graph = _insert_full_demo_graph(session, include_episode=False)
     legal_values = _episode_insert_values(graph)
     session.commit()

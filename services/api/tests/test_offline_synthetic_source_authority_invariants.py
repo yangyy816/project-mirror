@@ -201,7 +201,7 @@ def test_0011_downgrade_fails_closed_when_offline_authority_exists(
     engine = create_engine(database_url)
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "demo_0004_d09_episode_prov"
+            "demo_0005_d02_quality_auth"
         )
     engine.dispose()
     get_settings.cache_clear()

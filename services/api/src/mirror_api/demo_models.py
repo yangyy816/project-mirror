@@ -191,7 +191,8 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
             __tablename__,
             schema_version_expression=(
                 "schema_version IN ('mirror.demo/DemoSyntheticIdentity/v1',"
-                "'mirror.demo/DemoSyntheticIdentity/v2')"
+                "'mirror.demo/DemoSyntheticIdentity/v2',"
+                "'mirror.demo/DemoSyntheticIdentity/v3')"
             ),
         ),
         UniqueConstraint(
@@ -286,7 +287,10 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
             "AND source_measurement_projection_digest IS NOT NULL "
             "AND original_formal_identity_id_status = 'UNKNOWN_REDACTED_NOT_RECOVERED' "
             "AND adult_synthetic_attested IS TRUE "
-            "AND importer_version = 'demo-d02-identity-importer-v2' "
+            "AND ((schema_version = 'mirror.demo/DemoSyntheticIdentity/v2' "
+            "AND importer_version = 'demo-d02-identity-importer-v2') OR "
+            "(schema_version = 'mirror.demo/DemoSyntheticIdentity/v3' "
+            "AND importer_version = 'demo-d02-identity-importer-v3')) "
             "AND import_config_digest IS NOT NULL)",
             name="source_mode_null_matrix",
         ),
@@ -520,10 +524,17 @@ class DemoPairScreeningReport(DemoAuthorityMixin, Base):
     selected_pair_manifest_digest: Mapped[str | None] = mapped_column(String(64))
 
     __table_args__ = (
-        *_authority_constraints(__tablename__),
+        *_authority_constraints(
+            __tablename__,
+            schema_version_expression=(
+                "schema_version IN ('mirror.demo/D02PairScreeningReport/v1',"
+                "'mirror.demo/D02PairScreeningReport/v2')"
+            ),
+        ),
         UniqueConstraint("report_digest", name="uq_demo_pair_screening_reports_report_digest"),
         CheckConstraint(
-            "schema_version = 'mirror.demo/D02PairScreeningReport/v1'",
+            "schema_version IN ('mirror.demo/D02PairScreeningReport/v1',"
+            "'mirror.demo/D02PairScreeningReport/v2')",
             name="exact_schema_version",
         ),
         CheckConstraint(
