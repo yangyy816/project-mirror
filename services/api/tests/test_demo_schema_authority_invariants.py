@@ -3,12 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_EVEN, Decimal
 from pathlib import Path
-from threading import Barrier
+from threading import Barrier, Event
 from typing import Any
 
 import pytest
@@ -63,7 +64,8 @@ from mirror_api.models import (
     utcnow,
 )
 
-DEMO_REVISION = "demo_0003_d02_import_auth"
+DEMO_REVISION = "demo_0004_d09_episode_prov"
+D09_DOWN_REVISION = "demo_0003_d02_import_auth"
 D02_DOWN_REVISION = "demo_0002_p3_p7_command_auth"
 BASE_DEMO_REVISION = "demo_0001_p3_p7_core"
 FORMAL_DOWN_REVISION = "0014_m5_eval_authority"
@@ -1949,6 +1951,39 @@ def _insert_episode(
     )
 
 
+def _episode_insert_values(
+    graph: dict[str, Any],
+    *,
+    profile_digest: str | None = None,
+    context_digest: str | None = None,
+    instruction_digest: str | None = None,
+) -> dict[str, Any]:
+    episode = _build_demo_row(
+        DemoAcceptedVisualEpisode,
+        demo_actor_id=graph["actor"].id,
+        demo_session_id=graph["session"].id,
+        editing_session_id=graph["editing_session"].id,
+        accepted_image_version_id=graph["image1"].id,
+        verification_result_id=graph["verification"].id,
+        acceptance_event_id=graph["accepted_event"].id,
+        source_asset_id=graph["image0"].source_asset_id,
+        source_asset_sha256=graph["source_asset"].sha256,
+        final_asset_id=graph["image1"].result_asset_id,
+        final_asset_sha256=graph["image1_asset"].sha256,
+        trajectory_digests=[
+            graph["image0"].content_digest,
+            graph["image1"].content_digest,
+        ],
+        profile_digest=profile_digest or graph["desired_delta"].content_digest,
+        context_digest=context_digest or graph["editing_session"].context_digest,
+        instruction_digest=(instruction_digest or graph["editing_session"].instruction_digest),
+    )
+    return {
+        column.name: getattr(episode, column.name)
+        for column in DemoAcceptedVisualEpisode.__table__.columns
+    }
+
+
 def _prepare_followup_execution(
     session: Session,
     graph: dict[str, Any],
@@ -2334,7 +2369,12 @@ def _insert_two_operation_execution(session: Session, graph: dict[str, Any]) -> 
     }
 
 
-def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -> dict[str, Any]:
+def _insert_full_demo_graph(
+    session: Session,
+    *,
+    include_episode: bool = True,
+    plan_overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Insert one valid authority lineage spanning every Demo table."""
 
     def digest(character: str) -> str:
@@ -2645,6 +2685,7 @@ def _insert_full_demo_graph(session: Session, *, include_episode: bool = True) -
         "instruction_digest": editing_session.instruction_digest,
         "planner_version": "fixture-planner-v1",
         "tool_registry_version": editing_session.tool_registry_version,
+        **(plan_overrides or {}),
     }
     request_plan = _insert_demo_row(
         session,
@@ -4167,6 +4208,79 @@ def test_accepted_episode_requires_exact_root_to_leaf_trajectory(
     ]
 
 
+@pytest.mark.parametrize(
+    "forged_fields",
+    (
+        ("profile_digest",),
+        ("context_digest",),
+        ("instruction_digest",),
+        ("profile_digest", "context_digest", "instruction_digest"),
+    ),
+    ids=("profile-only", "context-only", "instruction-only", "combined"),
+)
+def test_accepted_episode_rejects_resigned_direct_sql_provenance_forgery(
+    session: Session,
+    forged_fields: tuple[str, ...],
+) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    overrides = {
+        field_name: hashlib.sha256(f"forged-{field_name}".encode()).hexdigest()
+        for field_name in forged_fields
+    }
+    forged_values = _episode_insert_values(graph, **overrides)
+
+    with pytest.raises(
+        DBAPIError,
+        match="Only verified user-accepted Demo image versions may become episodes",
+    ):
+        session.execute(DemoAcceptedVisualEpisode.__table__.insert().values(**forged_values))
+        session.commit()
+    session.rollback()
+
+    assert session.scalar(text("SELECT count(*) FROM demo_accepted_visual_episodes")) == 0
+
+
+@pytest.mark.parametrize(
+    "plan_overrides",
+    (
+        {
+            "desired_delta_profile_digest": hashlib.sha256(
+                b"terminal-plan-profile-drift"
+            ).hexdigest()
+        },
+        {"instruction_digest": hashlib.sha256(b"terminal-plan-instruction-drift").hexdigest()},
+    ),
+    ids=("terminal-plan-profile", "terminal-plan-instruction"),
+)
+def test_accepted_episode_rejects_isolated_terminal_plan_provenance_drift(
+    session: Session,
+    plan_overrides: dict[str, Any],
+) -> None:
+    graph = _insert_full_demo_graph(
+        session,
+        include_episode=False,
+        plan_overrides=plan_overrides,
+    )
+    episode_values = _episode_insert_values(graph)
+
+    assert episode_values["profile_digest"] == graph["editing_session"].desired_delta_profile_digest
+    assert episode_values["instruction_digest"] == graph["editing_session"].instruction_digest
+    assert (
+        episode_values["profile_digest"] != graph["result_plan"].desired_delta_profile_digest
+        or episode_values["instruction_digest"] != graph["result_plan"].instruction_digest
+    )
+
+    with pytest.raises(
+        DBAPIError,
+        match="Only verified user-accepted Demo image versions may become episodes",
+    ):
+        session.execute(DemoAcceptedVisualEpisode.__table__.insert().values(**episode_values))
+        session.commit()
+    session.rollback()
+
+    assert session.scalar(text("SELECT count(*) FROM demo_accepted_visual_episodes")) == 0
+
+
 def test_demo_metadata_and_database_objects_match(session: Session) -> None:
     assert len(DEMO_TABLE_NAMES) == 29
     database_tables = set(
@@ -5100,6 +5214,305 @@ def test_concurrent_command_binding_has_one_atomic_canonical_winner(session: Ses
         == 1
     )
     assert session.scalar(text("SELECT count(*) FROM demo_sessions")) == 1
+
+
+def _demo_alembic_config(database_url: str) -> Config:
+    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", database_url)
+    return config
+
+
+def _accepted_episode_function_definition(session: Session) -> str:
+    definition = session.scalar(
+        text("SELECT pg_get_functiondef('mirror_demo_validate_accepted_episode()'::regprocedure)")
+    )
+    assert isinstance(definition, str)
+    return definition
+
+
+def _wait_for_episode_access_exclusive_lock(
+    session: Session,
+    *,
+    timeout_seconds: float = 10.0,
+) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        granted_count = session.scalar(
+            text(
+                "SELECT count(*) FROM pg_locks lock_row "
+                "WHERE lock_row.relation = "
+                "'demo_accepted_visual_episodes'::regclass "
+                "AND lock_row.mode = 'AccessExclusiveLock' "
+                "AND lock_row.granted "
+                "AND lock_row.pid <> pg_backend_pid()"
+            )
+        )
+        if granted_count:
+            session.commit()
+            return
+        session.commit()
+        time.sleep(0.05)
+    raise AssertionError("Timed out waiting for D09 episode-table migration lock")
+
+
+def _insert_episode_values_in_new_connection(
+    database_url: str,
+    values: dict[str, Any],
+    started: Event,
+) -> str:
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            started.set()
+            connection.execute(DemoAcceptedVisualEpisode.__table__.insert().values(**values))
+    except DBAPIError:
+        return "rejected"
+    finally:
+        engine.dispose()
+    return "inserted"
+
+
+def test_d09_empty_function_round_trip_restores_frozen_definitions(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _truncate_demo_authority(session)
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    hardened_definition = _accepted_episode_function_definition(session)
+    session.commit()
+
+    try:
+        command.downgrade(config, FORMAL_DOWN_REVISION)
+        command.upgrade(config, D09_DOWN_REVISION)
+        demo_0003_baseline = _accepted_episode_function_definition(session)
+        session.commit()
+        assert demo_0003_baseline != hardened_definition
+
+        command.upgrade(config, DEMO_REVISION)
+        assert _accepted_episode_function_definition(session) == hardened_definition
+        session.commit()
+
+        command.downgrade(config, D09_DOWN_REVISION)
+        assert _accepted_episode_function_definition(session) == demo_0003_baseline
+        session.commit()
+    finally:
+        command.upgrade(config, DEMO_REVISION)
+    assert _accepted_episode_function_definition(session) == hardened_definition
+
+
+def test_d09_upgrade_preserves_legal_episode_bytes(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _truncate_demo_authority(session)
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    command.downgrade(config, D09_DOWN_REVISION)
+    graph = _insert_full_demo_graph(session)
+    episode_id = graph["episode"].id
+    before = session.scalar(
+        text("SELECT to_jsonb(episode_row) FROM demo_accepted_visual_episodes episode_row")
+    )
+    session.commit()
+
+    try:
+        command.upgrade(config, DEMO_REVISION)
+        after = session.scalar(
+            text(
+                "SELECT to_jsonb(episode_row) FROM demo_accepted_visual_episodes "
+                "episode_row WHERE id=:episode_id"
+            ),
+            {"episode_id": episode_id},
+        )
+        assert after == before
+    finally:
+        if session.scalar(text("SELECT version_num FROM alembic_version")) != DEMO_REVISION:
+            _truncate_demo_authority(session)
+            command.upgrade(config, DEMO_REVISION)
+
+
+def test_d09_upgrade_rejects_resigned_legacy_forgery_without_rewriting(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _truncate_demo_authority(session)
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    command.downgrade(config, D09_DOWN_REVISION)
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    forged_values = _episode_insert_values(
+        graph,
+        profile_digest=hashlib.sha256(b"legacy-forged-profile").hexdigest(),
+        context_digest=hashlib.sha256(b"legacy-forged-context").hexdigest(),
+        instruction_digest=hashlib.sha256(b"legacy-forged-instruction").hexdigest(),
+    )
+    session.execute(DemoAcceptedVisualEpisode.__table__.insert().values(**forged_values))
+    session.commit()
+    before = session.scalar(
+        text(
+            "SELECT to_jsonb(episode_row) FROM demo_accepted_visual_episodes episode_row "
+            "WHERE id=:episode_id"
+        ),
+        {"episode_id": forged_values["id"]},
+    )
+    session.commit()
+
+    try:
+        with pytest.raises(DBAPIError, match="provenance audit failed"):
+            command.upgrade(config, DEMO_REVISION)
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
+            D09_DOWN_REVISION
+        )
+        after = session.scalar(
+            text(
+                "SELECT to_jsonb(episode_row) FROM demo_accepted_visual_episodes "
+                "episode_row WHERE id=:episode_id"
+            ),
+            {"episode_id": forged_values["id"]},
+        )
+        assert after == before
+    finally:
+        session.rollback()
+        _truncate_demo_authority(session)
+        command.upgrade(config, DEMO_REVISION)
+
+
+def test_d09_populated_downgrade_fails_closed_with_function_unchanged(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    graph = _insert_full_demo_graph(session)
+    episode_id = graph["episode"].id
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    hardened_definition = _accepted_episode_function_definition(session)
+    session.commit()
+
+    with pytest.raises(DBAPIError, match="downgrade blocked by existing evidence"):
+        command.downgrade(config, D09_DOWN_REVISION)
+
+    assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+    assert _accepted_episode_function_definition(session) == hardened_definition
+    assert (
+        session.scalar(
+            text("SELECT count(*) FROM demo_accepted_visual_episodes WHERE id=:episode_id"),
+            {"episode_id": episode_id},
+        )
+        == 1
+    )
+
+
+def test_d09_upgrade_serializes_concurrent_forged_insert_until_hardened_commit(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _truncate_demo_authority(session)
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    command.downgrade(config, D09_DOWN_REVISION)
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    forged_values = _episode_insert_values(
+        graph,
+        profile_digest=hashlib.sha256(b"blocked-forged-profile").hexdigest(),
+    )
+    session.commit()
+
+    blocker_engine = create_engine(database_url)
+    blocker_connection = blocker_engine.connect()
+    blocker_transaction = blocker_connection.begin()
+    blocker_connection.execute(text("SELECT version_num FROM alembic_version FOR UPDATE"))
+    insert_started = Event()
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            migration_future = executor.submit(command.upgrade, config, DEMO_REVISION)
+            try:
+                _wait_for_episode_access_exclusive_lock(session)
+                insert_future = executor.submit(
+                    _insert_episode_values_in_new_connection,
+                    database_url,
+                    forged_values,
+                    insert_started,
+                )
+                assert insert_started.wait(timeout=5)
+                time.sleep(0.2)
+                assert not insert_future.done()
+            finally:
+                if blocker_transaction.is_active:
+                    blocker_transaction.commit()
+            migration_future.result(timeout=20)
+            assert insert_future.result(timeout=20) == "rejected"
+    finally:
+        if blocker_transaction.is_active:
+            blocker_transaction.rollback()
+        blocker_connection.close()
+        blocker_engine.dispose()
+        command.upgrade(config, DEMO_REVISION)
+
+    assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+    assert session.scalar(text("SELECT count(*) FROM demo_accepted_visual_episodes")) == 0
+
+
+def test_d09_downgrade_serializes_insert_past_empty_check_and_restoration(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _truncate_demo_authority(session)
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    legal_values = _episode_insert_values(graph)
+    session.commit()
+
+    blocker_engine = create_engine(database_url)
+    blocker_connection = blocker_engine.connect()
+    blocker_transaction = blocker_connection.begin()
+    blocker_connection.execute(text("SELECT version_num FROM alembic_version FOR UPDATE"))
+    insert_started = Event()
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            migration_future = executor.submit(
+                command.downgrade,
+                config,
+                D09_DOWN_REVISION,
+            )
+            try:
+                _wait_for_episode_access_exclusive_lock(session)
+                insert_future = executor.submit(
+                    _insert_episode_values_in_new_connection,
+                    database_url,
+                    legal_values,
+                    insert_started,
+                )
+                assert insert_started.wait(timeout=5)
+                time.sleep(0.2)
+                assert not insert_future.done()
+            finally:
+                if blocker_transaction.is_active:
+                    blocker_transaction.commit()
+            migration_future.result(timeout=20)
+            assert insert_future.result(timeout=20) == "inserted"
+
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
+            D09_DOWN_REVISION
+        )
+        assert session.scalar(text("SELECT count(*) FROM demo_accepted_visual_episodes")) == 1
+        session.commit()
+        command.upgrade(config, DEMO_REVISION)
+    finally:
+        if blocker_transaction.is_active:
+            blocker_transaction.rollback()
+        blocker_connection.close()
+        blocker_engine.dispose()
+        command.upgrade(config, DEMO_REVISION)
 
 
 def test_empty_downgrade_and_reupgrade_lifecycle(

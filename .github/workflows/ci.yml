@@ -272,15 +272,16 @@ jobs:
         if: env.DEMO_PROTOTYPE_TRACK == 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > demo-prototype-migration-head.txt
-          test "$(tr -d '\r\n' < demo-prototype-migration-head.txt)" = "demo_0003_d02_import_auth (head)"
+          test "$(tr -d '\r\n' < demo-prototype-migration-head.txt)" = "demo_0004_d09_episode_prov (head)"
           python -m alembic -c services/api/alembic.ini history > demo-prototype-migration-history.txt
-          grep -Fqx "demo_0002_p3_p7_command_auth -> demo_0003_d02_import_auth (head), Branch-local D02 recovered-source and pair-screening authority." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0003_d02_import_auth -> demo_0004_d09_episode_prov (head), Harden Demo accepted-episode provenance authority." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0002_p3_p7_command_auth -> demo_0003_d02_import_auth, Branch-local D02 recovered-source and pair-screening authority." demo-prototype-migration-history.txt
           grep -Fqx "demo_0001_p3_p7_core -> demo_0002_p3_p7_command_auth, Branch-local synchronous Demo command authority." demo-prototype-migration-history.txt
           grep -Fqx "0014_m5_eval_authority -> demo_0001_p3_p7_core, Branch-local P3-P7 algorithmic prototype authority." demo-prototype-migration-history.txt
           printf '%s\n' \
             "TRACK: DEMO_PROTOTYPE" \
             "COMMIT_SHA: $GITHUB_SHA" \
-            "DEMO_MIGRATION_HEAD: demo_0003_d02_import_auth" \
+            "DEMO_MIGRATION_HEAD: demo_0004_d09_episode_prov" \
             "FORMAL_EVIDENCE_GENERATORS: NOT_RUN_ON_PROTOTYPE_HEAD" \
             "FORMAL_HEAD_AUTHORITY: 0014_m5_eval_authority" \
             "PRODUCTION_RELEASE: NOT_AUTHORIZED" \
