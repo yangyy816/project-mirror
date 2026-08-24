@@ -65,11 +65,26 @@ font, or external material, it must stop before any byte exists with
 ## Recipe, seed, manifest, and ground-truth preregistration
 
 The companion specification freezes the public recipe language, version authority, seed-derivation rule, transform
-classes, and pair-label table. It contains no image byte, image digest, path, locator, object key, URL, credential,
-Prompt, external asset, or private manifest entry. A future materialization manifest must be immutable before any pair
-view and must bind, for each pair, opaque pair and source-identity IDs, recipe/version, derived fixed seed, transform,
-source and canonical digests, expected decision/reason, invocation and append expectations, retention, cleanup, and
-isolation proof.
+classes, pair-label table, and inherited parent-protocol manifest bindings. It contains no image byte, image digest,
+path, locator, object key, URL, credential, Prompt, external asset, or private manifest entry. A future materialization
+manifest must be immutable before any pair view and must bind, for each pair, opaque pair and source-identity IDs,
+source authority, synthetic/adult declaration, recipe/version, derived fixed seed, pair and transform classes, source
+and canonical digests, the exact pre-registered allowed decision/reason set, A/B presentation order, repeat count,
+invocation and append expectations, retention, cleanup, isolation proof, all inherited policy/schema digests, and the
+fixed operation-ledger version/digest.
+
+The inherited policy/schema authority is immutable and must be copied verbatim into every future private manifest:
+
+- `REVIEW_POLICY_DIGEST: 725b870ac8c93ac50c62badc9553a3cd0706ae84dbee29bab0b16df53889f410`
+- `REVIEW_INPUT_SCHEMA_DIGEST: 9c201c70a0ab7f80cab1135be17d00bc5b6a0935a3df2bf7c5faa579b6c130d4`
+- `REVIEW_MODEL_DECISION_SCHEMA_DIGEST: 6370ba1b1f726ecbd8395c4e4da3b93dee5f09c53413dc6b1e86a6c7e848cc72`
+- `REVIEW_OUTPUT_SCHEMA_DIGEST: 68fdbb268451c75151be0674dcb4d328b46d2c3f97b4a7d232ca103ba78acc71`
+
+The fixed operation ledger is not a private manifest or an execution ledger. Its version is
+`p2-m5-cc04-b-mr01-s01-operation-ledger-v1`; its required SHA-256 is
+`ce23d2daf1e17c6fa5cbad491aa341da90f14f6fbd392e4eea619a08662bc324`, computed from the UTF-8, LF-terminated
+serialization declared in the companion specification. A future manifest must bind both values exactly and may not
+substitute an expanded, reduced, or reinterpreted envelope.
 
 The exact ten logical pair records are `EXACT_DUPLICATE`, `REENCODED_DUPLICATE`,
 `CROP_VARIANT_SAME_IDENTITY`, `RESIZE_VARIANT_SAME_IDENTITY`, `LIGHTING_VARIANT_SAME_IDENTITY`,

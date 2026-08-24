@@ -65,18 +65,74 @@ opaque_pair_id
 opaque_output_a_id
 opaque_output_b_id
 source_identity_ids
+source_authority_id
+synthetic_adult_declaration
 recipe_ids_and_versions
 derived_fixed_seeds
+pair_class
 transform_class
 source_digest_a_and_b
 canonical_digest_a_and_b
 expected_decision
 expected_reason_code
+expected_allowed_decision_reason_set
+a_b_presentation_order
+repeat_count
 reviewer_invocation_expected
 append_expected
 retention_class
 cleanup_binding
 fixture_isolation_binding
+review_policy_digest
+review_input_schema_digest
+review_model_decision_schema_digest
+review_output_schema_digest
+fixed_operation_ledger_version
+fixed_operation_ledger_sha256
+```
+
+`source_authority_id` must equal
+`FIRST_PARTY_DETERMINISTIC_PROCEDURAL_SYNTHETIC_ADULT_PORTRAIT_MR01_FIXTURE_PACK_V1`; the synthetic/adult declaration
+must be an authored first-party synthetic-only, clearly-adult-presenting, nonsexual declaration with no real-person
+mapping. It is not an age estimate. `expected_allowed_decision_reason_set` is a singleton binding to that record's
+pre-registered `expected_decision` and `expected_reason_code`; a broader or substituted set is invalid. Each record
+must pre-register its exact A/B presentation order and repeat count. Reversed-order and repeat-determinism controls
+must identify their source logical pair, use their declared order/count, and together remain within the fixed ledger.
+
+The following inherited policy/schema values must appear verbatim in every future manifest record:
+
+```text
+review_policy_digest=725b870ac8c93ac50c62badc9553a3cd0706ae84dbee29bab0b16df53889f410
+review_input_schema_digest=9c201c70a0ab7f80cab1135be17d00bc5b6a0935a3df2bf7c5faa579b6c130d4
+review_model_decision_schema_digest=6370ba1b1f726ecbd8395c4e4da3b93dee5f09c53413dc6b1e86a6c7e848cc72
+review_output_schema_digest=68fdbb268451c75151be0674dcb4d328b46d2c3f97b4a7d232ca103ba78acc71
+```
+
+The future manifest must also bind this public fixed operation ledger exactly:
+
+```text
+fixed_operation_ledger_version=p2-m5-cc04-b-mr01-s01-operation-ledger-v1
+fixed_operation_ledger_sha256=ce23d2daf1e17c6fa5cbad491aa341da90f14f6fbd392e4eea619a08662bc324
+```
+
+The SHA-256 input is the following UTF-8, LF-terminated serialization; it is public contract text, not a fixture
+manifest, private digest, or an executed operation ledger:
+
+```text
+MR01_FIXED_OPERATION_LEDGER_VERSION=p2-m5-cc04-b-mr01-s01-operation-ledger-v1
+MR01_FIXTURE_PAIR_RECORD_MAX=10
+MR01_PRIVATE_PAIR_VIEW_OPERATION_MAX=16
+MR01_SOL_MAX_INVOCATION_MAX=16
+MR01_APPEND_ATTEMPT_MAX=13
+MR01_PERSISTED_ENVELOPE_MAX=12
+MR01_REVIEWER_RETRY_MAX=0
+MR01_SECOND_OPINION_MAX=0
+MR01_NATIVE_IMAGEGEN_CALL_MAX=0
+MR01_FORMAL_E01_GENERATION_CALL_MAX=0
+MR01_FORMAL_E01_RAW_OUTPUT_MAX=0
+MR01_CAL_REQ_ORDINAL_MAX=0
+MISSING_PAIR_ID_CONTROL=PRE_MODEL_REJECT_NO_PAIR_VIEW_NO_REVIEWER_INVOCATION_NO_APPEND
+DUPLICATE_REPLAY_CONTROL=SINK_ONLY_REJECT_NO_NEW_PAIR_VIEW_NO_NEW_REVIEWER_INVOCATION
 ```
 
 The manifest is `NOT_CREATED` until a separately accepted runtime/materialization contract creates private bytes under
