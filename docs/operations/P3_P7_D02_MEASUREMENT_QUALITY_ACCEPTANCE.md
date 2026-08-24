@@ -120,7 +120,8 @@ contained no private locator/path, secret value or private bytes.
 
 ```text
 D02_PURE_AUTHORITY_BUILDER: EXECUTION_READY
-D02_MIGRATION_REVISION: demo_0004_d02_quality_auth
+D02_AUTHORITY_CHANGE_CONTROL_03: PRINCIPAL_ACCEPTED
+D02_MIGRATION_REVISION: demo_0005_d02_quality_auth
 D02_48_CASE_EXECUTION: NOT_STARTED
 REAL_SOURCE_M3_12: NOT_VERIFIED
 REAL_M4_EXECUTIONS_96: NOT_VERIFIED
@@ -135,3 +136,8 @@ ALGORITHMIC_PROTOTYPE_PLATFORM: NOT_VERIFIED
 Only Packet B's two new pure-domain files may now enter bounded implementation. Migration/ORM and private handles stay
 closed until the pure authority builder is independently reviewed, integrated, validated and accepted. D03 remains
 blocked until full D02 acceptance.
+
+`P3_P7_D02_CC_03` supersedes only the unimplemented migration allocation: the old `demo_0004_d02_quality_auth`
+reservation is `SUPERSEDED_UNIMPLEMENTED_DO_NOT_CREATE`; future D02 migration work uses
+`demo_0005_d02_quality_auth -> demo_0004_d09_episode_prov`. All accepted D02 algorithm, manifest, digest and evidence
+semantics remain unchanged.
