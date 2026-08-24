@@ -601,3 +601,12 @@
   `ACCESS EXCLUSIVE` upgrade/downgrade 与独立 `demo_0003` function baseline 强制 episode=editing=terminal RESULT
   plan 的 profile/instruction provenance。范围仅为 Demo D09 ledger/Final Save domain；D10仍等待D05/D06，Profile/
   Context Compiler、formal P7、真实用户有效性与production release均未接受。
+
+- 2026-08-25：D02 persistence 首个 candidate `68545daeaf9543ff700c5cff2883639ebb28f04b` 因 ResultM3
+  observation/Gate 值投影未绑定、三个 accepted authority roots 可被全链重签替换及 ORM/PG CHECK 不一致而保留为
+  rejected negative evidence；前向 repair `f245441f23f42aaf923995ca6c7d4a490b72b429` 关闭全部 finding，独立 Sol
+  exact-SHA review 为 `PASS_FINDINGS_NONE`。exact archive D02 480/480、D09 6/6、七项完整重签攻击/parity、
+  `demo_0004↔demo_0005` lifecycle、Ruff/mypy/Gitleaks 均通过；same-SHA run `32770366896` 三 jobs 全绿（完整
+  Python 1348 pass/1 existing optional skip）。Principal 接受 branch-local `demo_0005_d02_quality_auth` persistence
+  checkpoint，并在 acceptance checkpoint CI 后只开放 Principal-custodied offline private screening；真实4-source/
+  48-case结果、selected 16-pair bank、完整D02、D03、formal P3–P7与production release继续关闭。
