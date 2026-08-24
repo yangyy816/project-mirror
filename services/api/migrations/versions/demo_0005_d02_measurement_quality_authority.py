@@ -548,6 +548,8 @@ BEGIN
             raw_authority -> 'source_p2_candidate_manifest_content_digest',
             '^[0-9a-f]{64}$'
         )
+        OR raw_authority ->> 'source_p2_candidate_manifest_content_digest' <>
+            'eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4'
         OR facts ->> 'source_p2_candidate_manifest_content_digest' <>
             raw_authority ->> 'source_p2_candidate_manifest_content_digest'
         OR projection ->> 'source_p2_candidate_manifest_content_digest' <>
@@ -556,6 +558,8 @@ BEGIN
             raw_authority -> 'dimension_authority_manifest_content_digest',
             '^[0-9a-f]{64}$'
         )
+        OR raw_authority ->> 'dimension_authority_manifest_content_digest' <>
+            'd4ffa375cf861ec6873270cd4b1c03c4270672f96dee4b8f71ae0678103ad33a'
         OR facts ->> 'dimension_authority_manifest_content_digest' <>
             raw_authority ->> 'dimension_authority_manifest_content_digest'
         OR projection ->> 'dimension_authority_manifest_content_digest' <>
@@ -1056,10 +1060,14 @@ BEGIN
             source_entry -> 'source_p2_candidate_manifest_content_digest',
             '^[0-9a-f]{64}$'
         )
+        OR source_entry ->> 'source_p2_candidate_manifest_content_digest' <>
+            'eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4'
         OR NOT mirror_demo_d02_json_string_matches(
             source_entry -> 'dimension_authority_manifest_content_digest',
             '^[0-9a-f]{64}$'
         )
+        OR source_entry ->> 'dimension_authority_manifest_content_digest' <>
+            'd4ffa375cf861ec6873270cd4b1c03c4270672f96dee4b8f71ae0678103ad33a'
         OR source_entry ->> 'measurement_config_digest' <>
             'ab5f745641a6f4539a8010fe32dda82b6c1066a8cb97d36ae17de737b901e8d3'
         OR source_entry ->> 'measurement_quality_config_digest' <>
@@ -1474,6 +1482,14 @@ DECLARE
     certificate_subject jsonb := certificate -> 'subject';
     first_observation_subject jsonb :=
         result_records -> 0 -> 'measurement_observation' -> 'subject';
+    result_record jsonb;
+    result_measurement jsonb;
+    target_observation jsonb;
+    control_observation jsonb;
+    control_delta jsonb;
+    expected_control_dimension text;
+    expected_repeat integer;
+    control_index integer;
 BEGIN
     PERFORM mirror_demo_d02_require_record(
         gate_record,
@@ -1552,6 +1568,75 @@ BEGIN
         ) THEN
         RAISE EXCEPTION 'D02 v10 Gate graph binding is invalid';
     END IF;
+
+    FOR expected_repeat IN 1..3 LOOP
+        result_record := result_records -> (expected_repeat - 1);
+        result_measurement := gate_record ->
+            'ordered_result_repeat_measurements' -> (expected_repeat - 1);
+        SELECT measurement.value INTO target_observation
+        FROM jsonb_array_elements(
+            result_record -> 'measurement_observation' -> 'ordered_measurements'
+        ) AS measurement(value)
+        WHERE measurement.value ->> 'dimension_key' = case_entry ->> 'dimension_key';
+        IF target_observation IS NULL THEN
+            RAISE EXCEPTION 'D02 v10 Gate observation projection is invalid';
+        END IF;
+
+        IF target_observation ->> 'support_state' = 'SUPPORTED' THEN
+            IF result_record ->> 'observation_state' <> 'SUPPORTED'
+                OR result_measurement ->> 'schema_version' <>
+                    'mirror.demo/D02SupportedResultMeasurement/v1'
+                OR result_measurement -> 'repeat_index' IS DISTINCT FROM
+                    to_jsonb(expected_repeat)
+                OR result_measurement ->> 'result_m3_record_digest' <>
+                    result_record ->> 'record_digest'
+                OR result_measurement ->> 'raw_result_target_fixed18' <>
+                    target_observation ->> 'raw_value_fixed18'
+                OR jsonb_typeof(result_measurement -> 'ordered_control_deltas') <>
+                    'array'
+                OR jsonb_array_length(result_measurement -> 'ordered_control_deltas') <> 5
+            THEN
+                RAISE EXCEPTION 'D02 v10 Gate observation projection is invalid';
+            END IF;
+            FOR control_index IN 0..4 LOOP
+                expected_control_dimension :=
+                    case_entry -> 'ordered_control_dimensions' ->> control_index;
+                SELECT measurement.value INTO control_observation
+                FROM jsonb_array_elements(
+                    result_record -> 'measurement_observation' -> 'ordered_measurements'
+                ) AS measurement(value)
+                WHERE measurement.value ->> 'dimension_key' = expected_control_dimension;
+                control_delta := result_measurement -> 'ordered_control_deltas' ->
+                    control_index;
+                IF control_observation IS NULL
+                    OR control_observation ->> 'support_state' <> 'SUPPORTED'
+                    OR control_delta ->> 'dimension_key' <> expected_control_dimension
+                    OR control_delta ->> 'raw_result_value_fixed18' <>
+                        control_observation ->> 'raw_value_fixed18'
+                THEN
+                    RAISE EXCEPTION 'D02 v10 Gate observation projection is invalid';
+                END IF;
+            END LOOP;
+        ELSIF target_observation ->> 'support_state' = 'UNSUPPORTED' THEN
+            IF result_record ->> 'observation_state' <> 'UNSUPPORTED_EXPLICIT'
+                OR result_measurement ->> 'schema_version' <>
+                    'mirror.demo/D02UnsupportedResultMeasurement/v1'
+                OR result_measurement -> 'repeat_index' IS DISTINCT FROM
+                    to_jsonb(expected_repeat)
+                OR result_measurement ->> 'result_m3_record_digest' <>
+                    result_record ->> 'record_digest'
+                OR result_measurement ->> 'unsupported_dimension_key' <>
+                    case_entry ->> 'dimension_key'
+                OR result_measurement ->> 'unsupported_reason' <>
+                    target_observation ->> 'unsupported_reason'
+                OR result_measurement -> 'measurement_gate_passed' <> 'false'::jsonb
+            THEN
+                RAISE EXCEPTION 'D02 v10 Gate observation projection is invalid';
+            END IF;
+        ELSE
+            RAISE EXCEPTION 'D02 v10 Gate observation projection is invalid';
+        END IF;
+    END LOOP;
 END;
 $function$;
 """
@@ -1698,7 +1783,23 @@ BEGIN
         OR mirror_demo_digest(
             'mirror.demo/D02MeasurementExecutionConfig/v1',
             measurement_config - 'schema_version'
-        ) <> NEW.measurement_config_digest THEN
+        ) <> NEW.measurement_config_digest
+        OR measurement_config ->> 'source_p2_candidate_manifest_content_digest' <>
+            'eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4'
+        OR measurement_config ->> 'dimension_authority_manifest_content_digest' <>
+            'd4ffa375cf861ec6873270cd4b1c03c4270672f96dee4b8f71ae0678103ad33a'
+        OR measurement_config ->> 'geometry_ontology_version_digest' <>
+            'd902fe2cfdf69db9f62ccc2e5fa7c569227d652f1204aa683742fc3c592f38b9'
+        OR measurement_config ->> 'measurement_quality_config_digest' <>
+            binding ->> 'measurement_quality_config_digest'
+        OR measurement_config ->> 'd02_execution_runtime_set_digest' <>
+            NEW.runtime_manifest_digest
+        OR measurement_config ->> 'vision_model_manifest_digest' <>
+            NEW.vision_model_manifest_digest
+        OR measurement_config ->> 'topology_digest' <> NEW.topology_digest
+        OR measurement_config ->> 'confidence_kind' <> binding ->> 'confidence_kind'
+        OR measurement_config ->> 'reliability_kind' <> binding ->> 'reliability_kind'
+        THEN
         RAISE EXCEPTION 'D02 v10 schema/policy authority is invalid';
     END IF;
 
@@ -1901,6 +2002,8 @@ BEGIN
                 case_entry -> 'geometry_ontology_version_digest',
                 '^[0-9a-f]{64}$'
             )
+            OR case_entry ->> 'geometry_ontology_version_digest' <>
+                measurement_config ->> 'geometry_ontology_version_digest'
             OR case_entry ->> 'runtime_manifest_digest' <>
                 NEW.runtime_manifest_digest
             OR NOT mirror_demo_d02_json_string_matches(

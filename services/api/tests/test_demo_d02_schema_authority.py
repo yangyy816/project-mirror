@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import os
+import re
 from collections.abc import Generator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,7 +12,7 @@ from typing import Any, cast
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import Connection, create_engine, select, text
+from sqlalchemy import CheckConstraint, Connection, Table, create_engine, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 from test_demo_schema_authority_invariants import (
@@ -167,6 +168,15 @@ def _row_json(connection: Connection, table_name: str, row_id: str) -> str:
     )
     assert isinstance(value, str)
     return value
+
+
+def _normalized_check_sql(value: str) -> str:
+    value = re.sub(r"^\s*CHECK\s*", "", value, flags=re.IGNORECASE)
+    return re.sub(
+        r"[()\s]",
+        "",
+        value.replace("::character varying", "").replace("::text", ""),
+    )
 
 
 def _authority_fields(authority_row: Any) -> dict[str, Any]:
@@ -744,6 +754,31 @@ def test_source_key_helpers_and_generated_expressions_are_frozen(session: Sessio
         "source_receipt_digest",
     ):
         assert base_column in expressions["source_authority_key"]
+
+
+def test_identity_source_mode_check_matches_orm_metadata(session: Session) -> None:
+    identity_table = cast(Table, DemoSyntheticIdentity.__table__)
+    orm_constraint = next(
+        constraint
+        for constraint in identity_table.constraints
+        if isinstance(constraint, CheckConstraint)
+        and constraint.name == "ck_demo_synthetic_identities_source_mode_null_matrix"
+    )
+    database_constraint = session.scalar(
+        text(
+            """
+            SELECT pg_get_constraintdef(constraint_row.oid, true)
+            FROM pg_constraint constraint_row
+            WHERE constraint_row.conrelid = 'demo_synthetic_identities'::regclass
+              AND constraint_row.conname =
+                  'ck_demo_synthetic_identities_source_mode_null_matrix'
+            """
+        )
+    )
+    assert isinstance(database_constraint, str)
+    assert _normalized_check_sql(str(orm_constraint.sqltext)) == _normalized_check_sql(
+        database_constraint
+    )
 
 
 def test_new_v1_identity_bank_and_pair_inserts_fail_closed(session: Session) -> None:

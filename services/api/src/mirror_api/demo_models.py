@@ -258,6 +258,7 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
         ),
         CheckConstraint(
             "(source_authority_kind = 'FORMAL_REFERENCE' "
+            "AND schema_version <> 'mirror.demo/DemoSyntheticIdentity/v3' "
             "AND formal_synthetic_identity_id IS NOT NULL "
             "AND formal_accepted_qa_run_id IS NOT NULL "
             "AND formal_accepted_qa_snapshot_digest IS NOT NULL "

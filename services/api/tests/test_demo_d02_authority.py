@@ -94,6 +94,16 @@ from mirror_api.demo_measurement_quality import (
     mirror_demo_digest,
 )
 
+_ACCEPTED_SOURCE_P2_MANIFEST_DIGEST = (
+    "eb20210986efe641cc2d6eb5e69afb5b08b48a5b9fecb3feaab7b67bc1efd9e4"
+)
+_ACCEPTED_DIMENSION_AUTHORITY_MANIFEST_DIGEST = (
+    "d4ffa375cf861ec6873270cd4b1c03c4270672f96dee4b8f71ae0678103ad33a"
+)
+_ACCEPTED_GEOMETRY_ONTOLOGY_DIGEST = (
+    "d902fe2cfdf69db9f62ccc2e5fa7c569227d652f1204aa683742fc3c592f38b9"
+)
+
 
 def _digest(char: str) -> str:
     return char * 64
@@ -562,7 +572,11 @@ def _gate_from_records(
 
 
 def _facts_identity_manifest(
-    *, source_ordinal: int = 1, source_marker: str | None = None
+    *,
+    source_ordinal: int = 1,
+    source_marker: str | None = None,
+    source_p2_manifest_digest: str = _ACCEPTED_SOURCE_P2_MANIFEST_DIGEST,
+    dimension_authority_manifest_digest: str = _ACCEPTED_DIMENSION_AUTHORITY_MANIFEST_DIGEST,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     source_output_id = _identifier("a") if source_marker is None else _identifier(source_marker)
     source_asset_sha256 = _digest("c") if source_marker is None else _digest(source_marker)
@@ -579,7 +593,6 @@ def _facts_identity_manifest(
     landmark_digest = _digest("e") if source_marker is None else _digest(source_marker)
     receipt_digest = _digest("f") if source_marker is None else _digest(source_marker)
     metadata_digest = _digest("1") if source_marker is None else _digest(source_marker)
-    dimension_manifest_digest = _digest("2") if source_marker is None else _digest(source_marker)
     source_authority_key = derive_local_source_authority_key(
         source_output_id=source_output_id,
         source_asset_id=source_asset_id,
@@ -597,8 +610,8 @@ def _facts_identity_manifest(
     raw = build_raw_measurement_authority(
         observation,
         certificate,
-        source_p2_candidate_manifest_content_digest=metadata_digest,
-        dimension_authority_manifest_content_digest=dimension_manifest_digest,
+        source_p2_candidate_manifest_content_digest=source_p2_manifest_digest,
+        dimension_authority_manifest_content_digest=dimension_authority_manifest_digest,
     )
     projection = build_morphology_projection(raw)
     subject = cast(dict[str, Any], observation["subject"])
@@ -1975,10 +1988,19 @@ def test_canonical_authority_rejects_float_decimal_bytes_and_negative_zero() -> 
     assert bindings != default_authority_bindings()
 
 
-def _independent_source_chains() -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:
+def _independent_source_chains(
+    *,
+    source_p2_manifest_digest: str = _ACCEPTED_SOURCE_P2_MANIFEST_DIGEST,
+    dimension_authority_manifest_digest: str = _ACCEPTED_DIMENSION_AUTHORITY_MANIFEST_DIGEST,
+) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:
     """Build independent source DAGs, then assign ordinals by the frozen authority order."""
     provisional = [
-        _facts_identity_manifest(source_ordinal=1, source_marker=marker)
+        _facts_identity_manifest(
+            source_ordinal=1,
+            source_marker=marker,
+            source_p2_manifest_digest=source_p2_manifest_digest,
+            dimension_authority_manifest_digest=dimension_authority_manifest_digest,
+        )
         for marker in ("a", "b", "c", "d")
     ]
     authority_by_key = {
@@ -1988,22 +2010,46 @@ def _independent_source_chains() -> list[tuple[dict[str, Any], dict[str, Any], d
     return [(*authority_by_key[entry["source_authority_key"]], entry) for entry in ordered_entries]
 
 
-def _case_sources() -> list[dict[str, Any]]:
-    return [entry for _, _, entry in _independent_source_chains()]
+def _case_sources(
+    *,
+    source_p2_manifest_digest: str = _ACCEPTED_SOURCE_P2_MANIFEST_DIGEST,
+    dimension_authority_manifest_digest: str = _ACCEPTED_DIMENSION_AUTHORITY_MANIFEST_DIGEST,
+) -> list[dict[str, Any]]:
+    return [
+        entry
+        for _, _, entry in _independent_source_chains(
+            source_p2_manifest_digest=source_p2_manifest_digest,
+            dimension_authority_manifest_digest=dimension_authority_manifest_digest,
+        )
+    ]
 
 
-def _complete_case_sources() -> tuple[list[dict[str, Any]], str]:
-    entries, _, _, manifest_digest = _complete_source_packets()
+def _complete_case_sources(
+    *,
+    source_p2_manifest_digest: str = _ACCEPTED_SOURCE_P2_MANIFEST_DIGEST,
+    dimension_authority_manifest_digest: str = _ACCEPTED_DIMENSION_AUTHORITY_MANIFEST_DIGEST,
+) -> tuple[list[dict[str, Any]], str]:
+    entries, _, _, manifest_digest = _complete_source_packets(
+        source_p2_manifest_digest=source_p2_manifest_digest,
+        dimension_authority_manifest_digest=dimension_authority_manifest_digest,
+    )
     return entries, manifest_digest
 
 
-def _complete_source_packets() -> tuple[
+def _complete_source_packets(
+    *,
+    source_p2_manifest_digest: str = _ACCEPTED_SOURCE_P2_MANIFEST_DIGEST,
+    dimension_authority_manifest_digest: str = _ACCEPTED_DIMENSION_AUTHORITY_MANIFEST_DIGEST,
+) -> tuple[
     list[dict[str, Any]],
     list[dict[str, Any]],
     list[dict[str, Any]],
     str,
 ]:
-    chains = _independent_source_chains()
+    chains = _independent_source_chains(
+        source_p2_manifest_digest=source_p2_manifest_digest,
+        dimension_authority_manifest_digest=dimension_authority_manifest_digest,
+    )
     entries = [entry for _, _, entry in chains]
     manifest_digest = digest_source_manifest(entries)
     packets: list[dict[str, Any]] = []
@@ -2051,9 +2097,11 @@ def _case_execution_authority() -> dict[str, str]:
     }
 
 
-def _case_geometry_fields() -> dict[str, object]:
+def _case_geometry_fields(
+    *, geometry_ontology_digest: str = _ACCEPTED_GEOMETRY_ONTOLOGY_DIGEST
+) -> dict[str, object]:
     return {
-        "geometry_ontology_version_digest": _digest("5"),
+        "geometry_ontology_version_digest": geometry_ontology_digest,
         "warp_plan_digest": _digest("6"),
         "geometry_algorithm_version": "geometry-v1",
         "runtime_config_digest": _digest("7"),
@@ -2660,6 +2708,9 @@ def _full_result_m3_gate_graph_with_state(
     passing: bool,
     duplicate_result_sha: bool,
     unsupported_case_ordinals: frozenset[int] = frozenset(),
+    source_p2_manifest_digest: str = _ACCEPTED_SOURCE_P2_MANIFEST_DIGEST,
+    dimension_authority_manifest_digest: str = _ACCEPTED_DIMENSION_AUTHORITY_MANIFEST_DIGEST,
+    geometry_ontology_digest: str = _ACCEPTED_GEOMETRY_ONTOLOGY_DIGEST,
 ) -> tuple[
     list[dict[str, Any]],
     list[dict[str, Any]],
@@ -2668,12 +2719,19 @@ def _full_result_m3_gate_graph_with_state(
     list[dict[str, Any]],
     dict[str, str],
 ]:
-    sources, _ = _complete_case_sources()
+    sources, _ = _complete_case_sources(
+        source_p2_manifest_digest=source_p2_manifest_digest,
+        dimension_authority_manifest_digest=dimension_authority_manifest_digest,
+    )
     authority = _case_execution_authority()
     cases = cast(
         list[dict[str, Any]],
         build_ordered_case_manifest(
-            sources, execution_authority=authority, geometry_fields=_case_geometry_fields()
+            sources,
+            execution_authority=authority,
+            geometry_fields=_case_geometry_fields(
+                geometry_ontology_digest=geometry_ontology_digest
+            ),
         ),
     )
     m4_records: list[dict[str, Any]] = []
@@ -3433,13 +3491,22 @@ def _complete_report_fixture(
     passing: bool,
     duplicate_result_sha: bool = False,
     unsupported_case_ordinals: frozenset[int] = frozenset(),
+    source_p2_manifest_digest: str = _ACCEPTED_SOURCE_P2_MANIFEST_DIGEST,
+    dimension_authority_manifest_digest: str = _ACCEPTED_DIMENSION_AUTHORITY_MANIFEST_DIGEST,
+    geometry_ontology_digest: str = _ACCEPTED_GEOMETRY_ONTOLOGY_DIGEST,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, object]]:
-    packet_sources, packets, source_records, source_manifest_digest = _complete_source_packets()
+    packet_sources, packets, source_records, source_manifest_digest = _complete_source_packets(
+        source_p2_manifest_digest=source_p2_manifest_digest,
+        dimension_authority_manifest_digest=dimension_authority_manifest_digest,
+    )
     sources, cases, m4_records, result_records, gates, authority = (
         _full_result_m3_gate_graph_with_state(
             passing=passing,
             duplicate_result_sha=duplicate_result_sha,
             unsupported_case_ordinals=unsupported_case_ordinals,
+            source_p2_manifest_digest=source_p2_manifest_digest,
+            dimension_authority_manifest_digest=dimension_authority_manifest_digest,
+            geometry_ontology_digest=geometry_ontology_digest,
         )
     )
     assert sources == packet_sources

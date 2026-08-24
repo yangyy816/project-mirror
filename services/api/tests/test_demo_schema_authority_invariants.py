@@ -23,6 +23,8 @@ from sqlalchemy.sql.elements import conv
 from test_demo_d02_authority import (
     _complete_report_fixture,
     _facts_identity_manifest,
+    _rebuild_report_outcomes,
+    _resign_pair_wrapper,
     _resign_report_row,
 )
 from test_geometry_variant_authority_invariants import _canonical_source, _result_asset
@@ -1997,14 +1999,21 @@ def _insert_d02_question_bank(
     primary_admission: DemoSyntheticIdentity,
     *,
     report_mutator: Callable[[dict[str, Any]], None] | None = None,
+    report_graph_mutator: Callable[[dict[str, Any], dict[str, object]], None] | None = None,
+    report_fixture_overrides: dict[str, Any] | None = None,
 ) -> tuple[DemoQuestionBank, DemoQuestionPair]:
     """Persist the accepted v10 Report v2 graph and its selected 16-pair bank."""
 
     _ = primary_source, primary_admission
-    report_authority, source_packets, variant_bindings = _complete_report_fixture(passing=True)
-    if report_mutator is not None:
+    fixture_options: dict[str, Any] = {"passing": True}
+    fixture_options.update(report_fixture_overrides or {})
+    report_authority, source_packets, variant_bindings = _complete_report_fixture(**fixture_options)
+    if report_mutator is not None or report_graph_mutator is not None:
         report_authority = deepcopy(report_authority)
-        report_mutator(report_authority)
+        if report_mutator is not None:
+            report_mutator(report_authority)
+        if report_graph_mutator is not None:
+            report_graph_mutator(report_authority, variant_bindings)
         _resign_report_row(report_authority)
 
     def ensure_asset(**fields: Any) -> Asset:
@@ -2260,7 +2269,10 @@ def _insert_d02_question_bank(
 
 def _insert_mutated_d02_report_graph(
     session: Session,
-    report_mutator: Callable[[dict[str, Any]], None],
+    report_mutator: Callable[[dict[str, Any]], None] | None = None,
+    *,
+    report_graph_mutator: Callable[[dict[str, Any], dict[str, object]], None] | None = None,
+    report_fixture_overrides: dict[str, Any] | None = None,
 ) -> None:
     source_asset, formal_identity = _accepted_synthetic_source(session)
     primary_admission = _insert_demo_row(
@@ -2281,6 +2293,8 @@ def _insert_mutated_d02_report_graph(
         source_asset,
         primary_admission,
         report_mutator=report_mutator,
+        report_graph_mutator=report_graph_mutator,
+        report_fixture_overrides=report_fixture_overrides,
     )
 
 
@@ -2292,6 +2306,117 @@ def _resign_d02_record(record: dict[str, Any]) -> None:
         if key not in {"schema_version", "record_digest"}
     }
     record["record_digest"] = _digest(schema_version, payload)
+
+
+def _resign_d02_observation(observation: dict[str, Any]) -> None:
+    observation["measurement_observation_digest"] = _digest(
+        "mirror.demo/D02MeasurementObservation/v1",
+        {
+            key: value
+            for key, value in observation.items()
+            if key not in {"schema_version", "measurement_observation_digest"}
+        },
+    )
+
+
+def _rebind_d02_pair_after_result_gate_change(report: dict[str, Any], *, case_index: int) -> None:
+    payload = cast(dict[str, Any], report["report_payload"])
+    cases = cast(list[dict[str, Any]], payload["ordered_case_manifest"])
+    result_records = cast(list[dict[str, Any]], payload["result_m3_repeat_evidence"])
+    gates = cast(list[dict[str, Any]], payload["measurement_gate_evidence"])
+    structures = cast(list[dict[str, Any]], payload["decode_structure_immutability_evidence"])
+    case = cases[case_index]
+    triple = result_records[case_index * 3 : case_index * 3 + 3]
+    gate = gates[case_index]
+    evaluation = cast(dict[str, Any], gate["gate_evaluation"])
+    structure = structures[case_index]
+    result_digests = [cast(str, record["record_digest"]) for record in triple]
+    repeat_results = [cast(bool, record["repeat_gate_passed"]) for record in triple]
+    measurement_gate_passed = cast(bool, evaluation["measurement_gate_passed"])
+    structure_gate_passed = cast(bool, structure["structure_gate_passed"])
+    automated_gate_passed = (
+        all(repeat_results) and measurement_gate_passed and structure_gate_passed
+    )
+
+    matched = False
+    for wrapper in cast(list[dict[str, Any]], payload["pair_quality_evidence"]):
+        pair_payload = cast(dict[str, Any], wrapper["pair_screening_record_payload"])
+        for side_name in ("left", "right"):
+            side = cast(dict[str, Any], pair_payload[side_name])
+            if side["case_id"] != case["case_id"]:
+                continue
+            matched = True
+            side["result_m3_record_digests"] = result_digests
+            side["measurement_gate_record_digest"] = gate["record_digest"]
+            side["measurement_evaluation_state"] = gate["measurement_evaluation_state"]
+            side["automated_gate_passed"] = automated_gate_passed
+            side["side_gate_passed"] = automated_gate_passed and cast(
+                bool, side["manual_gate_passed"]
+            )
+            if gate["measurement_evaluation_state"] == "UNSUPPORTED_EXPLICIT":
+                side["unsupported_repeat_indexes"] = evaluation["unsupported_repeat_indexes"]
+                side["ordered_unsupported_reasons"] = evaluation["ordered_unsupported_reasons"]
+            automated_payload = {
+                "case_id": case["case_id"],
+                "case_specification_digest": case["case_specification_digest"],
+                "result_m3_record_digests": result_digests,
+                "result_m3_repeat_gate_results": repeat_results,
+                "measurement_gate_record_digest": gate["record_digest"],
+                "measurement_evaluation_state": gate["measurement_evaluation_state"],
+                "measurement_gate_passed": measurement_gate_passed,
+                "decode_structure_record_digest": structure["record_digest"],
+                "structure_gate_passed": structure_gate_passed,
+                "automated_gate_passed": automated_gate_passed,
+            }
+            side["automated_gate_digest"] = _digest(
+                "mirror.demo/D02AutomatedSideGate/v1", automated_payload
+            )
+            _resign_pair_wrapper(wrapper)
+    assert matched
+    _rebuild_report_outcomes(report)
+
+
+def _resign_d02_result_gate_split(report: dict[str, Any], *, case_index: int) -> None:
+    payload = cast(dict[str, Any], report["report_payload"])
+    result_records = cast(list[dict[str, Any]], payload["result_m3_repeat_evidence"])
+    triple = result_records[case_index * 3 : case_index * 3 + 3]
+    gate = cast(dict[str, Any], payload["measurement_gate_evidence"][case_index])
+    certificate = deepcopy(cast(dict[str, Any], gate["result_repeat_certification"]))
+    certificate["ordered_repeat_bindings"] = [
+        {
+            key: record[key]
+            for key in (
+                "result_m3_record_id",
+                "repeat_index",
+                "execution_receipt_digest",
+                "canonical_output_digest",
+                "landmark_digest",
+                "measurement_observation_digest",
+                "face_count",
+                "landmark_count",
+                "coordinates_finite",
+                "coordinates_in_bounds",
+                "observation_state",
+                "repeat_gate_passed",
+            )
+        }
+        for record in triple
+    ]
+    certificate["result_repeat_certification_digest"] = _digest(
+        "mirror.demo/D02ResultRepeatDeterminismCertification/v1",
+        {
+            key: value
+            for key, value in certificate.items()
+            if key not in {"schema_version", "result_repeat_certification_digest"}
+        },
+    )
+    gate["result_repeat_certification"] = certificate
+    gate["result_repeat_certification_digest"] = certificate["result_repeat_certification_digest"]
+    measurements = cast(list[dict[str, Any]], gate["ordered_result_repeat_measurements"])
+    for measurement, record in zip(measurements, triple, strict=True):
+        measurement["result_m3_record_digest"] = record["record_digest"]
+    _resign_d02_record(gate)
+    _rebind_d02_pair_after_result_gate_change(report, case_index=case_index)
 
 
 def _insert_episode(
@@ -3841,6 +3966,94 @@ def test_d02_v10_postgresql_rejects_resigned_graph_attacks(
 
     with pytest.raises(DBAPIError, match=expected_error):
         _insert_mutated_d02_report_graph(session, mutate)
+    session.rollback()
+
+
+@pytest.mark.parametrize(
+    "attack",
+    ("target_value_split", "control_value_split", "unsupported_reason_split"),
+)
+def test_d02_v10_postgresql_rejects_fully_resigned_gate_observation_splits(
+    session: Session,
+    attack: str,
+) -> None:
+    def mutate(report: dict[str, Any], _: dict[str, object]) -> None:
+        payload = cast(dict[str, Any], report["report_payload"])
+        gate = cast(dict[str, Any], payload["measurement_gate_evidence"][0])
+        records = cast(list[dict[str, Any]], payload["result_m3_repeat_evidence"][:3])
+        if attack in {"target_value_split", "control_value_split"}:
+            dimension_key = cast(str, gate["dimension_key"])
+            if attack == "control_value_split":
+                controls = cast(list[dict[str, Any]], gate["ordered_source_control_measurements"])
+                dimension_key = cast(str, controls[0]["dimension_key"])
+            for record in records:
+                observation = cast(dict[str, Any], record["measurement_observation"])
+                observation_entry = next(
+                    cast(dict[str, Any], entry)
+                    for entry in cast(list[dict[str, Any]], observation["ordered_measurements"])
+                    if entry["dimension_key"] == dimension_key
+                )
+                observation_entry["raw_value_fixed18"] = "0.424242424242424242"
+                _resign_d02_observation(observation)
+                record["measurement_observation_digest"] = observation[
+                    "measurement_observation_digest"
+                ]
+                _resign_d02_record(record)
+        else:
+            measurements = cast(list[dict[str, Any]], gate["ordered_result_repeat_measurements"])
+            for measurement in measurements:
+                measurement["unsupported_reason"] = "LOW_CONFIDENCE"
+            evaluation = cast(dict[str, Any], gate["gate_evaluation"])
+            evaluation["ordered_unsupported_reasons"] = ["LOW_CONFIDENCE"] * 3
+        _resign_d02_result_gate_split(report, case_index=0)
+
+    fixture_overrides = (
+        {
+            "passing": False,
+            "unsupported_case_ordinals": frozenset({1}),
+        }
+        if attack == "unsupported_reason_split"
+        else None
+    )
+    with pytest.raises(
+        DBAPIError,
+        match="D02 v10 Gate observation projection is invalid",
+    ):
+        _insert_mutated_d02_report_graph(
+            session,
+            report_graph_mutator=mutate,
+            report_fixture_overrides=fixture_overrides,
+        )
+    session.rollback()
+
+
+@pytest.mark.parametrize(
+    ("report_fixture_overrides", "expected_error"),
+    (
+        (
+            {"source_p2_manifest_digest": "0" * 64},
+            "D02 v10 facts quality authority binding is invalid",
+        ),
+        (
+            {"dimension_authority_manifest_digest": "1" * 64},
+            "D02 v10 facts quality authority binding is invalid",
+        ),
+        (
+            {"geometry_ontology_digest": "2" * 64},
+            "D02 v10 case manifest authority is invalid",
+        ),
+    ),
+)
+def test_d02_v10_postgresql_rejects_fully_resigned_nonaccepted_roots(
+    session: Session,
+    report_fixture_overrides: dict[str, Any],
+    expected_error: str,
+) -> None:
+    with pytest.raises(DBAPIError, match=expected_error):
+        _insert_mutated_d02_report_graph(
+            session,
+            report_fixture_overrides=report_fixture_overrides,
+        )
     session.rollback()
 
 
