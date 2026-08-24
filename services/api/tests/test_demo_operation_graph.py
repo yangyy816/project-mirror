@@ -15,7 +15,9 @@ from mirror_api.demo_operation_graph import (
     DemoOperationGraphError,
     ImageVersionReference,
     OperationExecutionUnavailable,
+    OperationGraph,
     OperationLineageError,
+    OperationNode,
     OperationSpec,
     OperationType,
     PreserveKey,
@@ -470,6 +472,32 @@ def test_operation_spec_is_deeply_immutable_and_payload_is_defensively_copied() 
     assert second["parameters"]["left_inset_ppm"] == 1
     assert second["expected_effect"]["effect_type"] == "CROP"
     assert graph_content_digest(graph) == digest
+
+
+def test_operation_graph_defensively_freezes_nodes_and_rejects_invalid_members() -> None:
+    spec = parse_operation_spec(_spec("EXPOSURE"))
+    external_nodes: list[OperationNode] = [OperationNode((), "op-00000000", 0, spec)]
+    graph = OperationGraph(
+        GRAPH_ALGORITHM_VERSION,
+        INPUT_DIGEST,
+        INPUT_ID,
+        cast(tuple[OperationNode, ...], external_nodes),
+    )
+    digest = graph_content_digest(graph)
+    external_nodes.append(OperationNode(("op-00000000",), "op-00000001", 1, spec))
+    assert isinstance(graph.nodes, tuple)
+    assert graph.nodes == (OperationNode((), "op-00000000", 0, spec),)
+    assert getattr(graph.nodes, "__setitem__", None) is None
+    assert graph_content_digest(graph) == digest
+    _assert_code(
+        "INVALID_GRAPH",
+        lambda: OperationGraph(
+            GRAPH_ALGORITHM_VERSION,
+            INPUT_DIGEST,
+            INPUT_ID,
+            cast(tuple[OperationNode, ...], [graph.nodes[0], object()]),
+        ),
+    )
 
 
 def test_manual_spec_rejects_non_json_and_preserve_mutation_at_construction() -> None:

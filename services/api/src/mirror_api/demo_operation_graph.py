@@ -10,7 +10,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Any, Final
+from typing import Any, Final, cast
 
 GRAPH_SCHEMA_VERSION: Final = "mirror.demo/OperationGraph/v2"
 GRAPH_ALGORITHM_VERSION: Final = "demo-operation-graph-linear-v1"
@@ -153,6 +153,25 @@ class OperationGraph:
     input_image_version_digest: str
     input_image_version_id: str
     nodes: tuple[OperationNode, ...]
+
+    def __post_init__(self) -> None:
+        """Freeze direct-construction nodes before the graph can become authority."""
+
+        supplied_nodes: object = self.nodes
+        if not isinstance(supplied_nodes, (list, tuple)):
+            raise DemoOperationGraphError(
+                "INVALID_GRAPH", "nodes must be a tuple or list of OperationNode values"
+            )
+        candidate_nodes = tuple(supplied_nodes)
+        if not all(isinstance(node, OperationNode) for node in candidate_nodes):
+            raise DemoOperationGraphError(
+                "INVALID_GRAPH", "nodes must contain OperationNode values"
+            )
+        object.__setattr__(
+            self,
+            "nodes",
+            tuple(cast(OperationNode, node) for node in candidate_nodes),
+        )
 
     def canonical_payload(self) -> dict[str, Any]:
         return graph_canonical_payload(self)
@@ -373,10 +392,16 @@ def validate_operation_graph(graph: OperationGraph) -> None:
         )
     _require_id(graph.input_image_version_id, "input image version id")
     _require_digest(graph.input_image_version_digest, "input image version digest")
+    if not isinstance(graph.nodes, tuple):
+        raise DemoOperationGraphError("INVALID_GRAPH", "nodes must be an immutable tuple")
     _require_node_count(len(graph.nodes))
     by_id: dict[str, OperationNode] = {}
     by_index: dict[int, OperationNode] = {}
     for node in graph.nodes:
+        if not isinstance(node, OperationNode):
+            raise DemoOperationGraphError(
+                "INVALID_GRAPH", "nodes must contain OperationNode values"
+            )
         if node.node_id in by_id:
             raise DemoOperationGraphError("DUPLICATE_NODE_ID", "duplicate node id")
         if node.operation_index in by_index:
