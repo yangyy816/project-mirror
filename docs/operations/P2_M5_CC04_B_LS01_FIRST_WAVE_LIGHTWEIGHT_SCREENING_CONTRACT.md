@@ -15,7 +15,8 @@
 This is a prospective, document-only reduced-assurance change control for synthetic-only, non-user,
 non-production, offline first-wave screening. It creates no image, private root, registry, locator, generation
 specification, Prompt, ledger, reviewer input/output, model call, image-generation call, Asset, identity, cohort,
-QuestionBank entry, revocation, or human-review queue. All execution counters remain zero.
+QuestionBank entry, revocation, or human-review queue. All LS01, MR01, and formal-E01 execution counters remain zero.
+Historical TS01 qualification accounting is not LS01 execution and remains preserved as prior evidence.
 
 ## Historical strict assurance disposition
 
@@ -88,6 +89,9 @@ duplicate-suspect list, group decision, and human-second-round requirement. Pars
 - `FORMAL_E01_LIGHTWEIGHT_GROUP_REVIEW_MAX: 8`
 - `FORMAL_E01_TARGETED_DUPLICATE_FOLLOWUP_MAX: 8`
 - `FORMAL_E01_TOTAL_MODEL_SCREENING_MAX: 16`
+- `FORMAL_E01_LIGHTWEIGHT_GROUP_REVIEW_EXECUTED: 0`
+- `FORMAL_E01_TARGETED_DUPLICATE_FOLLOWUP_EXECUTED: 0`
+- `FORMAL_E01_TOTAL_MODEL_SCREENING_EXECUTED: 0`
 - `GROUP_REVIEW_RETRY: 0`
 - `DUPLICATE_FOLLOWUP_RETRY: 0`
 - `SECOND_OPINION: 0`
@@ -123,3 +127,12 @@ Required evidence is scoped Markdown formatting, diff check, changed-path allowl
 private-leak scan, canonical/mirror true-EOF equality, normal push, same-SHA CI, all eight artifact checks,
 independent Security/Privacy/License/Research Integrity review, independent Sol High review, and Principal acceptance.
 Acceptance authorizes only the next E01 checkpoint, not image generation.
+
+## P2-M5-R26 authority and counter repair
+
+This forward repair preserves failed candidate `434bda62872a44b66923bab802ebdff3c50b3f55` and corrects only two
+LS01 authority defects identified by independent Sol High review. The historical strict-runtime fact remains
+`STRICT_RUNTIME_ASSURANCE_MODEL: HISTORICAL_FAIL_CLOSED_EVIDENCE`. The new, separate policy key is
+`STRICT_MR01_ASSURANCE_MODEL: SUPERSEDED_PROSPECTIVELY_FOR_FIRST_WAVE_SYNTHETIC_BETA_ONLY`. The explicit three zero
+screening execution counters above apply only to future LS01 operations; they neither erase nor relabel TS01 history.
+No execution, byte, review call, generation, E01 action, or resource counter changes in this repair.
