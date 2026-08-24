@@ -21,6 +21,16 @@ formal E01 operation, request ordinal, Asset, identity, cohort, QuestionBank ent
 It neither selects an option for the Owner nor substitutes for the separately required source-authority, runtime-capability,
 and operation-contract acceptance.
 
+## P2-M5-R22 forward repair provenance
+
+Candidate `f19d421f9eb986184808910dee447780bd435456` is retained as historical failed evidence. Its exact-SHA CI,
+artifact inspection, and independent reviews established a single decision-pack arithmetic defect: its stated maximum
+of fifteen Sol Max invocations could not cover its own ten base calls plus six invocation-bearing controls. This
+forward-only repair changes no source, fixture, runtime, decision, budget authorization, or downstream boundary. It
+corrects the requested maximum to sixteen and explicitly classifies the missing-pair-ID control as a pre-model reject.
+Acceptance of this repair remains conditional on the exact candidate's complete Gate set; it does not retroactively
+accept `f19d421f9eb986184808910dee447780bd435456`.
+
 ## Current evidence and non-negotiable boundary
 
 1. MR01-T01 is accepted only as a prospective contract/protocol. It authorizes zero reviewer calls, fixture-generation
@@ -51,12 +61,18 @@ or TS01 material. These numbers are a requested upper bound, not authority to cr
 | ------------------------------------------------------- | ----------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Synthetic fixture pair records                          |                      10 | Exact duplicate; re-encoded duplicate; crop; resize; lighting; similar-morphology distinct; clearly distinct; ambiguous; text/watermark injection; untrusted image instruction. |
 | Private pair-view operations                            |                      16 | Ten base pair records, one reversed-order, one repeated-determinism, one timeout/failure, one malformed-output, one extra-field, and one forged-route-receipt control.          |
-| Sol Max reviewer invocations                            |                      15 | Ten base calls, reversed-order, repeated-determinism, timeout/failure, malformed-output, extra-field, and forged-route-receipt controls.                                        |
+| Sol Max reviewer invocations                            |                      16 | Ten base calls plus the six invocation-bearing controls: reversed-order, repeated-determinism, timeout/failure, malformed-output, extra-field, and forged-route-receipt.        |
 | Append attempts                                         |                      13 | Twelve schema-valid, exactly-once accepted decisions plus one duplicate/replay rejection attempt.                                                                               |
 | Persisted decision envelopes                            |                      12 | The twelve valid calls only; timeout and malformed/extra/forged/missing-ID controls must not append.                                                                            |
 | Reviewer retry                                          |                       0 | Immutable policy requirement.                                                                                                                                                   |
 | Second opinion                                          |                       0 | Immutable policy requirement.                                                                                                                                                   |
 | Native generation / formal E01 calls / CAL-REQ ordinals |               0 / 0 / 0 | This decision does not authorize generation or formal calibration.                                                                                                              |
+
+`MISSING_PAIR_ID_CONTROL: PRE_MODEL_REJECT_NO_PAIR_VIEW_NO_REVIEWER_INVOCATION_NO_APPEND`. It is a required
+control-plane validation, not a reviewer call. The duplicate/replay control replays a prior accepted envelope at the
+sink and consumes the thirteenth append attempt, but no new pair view or reviewer invocation. Accordingly, the
+operation ledger is exact: ten pair records, sixteen pair views, sixteen reviewer invocations, thirteen append
+attempts, and twelve persisted envelopes.
 
 The pair source must be a new, non-production, synthetic-only MR01 fixture pack. Before any bytes are created or
 received, its forward source contract must freeze the exact source authority, legal/provenance declaration, adult
@@ -75,7 +91,7 @@ accounting before any fixture view. It must separately prove the restricted Sol 
 must obtain a `PASS` route-provenance sufficiency ruling from independent Security, Privacy, License, Research
 Integrity, and Sol High reviews before a reviewer can see a pair.
 
-- Cost: at most 15 Sol Max invocations, 16 pair-view operations, and 13 append attempts; exact platform usage and
+- Cost: at most 16 Sol Max invocations, 16 pair-view operations, and 13 append attempts; exact platform usage and
   monetary cost remain `UNKNOWN_OR_NULL` until an exact runtime receipt exists. No external cash, paid Provider,
   native image generation, formal E01 output, or request ordinal is authorized by this selection.
 - Security/privacy: new private fixture bytes and views have the highest local risk. The source contract must fail
@@ -84,7 +100,7 @@ Integrity, and Sol High reviews before a reviewer can see a pair.
   research rights. No model, weight, dependency, Provider, or production approval is inherited.
 - Research impact: this is the only option that can prepare evidence for MR01; it still does not authorize MR01 PASS,
   formal E01, calibration acquisition, 04-C, MVR, M6, QuestionBank, or production.
-- Recommendation: `RECOMMENDED_ONLY_IF_OWNER_CAN_NAME_OR_AUTHORIZE_A_COMPLIANT_SYNTHETIC_FIXTURE_SOURCE_AND_ACCEPT_THE_EXACT_15_16_13_ENVELOPE`.
+- Recommendation: `RECOMMENDED_ONLY_IF_OWNER_CAN_NAME_OR_AUTHORIZE_A_COMPLIANT_SYNTHETIC_FIXTURE_SOURCE_AND_ACCEPT_THE_EXACT_16_16_13_ENVELOPE`.
 
 ## Option B — retain the zero-execution fail-closed stop
 
@@ -118,7 +134,7 @@ or fixture byte is created.
 ## Principal recommendation and required Owner response
 
 The recommended executable default is Option B. Select Option A only if the Owner is prepared to authorize a compliant
-new synthetic fixture source and the exact `10 / 16 / 15 / 13 / 12` fixture-pair, pair-view, reviewer-invocation,
+new synthetic fixture source and the exact `10 / 16 / 16 / 13 / 12` fixture-pair, pair-view, reviewer-invocation,
 append-attempt, and persisted-envelope maxima. Option C is appropriate only with an identified alternative mechanism;
 it is not a route for relaxing the current isolation or provenance Gates.
 
@@ -127,7 +143,7 @@ To respond, the Owner must provide exactly one of:
 ```text
 OWNER_SELECTION: OPTION_A
 FIXTURE_SOURCE_AUTHORITY: <concrete authorized synthetic-only source class>
-ACCEPTED_MAXIMA: PAIR_RECORDS_10;PAIR_VIEWS_16;SOL_MAX_INVOCATIONS_15;APPEND_ATTEMPTS_13;PERSISTED_ENVELOPES_12
+ACCEPTED_MAXIMA: PAIR_RECORDS_10;PAIR_VIEWS_16;SOL_MAX_INVOCATIONS_16;APPEND_ATTEMPTS_13;PERSISTED_ENVELOPES_12
 ```
 
 ```text
