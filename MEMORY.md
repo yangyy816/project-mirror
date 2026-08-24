@@ -577,3 +577,11 @@
   authority按 certificate→raw/projection→facts→identity/admission→source manifest→SourceM3 无环构造。当前只开放
   两个全新文件范围的 pure measurement-quality Packet A；authority builder、`demo_0004` migration/ORM、真实
   PostgreSQL screening、private handles、D02 `TASK_ACCEPTED`与D03均继续关闭。
+
+- 2026-08-24：D02 Packet A handoff `6345d0bcc2040e5eb359576d0e714603e2b98d91` 以 byte-identical 两文件
+  集成为 `4bee904efc9cd8b7f3c31775b6cad3f037f86ebc`，独立 Sol exact-SHA review 为 PASS 且零 finding，same-SHA
+  run `32686936077` 三 jobs 全绿（targeted 58/58，完整 Python 1000 pass/1 个既有 optional skip，Gitleaks 零
+  result）。Principal 接受 six-dimension Decimal/fixed18/ppm measurement、三次 repeat certificate、完整 ResultM3
+  v2 cross-link/八字段 ID preimage、固定 unsupported precedence 与 deterministic digest replay；当前只开放两个
+  新文件范围的 pure authority builder Packet B。`demo_0004` migration/ORM、private screening、D02
+  `TASK_ACCEPTED`、D03、formal P3–P7 与 production release 继续关闭。
