@@ -66,6 +66,30 @@ Any unavailable or ambiguous capability must stop before a fixture is shown as
 `SOL_MAX_ROUTE_OR_FALLBACK_CONTROL_NOT_PROVEN`. No ordinary subagent, role change, tool inheritance, generic attachment,
 or platform documentation is a substitute.
 
+## Route provenance completeness gate
+
+Before any Stage-2 fixture access, the trusted runtime must record the exact route receipt, selected model family,
+exact model ID, model snapshot, runtime version, Provider terms, retention, telemetry, usage, and cost. An unavailable
+fact remains `UNKNOWN_OR_NULL`; it must not be guessed, inferred from the selected route, or silently omitted.
+
+- `REVIEW_MODEL_ROUTE: SOL_MAX`
+- `REVIEW_MODEL_FAMILY: gpt-5.6-sol`
+- `REVIEW_MODEL_EXACT_ID: UNKNOWN_OR_NULL`
+- `REVIEW_MODEL_SNAPSHOT: UNKNOWN_OR_NULL`
+- `REVIEW_RUNTIME_VERSION: UNKNOWN_OR_NULL`
+- `ROUTE_RECEIPT: NOT_PROVEN`
+- `MODEL_PROVIDER_TERMS: UNKNOWN_OR_NULL`
+- `MODEL_RETENTION: UNKNOWN_OR_NULL`
+- `MODEL_TELEMETRY: UNKNOWN_OR_NULL`
+- `REVIEWER_USAGE: UNKNOWN_OR_NULL`
+- `REVIEWER_COST: UNKNOWN_OR_NULL`
+- `ROUTE_LEVEL_PROVENANCE_SUFFICIENT_FOR_PRIVATE_INTERNAL_RESEARCH: BLOCKED`
+- `ROUTE_LEVEL_PROVENANCE_BLOCK_REASON: COMPLETE_ROUTE_PROVENANCE_AND_INDEPENDENT_SUFFICIENCY_RULING_NOT_YET_PROVEN`
+
+The only legal final sufficiency values are `PASS`, `FURTHER_RESEARCH`, or `BLOCKED`. Stage 2 requires `PASS` from
+the independent Security, Privacy, License, Research Integrity, and Sol High reviews for the exact runtime evidence;
+`FURTHER_RESEARCH` or `BLOCKED` is a hard stop before fixture view, reviewer invocation, or decision append.
+
 ## Success, failure, and next authority
 
 MR01 can pass only after all frozen fixture classes and negative controls are exercised under an independently accepted

@@ -52,6 +52,30 @@ The existing policy and schema authority remains immutable:
 - `SECOND_OPINION: 0`
 - `AUTOMATIC_DISTANCE_THRESHOLD_BEFORE_04_C: NONE`
 
+## Route provenance completeness gate
+
+Before any Stage-2 fixture access, the trusted runtime must record the exact route receipt, selected model family,
+exact model ID, model snapshot, runtime version, Provider terms, retention, telemetry, usage, and cost. An unavailable
+fact remains `UNKNOWN_OR_NULL`; it must not be guessed, inferred from the selected route, or silently omitted.
+
+- `REVIEW_MODEL_ROUTE: SOL_MAX`
+- `REVIEW_MODEL_FAMILY: gpt-5.6-sol`
+- `REVIEW_MODEL_EXACT_ID: UNKNOWN_OR_NULL`
+- `REVIEW_MODEL_SNAPSHOT: UNKNOWN_OR_NULL`
+- `REVIEW_RUNTIME_VERSION: UNKNOWN_OR_NULL`
+- `ROUTE_RECEIPT: NOT_PROVEN`
+- `MODEL_PROVIDER_TERMS: UNKNOWN_OR_NULL`
+- `MODEL_RETENTION: UNKNOWN_OR_NULL`
+- `MODEL_TELEMETRY: UNKNOWN_OR_NULL`
+- `REVIEWER_USAGE: UNKNOWN_OR_NULL`
+- `REVIEWER_COST: UNKNOWN_OR_NULL`
+- `ROUTE_LEVEL_PROVENANCE_SUFFICIENT_FOR_PRIVATE_INTERNAL_RESEARCH: BLOCKED`
+- `ROUTE_LEVEL_PROVENANCE_BLOCK_REASON: COMPLETE_ROUTE_PROVENANCE_AND_INDEPENDENT_SUFFICIENCY_RULING_NOT_YET_PROVEN`
+
+The only legal final sufficiency values are `PASS`, `FURTHER_RESEARCH`, or `BLOCKED`. Stage 2 requires `PASS` from
+the independent Security, Privacy, License, Research Integrity, and Sol High reviews for the exact runtime evidence;
+`FURTHER_RESEARCH` or `BLOCKED` is a hard stop before fixture view, reviewer invocation, or decision append.
+
 ## Prospective qualification sequence
 
 After this contract is accepted, the Principal must first perform a no-private-byte capability inventory. A missing
@@ -112,8 +136,9 @@ and a new separately accepted E01 execution-authority checkpoint pass.
 
 ## Allowed paths and acceptance
 
-This candidate may change only this contract, `docs/operations/P2_M5_ACCEPTANCE.md`, and
-`docs/operations/P2_M5_EXECUTION_PROTOCOL.md`. It may not modify code, schema, migrations, workflow, dependency,
+This candidate may change only this contract,
+`docs/research/P2_M5_CC04_B_MR01_SOL_MAX_DUPLICATE_REVIEWER_QUALIFICATION_PROTOCOL.md`,
+`docs/operations/P2_M5_ACCEPTANCE.md`, and `docs/operations/P2_M5_EXECUTION_PROTOCOL.md`. It may not modify code, schema, migrations, workflow, dependency,
 lockfile, model, Provider, policy/schema authority, MEMORY, MILESTONES, shared summaries, P2-M7, any private state,
 fixture, binary, Prompt, or receipt.
 
@@ -125,16 +150,16 @@ Sol High review, then Principal acceptance. No post-acceptance status commit is 
 
 ## Candidate result
 
-- `MR01_CONTRACT_STATUS: READY_FOR_SAME_SHA_ACCEPTANCE`
-- `MR01_PROTOCOL_STATUS: PRE_FIXTURE_BLOCKED_NO_AUTHORIZED_SOURCE_OR_OPERATION_BUDGET`
-- `SOL_MAX_REVIEWER_QUALIFICATION_STATUS: NOT_STARTED_PENDING_MR01_CONTRACT_ACCEPTANCE`
+- `MR01_CONTRACT_STATUS: ACCEPTED_AFTER_THIS_COMMIT_ALL_GATES`
+- `MR01_PROTOCOL_STATUS: ACCEPTED_PRE_FIXTURE_BLOCKED_NO_AUTHORIZED_SOURCE_OR_OPERATION_BUDGET`
+- `SOL_MAX_REVIEWER_QUALIFICATION_STATUS: NOT_STARTED_OWNER_DECISION_REQUIRED_FOR_FIXTURE_SOURCE_AND_OPERATION_BUDGET`
 - `SOL_MAX_REVIEWER_CAPABILITY: NOT_PROVEN`
 - `FORMAL_E01_STATUS: CLOSED_PENDING_MR01_AND_NEW_E01_AUTHORITY_CHECKPOINT`
 - `P2_M5_STATE: EXECUTING`
 - `P2_MVR_V1_RESULT: NOT_EVALUATED`
 - `P2_M6_ENTRY: CLOSED_PENDING_TECHNICAL_AND_MVR_PASS`
-- `NEXT_READY_TASK: CC04-B-MR01-T01_CONTRACT_AND_PROTOCOL_SAME_SHA_ACCEPTANCE`
-- `STOP_OUTCOME: MR01_CONTRACT_READY_FOR_TRACKED_EVIDENCE`
+- `NEXT_READY_TASK: CC04-B-MR01-OWNER_DECISION_PACK_FOR_FIXTURE_SOURCE_AND_OPERATION_BUDGET`
+- `STOP_OUTCOME: MR01_FIXTURE_SOURCE_AND_OPERATION_BUDGET_NOT_AUTHORIZED`
 
 After every Gate passes, this contract opens only the fail-closed MR01 runtime-capability qualification. It does not
 open formal E01 or any generation.
