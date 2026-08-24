@@ -16,7 +16,7 @@ from typing import Any, cast
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import JSON, create_engine, delete, inspect, select, text, update
+from sqlalchemy import JSON, Table, create_engine, delete, inspect, select, text, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import conv
@@ -24,12 +24,16 @@ from test_demo_d02_authority import (
     _complete_report_fixture,
     _facts_identity_manifest,
     _rebuild_report_outcomes,
+    _resign_identity,
     _resign_pair_wrapper,
     _resign_report_row,
 )
 from test_geometry_variant_authority_invariants import _canonical_source, _result_asset
 
-from mirror_api.demo_d02_authority import derive_asset_variant_id
+from mirror_api.demo_d02_authority import (
+    LOCAL_ADMISSION_CONFIG_DIGEST,
+    derive_asset_variant_id,
+)
 from mirror_api.demo_measurement_quality import IMPORT_CONFIG_DIGEST
 from mirror_api.demo_models import (
     DEMO_TABLE_NAMES,
@@ -74,7 +78,8 @@ from mirror_api.models import (
     utcnow,
 )
 
-DEMO_REVISION = "demo_0005_d02_quality_auth"
+DEMO_REVISION = "demo_0006_d02_private_exec"
+D02_PRIVATE_EXEC_DOWN_REVISION = "demo_0005_d02_quality_auth"
 D02_QUALITY_DOWN_REVISION = "demo_0004_d09_episode_prov"
 D09_DOWN_REVISION = "demo_0003_d02_import_auth"
 D02_DOWN_REVISION = "demo_0002_p3_p7_command_auth"
@@ -3655,7 +3660,7 @@ def test_stale_synthetic_admission_cannot_create_observation_or_pair(
     pair_admit_fields.update(
         admission_sequence=2,
         admission_action="REVOKE",
-        admission_config_digest=hashlib.sha256(b"stale-pair-revoke").hexdigest(),
+        admission_config_digest=LOCAL_ADMISSION_CONFIG_DIGEST,
         supersedes_id=pair_admit.id,
     )
     pair_revoke = _insert_demo_row(
@@ -3849,7 +3854,7 @@ def test_concurrent_local_synthetic_admission_successor_has_one_key_scoped_winne
             with Session(engine) as worker_session:
                 fields = {
                     **base_fields,
-                    "admission_config_digest": hashlib.sha256(marker.encode()).hexdigest(),
+                    "admission_config_digest": LOCAL_ADMISSION_CONFIG_DIGEST,
                 }
                 worker_session.add(_build_demo_row(DemoSyntheticIdentity, **fields))
                 barrier.wait(timeout=10)
@@ -3897,7 +3902,7 @@ def test_local_synthetic_revocation_copies_import_config_authority(
     base_fields.update(
         admission_sequence=2,
         admission_action="REVOKE",
-        admission_config_digest=hashlib.sha256(b"local-revoke-import-config").hexdigest(),
+        admission_config_digest=LOCAL_ADMISSION_CONFIG_DIGEST,
         supersedes_id=first_admit.id,
     )
 
@@ -6003,6 +6008,133 @@ def _insert_episode_values_in_new_connection(
     finally:
         engine.dispose()
     return "inserted"
+
+
+def test_d02_private_execution_wrong_config_direct_sql_fails_closed(
+    session: Session,
+) -> None:
+    _truncate_demo_authority(session)
+    facts, identity_authority, _ = _facts_identity_manifest(source_marker="e")
+    source_asset = session.get(Asset, identity_authority["formal_canonical_asset_id"])
+    if source_asset is None:
+        source_asset = Asset(
+            id=identity_authority["formal_canonical_asset_id"],
+            owner_user_id=None,
+            asset_role="synthetic",
+            internal_purpose="synthetic_dataset",
+            storage_key=f"demo-d02-private-exec-invalid/{new_id()}",
+            mime_type=facts["source_asset_mime_type"],
+            byte_size=facts["source_asset_byte_size"],
+            width=facts["source_asset_width"],
+            height=facts["source_asset_height"],
+            sha256=facts["source_asset_sha256"],
+            synthetic=True,
+            is_ai_generated=True,
+            is_ai_modified=False,
+        )
+        session.add(source_asset)
+        session.commit()
+    else:
+        assert source_asset.sha256 == facts["source_asset_sha256"]
+        assert source_asset.asset_role == "synthetic"
+        assert source_asset.synthetic is True
+
+    invalid_identity = deepcopy(identity_authority)
+    invalid_identity["admission_config_digest"] = hashlib.sha256(
+        b"not-the-frozen-d02-local-admission-config"
+    ).hexdigest()
+    assert invalid_identity["admission_config_digest"] != LOCAL_ADMISSION_CONFIG_DIGEST
+    _resign_identity(invalid_identity)
+    values = {
+        column.name: invalid_identity[column.name]
+        for column in DemoSyntheticIdentity.__table__.columns
+        if column.name in invalid_identity and column.computed is None
+    }
+    values["created_at"] = datetime.fromisoformat(
+        str(invalid_identity["created_at"]).replace("Z", "+00:00")
+    )
+
+    with pytest.raises(
+        DBAPIError,
+        match="ck_demo_synthetic_identities_d02_local_admission_config_exact",
+    ):
+        session.execute(cast(Table, DemoSyntheticIdentity.__table__).insert().values(**values))
+        session.commit()
+    session.rollback()
+
+
+def test_d02_private_execution_empty_round_trip(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _truncate_demo_authority(session)
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    session.commit()
+
+    try:
+        command.downgrade(config, D02_PRIVATE_EXEC_DOWN_REVISION)
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
+            D02_PRIVATE_EXEC_DOWN_REVISION
+        )
+        assert (
+            session.scalar(
+                text(
+                    "SELECT count(*) FROM pg_constraint "
+                    "WHERE conname = "
+                    "'ck_demo_synthetic_identities_d02_local_admission_config_exact'"
+                )
+            )
+            == 0
+        )
+        session.commit()
+
+        command.upgrade(config, DEMO_REVISION)
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+        assert (
+            session.scalar(
+                text(
+                    "SELECT count(*) FROM pg_constraint "
+                    "WHERE conname = "
+                    "'ck_demo_synthetic_identities_d02_local_admission_config_exact'"
+                )
+            )
+            == 1
+        )
+    finally:
+        session.rollback()
+        command.upgrade(config, DEMO_REVISION)
+
+
+def test_d02_private_execution_populated_downgrade_fails_closed(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, identity = _insert_local_d02_identity(session, marker="private-exec-e")
+    identity_id = identity.id
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    session.commit()
+
+    try:
+        with pytest.raises(
+            DBAPIError,
+            match="Cannot downgrade populated D02 v3 identity authority",
+        ):
+            command.downgrade(config, D02_PRIVATE_EXEC_DOWN_REVISION)
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+        assert (
+            session.scalar(
+                text("SELECT count(*) FROM demo_synthetic_identities WHERE id=:identity_id"),
+                {"identity_id": identity_id},
+            )
+            == 1
+        )
+    finally:
+        session.rollback()
+        command.upgrade(config, DEMO_REVISION)
 
 
 def test_d02_quality_round_trip_preserves_legacy_rows_and_rejects_new_v1_report(

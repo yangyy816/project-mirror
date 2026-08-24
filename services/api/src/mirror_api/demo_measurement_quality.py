@@ -43,6 +43,7 @@ TOPOLOGY_DIGEST: Final = "85eea84eef15dd963e06382d6e61f7357029d9901acc935731ecaa
 _DECIMAL_TOKEN = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$")
 _DIGEST = re.compile(r"[0-9a-f]{64}$")
 _ID = re.compile(r"[0-9a-f]{32}$")
+_OPAQUE_OUTPUT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _FIXED18_QUANTUM: Final = Decimal("0.000000000000000001")
 _SUPPORTED_FLOOR: Final = Decimal("0.000001000000000000")
 _ZERO: Final = Decimal("0")
@@ -347,7 +348,7 @@ def derive_result_m3_record_id(
 
     _require_id(case_id, "case id")
     _require_digest(case_specification_digest, "case specification digest")
-    _require_id(result_output_id, "result output id")
+    _require_output_id(result_output_id, "result output id")
     _require_digest(result_sha256, "result SHA-256")
     if type(repeat_index) is not int or repeat_index not in {1, 2, 3}:
         raise MeasurementQualityError("ResultM3 repeat index must be 1, 2, or 3")
@@ -783,7 +784,7 @@ def _validate_subject(role: ObservationRole, subject: Mapping[str, object]) -> N
         )
         if subject["schema_version"] != SOURCE_SUBJECT_SCHEMA:
             raise MeasurementQualityError("source subject schema is invalid")
-        _require_id(subject["source_output_id"], "source output id")
+        _require_output_id(subject["source_output_id"], "source output id")
         _require_id(subject["source_asset_id"], "source asset id")
         _require_digest(subject["source_asset_sha256"], "source asset SHA-256")
         return
@@ -802,7 +803,7 @@ def _validate_subject(role: ObservationRole, subject: Mapping[str, object]) -> N
         raise MeasurementQualityError("result subject schema is invalid")
     _require_id(subject["case_id"], "case id")
     _require_digest(subject["case_specification_digest"], "case specification digest")
-    _require_id(subject["result_output_id"], "result output id")
+    _require_output_id(subject["result_output_id"], "result output id")
     _require_digest(subject["result_sha256"], "result SHA-256")
 
 
@@ -840,6 +841,11 @@ def _require_digest(value: object, description: str) -> None:
 def _require_id(value: object, description: str) -> None:
     if not isinstance(value, str) or _ID.fullmatch(value) is None:
         raise MeasurementQualityError(f"{description} must be a lowercase hexadecimal ID")
+
+
+def _require_output_id(value: object, description: str) -> None:
+    if not isinstance(value, str) or _OPAQUE_OUTPUT_ID.fullmatch(value) is None:
+        raise MeasurementQualityError(f"{description} must be an opaque output ID")
 
 
 def _require_exact_keys(value: Mapping[str, object], expected: set[str], description: str) -> None:

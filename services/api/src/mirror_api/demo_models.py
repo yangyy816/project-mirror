@@ -214,6 +214,13 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
             name="admission_config_digest_shape",
         ),
         CheckConstraint(
+            "schema_version <> 'mirror.demo/DemoSyntheticIdentity/v3' "
+            "OR source_output_id IS NULL "
+            "OR admission_config_digest = "
+            "'ef87c397af7db78211a6d2440f0cb3eef4214080f5117ff7be89b6400b663b21'",
+            name="d02_local_admission_config_exact",
+        ),
+        CheckConstraint(
             "formal_canonical_asset_sha256 ~ '^[0-9a-f]{64}$'",
             name="formal_canonical_asset_sha_shape",
         ),

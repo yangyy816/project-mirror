@@ -781,6 +781,31 @@ def test_identity_source_mode_check_matches_orm_metadata(session: Session) -> No
     )
 
 
+def test_identity_local_admission_config_check_matches_orm_metadata(session: Session) -> None:
+    identity_table = cast(Table, DemoSyntheticIdentity.__table__)
+    orm_constraint = next(
+        constraint
+        for constraint in identity_table.constraints
+        if isinstance(constraint, CheckConstraint)
+        and constraint.name == "ck_demo_synthetic_identities_d02_local_admission_config_exact"
+    )
+    database_constraint = session.scalar(
+        text(
+            """
+            SELECT pg_get_constraintdef(constraint_row.oid, true)
+            FROM pg_constraint constraint_row
+            WHERE constraint_row.conrelid = 'demo_synthetic_identities'::regclass
+              AND constraint_row.conname =
+                  'ck_demo_synthetic_identities_d02_local_admission_config_exact'
+            """
+        )
+    )
+    assert isinstance(database_constraint, str)
+    assert _normalized_check_sql(str(orm_constraint.sqltext)) == _normalized_check_sql(
+        database_constraint
+    )
+
+
 def test_new_v1_identity_bank_and_pair_inserts_fail_closed(session: Session) -> None:
     source_asset, formal_identity = _accepted_synthetic_source(session)
     identity = _build_demo_row(

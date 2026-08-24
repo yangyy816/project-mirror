@@ -83,6 +83,23 @@ SOURCE_AUTHORITY_KEY_DOMAIN: Final = "mirror.demo/SourceAuthorityKey/v1"
 LOCAL_SOURCE_AUTHORITY_KIND: Final = "DEMO_LOCAL_IMPORTED_COPY"
 UNKNOWN_FORMAL_IDENTITY_STATUS: Final = "UNKNOWN_REDACTED_NOT_RECOVERED"
 VARIANT_TYPE: Final = "demo_p3_p7_geometry_v1"
+LOCAL_ADMISSION_CONFIG_SCHEMA: Final = "mirror.demo/D02LocalSyntheticAdmissionConfiguration/v1"
+LOCAL_ADMISSION_CONFIG_PAYLOAD: Final[dict[str, JsonValue]] = {
+    "track": "DEMO_PROTOTYPE",
+    "source_mode": LOCAL_SOURCE_AUTHORITY_KIND,
+    "identity_schema_version": IDENTITY_SCHEMA,
+    "import_config_digest": IMPORT_CONFIG_DIGEST,
+    "source_output_id_contract": "OPAQUE_PRIVATE_OUTPUT_REGISTRY_ID_V1",
+    "source_receipt_binding_required": True,
+    "adult_synthetic_attestation_required": True,
+    "original_formal_identity_id_status": UNKNOWN_FORMAL_IDENTITY_STATUS,
+    "public_internet_egress": "DENIED_DURING_CORE_EXECUTION",
+    "production_release": "NOT_AUTHORIZED",
+}
+LOCAL_ADMISSION_CONFIG_DIGEST: Final = mirror_demo_digest(
+    LOCAL_ADMISSION_CONFIG_SCHEMA,
+    LOCAL_ADMISSION_CONFIG_PAYLOAD,
+)
 REVISION_9_PREREGISTRATION_SHA256: Final = (
     "3fb0a1192d006560d45083b8d9d933f15a22648c0108f81ef305d31980073ba3"
 )
@@ -1044,7 +1061,15 @@ def _validate_admission_event_shape(
         _fail("identity admission sequence must be a positive integer within PostgreSQL range")
     if not isinstance(action, str) or action not in {"ADMIT", "REVOKE"}:
         _fail("identity admission action is invalid")
-    _digest(row.get("admission_config_digest"), "identity admission config digest")
+    admission_config_digest = _digest(
+        row.get("admission_config_digest"), "identity admission config digest"
+    )
+    if (
+        row.get("schema_version") == IDENTITY_SCHEMA
+        and row.get("source_output_id") is not None
+        and admission_config_digest != LOCAL_ADMISSION_CONFIG_DIGEST
+    ):
+        _fail("local v3 identity admission config digest is not the frozen D02 authority")
     if sequence == 1:
         if action != "ADMIT" or supersedes_id is not None:
             _fail("first identity admission event must be ADMIT without a predecessor")

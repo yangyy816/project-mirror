@@ -90,6 +90,58 @@ def _result_subject() -> dict[str, str]:
     }
 
 
+def test_source_and_result_subjects_accept_opaque_registry_output_ids() -> None:
+    landmarks = _landmarks()
+    source = _source_subject()
+    source["source_output_id"] = "D00-M3-ASSET-v01-category-a-02"
+    source_observation = build_measurement_observation(
+        observation_role="SOURCE",
+        subject=source,
+        canonical_output_digest=_DIGEST,
+        landmark_digest=_OTHER_DIGEST,
+        bindings=default_authority_bindings(),
+        measurement_landmarks=landmarks,
+        ordered_observability_repeats=[landmarks, landmarks, landmarks],
+    )
+    assert source_observation["subject"] == source
+
+    result = _result_subject()
+    result["result_output_id"] = "D02-M4-RESULT.case-001.replay-1"
+    result_observation = build_measurement_observation(
+        observation_role="RESULT",
+        subject=result,
+        canonical_output_digest=_DIGEST,
+        landmark_digest=_OTHER_DIGEST,
+        bindings=default_authority_bindings(),
+        measurement_landmarks=landmarks,
+        ordered_observability_repeats=[landmarks, landmarks, landmarks],
+    )
+    assert result_observation["subject"] == result
+    assert derive_result_m3_record_id(
+        case_id=result["case_id"],
+        case_specification_digest=result["case_specification_digest"],
+        result_output_id=result["result_output_id"],
+        result_sha256=result["result_sha256"],
+        repeat_index=1,
+        bindings=default_authority_bindings(),
+    )
+
+
+@pytest.mark.parametrize(
+    "invalid_output_id",
+    ["../private", "D:/private", "file://private", "has space", "a" * 129],
+)
+def test_subjects_reject_non_opaque_output_ids(invalid_output_id: str) -> None:
+    source = _source_subject()
+    source["source_output_id"] = invalid_output_id
+    with pytest.raises(MeasurementQualityError, match="opaque output ID"):
+        build_source_repeat_certification(
+            subject=source,
+            bindings=default_authority_bindings(),
+            ordered_repeat_bindings=[_source_binding(index) for index in (1, 2, 3)],
+        )
+
+
 def _landmarks() -> dict[int, dict[str, str]]:
     coordinates = {
         10: ("0.500", "0.100"),

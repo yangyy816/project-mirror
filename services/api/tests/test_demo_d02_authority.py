@@ -14,6 +14,9 @@ import pytest
 import mirror_api.demo_d02_authority as d02_authority
 from mirror_api.demo_d02_authority import (
     EMPTY_LOCK_POLICY_DIGEST,
+    LOCAL_ADMISSION_CONFIG_DIGEST,
+    LOCAL_ADMISSION_CONFIG_PAYLOAD,
+    LOCAL_ADMISSION_CONFIG_SCHEMA,
     REPORT_GROUPS,
     SCREENING_POLICY_DIGEST,
     D02AuthorityError,
@@ -578,7 +581,11 @@ def _facts_identity_manifest(
     source_p2_manifest_digest: str = _ACCEPTED_SOURCE_P2_MANIFEST_DIGEST,
     dimension_authority_manifest_digest: str = _ACCEPTED_DIMENSION_AUTHORITY_MANIFEST_DIGEST,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    source_output_id = _identifier("a") if source_marker is None else _identifier(source_marker)
+    source_output_id = (
+        "D00-M3-ASSET-v01-category-a-02"
+        if source_marker is None
+        else f"D02-TEST-SOURCE-{source_marker}"
+    )
     source_asset_sha256 = _digest("c") if source_marker is None else _digest(source_marker)
     source_asset_id = derive_imported_asset_id(
         asset_role="synthetic",
@@ -669,7 +676,7 @@ def _facts_identity_manifest(
                 "formal_accepted_qa_snapshot_digest": None,
                 "admission_sequence": 1,
                 "admission_action": "ADMIT",
-                "admission_config_digest": metadata_digest,
+                "admission_config_digest": LOCAL_ADMISSION_CONFIG_DIGEST,
                 "supersedes_id": None,
                 "source_output_id": facts["source_output_id"],
                 "source_receipt_digest": facts["source_receipt_digest"],
@@ -1716,6 +1723,24 @@ def test_identity_admission_shape_rejects_resigned_invalid_event(
         tampered["supersedes_id"] = "not-an-id"
     _resign_identity(tampered)
     with pytest.raises(D02AuthorityError, match=expected):
+        validate_identity_row(tampered, facts=facts)
+
+
+def test_local_admission_config_is_independent_and_exact() -> None:
+    assert LOCAL_ADMISSION_CONFIG_DIGEST == (
+        "ef87c397af7db78211a6d2440f0cb3eef4214080f5117ff7be89b6400b663b21"
+    )
+    assert LOCAL_ADMISSION_CONFIG_DIGEST == mirror_demo_digest(
+        LOCAL_ADMISSION_CONFIG_SCHEMA,
+        LOCAL_ADMISSION_CONFIG_PAYLOAD,
+    )
+    assert LOCAL_ADMISSION_CONFIG_DIGEST != IMPORT_CONFIG_DIGEST
+
+    facts, admit, _ = _facts_identity_manifest()
+    tampered = deepcopy(admit)
+    tampered["admission_config_digest"] = _digest("9")
+    _resign_identity(tampered)
+    with pytest.raises(D02AuthorityError, match="frozen D02 authority"):
         validate_identity_row(tampered, facts=facts)
 
 
