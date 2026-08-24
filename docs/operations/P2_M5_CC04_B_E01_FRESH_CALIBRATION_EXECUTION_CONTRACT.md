@@ -291,3 +291,35 @@ After acceptance, execute only the post-acceptance creation sequence and tranche
 delegate generation or private discovery. Do not create or access holdout, run transforms, calibrate thresholds, open
 04-C, evaluate MVR, or enter M6. Complete and independently accept the whole 04-B execution disposition before any next
 Wave.
+
+## R30 authoritative recovery ordering for future returned outputs
+
+`OD-P2-M5-CC04-B-E01-R29-001` preserves the historical failed `CAL-REQ-001` under its prior v1 specification. This
+section supplements and, for `CAL-REQ-002` and later, supersedes every earlier per-output execution sequence that is
+less strict than the following rule. It changes neither the resource envelope nor a presentation policy; the v2
+first-wave presentation-context authority is deferred to accepted `CC04-B-E01-A02`.
+
+At native dispatch, irrevocably consume the exact request ordinal. On receiving the exact native generated-artifact
+handle, create a new exact-byte copy in the preauthorized Git-external staging target; compute SHA-256 and byte size;
+classify media type and magic bytes without decoding; write and commit an immutable per-output registry record; then
+obtain and validate its registration-commit receipt. Only after that valid committed receipt may an image be decoded,
+its dimensions read, normalized, subjected to deterministic QA, used for pHash/targeted duplicate candidates, sent to
+lightweight independent Sol screening, or provisionally admitted/rejected.
+
+Before the receipt, the sole allowed operations are byte-preserving copy, SHA-256, byte count, non-decoding magic/media
+classification, exact ordinal/handle binding, and registry append. Dimensions, EXIF, any image decoder or metadata
+parser, preview, thumbnail, Pillow, OpenCV, browser-image parsing, landmarks, face count, pHash, normalization, QA,
+screening, and admission are prohibited.
+
+The pre-decode immutable record must include `OUTPUT_OPAQUE_ID`, `REQUEST_ORDINAL`, `SOURCE_KIND`,
+`SOURCE_DELIVERY_CLASS`, `EXACT_GENERATED_ARTIFACT_RECEIPT`, `SOURCE_SHA256`, `STAGING_SHA256`, `BYTE_SIZE`,
+`MEDIA_TYPE`, `MAGIC_BYTE_CLASS`, `GENERATION_SPECIFICATION_VERSION`, `GENERATION_SPECIFICATION_DIGEST`,
+`ASSIGNMENT_MANIFEST_VERSION`, `ASSIGNMENT_MANIFEST_DIGEST`, `REQUEST_LEDGER_STATUS`, `OUTPUT_LEDGER_STATUS`,
+`CUSTODY_STATUS`, `RETENTION_CLASS`, `CLEANUP_POLICY`, `REGISTRATION_TIMESTAMP`, and
+`REGISTRATION_COMMIT_RECEIPT`. Decode requires `REGISTRATION_STATUS: COMMITTED` and
+`REGISTRATION_COMMIT_RECEIPT: VALID`.
+
+If the record cannot commit or the receipt cannot be validated, stop with
+`OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE`. That ordinal is already consumed; it must not be decoded, retried,
+replaced, or followed by another ordinal. If `CAL-REQ-002` itself has a decode-before-registration violation, stop with
+`REPEATED_OUTPUT_REGISTRATION_ORDER_VIOLATION`; no ordinary Repair may continue generation.
