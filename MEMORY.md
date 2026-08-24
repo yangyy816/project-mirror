@@ -569,3 +569,11 @@
   tests、Ruff、strict mypy、standalone transplant、独立 Sol review与 same-SHA run `32677991401` 三 jobs均
   PASS，Gitleaks零结果。Principal接受的范围仅为typed deterministic Operation Graph domain；D07-B继续等待
   D02/D03，editor runtime、Tool registry/planner/verifier/ImageVersion、formal P6 Gate与production use均未接受。
+
+- 2026-08-24：D02 CC-02 Candidate 3 authority contract提交
+  `5435f703ad60644ed292603c5018599aa50b3d70` 经独立 Sol High exact-blob与closure审查均 PASS，same-SHA run
+  `32682233782` 的 quality/integration、Docker与Gitleaks三 jobs全绿。冻结的source certificate不含任何
+  post-admission authority；`source_measurement_digest`只表示observation digest，raw digest保持独立；source
+  authority按 certificate→raw/projection→facts→identity/admission→source manifest→SourceM3 无环构造。当前只开放
+  两个全新文件范围的 pure measurement-quality Packet A；authority builder、`demo_0004` migration/ORM、真实
+  PostgreSQL screening、private handles、D02 `TASK_ACCEPTED`与D03均继续关闭。
