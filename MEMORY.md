@@ -586,6 +586,14 @@
   新文件范围的 pure authority builder Packet B。`demo_0004` migration/ORM、private screening、D02
   `TASK_ACCEPTED`、D03、formal P3–P7 与 production release 继续关闭。
 
+- 2026-08-24：D02 Packet B 两文件 handoff `bdfc6cdd07a39286256cd411db85d9eb5729c744` 经 accepted-base clean
+  transplant 后集成为 `c5f1f7c4bdfbd75b71a3add51ff6a32af76fecc3`，R10 exact-bytes 与 R11 integrated
+  exact-SHA 两份独立 Sol 审查均 `PASS_FINDINGS_NONE`，same-SHA run `32740093681` 三 jobs 全绿（Packet B
+  297/297、完整 CI Python 1330 pass/1 个既有 optional skip、Gitleaks零结果）。Principal接受完整4-source/
+  48-case/96-M4/144-ResultM3/48-gate/52-image/1326-pHash/24-pair/16-selected纯authority graph及fail-closed
+  canonical replay，只开放中央 `demo_0005_d02_quality_auth -> demo_0004_d09_episode_prov` migration/ORM checkpoint；
+  private handles/screening、完整D02、D03、formal P3–P7与production release仍关闭。
+
 - 2026-08-24：D09 exact implementation `17b790de6393434430d8462195a87c548c1fa15a` 通过两轮独立 Sol
   repaired-snapshot/commit-bound 审查与 same-SHA run `32701906246` 三 jobs 全绿。Principal 接受 actor-serialized
   digest-chain PreferenceEvent、原子 Final Save event+AcceptedVisualEpisode、并发唯一 winner、取消/失败回滚、
