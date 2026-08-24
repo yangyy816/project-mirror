@@ -93,12 +93,21 @@ Upgrade must use `CREATE OR REPLACE FUNCTION mirror_demo_validate_accepted_episo
 attachment. The complete prior validator body is copied forward and strengthened; accepted migrations
 `demo_0001`–`demo_0003` remain immutable.
 
-Before installing the hardened function, upgrade scans every existing episode using the same equality matrix. Any
-invalid row fails the migration. The migration must never update, delete, re-sign or silently quarantine historical
-evidence. A valid pre-existing episode remains byte-identical.
+Before reading any episode, upgrade acquires
+`LOCK TABLE demo_accepted_visual_episodes IN ACCESS EXCLUSIVE MODE`. The transaction-scoped lock is held through the
+complete existing-row audit, hardened function replacement, Alembic revision update and transaction commit. This
+serializes every concurrent insert across the authority-version boundary; an insert that was already in flight finishes
+before the audit, while a later insert resumes only after commit and is evaluated by the hardened function.
+
+With that lock held, upgrade scans every existing episode using the same equality matrix. Any invalid row fails the
+migration. The migration must never update, delete, re-sign or silently quarantine historical evidence. A valid
+pre-existing episode remains byte-identical.
 
 ## Downgrade and recovery
 
+- Downgrade acquires the same transaction-scoped `ACCESS EXCLUSIVE` table lock before its emptiness check and holds it
+  through function restoration, Alembic revision update and transaction commit. No concurrent insert may pass between
+  the check and restoration.
 - If any episode exists, `demo_0004 -> demo_0003` fails closed before replacing the hardened function. Even valid
   evidence may not be left under the weaker admission authority.
 - If the episode table is empty, downgrade restores the complete `demo_0003` function body frozen inside this migration;
@@ -125,7 +134,11 @@ the service boundary, and prove the following on real PostgreSQL with zero skipp
 8. cancellation after event flush but before episode flush rolls back both rows;
 9. event-only acceptance, reject, learning-disabled and lock/unlock evidence are not promoted to stable profile/context
    authority by D09;
-10. RESET accepts only a strict earlier watermark and preserves append-only history.
+10. RESET accepts only a strict earlier watermark and preserves append-only history;
+11. a second PostgreSQL connection attempting an episode insert during upgrade is serialized until commit, after which
+    a forged insert is rejected by the hardened validator;
+12. a second connection cannot insert between downgrade's empty-table check and weak-function restoration; the lock is
+    held until downgrade commit and the regression proves there is no check/replace traversal window.
 
 Compiler behavior remains a D10 responsibility. D09 tests prove only that D09 does not itself materialize or reinforce a
 stable profile/context from ineligible evidence.
