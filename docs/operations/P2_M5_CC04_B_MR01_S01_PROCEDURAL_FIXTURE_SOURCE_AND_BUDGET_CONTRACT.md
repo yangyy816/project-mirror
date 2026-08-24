@@ -82,7 +82,7 @@ The inherited policy/schema authority is immutable and must be copied verbatim i
 
 The fixed operation ledger is not a private manifest or an execution ledger. Its version is
 `p2-m5-cc04-b-mr01-s01-operation-ledger-v1`; its required SHA-256 is
-`ce23d2daf1e17c6fa5cbad491aa341da90f14f6fbd392e4eea619a08662bc324`, computed from the UTF-8, LF-terminated
+`ffd5cb8481daf86aff2a2a1a92fa4848522230f2726972d576b0b6e0fac4dfcd`, computed from the UTF-8, LF-terminated
 serialization declared in the companion specification. A future manifest must bind both values exactly and may not
 substitute an expanded, reduced, or reinterpreted envelope.
 

@@ -112,7 +112,7 @@ The future manifest must also bind this public fixed operation ledger exactly:
 
 ```text
 fixed_operation_ledger_version=p2-m5-cc04-b-mr01-s01-operation-ledger-v1
-fixed_operation_ledger_sha256=ce23d2daf1e17c6fa5cbad491aa341da90f14f6fbd392e4eea619a08662bc324
+fixed_operation_ledger_sha256=ffd5cb8481daf86aff2a2a1a92fa4848522230f2726972d576b0b6e0fac4dfcd
 ```
 
 The SHA-256 input is the following UTF-8, LF-terminated serialization; it is public contract text, not a fixture
