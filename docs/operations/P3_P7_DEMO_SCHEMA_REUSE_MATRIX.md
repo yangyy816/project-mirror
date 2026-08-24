@@ -3,26 +3,31 @@
 ## Checkpoint status
 
 ```text
-MATRIX_VERSION: p3-p7-demo-schema-reuse-v1
+MATRIX_VERSION: p3-p7-demo-schema-reuse-v1.1
+BASELINE_MATRIX_VERSION: p3-p7-demo-schema-reuse-v1
 TRACK: DEMO_PROTOTYPE
 PLAN_VERSION: P3_P7_ALGORITHMIC_PROTOTYPE_PLATFORM_PLAN_V1_1
 BASE_SHA: d134517fa97132b180a82c69c617b8f65d3b282e
 D01_A: TASK_ACCEPTED
 D01_B: TASK_ACCEPTED_CC02
-INDEPENDENT_SOL_SCHEMA_REVIEW: PASS
-INDEPENDENT_SOL_REVIEWED_MATRIX_SHA256: 382fb6ba3ef5059d4089fcb4f3b149ba0d65fedd43d5e4b11c3e4e55054544bc
+D01_B_BASELINE_INDEPENDENT_SOL_SCHEMA_REVIEW: PASS
+D01_B_BASELINE_REVIEWED_MATRIX_SHA256: 382fb6ba3ef5059d4089fcb4f3b149ba0d65fedd43d5e4b11c3e4e55054544bc
 PRINCIPAL_MATRIX_DISPOSITION: ACCEPTED_FOR_D01_B_IMPLEMENTATION
 MIGRATION_ORM_WRITES_AT_MATRIX_ACCEPTANCE: NOT_STARTED
 MIGRATION_ORM_IMPLEMENTATION: CC02_TASK_ACCEPTED
 INDEPENDENT_SOL_IMPLEMENTATION_REVIEW: PASS_FOR_dd39b37
 INDEPENDENT_SOL_CC02_REVIEW: PASS_FOR_6981a88
+CC_P3_P7_DEMO_D09_01: PRINCIPAL_CANDIDATE_PENDING_INDEPENDENT_REVIEW
+CC_P3_P7_DEMO_D09_01_SCHEMA_DISPOSITION: NO_CHANGE
+CC_P3_P7_DEMO_D09_01_REVIEWED_SHA256: NOT_YET_BOUND
 FORMAL_SCHEMA_CHANGE: FORBIDDEN
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```
 
-This matrix freezes physical authority before any Demo migration or ORM implementation. It preserves all 26 planned
-logical entities and adds `demo_job_binding` plus `demo_command_binding`. Similar formal names are not semantic
-equivalence. The Demo track may
+The v1 baseline froze physical authority before any Demo migration or ORM implementation. This v1.1 amendment adds
+only `CC-P3-P7-DEMO-D09-01` insert and compiler-eligibility semantics; its physical schema disposition is `NO_CHANGE`.
+The matrix preserves all 26 planned logical entities and adds `demo_job_binding` plus `demo_command_binding`. Similar
+formal names are not semantic equivalence. The Demo track may
 reference stable formal byte, lineage and execution authorities, but it may not turn formal P3–P7 profile,
 questionnaire, editing or preference tables into prototype authority.
 
@@ -700,6 +705,10 @@ AUTHORITY_OWNER: Demo P7 Evidence Ledger
 OWNER_BINDING: actor and optional session/episode/version targets
 APPEND_ONLY_MECHANISM: actor-serialized sequence plus previous/event digest chain
 DIGEST_INPUTS: actor/sequence/type/source/target/signal/occurred_at/previous digest
+FINAL_SAVE_SEMANTICS: IMAGE_ACCEPTED is acceptance feedback only; an event without an AcceptedVisualEpisode is not Final Save
+INSERT_PROTOCOL: acquire the shared actor advisory transaction lock before actor/session locks and tail allocation; PostgreSQL trigger remains final authority
+TIME_AUTHORITY: occurred_at is trusted UTC digest input; created_at is independent audit time and excluded from digest
+COMPILER_ELIGIBILITY: event-only IMAGE_ACCEPTED is excluded from Final Save compiler input
 DELETE_OR_TOMBSTONE_SEMANTICS: append RESET, ROLLBACK, TOMBSTONE or DELETE event
 FORMAL_AUTHORITY_POLLUTION_RISK: CRITICAL IF FORMAL REUSED
 MIGRATION_OBJECT: demo_preference_events
@@ -721,12 +730,42 @@ AUTHORITY_OWNER: Demo P7 visual evidence
 OWNER_BINDING: actor, editing session and accepted image version
 APPEND_ONLY_MECHANISM: immutable; only verified user-accepted image is eligible
 DIGEST_INPUTS: source/final checksums and image/plan/operation/tool/verifier/profile/context/instruction digests
+FINAL_SAVE_AUTHORITY: sole Demo Final Save provenance authority
+INSERT_PROTOCOL: same caller-owned transaction as its unique IMAGE_ACCEPTED event; all ownership, trajectory, checksum and PASS-verifier checks are atomic
+PARTIAL_WRITE_SEMANTICS: any failed event or episode invariant rolls back both rows
 DELETE_OR_TOMBSTONE_SEMANTICS: append ledger tombstone/delete; Asset bytes use formal deletion
 FORMAL_AUTHORITY_POLLUTION_RISK: LOW
 MIGRATION_OBJECT: demo_accepted_visual_episodes
 PROMOTION_STRATEGY: FWD_CONVERSION
 DECISION_EVIDENCE: Fast Track Contract P7, Visual Memory OS, P3_P7_D01_B_CC_01 complete trajectory binding
 ```
+
+#### `CC-P3-P7-DEMO-D09-01` physical disposition
+
+```text
+CHANGE_CONTROL_ID: CC-P3-P7-DEMO-D09-01
+CHANGE_KIND: DEMO_AUTHORITY_SEMANTICS_CLARIFICATION
+IMAGE_ACCEPTED_AUTHORITY: ACCEPTANCE_FEEDBACK_EVENT
+FINAL_SAVE_AUTHORITY: demo_accepted_visual_episodes
+FINAL_SAVE_CARDINALITY: exactly one eligible IMAGE_ACCEPTED event plus exactly one episode in one transaction
+EVENT_ONLY_ACCEPTANCE: VALID_FEEDBACK_NOT_FINAL_SAVE
+EVENT_ONLY_FINAL_SAVE_COMPILER_INPUT: FORBIDDEN
+SEQUENCE_ALLOCATION: ACTOR_ADVISORY_LOCK_FIRST_THEN_TAIL
+POSTGRESQL_AUTHORITY: TRIGGERS_AND_UNIQUE_CONSTRAINTS_FINAL
+OCCURRED_AT: TRUSTED_APPLICATION_UTC_AND_DIGEST_AUTHORITATIVE
+CREATED_AT: DATABASE_AUDIT_ONLY_NOT_IN_DIGEST
+MIGRATION_CHANGE: NONE
+ORM_CHANGE: NONE
+TABLE_OR_COLUMN_CHANGE: NONE
+FORMAL_SCHEMA_CHANGE: NONE
+PUBLIC_API_CHANGE: NONE
+PROMOTION_STRATEGY_CHANGE: NONE
+INDEPENDENT_REVIEW: REQUIRED_BEFORE_TOPIC_REDISPATCH
+```
+
+This change control does not make every `IMAGE_ACCEPTED` event a Final Save. If that semantic is ever requested, a new
+architecture change control and a forward prototype migration must add the reverse event-to-episode invariant; the
+accepted Demo migrations may not be rewritten.
 
 #### `demo_aesthetic_profile`
 

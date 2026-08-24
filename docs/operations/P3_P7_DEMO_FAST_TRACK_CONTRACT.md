@@ -7,6 +7,8 @@ CONTRACT_VERSION: p3-p7-demo-fast-track-v1.1
 PLAN_VERSION: P3_P7_ALGORITHMIC_PROTOTYPE_PLATFORM_PLAN_V1_1
 TRACK: DEMO_PROTOTYPE
 STATUS: ACCEPTED
+CC_P3_P7_DEMO_D09_01_STATUS: PRINCIPAL_CANDIDATE_PENDING_INDEPENDENT_REVIEW
+CC_P3_P7_DEMO_D09_01_SCHEMA_DISPOSITION: NO_CHANGE
 D00_STATUS: GO
 D01_A_STATUS: TASK_ACCEPTED
 D01_B_STATUS: TASK_ACCEPTED_CC02
@@ -89,6 +91,69 @@ contract direction. Every route is marked `x-demo-only`; an unimplemented route 
 
 Makeup is `DEFERRED_WITH_EXPLICIT_REASON`. Generative Editor is `CAPABILITY_UNAVAILABLE`; planner/API/registry/UI and
 error semantics still expose those states.
+
+## D09 Evidence Ledger and Final Save authority
+
+`CC-P3-P7-DEMO-D09-01` freezes the Demo-only relationship between acceptance feedback and durable Final Save
+provenance. It clarifies the existing P7 authorities without changing migration, ORM, public API, ADR, formal schema or
+production authority.
+
+### Acceptance feedback is not Final Save
+
+- `IMAGE_ACCEPTED` is an explicit acceptance-feedback `DemoPreferenceEvent`. It is admissible ledger evidence, but the
+  event alone is not a Final Save, an `AcceptedVisualEpisode` or durable Visual Truth.
+- `DemoAcceptedVisualEpisode` is the sole Demo Final Save provenance authority. It binds the accepted event to the
+  actor/session/editing session, accepted `ImageVersion`, source/final Asset checksums, complete plan/operation/tool
+  trajectory, `PASS` verification, profile/context/instruction provenance and immutable episode digest.
+- An event-only `IMAGE_ACCEPTED` remains valid acceptance feedback. Final-Save queries, UI and compilers must not
+  promote it to a saved episode or consume it as Final Save compiler input.
+
+### Atomic Final Save protocol
+
+A valid Final Save is one caller-owned PostgreSQL transaction that:
+
+1. acquires the same actor-scoped advisory transaction lock used by the `demo_preference_events` trigger;
+2. locks and validates actor/session plus the accepted image, trajectory and verifier authorities;
+3. reads the actor's ledger tail and allocates the next contiguous `event_sequence` and `previous_event_digest`;
+4. appends exactly one `IMAGE_ACCEPTED` event; and
+5. creates exactly one `DemoAcceptedVisualEpisode` referencing that event and accepted image.
+
+Any failed ownership, lineage, checksum, trajectory, verifier, digest, uniqueness or lifecycle condition rolls back both
+rows. A partial Final Save is forbidden. PostgreSQL triggers and unique constraints remain final authority; application
+validation does not replace them. Python and direct-SQL writers use the same advisory namespace and lock-first order so
+mixed writers cannot create a chain fork or lock-order inversion. Normal append reads only the locked actor tail; full
+history replay is a separate audit/rebuild operation.
+
+### Sequence and time authority
+
+- `event_sequence` is the sole per-actor ordering authority. `occurred_at` does not allocate sequence and need not be
+  monotonic, so a trusted internal caller may record a legitimate late event.
+- `occurred_at` is injected once at the trusted application boundary, normalized to UTC and included in the canonical
+  event payload/digest. It is never accepted as untrusted client authority or generated implicitly by database wall
+  clock.
+- `created_at` is an independent database audit timestamp. It is excluded from canonical payload/digest and must not be
+  forced equal to `occurred_at`.
+
+### Lifecycle and D09 exit boundary
+
+Actor/session/editing-session terminal events and matching header timestamps remain an atomic deferred-invariant
+operation. `RESET` keeps its actor target and strict earlier watermark. `ROLLBACK`, `TOMBSTONE` and `DELETE` remain
+append-only derived-evidence events and never authorize physical ledger deletion.
+
+D09 cannot be `TASK_ACCEPTED` until one exact implementation proves both ledger core and Final Save admission on real
+PostgreSQL, including concurrent service/direct-SQL parity, rollback without persistent sequence consumption,
+canonical digest parity, target/ownership/lifecycle negatives, event-only exclusion and atomic event-plus-episode
+creation. A ledger module that creates no `DemoAcceptedVisualEpisode` is partial evidence only.
+
+```text
+CHANGE_CONTROL_ID: CC-P3-P7-DEMO-D09-01
+TRACK: DEMO_PROTOTYPE
+D09_SCHEMA_CHANGE_REQUIRED: NO
+D09_ORM_CHANGE_REQUIRED: NO
+D09_PUBLIC_API_CHANGE_REQUIRED: NO
+FORMAL_P3_P7_AUTHORITY_CHANGE: NONE
+PRODUCTION_RELEASE: NOT_AUTHORIZED
+```
 
 ## D00 two-stage contract
 
