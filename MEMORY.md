@@ -650,3 +650,12 @@
 - Docker `--network none` 只隔离容器运行网络，不阻止 Docker daemon 在启动前拉取缺失镜像。任何声明
   `PUBLIC_INTERNET_EGRESS_DISABLED` 的离线 Gate 命令必须同时使用本地已验证镜像与 `--pull=never`；若发生
   未预注册 pull，该命令必须作废并单独披露，不能作为 offline core evidence。
+
+- 2026-08-25：`CC-P3-P7-DEMO-API-08` 以前向 change control 关闭 domain acceptance 与公开 route completion
+  混淆：D01-C 继续只接受 23-operation contract skeleton/idempotency authority，D09 继续只接受 ledger/Final
+  Save domain；provider `TASK_ACCEPTED` 最多推进到 `DOMAIN_READY_ROUTE_PENDING`，不得单独翻转 capability。
+  新增非 D-task `DEMO_API_APPLICATION_INTEGRATION`，由 Principal 唯一集成中央 Demo router、generic Job
+  lifecycle、Celery、OpenAPI 与 generated client，且必须在 `DEMO_API_CONTRACT_FREEZE` 与 D11 前接受。exact
+  diff 独立 Sol review PASS/零 finding；提交 `4297156c4e5f7190cccfb4180576e34445352461` 的 same-SHA run
+  `32841447986` 三 jobs 全绿、五项 artifacts 存在且未过期。D02 仍为
+  `NO_GO_CRITICAL_DEPENDENCY_UNAVAILABLE`，D03 及传递依赖、formal P3–P7 与 production release 均未开放。
