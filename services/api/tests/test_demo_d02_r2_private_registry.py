@@ -161,21 +161,27 @@ def _create_root(tmp_path: Path) -> Path:
     return root
 
 
-def _name_and_seal(root: Path, *, output_id: str = "output-1") -> tuple[str, str]:
+def _name_and_seal(
+    root: Path,
+    *,
+    output_id: str = "output-1",
+    allocation_sequence: int = 1,
+    logical_name: str = "candidate.bin",
+) -> tuple[str, str]:
     name = registry.allocate_output_name_receipt(
         root,
         AUTHORITY,
         output_id=output_id,
-        allocation_sequence=1,
+        allocation_sequence=allocation_sequence,
         semantic_role="SOURCE_CANDIDATE",
-        logical_name="candidate.bin",
+        logical_name=logical_name,
         producer_task_id=registry.SOURCE_PRODUCER_TASK_ID,
         expected_parent_authority="d" * 64,
         expected_media_type="application/octet-stream",
         maximum_bytes=1024,
         allocated_at_utc=TIMESTAMP,
     )
-    name_file = "D02_R2_OUTPUT_NAME_RECEIPT__00000001__" + output_id + ".json"
+    name_file = f"D02_R2_OUTPUT_NAME_RECEIPT__{allocation_sequence:08d}__" + output_id + ".json"
     destination = registry.output_path_for_principal(root, AUTHORITY, name_file)
     with destination.open("xb") as handle:
         handle.write(b"synthetic-only-test-bytes")
@@ -186,7 +192,7 @@ def _name_and_seal(root: Path, *, output_id: str = "output-1") -> tuple[str, str
         media_type="application/octet-stream",
         sealed_at_utc=TIMESTAMP,
     )
-    seal_file = "D02_R2_OUTPUT_SEAL_RECEIPT__00000001__" + output_id + ".json"
+    seal_file = f"D02_R2_OUTPUT_SEAL_RECEIPT__{allocation_sequence:08d}__" + output_id + ".json"
     assert name["name_receipt_digest"] == seal["name_receipt_digest"]
     return name_file, seal_file
 
@@ -797,3 +803,106 @@ def test_corrupt_recovery_receipt_stops_fresh_registry_replay(
     with pytest.raises(registry.D02R2RegistryError, match="CORRUPTION_STOP"):
         registry.initialize_registry_pair(root, AUTHORITY)
     assert recovery_path.read_bytes() == original_bytes[:-1]
+
+
+@pytest.mark.parametrize(
+    "corrupt_authority",
+    ("name", "seal", "intent", "commit", "output", "recovery"),
+)
+def test_recovery_validates_complete_committed_prefix_before_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    corrupt_authority: str,
+) -> None:
+    root = _create_root(tmp_path)
+    name_file_1, seal_file_1 = _name_and_seal(root)
+    original_append: Callable[..., None] = registry._append_registry_copy
+
+    def interrupt_before_a(*args: object, **kwargs: object) -> None:
+        raise OSError("simulated interruption before copy A")
+
+    monkeypatch.setattr(registry, "_append_registry_copy", interrupt_before_a)
+    with pytest.raises(OSError, match="simulated interruption"):
+        registry.register_sealed_output(
+            root,
+            AUTHORITY,
+            name_file_1,
+            seal_file_1,
+            intent_created_at_utc=TIMESTAMP,
+        )
+    monkeypatch.setattr(registry, "_append_registry_copy", original_append)
+    registry.recover_registry_transaction(
+        root,
+        AUTHORITY,
+        name_file_1,
+        seal_file_1,
+        recovery_attempt=1,
+        principal_authority_digest="f" * 64,
+        created_at_utc=TIMESTAMP,
+    )
+
+    name_file_2, seal_file_2 = _name_and_seal(
+        root,
+        output_id="output-2",
+        allocation_sequence=2,
+        logical_name="candidate-2.bin",
+    )
+    monkeypatch.setattr(registry, "_append_registry_copy", interrupt_before_a)
+    with pytest.raises(OSError, match="simulated interruption"):
+        registry.register_sealed_output(
+            root,
+            AUTHORITY,
+            name_file_2,
+            seal_file_2,
+            intent_created_at_utc=TIMESTAMP,
+        )
+    monkeypatch.setattr(registry, "_append_registry_copy", original_append)
+
+    commit_path = next((root / "control" / "registry-commits").iterdir())
+    transaction_id = commit_path.stem.removeprefix("D02_R2_REGISTRY_COMMIT_RECEIPT__")
+    prior_paths = {
+        "name": root / "control" / "name-receipts" / name_file_1,
+        "seal": root / "control" / "seal-receipts" / seal_file_1,
+        "intent": (
+            root
+            / "control"
+            / "registry-intents"
+            / f"D02_R2_REGISTRY_TRANSACTION_INTENT__{transaction_id}.json"
+        ),
+        "commit": commit_path,
+        "output": registry.output_path_for_principal(root, AUTHORITY, name_file_1),
+        "recovery": next((root / "control" / "registry-recovery").iterdir()),
+    }
+    corrupted_path = prior_paths[corrupt_authority]
+    original_bytes = corrupted_path.read_bytes()
+    corrupted_path.write_bytes(original_bytes[:-1])
+
+    path_a, path_b = _registry_paths(root)
+    root_receipt = registry.load_root_name_receipt(root, AUTHORITY)
+
+    def durable_state() -> tuple[int, int, int, int, int]:
+        return (
+            registry.validate_registry_copy(
+                path_a, registry.REGISTRY_COPY_A_ID, root_receipt
+            ).event_count,
+            registry.validate_registry_copy(
+                path_b, registry.REGISTRY_COPY_B_ID, root_receipt
+            ).event_count,
+            len(list((root / "control" / "registry-intents").iterdir())),
+            len(list((root / "control" / "registry-commits").iterdir())),
+            len(list((root / "control" / "registry-recovery").iterdir())),
+        )
+
+    before = durable_state()
+    with pytest.raises(registry.D02R2RegistryError):
+        registry.recover_registry_transaction(
+            root,
+            AUTHORITY,
+            name_file_2,
+            seal_file_2,
+            recovery_attempt=1,
+            principal_authority_digest="f" * 64,
+            created_at_utc=TIMESTAMP,
+        )
+    assert durable_state() == before
+    assert corrupted_path.read_bytes() == original_bytes[:-1]

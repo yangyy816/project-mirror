@@ -1757,6 +1757,17 @@ def recover_registry_transaction(
             )
         snapshot_a = validate_registry_copy(path_a, REGISTRY_COPY_A_ID, root_receipt)
         snapshot_b = validate_registry_copy(path_b, REGISTRY_COPY_B_ID, root_receipt)
+        committed_prefix = _recovery_committed_prefix(
+            snapshot_a,
+            snapshot_b,
+            transaction_id=transaction_id,
+        )
+        _validate_committed_prefix(
+            root,
+            root_receipt,
+            committed_prefix,
+            allowed_incomplete_transaction_id=transaction_id,
+        )
         observed_intent_bytes_sha256: str | None = None
         observed_intent_digest: str | None = None
         prior_state: str
@@ -1807,6 +1818,14 @@ def recover_registry_transaction(
                 transaction_id=transaction_id,
                 commit_exists=commit_path.exists(),
             )
+            if commit_path.exists() and prior_state not in {
+                "COMMITTED_BOTH_COPIES",
+                "BOTH_COPIES_PREPARED_NOT_COMMITTED",
+            }:
+                raise D02R2RegistryError(
+                    "IMPOSSIBLE_ORDER_OR_CUSTODY_CORRUPTION_STOP",
+                    "commit receipt exists before both registry copies are prepared",
+                )
             action = _replay_intent_to_registry_copies(
                 path_a,
                 path_b,
@@ -1916,6 +1935,46 @@ def recover_registry_transaction(
         )
         _validate_committed_history(root, root_receipt, final_a, final_b)
         return recovery_receipt
+
+
+def _recovery_committed_prefix(
+    snapshot_a: RegistrySnapshot,
+    snapshot_b: RegistrySnapshot,
+    *,
+    transaction_id: str,
+) -> tuple[JsonObject, ...]:
+    """Return only the fully committed common prefix before the transaction under recovery."""
+
+    has_a = _snapshot_has_transaction(snapshot_a, transaction_id)
+    has_b = _snapshot_has_transaction(snapshot_b, transaction_id)
+    if not has_a and not has_b:
+        _require_equal_snapshots(snapshot_a, snapshot_b)
+        return snapshot_a.ordered_events
+    if not has_a and has_b:
+        raise D02R2RegistryError(
+            "REGISTRY_INCONSISTENT_STOP",
+            "copy B contains the recovery transaction while copy A does not",
+        )
+    if snapshot_a.ordered_events[-1]["transaction_id"] != transaction_id:
+        raise D02R2RegistryError(
+            "REGISTRY_INCONSISTENT_STOP",
+            "the recovery transaction is not the final event in copy A",
+        )
+    prefix_a = snapshot_a.ordered_events[:-1]
+    if has_b:
+        _require_equal_snapshots(snapshot_a, snapshot_b)
+        if snapshot_b.ordered_events[-1]["transaction_id"] != transaction_id:
+            raise D02R2RegistryError(
+                "REGISTRY_INCONSISTENT_STOP",
+                "the recovery transaction is not the final event in copy B",
+            )
+        return prefix_a
+    if snapshot_b.ordered_events != prefix_a:
+        raise D02R2RegistryError(
+            "REGISTRY_INCONSISTENT_STOP",
+            "copy B is not the exact common prefix before the recovery transaction",
+        )
+    return prefix_a
 
 
 def _derive_registry_recovery_state(
@@ -2244,20 +2303,43 @@ def _validate_committed_history(
     snapshot_b: RegistrySnapshot,
 ) -> None:
     _require_equal_snapshots(snapshot_a, snapshot_b)
+    _validate_committed_prefix(
+        root,
+        root_receipt,
+        snapshot_a.ordered_events,
+        allowed_incomplete_transaction_id=None,
+    )
+
+
+def _validate_committed_prefix(
+    root: Path,
+    root_receipt: Mapping[str, JsonValue],
+    ordered_events: Sequence[JsonObject],
+    *,
+    allowed_incomplete_transaction_id: str | None,
+) -> None:
     _validate_recovery_receipts(root, root_receipt)
     expected_transaction_ids = {
         _require_string(event["transaction_id"], "snapshot transaction ID")
-        for event in snapshot_a.ordered_events
+        for event in ordered_events
     }
     observed_intents = _control_transaction_ids(root, "CONTROL_REGISTRY_INTENTS")
     observed_commits = _control_transaction_ids(root, "CONTROL_REGISTRY_COMMITS")
-    if observed_intents != expected_transaction_ids or observed_commits != expected_transaction_ids:
+    allowed_transaction_ids = set(expected_transaction_ids)
+    if allowed_incomplete_transaction_id is not None:
+        allowed_transaction_ids.add(allowed_incomplete_transaction_id)
+    if (
+        not expected_transaction_ids.issubset(observed_intents)
+        or not expected_transaction_ids.issubset(observed_commits)
+        or not observed_intents.issubset(allowed_transaction_ids)
+        or not observed_commits.issubset(allowed_transaction_ids)
+    ):
         raise D02R2RegistryError(
             "REGISTRY_RECOVERY_REQUIRED",
-            "registry rows, intents, and commit receipts are not a complete equal set",
+            "committed prefix and allowed recovery controls are not a complete bounded set",
         )
     prefix: list[JsonObject] = []
-    for projection in snapshot_a.ordered_events:
+    for projection in ordered_events:
         output_id = _require_string(projection["output_id"], "snapshot output ID")
         transaction_id = _require_string(projection["transaction_id"], "snapshot transaction ID")
         name_receipt, seal_receipt = _resolve_output_receipts(
