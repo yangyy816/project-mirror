@@ -6,13 +6,22 @@
 CHANGE_CONTROL_ID: P3_P7_D02_CC_05
 TRACK: DEMO_PROTOTYPE
 PLAN_VERSION: P3_P7_ALGORITHMIC_PROTOTYPE_PLATFORM_PLAN_V1_1
-STATUS: PRINCIPAL_ACCEPTED_FOR_BOUNDED_IMPLEMENTATION
+STATUS: PRINCIPAL_ACCEPTED
 BASE_SHA: 7f439661775c091143c98984492bd15c0b2f4a84
+IMPLEMENTATION_SHA: f2d990b98aafe9982af4b8ff184b80a282ce43a9
+IMPLEMENTATION_PARENT: 06bc215f6a82998541982859a64ef2a0ae9d5d43
+IMPLEMENTATION_TREE: a3cfa43db1a74950e759a4da3a0f5ac1e2b2d18d
 INDEPENDENT_SOL_REVIEW: PASS_FOR_EXACT_BLOB
+INDEPENDENT_SOL_EXACT_SHA_REVIEW: PASS
+INDEPENDENT_SOL_FINDINGS_P0_P1_P2_P3: 0/0/0/0
 IMPLEMENTATION_AUTHORIZED: YES
 REVIEWED_CONTRACT_BLOB_SHA256: f2760c25f654843614a3aceb7ea9ae849216b4546cb2929db346eb3863bbe111
+CANDIDATE_SAME_SHA_CI_RUN: 32811852086
+CANDIDATE_SAME_SHA_CI_JOBS: 3_PASS
 DISCOVERY: D02_PRIVATE_SOURCE_AUTHORITY_MAPPING
-D02_PRIVATE_SCREENING: CLOSED_PENDING_CC05_IMPLEMENTATION_ACCEPTANCE
+D02_CC05_IMPLEMENTATION_CHECKPOINT: TASK_ACCEPTED
+D02_PRIVATE_SNAPSHOT_AND_REGISTRY: NOT_EXECUTED
+D02_PRIVATE_SCREENING: EXECUTION_READY_AFTER_ACCEPTANCE_CHECKPOINT_CI
 D02_TASK_ACCEPTED: NO
 D03: BLOCKED
 FORMAL_PHASE_AUTHORITY: FALSE
@@ -651,6 +660,35 @@ PRIVATE_SNAPSHOT_FILE_DIGEST_VERIFIED
 PRIVATE_REGISTRY_RECORD_VERIFIED
 TRACKED_INDEX_HAS_NO_PRIVATE_FIELD
 ```
+
+## Acceptance evidence
+
+The Integration Principal accepts exact implementation
+`f2d990b98aafe9982af4b8ff184b80a282ce43a9` only. No private snapshot, registry record, tracked redacted index,
+identity, Report, QuestionBank or QuestionPair was created as part of this implementation checkpoint.
+
+- exact candidate tree `a3cfa43db1a74950e759a4da3a0f5ac1e2b2d18d` contains only the accepted pure authority,
+  branch-local migration/ORM, tests and CI head updates;
+- complete local pure D02 authority, ORM/PostgreSQL parity and all migration-head-affected invariant suites: `PASS`;
+- exact-SHA CC05 core replay/alias/parity/lifecycle subset after commit: `29 PASS`;
+- fresh PostgreSQL `fresh -> demo_0007 -> base -> demo_0007 -> base -> demo_0007`, Alembic single-head/check and
+  schema drift: `PASS`;
+- Ruff format/check, strict mypy for 134 source files, staged Gitleaks and private-path/byte filename scans: `PASS`;
+- independent Sol High exact-SHA review: `PASS`, findings `P0/P1/P2/P3 = 0/0/0/0`; and
+- same-SHA CI run `32811852086`: quality/integration, Docker validation and secret scan all `PASS`; complete Python
+  result `1388 passed, 1 skipped` and Playwright `5 passed`.
+
+`PRIVATE_SNAPSHOT_FILE_DIGEST_VERIFIED`, `PRIVATE_REGISTRY_RECORD_VERIFIED` and
+`TRACKED_INDEX_HAS_NO_PRIVATE_FIELD` remain `NOT_EXECUTED` until the Principal performs the next private recovery
+step. They are not implied by accepting the filesystem-free implementation.
+
+## Exit rule
+
+The CC05 implementation checkpoint is `TASK_ACCEPTED`. Principal-only private snapshot recovery remains paused until
+this acceptance-state commit passes its own same-SHA CI. After that, recovery may resume only through the accepted
+D00 registry/receipt and exact legacy database chain; disk discovery and private locator propagation remain forbidden.
+This checkpoint does not accept D02, open D03, create formal QA authority, change formal P3–P7 status or authorize
+production use.
 
 ## Stop rules
 

@@ -621,3 +621,12 @@
   exact-SHA review `PASS`、零 finding，same-SHA run `32790891669` 三 jobs 全绿（Python 1359 pass/1
   optional skip，Playwright 5 pass）。Principal 接受 CC04 authority checkpoint；只在 acceptance checkpoint CI 后
   恢复 Principal-only offline private screening，完整 D02、D03、formal P3–P7 与 production release 仍未开放。
+
+- 2026-08-25：D02 CC05 exact implementation `f2d990b98aafe9982af4b8ff184b80a282ce43a9` 新增独立
+  `mirror.demo/RecoveredLegacySyntheticQASnapshot/v1` private payload、envelope及redacted four-entry index纯函数
+  authority，并以 `demo_0007_d02_recovered_qa` 对 local-v3 `source_qa_snapshot_digest` 与全部异类型authority
+  强制NULL-safe分离；未伪造pre-0012 `subject_kind/transform_run_id`，未创建formal compatibility row或private
+  bytes。独立Sol exact-SHA review `PASS`且零finding，same-SHA run `32811852086`三jobs全绿（Python 1388
+  pass/1 optional skip，Playwright 5 pass）。Principal仅接受CC05 implementation checkpoint；四份private
+  snapshot、registry/index replay、真实4-source/48-case screening、完整D02、D03、formal P3–P7与production release
+  继续关闭，须待acceptance-state commit CI后由Principal-only custody恢复。
