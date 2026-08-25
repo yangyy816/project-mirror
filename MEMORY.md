@@ -639,6 +639,14 @@
   仅接受纯 authority correction；private snapshot/index、完整 D02、D03、formal P3–P7 与 production release
   继续关闭，须待 acceptance-state commit CI 后才恢复 Principal-only custody recovery。
 
+- 2026-08-25：D02 CC07 disposition candidate `cbab07d47a312954a728f8706e4312400553304f` 经独立 Sol
+  authority review `PASS` 且零 finding，same-SHA run `32832083746` 三 jobs 成功，五项 artifacts 均存在且未过期。对已知
+  2026-08-23/24 task receipts 和三个标准 custody namespace 的一次有界恢复未找回四项 exact D00 per-item
+  registry binding；仅有名称、历史 27-row 摘要和 shared receipt digest，不能替代可消费 registry row/bytes。
+  Principal 记录 `EVIDENCE_LOCATION_LOST` 与 `NO_GO_CRITICAL_DEPENDENCY_UNAVAILABLE`，未创建 private snapshot、
+  identity、Report、QuestionBank 或 QuestionPair。历史 D00 acceptance 不回写；D02 不接受、D03 及传递依赖保持
+  blocked。只有原 accepted task-scoped D00 receipt/registry 重新可用且逐项 replay 通过时才可前向重开。
+
 - Docker `--network none` 只隔离容器运行网络，不阻止 Docker daemon 在启动前拉取缺失镜像。任何声明
   `PUBLIC_INTERNET_EGRESS_DISABLED` 的离线 Gate 命令必须同时使用本地已验证镜像与 `--pull=never`；若发生
   未预注册 pull，该命令必须作废并单独披露，不能作为 offline core evidence。
