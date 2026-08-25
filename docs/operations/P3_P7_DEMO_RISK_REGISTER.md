@@ -21,9 +21,15 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 - **Early signal:** registry miss, stale custody, missing byte size, digest mismatch or a request to scan storage.
 - **P:** append-only registry, exact receipt/digest/size/authority, downstream retention check before cleanup.
 - **D:** D00 and each consuming task resolve opaque IDs and reverify digest before execution.
-- **R:** one pre-registered bounded recovery from accepted receipt/recipe; nondeterministic bytes receive a new authority ID.
-- **S:** D00 cannot GO; D03/D04/D05 stop. Never ask Owner to recreate Principal-owned output or broad-scan disks.
-- **Owner / status / blocked:** Principal / `MITIGATED_MONITORED` / D03, D04, D05.
+- **R:** the one pre-registered receipt/task-owned-root recovery was exhausted on 2026-08-25. Reopen only if the original
+  accepted D00 task-scoped registry/receipt becomes available; a new authority ID cannot replace the lost historical
+  binding.
+- **S:** current dependency recheck is `NO_GO_CRITICAL_DEPENDENCY_UNAVAILABLE`; D02 private recovery and every dependent
+  DAG node stop. Never ask Owner to recreate Principal-owned output or broad-scan disks.
+- **Incident evidence:** the bounded audit covered 239 known prior receipt files and 9,922 actual tool outputs. Five
+  outputs named all four targets, but zero contained the required per-item digest/byte-size/authority/custody binding or
+  a resolvable registry reference. Three known standard custody namespaces also had zero exact registry matches.
+- **Owner / status / blocked:** Principal / `TRIGGERED` / D02, D03, D04-B, D05, D06, D07-B, D08, D10, D11, D12.
 
 ## R-DEMO-02 — M4 private geometry runtime cannot load
 
