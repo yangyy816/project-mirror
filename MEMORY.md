@@ -610,3 +610,14 @@
   Python 1348 pass/1 existing optional skip）。Principal 接受 branch-local `demo_0005_d02_quality_auth` persistence
   checkpoint，并在 acceptance checkpoint CI 后只开放 Principal-custodied offline private screening；真实4-source/
   48-case结果、selected 16-pair bank、完整D02、D03、formal P3–P7与production release继续关闭。
+
+- 2026-08-25：D02 private-screening custody preflight 发现 pure measurement 错将 accepted opaque
+  registry output ID 限制为 32-hex，且 local v3 admission 未冻结 config preimage。CC04 exact implementation
+  `d335c53110f891eb037486d8f987c9346a76ce83` 统一 output-ID grammar 为
+  `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`，禁止 alias；冻结
+  `mirror.demo/D02LocalSyntheticAdmissionConfiguration/v1` 及 digest
+  `ef87c397af7db78211a6d2440f0cb3eef4214080f5117ff7be89b6400b663b21`，并以 branch-local
+  `demo_0006_d02_private_exec` 对 local-v3 ADMIT/REVOKE 做 Python/ORM/PostgreSQL fail-closed 约束。独立 Sol
+  exact-SHA review `PASS`、零 finding，same-SHA run `32790891669` 三 jobs 全绿（Python 1359 pass/1
+  optional skip，Playwright 5 pass）。Principal 接受 CC04 authority checkpoint；只在 acceptance checkpoint CI 后
+  恢复 Principal-only offline private screening，完整 D02、D03、formal P3–P7 与 production release 仍未开放。

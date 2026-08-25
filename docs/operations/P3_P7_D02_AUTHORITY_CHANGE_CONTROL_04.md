@@ -6,11 +6,19 @@
 CHANGE_CONTROL_ID: P3_P7_D02_CC_04
 TRACK: DEMO_PROTOTYPE
 PLAN_VERSION: P3_P7_ALGORITHMIC_PROTOTYPE_PLATFORM_PLAN_V1_1
-STATUS: PRINCIPAL_IMPLEMENTATION_CANDIDATE
+STATUS: PRINCIPAL_ACCEPTED
 BASE_SHA: dc43bc1acc793b6a9c74942147414d744662f70f
+IMPLEMENTATION_SHA: d335c53110f891eb037486d8f987c9346a76ce83
+IMPLEMENTATION_PARENT: dc43bc1acc793b6a9c74942147414d744662f70f
+IMPLEMENTATION_TREE: b34d918e0d6dd8f2e7e1e179d5008d0dc717b221
+INDEPENDENT_SOL_EXACT_SHA_REVIEW: PASS
+INDEPENDENT_SOL_FINDINGS_P0_P1_P2_P3: 0/0/0/0
+CANDIDATE_SAME_SHA_CI_RUN: 32790891669
+CANDIDATE_SAME_SHA_CI_JOBS: 3_PASS
 DISCOVERY: D02_PRIVATE_SCREENING_CUSTODY_PREFLIGHT
 D02_PERSISTENCE: TASK_ACCEPTED_AT_BASE
-D02_PRIVATE_SCREENING: PAUSED_PENDING_CC04_ACCEPTANCE
+D02_CC04_AUTHORITY_CHECKPOINT: TASK_ACCEPTED
+D02_PRIVATE_SCREENING: EXECUTION_READY_AFTER_ACCEPTANCE_CHECKPOINT_CI
 D02_TASK_ACCEPTED: NO
 D03: BLOCKED
 FORMAL_PHASE_AUTHORITY: FALSE
@@ -130,9 +138,26 @@ independent exact-SHA review
 same-SHA CI
 ```
 
+## Acceptance evidence
+
+The Integration Principal accepts exact implementation
+`d335c53110f891eb037486d8f987c9346a76ce83` only. Its tree is byte-identical to the normalized Git archive used for
+the complete local validation, and the public remote still identified as the previously evidenced
+`yangyy816/project-mirror` repository before push.
+
+- exact-archive pure D02 measurement/authority tests: `362 PASS`;
+- exact-archive PostgreSQL/ORM review subset: `35 PASS`, including a separately constructed wrong-config upgrade
+  audit attack;
+- Principal exact-archive schema/invariant suites, fresh upgrade, empty round trip, populated downgrade refusal and
+  direct-SQL rejection: `PASS`;
+- complete local API + Worker + PostgreSQL + Redis/Celery regression: `PASS` with only explicit optional skips;
+- Ruff format/check, strict mypy for 134 source files, Alembic single-head/check and Gitleaks: `PASS`;
+- independent Sol High exact-SHA review: `PASS`, findings `P0/P1/P2/P3 = 0/0/0/0`; and
+- same-SHA CI run `32790891669`: quality/integration, Docker validation and secret scan all `PASS`; complete Python
+  result `1359 passed, 1 skipped` and Playwright `5 passed`.
+
 ## Exit rule
 
-Only the Integration Principal may accept this checkpoint. Until local validation, independent review and same-SHA CI
-all pass, real source-graph construction remains paused and no private Report/import is permitted. Acceptance opens
-the previously authorized Principal-only private screening; it does not accept D02, open D03, change formal P3–P7
-status or authorize production use.
+CC04 is `TASK_ACCEPTED`. Real source-graph construction remains paused only until this acceptance-state commit passes
+its own same-SHA CI; after that, the previously authorized Principal-only offline private screening may resume. This
+checkpoint does not accept D02, open D03, change formal P3–P7 status or authorize production use.
