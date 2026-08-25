@@ -7,4 +7,5 @@ pnpm-lock.yaml
 packages/contracts/openapi.json
 packages/contracts/src/schema.ts
 docs/research/P2_M5_CC02_DIAGNOSTIC_MANIFEST.json
+docs/operations/P3_P7_D02_R2_REGISTRY_IMPLEMENTATION_ACCEPTANCE.json
 pytest-cache-files-*/
