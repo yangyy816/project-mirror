@@ -3327,10 +3327,23 @@ def _is_within_casefolded(candidate: str, parent: str) -> bool:
     return candidate == normalized_parent or candidate.startswith(normalized_parent + separator)
 
 
+def _windows_last_error() -> int:
+    get_last_error = getattr(ctypes, "get_last_error", None)
+    if not callable(get_last_error):
+        _fail_root("Windows last-error API is unavailable")
+    value = get_last_error()
+    if not isinstance(value, int) or isinstance(value, bool):
+        _fail_root("Windows last-error API returned an invalid value")
+    return value
+
+
 def _validate_windows_fixed_drive(path: Path) -> None:
     from ctypes import wintypes
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    win_dll = getattr(ctypes, "WinDLL", None)
+    if not callable(win_dll):
+        _fail_root("Windows DLL loader is unavailable")
+    kernel32 = win_dll("kernel32", use_last_error=True)
     get_drive_type = kernel32.GetDriveTypeW
     get_drive_type.argtypes = [wintypes.LPCWSTR]
     get_drive_type.restype = wintypes.UINT
@@ -3479,7 +3492,10 @@ def _sync_directory(path: Path) -> None:
 def _sync_directory_windows(path: Path) -> None:
     from ctypes import wintypes
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    win_dll = getattr(ctypes, "WinDLL", None)
+    if not callable(win_dll):
+        _fail_root("Windows DLL loader is unavailable")
+    kernel32 = win_dll("kernel32", use_last_error=True)
     create_file = kernel32.CreateFileW
     create_file.argtypes = [
         wintypes.LPCWSTR,
@@ -3508,13 +3524,13 @@ def _sync_directory_windows(path: Path) -> None:
     )
     invalid_handle = ctypes.c_void_p(-1).value
     if handle == invalid_handle:
-        raise OSError(ctypes.get_last_error(), "CreateFileW failed for directory durability")
+        raise OSError(_windows_last_error(), "CreateFileW failed for directory durability")
     try:
         if not flush_file_buffers(handle):
-            raise OSError(ctypes.get_last_error(), "FlushFileBuffers failed for directory")
+            raise OSError(_windows_last_error(), "FlushFileBuffers failed for directory")
     finally:
         if not close_handle(handle):
-            raise OSError(ctypes.get_last_error(), "CloseHandle failed for directory")
+            raise OSError(_windows_last_error(), "CloseHandle failed for directory")
 
 
 def _require_no_sqlite_sidecars(path: Path) -> None:
@@ -3563,7 +3579,10 @@ def _root_creation_mutex(parent: Path) -> Iterator[None]:
 def _windows_named_mutex() -> Iterator[None]:
     from ctypes import wintypes
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    win_dll = getattr(ctypes, "WinDLL", None)
+    if not callable(win_dll):
+        _fail_root("Windows DLL loader is unavailable")
+    kernel32 = win_dll("kernel32", use_last_error=True)
     create_mutex = kernel32.CreateMutexW
     create_mutex.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
     create_mutex.restype = wintypes.HANDLE
@@ -3579,17 +3598,17 @@ def _windows_named_mutex() -> Iterator[None]:
     name = "Local\\ProjectMirrorD02R2_" + hashlib.sha256(EVIDENCE_ROOT_ID.encode()).hexdigest()
     handle = create_mutex(None, False, name)
     if not handle:
-        raise OSError(ctypes.get_last_error(), "CreateMutexW failed")
+        raise OSError(_windows_last_error(), "CreateMutexW failed")
     try:
         wait_result = wait_for_single_object(handle, 0xFFFFFFFF)
         if wait_result not in {0x00000000, 0x00000080}:
-            raise OSError(ctypes.get_last_error(), "WaitForSingleObject failed")
+            raise OSError(_windows_last_error(), "WaitForSingleObject failed")
         yield
     finally:
         if not release_mutex(handle):
-            raise OSError(ctypes.get_last_error(), "ReleaseMutex failed")
+            raise OSError(_windows_last_error(), "ReleaseMutex failed")
         if not close_handle(handle):
-            raise OSError(ctypes.get_last_error(), "CloseHandle failed")
+            raise OSError(_windows_last_error(), "CloseHandle failed")
 
 
 def _validate_authority(authority: RootReceiptAuthority) -> None:
