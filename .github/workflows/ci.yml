@@ -399,17 +399,28 @@ jobs:
           GITLEAKS_VERSION: v8.28.0
         run: |
           set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/gitleaks"
           test "$(docker run --rm "$GITLEAKS_IMAGE" version)" = "$GITLEAKS_VERSION"
           docker run --rm --network none \
             -v "$GITHUB_WORKSPACE:/repo:ro" \
+            -v "$RUNNER_TEMP/gitleaks:/evidence" \
             -w /repo \
             "$GITLEAKS_IMAGE" \
             git /repo \
             --config /repo/.gitleaks.toml \
             --log-opts="--all" \
             --no-banner \
+            --report-format sarif \
+            --report-path /evidence/gitleaks-results.sarif \
             --redact \
             --verbose
+      - name: Upload Gitleaks results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-results.sarif
+          path: ${{ runner.temp }}/gitleaks/gitleaks-results.sarif
+          if-no-files-found: error
 
   docker-validation:
     runs-on: ubuntu-latest
