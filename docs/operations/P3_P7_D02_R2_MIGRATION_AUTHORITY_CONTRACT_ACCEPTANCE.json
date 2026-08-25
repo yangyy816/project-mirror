@@ -1,0 +1,52 @@
+{
+  "accepted_contract_sha": "edac1e8ca1f98b269b9ff496cb2d62d56ac262b2",
+  "accepted_contract_tree": "011cc55bf89407fb021846918d1df8dbd351dfec",
+  "accepted_scope": "D02_R2_MIGRATION_ORM_IMPLEMENTATION_CONTRACT_ONLY",
+  "authority_id": "P3_P7_D02_R2_MIGRATION_AUTHORITY_CONTRACT_ACCEPTANCE_01",
+  "change_control_id": "P3_P7_D02_CC_08",
+  "contract_blob_oid": "1933d92da89bc3fa8e606d2b207daa4af84dd4c4",
+  "contract_file_sha256": "c472e9e5f7475f49e8a98f2b477997bfb761db9acd5f4d650b01923094d9d800",
+  "contract_id": "P3_P7_D02_R2_MIGRATION_AUTHORITY_IMPLEMENTATION_CONTRACT_01",
+  "cross_layer_authority_disposition": "PYTHON_FULL_PRIVATE_G_A_Q_P_REPLAY_POSTGRESQL_ALL_PROJECTABLE_INVARIANTS",
+  "evidence_root_id": "P3_P7_D02_R2_CC08_E1_EVIDENCE_ROOT",
+  "generation_calls_authorized": 0,
+  "independent_review": {
+    "findings_p0": 0,
+    "findings_p1": 0,
+    "findings_p2": 0,
+    "findings_p3": 0,
+    "result": "PASS",
+    "review_task_id": "P3_P7_D02_R2_MIGRATION_CONTRACT_EXACT_SHA_REVIEW_01",
+    "reviewed_sha": "edac1e8ca1f98b269b9ff496cb2d62d56ac262b2"
+  },
+  "principal_acceptance": {
+    "acceptance_authority_digest": "9aa7d5b067ffcd4a4997896409aac61cff21cc3b0b4a83883387aa178b90d46f",
+    "accepted_at_utc": "2026-08-25T20:32:03.176Z",
+    "status": "PRINCIPAL_ACCEPTED_FOR_IMPLEMENTATION_DISPATCH"
+  },
+  "prohibited_scope": [
+    "SOURCE_GENERATION",
+    "PRIVATE_RUNTIME_EXECUTION",
+    "REAL_D02_R2_EVIDENCE_ADMISSION",
+    "D02_R2_TASK_ACCEPTANCE",
+    "D03_OR_DOWNSTREAM_OPENING",
+    "FORMAL_PHASE_AUTHORITY",
+    "PRODUCTION_RELEASE"
+  ],
+  "record_created_at_utc": "2026-08-25T20:32:03.176Z",
+  "record_digest": "9954d9e91a041f9db94ca069ce618eac36f869d7017b09e55faa786736aa062a",
+  "root_name_receipt_digest": "c3ae43887d51d15347153e392ca092866dff890bdcda959572cc1dd07e6195c4",
+  "same_sha_ci": {
+    "head_sha": "edac1e8ca1f98b269b9ff496cb2d62d56ac262b2",
+    "provider": "GITHUB_ACTIONS",
+    "required_jobs": [
+      "quality-and-integration",
+      "secret-scan",
+      "docker-validation"
+    ],
+    "result": "PASS",
+    "run_id": 32893974112,
+    "workflow_identity": ".github/workflows/ci.yml"
+  },
+  "schema_version": "mirror.demo/D02R2MigrationAuthorityContractAcceptance/v1"
+}
