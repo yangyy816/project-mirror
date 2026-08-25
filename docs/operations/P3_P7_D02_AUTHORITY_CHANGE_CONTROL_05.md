@@ -36,14 +36,14 @@ facts → identity → source manifest → case → report authority graph.
 
 ## Frozen field mapping
 
-| D02 field | Accepted authority |
-|---|---|
-| `source_receipt_digest` | Exact D00 private holdout input receipt content digest. |
-| `source_authority_digest` | The tracked P2-M3 per-item `authority_binding_digest`, treated only as an opaque source-local authority root. |
-| `qa_policy_digest` | The approved P2-M3 QA policy content digest; the executed-input payload digest is forbidden. |
-| `source_qa_snapshot_digest` | Digest of `mirror.demo/RecoveredLegacySyntheticQASnapshot/v1` defined below. |
-| `source_provenance_digest` | The matching legacy `offline_synthetic_source_admissions.admission_evidence_digest`. |
-| `adult_synthetic_attested` | Exact `true` from the joined legacy canonical identity and accepted QA authority. |
+| D02 field                   | Accepted authority                                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `source_receipt_digest`     | Exact D00 private holdout input receipt content digest.                                                       |
+| `source_authority_digest`   | The tracked P2-M3 per-item `authority_binding_digest`, treated only as an opaque source-local authority root. |
+| `qa_policy_digest`          | The approved P2-M3 QA policy content digest; the executed-input payload digest is forbidden.                  |
+| `source_qa_snapshot_digest` | Digest of `mirror.demo/RecoveredLegacySyntheticQASnapshot/v1` defined below.                                  |
+| `source_provenance_digest`  | The matching legacy `offline_synthetic_source_admissions.admission_evidence_digest`.                          |
+| `adult_synthetic_attested`  | Exact `true` from the joined legacy canonical identity and accepted QA authority.                             |
 
 The batch-level P2 authority digest is not a per-source substitute. `source_authority_digest` is opaque and
 non-recomputable from the tracked redacted document; it is not a QA snapshot digest and must never be relabelled as one.
@@ -254,18 +254,18 @@ exactly one, and the final joined relation must have `COUNT(*) = 1`; no implied 
 
 The exact legacy nodes and relational equalities are:
 
-| Authority node | Mandatory condition |
-|---|---|
-| `offline_synthetic_source_admissions admission` | `admission.item_reference` equals the exact D00/tracked `item_reference`; `source_kind = 'CODEX_NATIVE_IMAGEGEN'`, `synthetic_only IS TRUE`, and `real_person_reference_used IS FALSE`. |
-| `synthetic_source_objects source` | `source.schema_version = 'mirror.synthetic-dataset/SyntheticSourceObject/v2'`, `source.offline_admission_id = admission.id`, and both `source.generation_item_id` and `source.job_attempt_id` are null. |
-| Raw-source byte binding | `source.storage_reference = admission.storage_reference`, `source.sha256 = admission.sha256`, `source.media_type = admission.media_type`, `source.byte_size = admission.byte_size`, `source.width = admission.width`, `source.height = admission.height`, and `source.retention_expires_at = admission.retention_expires_at`. |
-| `synthetic_asset_records asset_record` | `asset_record.source_object_id = source.id`, `asset_record.normalized_asset_id = normalized_asset.id`, and `asset_record.status = 'IDENTITY_REGISTERED'`. |
-| `assets normalized_asset` | `normalized_asset.sha256` equals the frozen normalized source SHA; `owner_user_id IS NULL`, `asset_role = 'synthetic'`, `internal_purpose = 'synthetic_dataset'`, `synthetic IS TRUE`, and `deleted_at IS NULL`. |
-| `synthetic_qa_runs qa_run` | `qa_run.synthetic_asset_record_id = asset_record.id`, `qa_run.normalized_asset_id = normalized_asset.id`, `qa_run.status = 'PASSED'`, `qa_run.result_code IS NULL`, and both authority timestamps are non-null. |
-| `synthetic_qa_policies qa_policy` | `qa_run.qa_policy_id = qa_policy.id`, `qa_policy.approval_status = 'APPROVED'`, and `qa_policy.approved_at IS NOT NULL`. |
-| `synthetic_identities identity` | `identity.authority_kind = 'CANONICAL_QA'`, `identity.bank_version_id IS NULL`, `identity.canonical_asset_id = normalized_asset.id`, `identity.accepted_qa_run_id = qa_run.id`, and `identity.adult_synthetic_attested IS TRUE`. |
-| Measurements | Exactly nine rows, every `measurement.qa_run_id = qa_run.id`, one row per exact required code, every `hard_gate IS TRUE`, and every `threshold_outcome = 'PASSED'`. |
-| Reviews | Exactly six rows, every `review.qa_run_id = qa_run.id`, one row per exact required kind, and every `decision = 'PASSED'`. |
+| Authority node                                  | Mandatory condition                                                                                                                                                                                                                                                                                                           |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `offline_synthetic_source_admissions admission` | `admission.item_reference` equals the exact D00/tracked `item_reference`; `source_kind = 'CODEX_NATIVE_IMAGEGEN'`, `synthetic_only IS TRUE`, and `real_person_reference_used IS FALSE`.                                                                                                                                       |
+| `synthetic_source_objects source`               | `source.schema_version = 'mirror.synthetic-dataset/SyntheticSourceObject/v2'`, `source.offline_admission_id = admission.id`, and both `source.generation_item_id` and `source.job_attempt_id` are null.                                                                                                                       |
+| Raw-source byte binding                         | `source.storage_reference = admission.storage_reference`, `source.sha256 = admission.sha256`, `source.media_type = admission.media_type`, `source.byte_size = admission.byte_size`, `source.width = admission.width`, `source.height = admission.height`, and `source.retention_expires_at = admission.retention_expires_at`. |
+| `synthetic_asset_records asset_record`          | `asset_record.source_object_id = source.id`, `asset_record.normalized_asset_id = normalized_asset.id`, and `asset_record.status = 'IDENTITY_REGISTERED'`.                                                                                                                                                                     |
+| `assets normalized_asset`                       | `normalized_asset.sha256` equals the frozen normalized source SHA; `owner_user_id IS NULL`, `asset_role = 'synthetic'`, `internal_purpose = 'synthetic_dataset'`, `synthetic IS TRUE`, and `deleted_at IS NULL`.                                                                                                              |
+| `synthetic_qa_runs qa_run`                      | `qa_run.synthetic_asset_record_id = asset_record.id`, `qa_run.normalized_asset_id = normalized_asset.id`, `qa_run.status = 'PASSED'`, `qa_run.result_code IS NULL`, and both authority timestamps are non-null.                                                                                                               |
+| `synthetic_qa_policies qa_policy`               | `qa_run.qa_policy_id = qa_policy.id`, `qa_policy.approval_status = 'APPROVED'`, and `qa_policy.approved_at IS NOT NULL`.                                                                                                                                                                                                      |
+| `synthetic_identities identity`                 | `identity.authority_kind = 'CANONICAL_QA'`, `identity.bank_version_id IS NULL`, `identity.canonical_asset_id = normalized_asset.id`, `identity.accepted_qa_run_id = qa_run.id`, and `identity.adult_synthetic_attested IS TRUE`.                                                                                              |
+| Measurements                                    | Exactly nine rows, every `measurement.qa_run_id = qa_run.id`, one row per exact required code, every `hard_gate IS TRUE`, and every `threshold_outcome = 'PASSED'`.                                                                                                                                                           |
+| Reviews                                         | Exactly six rows, every `review.qa_run_id = qa_run.id`, one row per exact required kind, and every `decision = 'PASSED'`.                                                                                                                                                                                                     |
 
 The raw source and normalized source are different authority layers. `admission.sha256` and `source.sha256` must equal
 each other, but they must not be asserted equal to `normalized_asset.sha256`; normalization is linked only by
@@ -481,21 +481,21 @@ source_fact_snapshot_digest
 
 The exact PostgreSQL representation of that authority set is:
 
-| Typed authority | PostgreSQL representation |
-|---|---|
-| Source Asset SHA | column `formal_canonical_asset_sha256`; JSON path `source_fact_snapshot ->> 'source_asset_sha256'` |
-| Source receipt | column `source_receipt_digest`; JSON path `source_fact_snapshot ->> 'source_receipt_digest'` |
-| Opaque source authority | column `source_authority_digest`; JSON path `source_fact_snapshot ->> 'source_authority_digest'` |
-| QA policy | JSON path `source_fact_snapshot ->> 'qa_policy_digest'` |
-| Landmark | column `source_landmark_digest`; JSON path `source_fact_snapshot ->> 'source_landmark_digest'` |
-| Measurement observation | column `source_measurement_digest`; JSON paths `source_fact_snapshot ->> 'source_measurement_digest'` and `source_fact_snapshot ->> 'source_measurement_observation_digest'` |
-| Source provenance | column `source_provenance_digest`; JSON path `source_fact_snapshot ->> 'source_provenance_digest'` |
-| Morphology projection | column `source_measurement_projection_digest`; JSON path `source_fact_snapshot ->> 'source_measurement_projection_digest'` |
-| Raw measurement authority | JSON path `source_fact_snapshot ->> 'raw_measurement_authority_digest'` |
-| Repeat certificate | JSON path `source_fact_snapshot ->> 'source_repeat_certification_digest'` |
-| P2 candidate manifest | JSON path `source_fact_snapshot ->> 'source_p2_candidate_manifest_content_digest'` |
-| Dimension authority manifest | JSON path `source_fact_snapshot ->> 'dimension_authority_manifest_content_digest'` |
-| Facts snapshot | column `source_fact_snapshot_digest` |
+| Typed authority              | PostgreSQL representation                                                                                                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source Asset SHA             | column `formal_canonical_asset_sha256`; JSON path `source_fact_snapshot ->> 'source_asset_sha256'`                                                                           |
+| Source receipt               | column `source_receipt_digest`; JSON path `source_fact_snapshot ->> 'source_receipt_digest'`                                                                                 |
+| Opaque source authority      | column `source_authority_digest`; JSON path `source_fact_snapshot ->> 'source_authority_digest'`                                                                             |
+| QA policy                    | JSON path `source_fact_snapshot ->> 'qa_policy_digest'`                                                                                                                      |
+| Landmark                     | column `source_landmark_digest`; JSON path `source_fact_snapshot ->> 'source_landmark_digest'`                                                                               |
+| Measurement observation      | column `source_measurement_digest`; JSON paths `source_fact_snapshot ->> 'source_measurement_digest'` and `source_fact_snapshot ->> 'source_measurement_observation_digest'` |
+| Source provenance            | column `source_provenance_digest`; JSON path `source_fact_snapshot ->> 'source_provenance_digest'`                                                                           |
+| Morphology projection        | column `source_measurement_projection_digest`; JSON path `source_fact_snapshot ->> 'source_measurement_projection_digest'`                                                   |
+| Raw measurement authority    | JSON path `source_fact_snapshot ->> 'raw_measurement_authority_digest'`                                                                                                      |
+| Repeat certificate           | JSON path `source_fact_snapshot ->> 'source_repeat_certification_digest'`                                                                                                    |
+| P2 candidate manifest        | JSON path `source_fact_snapshot ->> 'source_p2_candidate_manifest_content_digest'`                                                                                           |
+| Dimension authority manifest | JSON path `source_fact_snapshot ->> 'dimension_authority_manifest_content_digest'`                                                                                           |
+| Facts snapshot               | column `source_fact_snapshot_digest`                                                                                                                                         |
 
 Applicability is exactly a `mirror.demo/DemoSyntheticIdentity/v3` row whose generated
 `source_authority_kind = 'DEMO_LOCAL_IMPORTED_COPY'`. The migration and ORM constraint name is
