@@ -12,3 +12,14 @@ commits = ["192610b5f8289d288aa2787561aeb09a861f9a8a"]
 paths = ['''^services/api/tests/test_ingestion_dispatch\.py$''']
 regexTarget = "match"
 regexes = ['''idempotency_key="coordinator-key-2"''']
+
+# P3-P7-CI-R01: Gitleaks 8.28.0 classifies this historical public OpenAPI
+# contract digest as a generic key.  The next commit renamed the evidence field;
+# keep this exception bound to the exact old commit, path, and public digest.
+[[allowlists]]
+description = "Historical readiness OpenAPI digest false positive in 1c127dc"
+condition = "AND"
+commits = ["1c127dcf5ff3ce3d497eae9c2740d06714e988bf"]
+paths = ['''^docs/operations/P2_M8_M9_READINESS\.md$''']
+regexTarget = "match"
+regexes = ['''READINESS_CANDIDATE_OPENAPI_SHA256: a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841''']
