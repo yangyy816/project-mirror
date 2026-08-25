@@ -659,3 +659,13 @@
   diff 独立 Sol review PASS/零 finding；提交 `4297156c4e5f7190cccfb4180576e34445352461` 的 same-SHA run
   `32841447986` 三 jobs 全绿、五项 artifacts 存在且未过期。D02 仍为
   `NO_GO_CRITICAL_DEPENDENCY_UNAVAILABLE`，D03 及传递依赖、formal P3–P7 与 production release 均未开放。
+
+- 2026-08-25：D02 forward-only change control `P3_P7_D02_CC_08` 的 revision 5 经独立 Sol exact-byte review
+  `PASS` 且零 finding，接受基线 `218f4b5a5ee4e6e2223995d232da61496dd47de3` 的 same-SHA run
+  `32865068842` 三 jobs 与五 artifacts 全绿。旧 CC07 继续保持 `EVIDENCE_LOCATION_LOST` /
+  `NO_GO_CRITICAL_DEPENDENCY_UNAVAILABLE` / `OLD_D00_RECOVERY: CLOSED_NO_NEW_LEAD`；新 R2 只建立独立、
+  forward-only、synthetic-only authority。所有 private execution evidence 只能进入 public root ID
+  `P3_P7_D02_R2_CC08_E1_EVIDENCE_ROOT` 对应的单一 Git 外 root，首文件固定为
+  `D02_R2_EVIDENCE_ROOT_NAME_RECEIPT.json`；绝对 locator 仍只在 Principal custody。当前只开放
+  Principal-owned root-receipt/two-copy-registry implementation；在其独立审查与 same-SHA acceptance 前，
+  root creation、generation、M3/M4、migration、PostgreSQL admission、D03/D04-B/D07-B 均继续关闭。
