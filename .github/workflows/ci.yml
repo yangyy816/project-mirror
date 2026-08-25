@@ -55,6 +55,9 @@ jobs:
       DEMO_PROTOTYPE_TRACK: ${{ (github.ref == 'refs/heads/codex/p3-p7-core-demo') || (github.event_name == 'pull_request' && github.head_ref == 'codex/p3-p7-core-demo') }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Registry authority tests replay the accepted CC08 plan ancestor locally.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: 3.13.1
