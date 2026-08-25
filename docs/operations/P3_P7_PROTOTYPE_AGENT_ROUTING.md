@@ -3,9 +3,9 @@
 ## Authority and current evidence
 
 ```text
-ROUTING_VERSION: p3-p7-prototype-agent-routing-v1
+ROUTING_VERSION: p3-p7-prototype-agent-routing-v1.1-api-acceptance-amended
 TRACK: DEMO_PROTOTYPE
-STATUS: ACCEPTED_FOR_D01_A
+STATUS: ACCEPTED_WITH_CC_P3_P7_DEMO_API_08
 LOGICAL_MAIN_PROCESS_ROLE: TERRA_HIGH_PRINCIPAL
 REQUESTED_MODEL: gpt-5.6-terra
 REQUESTED_REASONING_EFFORT: high
@@ -66,23 +66,24 @@ Do not default to Ultra reasoning. Do not generate tasks merely to meet a model-
 
 ## D00–D12 routing matrix
 
-| Task    | Principal-owned integration                      | Bounded roles                                               | Independent review                                 |
-| ------- | ------------------------------------------------ | ----------------------------------------------------------- | -------------------------------------------------- |
-| D00     | decision, registry, network/custody              | Terra High runtime; Luna evidence                           | Sol architecture                                   |
-| D01-A   | ADR/contract/routing/manifest                    | Luna evidence if needed                                     | Sol architecture                                   |
-| D01-B   | schema disposition, migration/models integration | Data or Terra High single writer; Test                      | Sol schema authority                               |
-| D01-C   | OpenAPI/client integration                       | Backend; Test; Luna codegen evidence                        | Sol contract                                       |
-| D02     | private custody and bank acceptance              | Terra High; Luna matrix; Test                               | Principal boundary                                 |
-| D03     | Worker registration and P3 integration           | Terra High runtime; Backend; Test                           | Sol authority                                      |
-| D04-A/B | frozen math and P4 integration                   | Terra High; Test; Luna numerical matrix                     | separate Sol math review                           |
-| D05     | P5 semantics integration                         | Terra High; Backend; Test                                   | Sol semantics                                      |
-| D06     | cross-domain self-transfer                       | Terra High; Test; Security                                  | Sol Reference Profile                              |
-| D07-A/B | Operation Graph/editor/Worker                    | Terra High; Backend raster; Test; Luna matrix               | Sol graph review                                   |
-| D08     | planner/registry/verifier                        | Terra High; Backend; Test; Luna capability matrix           | Sol tool contract                                  |
-| D09     | event authority and integration                  | Terra High single ledger writer; Test; Luna matrix          | separate Sol authority review                      |
-| D10     | compiler semantics/integration                   | Terra High; Backend; Test; Luna rebuild matrix              | separate Sol determinism review                    |
-| D11     | Web integration after API freeze                 | one Frontend owner; Backend repair; Test; Luna; Spark micro | Security boundary                                  |
-| D12     | final evidence and decision                      | Test; Luna evidence; Security                               | Sol final; second Sol only for unresolved conflict |
+| Task     | Principal-owned integration                       | Bounded roles                                               | Independent review                                 |
+| -------- | ------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------- |
+| D00      | decision, registry, network/custody               | Terra High runtime; Luna evidence                           | Sol architecture                                   |
+| D01-A    | ADR/contract/routing/manifest                     | Luna evidence if needed                                     | Sol architecture                                   |
+| D01-B    | schema disposition, migration/models integration  | Data or Terra High single writer; Test                      | Sol schema authority                               |
+| D01-C    | contract skeleton/OpenAPI/client authority        | Backend; Test; Luna codegen evidence                        | Sol contract                                       |
+| D02      | private custody and bank acceptance               | Terra High; Luna matrix; Test                               | Principal boundary                                 |
+| D03      | Worker registration and P3 integration            | Terra High runtime; Backend; Test                           | Sol authority                                      |
+| D04-A/B  | frozen math and P4 integration                    | Terra High; Test; Luna numerical matrix                     | separate Sol math review                           |
+| D05      | P5 semantics integration                          | Terra High; Backend; Test                                   | Sol semantics                                      |
+| D06      | cross-domain self-transfer                        | Terra High; Test; Security                                  | Sol Reference Profile                              |
+| D07-A/B  | Operation Graph/editor/Worker                     | Terra High; Backend raster; Test; Luna matrix               | Sol graph review                                   |
+| D08      | planner/registry/verifier                         | Terra High; Backend; Test; Luna capability matrix           | Sol tool contract                                  |
+| D09      | ledger and Final Save domain provider             | Terra High single ledger writer; Test; Luna matrix          | separate Sol authority review                      |
+| D10      | compiler semantics/integration                    | Terra High; Backend; Test; Luna rebuild matrix              | separate Sol determinism review                    |
+| API Gate | central router/Job lifecycle/contract integration | Principal wiring; Backend/Test evidence; Luna matrix        | independent Sol integrated-contract review         |
+| D11      | Web integration after API freeze                  | one Frontend owner; Backend repair; Test; Luna; Spark micro | Security boundary                                  |
+| D12      | final evidence and decision                       | Test; Luna evidence; Security                               | Sol final; second Sol only for unresolved conflict |
 
 The same Sol context may not be both the sole specification author and sole independent reviewer. Worker PASS is
 evidence; Principal inspects the actual diff, reruns critical validation and decides `TASK_ACCEPTED`, repair or reject.
@@ -104,7 +105,7 @@ Principal can review them promptly.
 Reference: <https://developers.openai.com/codex/config-reference>
 
 No two Agents may concurrently modify migration, central ORM, OpenAPI, generated TypeScript, Celery registration,
-Agent registry, private registry, MEMORY, the same Web page, the same compiler or acceptance state.
+central Demo router, Agent registry, private registry, MEMORY, the same Web page, the same compiler or acceptance state.
 
 `CAN_DELEGATE=false` is mandatory in every packet. It is an explicit authority/stop rule enforced by Principal review;
 unless the runtime separately proves tool removal, the document does not claim a physical nested-delegation sandbox.
@@ -116,9 +117,11 @@ Principal retains:
 ```text
 CENTRAL_MIGRATION_OWNER
 CENTRAL_ORM_INTEGRATOR
+CENTRAL_DEMO_ROUTER_OWNER
 CENTRAL_OPENAPI_OWNER
 CENTRAL_GENERATED_CLIENT_OWNER
 CENTRAL_CELERY_REGISTRATION_OWNER
+CENTRAL_JOB_LIFECYCLE_INTEGRATION_OWNER
 CENTRAL_AGENT_REGISTRY_OWNER
 CENTRAL_PRIVATE_INPUT_REGISTRY_OWNER
 CENTRAL_MEMORY_OWNER
@@ -128,6 +131,25 @@ CENTRAL_GIT_COMMIT_OWNER
 
 Sub-agents may modify only explicitly owned files, run tests and propose evidence. They do not commit, push, deploy,
 write MEMORY, mutate Gate state or expand architecture.
+
+## Provider and central route ownership
+
+`CC-P3-P7-DEMO-API-08` freezes two mandatory layers:
+
+1. A D02–D10 topic provider owns only its domain/application behavior, transaction semantics, state transitions, typed
+   errors and provider-level tests.
+2. The Integration Principal alone owns `services/api/src/mirror_api/routers/demo.py`, cross-domain authorization/error
+   mapping, central Celery registration, OpenAPI, generated TypeScript and capability-state promotion.
+
+A topic `TASK_ACCEPTED` can advance its route cohort only from `CONTRACT_ONLY_501` to
+`DOMAIN_READY_ROUTE_PENDING`. It cannot modify the central files, return public success, flip capability availability or
+claim contract completion.
+
+After all required D03–D10 checkpoints are accepted, the Principal executes the non-D-task
+`DEMO_API_APPLICATION_INTEGRATION` checkpoint. It centrally implements generic Job query/cancel and the shared Job
+state mapping, wires all provider cohorts, verifies all 23 operations and 14 creating-operation idempotency authorities,
+and proves PostgreSQL/Redis/Celery execution under denied public egress. Only its `TASK_ACCEPTED` result opens
+`DEMO_API_CONTRACT_FREEZE`; only the freeze opens D11.
 
 ## Required bounded-task packet
 

@@ -3,10 +3,12 @@
 ## Contract status
 
 ```text
-CONTRACT_VERSION: p3-p7-demo-fast-track-v1.1
+CONTRACT_VERSION: p3-p7-demo-fast-track-v1.1-api-acceptance-amended
 PLAN_VERSION: P3_P7_ALGORITHMIC_PROTOTYPE_PLATFORM_PLAN_V1_1
 TRACK: DEMO_PROTOTYPE
 STATUS: ACCEPTED
+CC_P3_P7_DEMO_API_08_STATUS: PRINCIPAL_ACCEPTED_FOR_TRACKED_EVIDENCE
+CC_P3_P7_DEMO_API_08_INDEPENDENT_SOL_ARCHITECTURE_REVIEW: PASS
 CC_P3_P7_DEMO_D09_01_STATUS: PRINCIPAL_ACCEPTED
 CC_P3_P7_DEMO_D09_01_SCHEMA_DISPOSITION: NO_CHANGE
 CC_P3_P7_DEMO_D09_01_INDEPENDENT_SOL_REVIEW: PASS_FOR_3a93575
@@ -19,8 +21,15 @@ CC_P3_P7_DEMO_D09_02_INDEPENDENT_SOL_REVIEW: PASS_FOR_5c2dfff
 D00_STATUS: GO
 D01_A_STATUS: TASK_ACCEPTED
 D01_B_STATUS: TASK_ACCEPTED_CC02
-D01_C_STATUS: EXECUTION_READY
-D02_D12_STATUS: NOT_STARTED
+D01_C_STATUS: TASK_ACCEPTED
+D02_STATUS: BLOCKED_NO_GO_CRITICAL_DEPENDENCY_UNAVAILABLE
+D04_A_STATUS: TASK_ACCEPTED
+D07_A_STATUS: TASK_ACCEPTED
+D09_STATUS: TASK_ACCEPTED_LEDGER_AND_FINAL_SAVE_DOMAIN
+DEMO_API_APPLICATION_INTEGRATION_STATUS: CLOSED_DEPENDENCY_GATED
+DEMO_API_CONTRACT_FREEZE_STATUS: NOT_READY
+D11_STATUS: NOT_READY
+D12_STATUS: NOT_VERIFIED
 PRODUCTION_RELEASE: NOT_AUTHORIZED
 ```
 
@@ -279,8 +288,35 @@ Populated evidence downgrade fails closed at every prototype revision.
 ### D01-C — API contract skeleton
 
 Implement all schemas/routes as real contracts, `x-demo-only`, idempotency/job/status contracts, OpenAPI and generated
-TypeScript. Principal is the only OpenAPI/client integrator. Routes may remain 501 until their owning D03–D10 task is
-implemented; D11 waits for `DEMO_API_CONTRACT_FREEZE`.
+TypeScript. Principal is the only OpenAPI/client integrator. Routes may remain 501 until their D02–D10 provider
+checkpoint, or the central Job lifecycle provider where applicable, is implemented and the central route adapter is
+accepted. D01-C accepts the contract skeleton and idempotency authorities; it does not accept generic Job query/cancel
+application behavior or any later provider's public route implementation. D11 waits for
+`DEMO_API_CONTRACT_FREEZE`.
+
+### Forward API acceptance boundary
+
+`CC-P3-P7-DEMO-API-08` preserves historical D01-C and D09 acceptance while separating provider acceptance from public
+route completion. Every operation has two mandatory owners:
+
+1. Its D02–D10 provider supplies accepted domain/application behavior, transaction semantics, state transitions, typed
+   errors and provider-level tests.
+2. The Integration Principal alone owns central Demo router wiring, cross-domain authorization/error mapping, generic
+   Job lifecycle integration, Celery registration, OpenAPI and generated-client regeneration.
+
+Provider acceptance advances a route only to `DOMAIN_READY_ROUTE_PENDING`:
+
+```text
+CONTRACT_ONLY_501
+-> DOMAIN_READY_ROUTE_PENDING
+-> ROUTE_INTEGRATED_NOT_FROZEN
+-> CONTRACT_FROZEN
+```
+
+`GET /jobs/{job_id}` and `POST /jobs/{job_id}/cancel` are implemented only by the central
+`DEMO_API_APPLICATION_INTEGRATION/JOB_LIFECYCLE` provider. D01-C retains the accepted schemas,
+`demo_job_binding`, `demo_command_binding` and idempotency authorities; it is not the semantic implementation owner of
+those routes. A capability cannot leave `NOT_IMPLEMENTED` merely because its pure domain task is accepted.
 
 ### Demo CI evidence isolation
 
@@ -319,7 +355,11 @@ D02 + D03 + D07-A + D00 M4 Gate -> D07-B
 D05 + D07-B + D09 -> D06
 D05 + D07-B -> D08
 D05 + D06 + D09 -> D10
-D03-D10 accepted -> DEMO_API_CONTRACT_FREEZE -> D11 -> D12
+D03-D10 required checkpoints accepted
+-> DEMO_API_APPLICATION_INTEGRATION
+-> DEMO_API_CONTRACT_FREEZE
+-> D11
+-> D12
 ```
 
 Principal plus at most two active sub-agents; normal limit is one. Two are allowed only for ready, independently
@@ -328,6 +368,25 @@ registration, Agent registry, private registry, MEMORY, a Web page, compiler or 
 
 Every packet includes `CAN_DELEGATE=false`. Worker output is evidence only; Principal inspects actual diff and reruns
 critical validation. D00, D01-A, D01-B, D04, D09, D10 and D12 require independent review.
+
+### Demo API application-integration Gate
+
+This is a non-D-task checkpoint. It opens only after D03, D04-B, D05, D06, D07-B, D08, D09 and D10 are
+`TASK_ACCEPTED`, the D02 private Gate is accepted and replayable, the migration head is exact/single and the integration
+worktree is clean. It must prove all 23 operations are wired to real owner-bound application paths, all 14 creating
+operations use the accepted PostgreSQL idempotency authorities, generic Job query/cancel and the legal state machine
+work, Worker redelivery is non-duplicating, D09 feedback/Final Save adapters preserve their semantic distinction, and
+the real PostgreSQL/Redis/Celery path runs with `PUBLIC_INTERNET_EGRESS: DENIED`.
+
+Fixed Makeup and Generative Editor unavailable semantics remain truthful capability results and are not counted as
+missing core route implementations.
+
+### Demo API contract-freeze Gate
+
+`DEMO_API_CONTRACT_FREEZE` cannot open until `DEMO_API_APPLICATION_INTEGRATION: TASK_ACCEPTED`. Freeze additionally
+requires the 23-operation OpenAPI matrix, `x-demo-only` on 23/23 operations, generated-client freshness, zero OpenAPI
+drift, error-envelope parity, truthful capability states, schema/route/application parity, same-SHA CI and independent
+Sol review. Freeze authorizes D11 to consume the Demo contract only; it is not D12 or formal/production acceptance.
 
 ## Private custody
 

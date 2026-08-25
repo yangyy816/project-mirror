@@ -3,7 +3,7 @@
 ## Register authority
 
 ```text
-REGISTER_VERSION: p3-p7-demo-risk-register-v1.1-network-amended
+REGISTER_VERSION: p3-p7-demo-risk-register-v1.1-api-acceptance-amended
 TRACK: DEMO_PROTOTYPE
 OWNER: TERRA_HIGH_PRINCIPAL
 REVIEW_CADENCE: every D checkpoint and immediately after a trigger
@@ -220,17 +220,26 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 ## R-DEMO-18 — API contract churn blocks Web integration
 
 - **Probability / impact:** High / High
-- **Description:** parallel D03–D10 route/schema changes repeatedly invalidate OpenAPI, generated client and D11.
-- **Early signal:** multiple generated-client writers, unexplained OpenAPI drift, D11 works against unpublished local types.
-- **P:** D01-C complete skeleton, source-only contract edits and a single Principal codegen integrator.
-- **D:** OpenAPI diff/drift and generated-client freshness at every API task acceptance.
-- **R:** serialize regeneration and repair callers; freeze only after D03–D10 contracts are Principal accepted.
-- **S:** D11 cannot start before `DEMO_API_CONTRACT_FREEZE`.
-- **Current evidence:** D01-C now freezes the complete 23-operation skeleton at `3523d61`, with one OpenAPI/codegen
-  integrator, zero regeneration drift, generated TypeScript freshness/typecheck and exact-SHA CI PASS. D03–D10 may
-  only implement within this authority or return to Principal change control; this is not the later API freeze.
-- **Owner / status / blocked:** Principal + Web owner / `MITIGATED_MONITORED` / D11 remains blocked until
-  `DEMO_API_CONTRACT_FREEZE`.
+- **Description:** parallel D03–D10 route/schema changes repeatedly invalidate OpenAPI, generated client and D11, or a
+  pure domain `TASK_ACCEPTED` is mistaken for completed route/application integration and truthful capability support.
+- **Early signal:** multiple router/generated-client writers, unexplained OpenAPI drift, D11 works against unpublished
+  local types, a provider-owned route remains 501 after its domain task is accepted, or capability availability changes
+  without owner-bound application and Worker evidence.
+- **P:** D01-C complete skeleton, source-only provider edits, a single Principal router/codegen integrator and the
+  explicit non-D-task `DEMO_API_APPLICATION_INTEGRATION` checkpoint before contract freeze.
+- **D:** the 23-operation provider/central/state matrix, route-501 inventory, capability-cohort truth check, OpenAPI
+  diff/drift and generated-client freshness at every API acceptance boundary.
+- **R:** apply `CC-P3-P7-DEMO-API-08` forward-only, keep historical domain acceptance scoped, serialize central wiring
+  and regeneration, repair callers, then independently review application integration and exact contract bytes.
+- **S:** no capability may leave `NOT_IMPLEMENTED` from domain acceptance alone; D11 cannot start until
+  `DEMO_API_APPLICATION_INTEGRATION: TASK_ACCEPTED` and `DEMO_API_CONTRACT_FREEZE` both pass.
+- **Current evidence:** D01-C freezes the complete 23-operation skeleton at `3523d61`, with one OpenAPI/codegen
+  integrator, zero regeneration drift, generated TypeScript freshness/typecheck and exact-SHA CI PASS. D09 is accepted
+  for ledger/Final Save domain only while its two public adapters remain 501; generic Job GET/cancel also remains a
+  D01-C contract skeleton. `CC-P3-P7-DEMO-API-08` inserts central application integration before freeze without
+  reopening either historical acceptance or D02.
+- **Owner / status / blocked:** Principal + Web owner / `MITIGATED_MONITORED` /
+  `DEMO_API_APPLICATION_INTEGRATION` and D11; D02 transitive blocker remains independently active.
 
 ## R-DEMO-19 — Hidden public runtime dependency in deterministic core
 
