@@ -1626,7 +1626,6 @@ def validate_recovered_legacy_qa_snapshot_index(value: object) -> Mapping[str, A
     for key in (
         "source_output_id",
         "source_asset_sha256",
-        "source_receipt_digest",
         "source_authority_digest",
         "source_provenance_digest",
         "private_snapshot_output_id",
@@ -1635,6 +1634,8 @@ def validate_recovered_legacy_qa_snapshot_index(value: object) -> Mapping[str, A
     ):
         if len({entry[key] for entry in entries}) != 4:
             _fail(f"recovered legacy QA index {key} must be unique")
+    if len({entry["source_receipt_digest"] for entry in entries}) != 1:
+        _fail("recovered legacy QA index must share exactly one source receipt digest")
     _require_digest_match(
         RECOVERED_LEGACY_QA_INDEX_SCHEMA,
         document,

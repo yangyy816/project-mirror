@@ -1531,6 +1531,9 @@ def test_source_m3_certificate_repeat_and_observation_crosslinks() -> None:
 
 def test_recovered_legacy_qa_snapshot_envelope_and_redacted_index_replay() -> None:
     entries: list[dict[str, Any]] = []
+    batch_receipt_digest = mirror_demo_digest(
+        "mirror.test/RecoveredLegacyBatchReceipt/v1", {"source_count": 4}
+    )
     for marker in ("a", "b", "c", "d"):
         source_asset_sha256 = mirror_demo_digest(
             "mirror.test/RecoveredLegacySourceAsset/v1", {"marker": marker}
@@ -1543,9 +1546,7 @@ def test_recovered_legacy_qa_snapshot_envelope_and_redacted_index_replay() -> No
             source_output_id=f"D00-M3-ASSET-v01-{marker}",
             source_asset_id=source_asset_id,
             source_asset_sha256=source_asset_sha256,
-            source_receipt_digest=mirror_demo_digest(
-                "mirror.test/RecoveredLegacyReceipt/v1", {"marker": marker}
-            ),
+            source_receipt_digest=batch_receipt_digest,
             source_authority_digest=mirror_demo_digest(
                 "mirror.test/RecoveredLegacyAuthority/v1", {"marker": marker}
             ),
@@ -1579,6 +1580,19 @@ def test_recovered_legacy_qa_snapshot_envelope_and_redacted_index_replay() -> No
 
     index = build_recovered_legacy_qa_snapshot_index(list(reversed(entries)))
     assert validate_recovered_legacy_qa_snapshot_index(index) == index
+    index_entries = cast(list[dict[str, object]], index["entries"])
+    for unique_key in (
+        "item_reference",
+        "source_output_id",
+        "source_asset_sha256",
+        "source_authority_digest",
+        "source_provenance_digest",
+        "private_snapshot_output_id",
+        "private_snapshot_file_sha256",
+        "source_qa_snapshot_digest",
+    ):
+        assert len({entry[unique_key] for entry in index_entries}) == 4
+    assert {entry["source_receipt_digest"] for entry in index_entries} == {batch_receipt_digest}
     assert index == build_recovered_legacy_qa_snapshot_index(
         cast(list[dict[str, object]], index["entries"])
     )
@@ -1596,6 +1610,60 @@ def test_recovered_legacy_qa_snapshot_envelope_and_redacted_index_replay() -> No
         "prompt",
     ):
         assert private_field not in encoded_index.lower()
+
+
+def test_recovered_legacy_qa_index_rejects_second_receipt_after_full_resign() -> None:
+    batch_receipt_digest = mirror_demo_digest(
+        "mirror.test/RecoveredLegacyBatchReceipt/v1", {"source_count": 4}
+    )
+    entries: list[dict[str, Any]] = []
+    for marker in ("a", "b", "c", "d"):
+        snapshot = _recovered_qa_snapshot_fixture(
+            marker=marker,
+            source_output_id=f"D00-M3-ASSET-v01-{marker}",
+            source_asset_id=_identifier(marker),
+            source_asset_sha256=mirror_demo_digest(
+                "mirror.test/RecoveredLegacySourceAsset/v1", {"marker": marker}
+            ),
+            source_receipt_digest=batch_receipt_digest,
+            source_authority_digest=mirror_demo_digest(
+                "mirror.test/RecoveredLegacyAuthority/v1", {"marker": marker}
+            ),
+            source_provenance_digest=mirror_demo_digest(
+                "mirror.test/RecoveredLegacyProvenance/v1", {"marker": marker}
+            ),
+        )
+        entries.append(
+            cast(
+                dict[str, Any],
+                build_recovered_legacy_qa_index_entry(
+                    item_reference=f"category-{marker}-02",
+                    private_snapshot_output_id=f"D02-CC05-SNAPSHOT-{marker}",
+                    snapshot_envelope=build_recovered_legacy_qa_snapshot_envelope(snapshot),
+                ),
+            )
+        )
+    forged_index = cast(dict[str, Any], build_recovered_legacy_qa_snapshot_index(entries))
+    forged_entry = cast(list[dict[str, Any]], forged_index["entries"])[0]
+    forged_entry["source_receipt_digest"] = mirror_demo_digest(
+        "mirror.test/RecoveredLegacyBatchReceipt/v1", {"source_count": 3}
+    )
+    forged_entry["record_digest"] = mirror_demo_digest(
+        d02_authority.RECOVERED_LEGACY_QA_INDEX_ENTRY_SCHEMA,
+        {key: value for key, value in forged_entry.items() if key != "record_digest"},
+    )
+    assert d02_authority.validate_recovered_legacy_qa_index_entry(forged_entry) == forged_entry
+    forged_index["content_digest"] = mirror_demo_digest(
+        d02_authority.RECOVERED_LEGACY_QA_INDEX_SCHEMA,
+        {
+            key: value
+            for key, value in forged_index.items()
+            if key not in {"schema_version", "content_digest"}
+        },
+    )
+
+    with pytest.raises(D02AuthorityError, match="must share exactly one source receipt digest"):
+        validate_recovered_legacy_qa_snapshot_index(forged_index)
 
 
 @pytest.mark.parametrize(
