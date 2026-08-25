@@ -630,3 +630,15 @@
   pass/1 optional skip，Playwright 5 pass）。Principal仅接受CC05 implementation checkpoint；四份private
   snapshot、registry/index replay、真实4-source/48-case screening、完整D02、D03、formal P3–P7与production release
   继续关闭，须待acceptance-state commit CI后由Principal-only custody恢复。
+
+- 2026-08-25：D02 CC06 exact implementation `e8dea452837410e2322cb9145e2178ec26a3b026` 前向修正 CC05
+  的 batch-receipt cardinality 矛盾：四个 recovered source snapshot 必须共享唯一 accepted D00 batch receipt
+  content digest；只从 index uniqueness set 移除 `source_receipt_digest`，并强制其 distinct-value cardinality
+  恰为 1，其余 source/private authority 唯一性与全部 digest preimage/version 不变。两轮独立 Sol 审查均 PASS、
+  零 finding，same-SHA run `32819929887` 三 jobs 全绿（Python 1389 pass/1 skip，Playwright 5 pass）。CC06
+  仅接受纯 authority correction；private snapshot/index、完整 D02、D03、formal P3–P7 与 production release
+  继续关闭，须待 acceptance-state commit CI 后才恢复 Principal-only custody recovery。
+
+- Docker `--network none` 只隔离容器运行网络，不阻止 Docker daemon 在启动前拉取缺失镜像。任何声明
+  `PUBLIC_INTERNET_EGRESS_DISABLED` 的离线 Gate 命令必须同时使用本地已验证镜像与 `--pull=never`；若发生
+  未预注册 pull，该命令必须作废并单独披露，不能作为 offline core evidence。

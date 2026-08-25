@@ -6,7 +6,7 @@
 CHANGE_CONTROL_ID: P3_P7_D02_CC_06
 TRACK: DEMO_PROTOTYPE
 PLAN_VERSION: P3_P7_ALGORITHMIC_PROTOTYPE_PLATFORM_PLAN_V1_1
-STATUS: PRINCIPAL_ACCEPTED_FOR_IMPLEMENTATION
+STATUS: PRINCIPAL_ACCEPTED
 BASE_SHA: b985d29232e07c962530f4ce85675e61b591b72f
 DISCOVERY: CC05_BATCH_RECEIPT_CARDINALITY_CONTRADICTION
 SUPERSEDES: CC05_INDEX_SOURCE_RECEIPT_DIGEST_UNIQUENESS_ONLY
@@ -15,8 +15,16 @@ INDEPENDENT_SOL_CONTRACT_REVIEW: PASS
 INDEPENDENT_SOL_FINDINGS_P0_P1_P2_P3: 0/0/0/0
 REVIEWED_CONTRACT_BLOB_SHA256: 61a98c58baf7db69772345d185086e531471aaa5030956f2a57e77a75de95eb9
 IMPLEMENTATION_AUTHORIZED: YES
-IMPLEMENTATION_STATUS: CANDIDATE_PENDING_EXACT_SHA_REVIEW
-PRIVATE_SNAPSHOT_RECOVERY: PAUSED
+IMPLEMENTATION_STATUS: TASK_ACCEPTED
+IMPLEMENTATION_SHA: e8dea452837410e2322cb9145e2178ec26a3b026
+IMPLEMENTATION_PARENT: b985d29232e07c962530f4ce85675e61b591b72f
+IMPLEMENTATION_TREE: 192f3ddd744452c0315d32da15e87be9161308ae
+INDEPENDENT_SOL_EXACT_SHA_REVIEW: PASS
+INDEPENDENT_SOL_EXACT_SHA_FINDINGS_P0_P1_P2_P3: 0/0/0/0
+CANDIDATE_SAME_SHA_CI_RUN: 32819929887
+CANDIDATE_SAME_SHA_CI_JOBS: 3_PASS
+CC06_IMPLEMENTATION_CHECKPOINT: TASK_ACCEPTED
+PRIVATE_SNAPSHOT_RECOVERY: PAUSED_PENDING_ACCEPTANCE_CHECKPOINT_CI
 D02_PRIVATE_SCREENING: BLOCKED
 D02_TASK_ACCEPTED: NO
 D03: BLOCKED
@@ -222,6 +230,37 @@ CC06 exact contract
 ```
 
 No private snapshot generation may overlap contract review, implementation or same-SHA acceptance.
+
+## Acceptance evidence
+
+The Integration Principal accepts exact implementation
+`e8dea452837410e2322cb9145e2178ec26a3b026` only. The implementation changes the CC06 contract plus the two authorized
+Python files; it creates no migration, ORM, API, router, generated client, Celery registration, private snapshot,
+registry record, tracked redacted index, identity, Report, QuestionBank or QuestionPair.
+
+- parent `b985d29232e07c962530f4ce85675e61b591b72f` and tree
+  `192f3ddd744452c0315d32da15e87be9161308ae` replay exactly;
+- exact Git-archive CC06 success and full-resign negative tests: `2 PASS`;
+- exact Git-archive complete D02 authority tests: `322 PASS`;
+- Ruff format/check, strict mypy for the two changed Python files, Prettier and `git diff --check`: `PASS`;
+- exact Git-archive Gitleaks directory scan: approximately 8.18 MB scanned, zero leaks;
+- independent Sol High exact-SHA review: `PASS`, findings `P0/P1/P2/P3 = 0/0/0/0`;
+- same-SHA CI run `32819929887`: quality/integration, Docker validation and secret scan all `PASS`;
+- CI Python result: `1389 passed, 1 skipped`; strict mypy: `134 source files` with no issue;
+- CI focused Phase 1/P2-M1/P2-M2/P2-M3 results: `1/98/52/46 PASS`;
+- CI TypeScript result: `54 PASS`; Playwright: `5 PASS`; dependency audits: no known vulnerabilities; and
+- five unexpired artifacts bind exact candidate SHA, including project audit, Demo boundary, Docker, Playwright install
+  and Gitleaks evidence.
+
+One discarded local documentation-formatting harness omitted Docker `--pull=never`; the Docker daemon acquired the
+official `node:24.18.0-bookworm-slim` image before the `--network none` container started, and the command then failed.
+It did not execute a Demo algorithm, Provider, private input or accepted validation. It is explicitly excluded from
+offline evidence. Subsequent exact artifact validation uses already present images with `--pull=never` where image
+identity matters. CC06 does not independently claim the D00-B or D12 public-egress Gate.
+
+The CC06 implementation checkpoint is `TASK_ACCEPTED`. Principal-only private snapshot recovery remains paused until
+this acceptance-state commit passes its own same-SHA CI. This does not accept D02, open D03, create formal QA authority
+or authorize production use.
 
 ## Stop rules
 
