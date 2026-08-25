@@ -17,6 +17,9 @@ from mirror_api.demo_d02_authority import (
     LOCAL_ADMISSION_CONFIG_DIGEST,
     LOCAL_ADMISSION_CONFIG_PAYLOAD,
     LOCAL_ADMISSION_CONFIG_SCHEMA,
+    RECOVERED_LEGACY_QA_AUTHORITY_EVIDENCE_DIGEST,
+    RECOVERED_LEGACY_QA_HOLDOUT_EVIDENCE_DIGEST,
+    RECOVERED_LEGACY_QA_POLICY_CONTENT_DIGEST,
     REPORT_GROUPS,
     SCREENING_POLICY_DIGEST,
     D02AuthorityError,
@@ -34,6 +37,10 @@ from mirror_api.demo_d02_authority import (
     build_pair_screening_evidence,
     build_phash_observation_evidence,
     build_raw_measurement_authority,
+    build_recovered_legacy_qa_index_entry,
+    build_recovered_legacy_qa_snapshot,
+    build_recovered_legacy_qa_snapshot_envelope,
+    build_recovered_legacy_qa_snapshot_index,
     build_report_row,
     build_result_m3_record,
     build_schema_and_policy_binding,
@@ -48,7 +55,9 @@ from mirror_api.demo_d02_authority import (
     digest_facts,
     digest_morphology_projection,
     digest_raw_measurement_authority,
+    digest_recovered_legacy_qa_snapshot,
     digest_source_manifest,
+    recovered_legacy_qa_snapshot_file_bytes,
     validate_admit_revoke_copy,
     validate_case_manifest_entry,
     validate_complete_source_graph,
@@ -68,6 +77,9 @@ from mirror_api.demo_d02_authority import (
     validate_network_runtime_boundary,
     validate_ordered_case_manifest,
     validate_phash_observation_evidence,
+    validate_recovered_legacy_qa_snapshot,
+    validate_recovered_legacy_qa_snapshot_envelope,
+    validate_recovered_legacy_qa_snapshot_index,
     validate_report_row,
     validate_result_certificate,
     validate_result_m3_gate_cross_graph,
@@ -574,6 +586,127 @@ def _gate_from_records(
     )
 
 
+def _recovered_qa_snapshot_fixture(
+    *,
+    marker: str,
+    source_output_id: str,
+    source_asset_id: str,
+    source_asset_sha256: str,
+    source_receipt_digest: str,
+    source_authority_digest: str,
+    source_provenance_digest: str,
+) -> dict[str, Any]:
+    qa_run_id = mirror_demo_digest("mirror.test/RecoveredLegacyQARunId/v1", {"marker": marker})[:32]
+    qa_policy_id = mirror_demo_digest(
+        "mirror.test/RecoveredLegacyQAPolicyId/v1", {"marker": marker}
+    )[:32]
+    snapshot = build_recovered_legacy_qa_snapshot(
+        {
+            "legacy_authority": {
+                "alembic_head": "0011_offline_synth_source",
+                "source_schema_family": "PRE_P2_M4_SUBJECT_UNION",
+                "subject_semantics": ("PRE_0012_SYNTHETIC_ASSET_RECORD_BOUND_CANONICAL_SOURCE"),
+                "transform_semantics": "NOT_REPRESENTED_PRE_0012",
+                "formal_snapshot_compatibility": (
+                    "DISTINCT_DOMAIN_NOT_FORMAL_SYNTHETIC_QA_SNAPSHOT_V1"
+                ),
+                "canonicalization": "demo-canonical-json-v1",
+            },
+            "source_binding": {
+                "source_output_id": source_output_id,
+                "source_asset_sha256": source_asset_sha256,
+                "source_receipt_digest": source_receipt_digest,
+                "source_authority_digest": source_authority_digest,
+                "source_provenance_digest": source_provenance_digest,
+                "qa_policy_digest": RECOVERED_LEGACY_QA_POLICY_CONTENT_DIGEST,
+                "authority_evidence_document_digest": (
+                    RECOVERED_LEGACY_QA_AUTHORITY_EVIDENCE_DIGEST
+                ),
+                "holdout_evidence_document_digest": (RECOVERED_LEGACY_QA_HOLDOUT_EVIDENCE_DIGEST),
+                "original_formal_identity_id_status": ("UNKNOWN_REDACTED_NOT_RECOVERED"),
+            },
+            "identity_authority": {
+                "authority_kind": "CANONICAL_QA",
+                "canonical_asset_sha256": source_asset_sha256,
+                "accepted_qa_run_id": qa_run_id,
+                "adult_synthetic_attested": True,
+                "synthetic_only": True,
+                "real_person_reference_used": False,
+            },
+            "qa_run": {
+                "id": qa_run_id,
+                "schema_version": "mirror.synthetic-dataset/SyntheticQARun/v1",
+                "synthetic_asset_record_id": mirror_demo_digest(
+                    "mirror.test/RecoveredLegacyAssetRecordId/v1", {"marker": marker}
+                )[:32],
+                "normalized_asset_id": source_asset_id,
+                "qa_policy_id": qa_policy_id,
+                "vision_provider_reference": "private_vision_runtime",
+                "vision_algorithm_reference": "face_landmarker",
+                "status": "PASSED",
+                "result_code": None,
+                "started_at": "2026-08-18T00:00:00.000000Z",
+                "finalized_at": "2026-08-18T00:00:01.000000Z",
+            },
+            "qa_policy": {
+                "id": qa_policy_id,
+                "schema_version": "mirror.synthetic-dataset/SyntheticQAPolicy/v1",
+                "version": "synthetic-qa-v1",
+                "content_digest": RECOVERED_LEGACY_QA_POLICY_CONTENT_DIGEST,
+                "approval_status": "APPROVED",
+                "approved_at": "2026-08-17T00:00:00.000000Z",
+            },
+            "measurements": [
+                {
+                    "schema_version": ("mirror.synthetic-dataset/SyntheticQAMeasurement/v1"),
+                    "measurement_kind": "automatic_hard_gate",
+                    "measurement_code": measurement_code,
+                    "payload_digest": mirror_demo_digest(
+                        "mirror.test/RecoveredLegacyMeasurementPayload/v1",
+                        {"marker": marker, "measurement_code": measurement_code},
+                    ),
+                    "algorithm_reference": "mirror.p2-m3.synthetic-qa",
+                    "algorithm_version": "legacy-v1",
+                    "confidence_scaled_1e7": 10_000_000,
+                    "hard_gate": True,
+                    "threshold_outcome": "PASSED",
+                    "reason_code": "hard_gate_passed",
+                }
+                for measurement_code in (
+                    "bounded_coordinates",
+                    "checksum_binding",
+                    "complete_landmarks",
+                    "exactly_one_face",
+                    "face_occupancy",
+                    "frontal_pose",
+                    "platform_parity",
+                    "repeatability",
+                    "transformation_matrix",
+                )
+            ],
+            "reviews": [
+                {
+                    "schema_version": ("mirror.synthetic-dataset/SyntheticQAReviewDecision/v1"),
+                    "review_kind": review_kind,
+                    "decision": "PASSED",
+                    "reason_code": "manual_review_passed",
+                    "actor_reference": "operator:d02-test",
+                    "reviewed_at": "2026-08-18T00:00:02.000000Z",
+                }
+                for review_kind in (
+                    "adult_presentation",
+                    "background_suitability",
+                    "license_rights",
+                    "license_scope",
+                    "likeness_risk",
+                    "text_watermark",
+                )
+            ],
+        }
+    )
+    return cast(dict[str, Any], snapshot)
+
+
 def _facts_identity_manifest(
     *,
     source_ordinal: int = 1,
@@ -599,12 +732,21 @@ def _facts_identity_manifest(
     canonical_output_digest = _digest("d") if source_marker is None else _digest(source_marker)
     landmark_digest = _digest("e") if source_marker is None else _digest(source_marker)
     receipt_digest = _digest("f") if source_marker is None else _digest(source_marker)
-    metadata_digest = _digest("1") if source_marker is None else _digest(source_marker)
+    authority_marker = source_marker or "default"
+    source_receipt_digest = mirror_demo_digest(
+        "mirror.test/D02SourceReceipt/v1", {"marker": authority_marker}
+    )
+    source_authority_digest = mirror_demo_digest(
+        "mirror.test/D02OpaqueSourceAuthority/v1", {"marker": authority_marker}
+    )
+    source_provenance_digest = mirror_demo_digest(
+        "mirror.test/D02SourceProvenance/v1", {"marker": authority_marker}
+    )
     source_authority_key = derive_local_source_authority_key(
         source_output_id=source_output_id,
         source_asset_id=source_asset_id,
         source_asset_sha256=source_asset_sha256,
-        source_receipt_digest=metadata_digest,
+        source_receipt_digest=source_receipt_digest,
     )
     observation = _source_observation(
         source_output_id=source_output_id,
@@ -621,6 +763,16 @@ def _facts_identity_manifest(
         dimension_authority_manifest_content_digest=dimension_authority_manifest_digest,
     )
     projection = build_morphology_projection(raw)
+    recovered_qa_snapshot = _recovered_qa_snapshot_fixture(
+        marker=authority_marker,
+        source_output_id=source_output_id,
+        source_asset_id=source_asset_id,
+        source_asset_sha256=source_asset_sha256,
+        source_receipt_digest=source_receipt_digest,
+        source_authority_digest=source_authority_digest,
+        source_provenance_digest=source_provenance_digest,
+    )
+    source_qa_snapshot_digest = digest_recovered_legacy_qa_snapshot(recovered_qa_snapshot)
     subject = cast(dict[str, Any], observation["subject"])
     facts = cast(
         dict[str, Any],
@@ -632,13 +784,13 @@ def _facts_identity_manifest(
                 "source_asset_mime_type": "image/jpeg",
                 "source_asset_width": 1,
                 "source_asset_height": 1,
-                "source_receipt_digest": metadata_digest,
-                "source_authority_digest": metadata_digest,
-                "qa_policy_digest": metadata_digest,
-                "source_qa_snapshot_digest": metadata_digest,
+                "source_receipt_digest": source_receipt_digest,
+                "source_authority_digest": source_authority_digest,
+                "qa_policy_digest": RECOVERED_LEGACY_QA_POLICY_CONTENT_DIGEST,
+                "source_qa_snapshot_digest": source_qa_snapshot_digest,
                 "source_landmark_digest": observation["landmark_digest"],
                 "source_measurement_digest": observation["measurement_observation_digest"],
-                "source_provenance_digest": metadata_digest,
+                "source_provenance_digest": source_provenance_digest,
                 "source_measurement_projection": projection,
                 "source_measurement_projection_digest": digest_morphology_projection(projection),
                 "raw_measurement_authority": raw,
@@ -1375,6 +1527,167 @@ def test_source_m3_certificate_repeat_and_observation_crosslinks() -> None:
             facts_observation=observation,
             source_manifest_digest=manifest_digest,
         )
+
+
+def test_recovered_legacy_qa_snapshot_envelope_and_redacted_index_replay() -> None:
+    entries: list[dict[str, Any]] = []
+    for marker in ("a", "b", "c", "d"):
+        source_asset_sha256 = mirror_demo_digest(
+            "mirror.test/RecoveredLegacySourceAsset/v1", {"marker": marker}
+        )
+        source_asset_id = mirror_demo_digest(
+            "mirror.test/RecoveredLegacySourceAssetId/v1", {"marker": marker}
+        )[:32]
+        snapshot = _recovered_qa_snapshot_fixture(
+            marker=marker,
+            source_output_id=f"D00-M3-ASSET-v01-{marker}",
+            source_asset_id=source_asset_id,
+            source_asset_sha256=source_asset_sha256,
+            source_receipt_digest=mirror_demo_digest(
+                "mirror.test/RecoveredLegacyReceipt/v1", {"marker": marker}
+            ),
+            source_authority_digest=mirror_demo_digest(
+                "mirror.test/RecoveredLegacyAuthority/v1", {"marker": marker}
+            ),
+            source_provenance_digest=mirror_demo_digest(
+                "mirror.test/RecoveredLegacyProvenance/v1", {"marker": marker}
+            ),
+        )
+        assert validate_recovered_legacy_qa_snapshot(snapshot) == snapshot
+        envelope = build_recovered_legacy_qa_snapshot_envelope(snapshot)
+        assert validate_recovered_legacy_qa_snapshot_envelope(envelope) == envelope
+        assert envelope["content_digest"] == digest_recovered_legacy_qa_snapshot(snapshot)
+        private_bytes = recovered_legacy_qa_snapshot_file_bytes(envelope)
+        assert private_bytes == json.dumps(
+            envelope,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+            allow_nan=False,
+        ).encode("utf-8")
+        assert not private_bytes.endswith(b"\n")
+        entries.append(
+            cast(
+                dict[str, Any],
+                build_recovered_legacy_qa_index_entry(
+                    item_reference=f"category-{marker}-02",
+                    private_snapshot_output_id=f"D02-CC05-SNAPSHOT-{marker}",
+                    snapshot_envelope=envelope,
+                ),
+            )
+        )
+
+    index = build_recovered_legacy_qa_snapshot_index(list(reversed(entries)))
+    assert validate_recovered_legacy_qa_snapshot_index(index) == index
+    assert index == build_recovered_legacy_qa_snapshot_index(
+        cast(list[dict[str, object]], index["entries"])
+    )
+    encoded_index = json.dumps(index, sort_keys=True)
+    for private_field in (
+        "locator",
+        "absolute_path",
+        "database_row_id",
+        "canonical_payload",
+        "actor_reference",
+        "measurement_code",
+        "review_kind",
+        "storage_reference",
+        "object_key",
+        "prompt",
+    ):
+        assert private_field not in encoded_index.lower()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "extra_top_level",
+        "fabricated_subject_kind",
+        "fabricated_transform_run",
+        "legacy_semantics_drift",
+        "executed_policy_digest",
+        "measurement_order",
+        "failed_measurement",
+        "rejected_review",
+        "noncanonical_timestamp",
+    ),
+)
+def test_recovered_legacy_qa_snapshot_fails_closed(mutation: str) -> None:
+    snapshot = _recovered_qa_snapshot_fixture(
+        marker="failure",
+        source_output_id="D00-M3-ASSET-v01-failure",
+        source_asset_id=_identifier("1"),
+        source_asset_sha256=_digest("2"),
+        source_receipt_digest=_digest("3"),
+        source_authority_digest=_digest("4"),
+        source_provenance_digest=_digest("5"),
+    )
+    forged = deepcopy(snapshot)
+    if mutation == "extra_top_level":
+        forged["locator"] = "forbidden"
+    elif mutation == "fabricated_subject_kind":
+        cast(dict[str, Any], forged["qa_run"])["subject_kind"] = "CANONICAL_BASE"
+    elif mutation == "fabricated_transform_run":
+        cast(dict[str, Any], forged["qa_run"])["transform_run_id"] = None
+    elif mutation == "legacy_semantics_drift":
+        cast(dict[str, Any], forged["legacy_authority"])["subject_semantics"] = "CANONICAL_BASE"
+    elif mutation == "executed_policy_digest":
+        executed_digest = mirror_demo_digest(
+            "mirror.test/ExecutedPolicyPayload/v1", {"not": "approved-content"}
+        )
+        cast(dict[str, Any], forged["source_binding"])["qa_policy_digest"] = executed_digest
+        cast(dict[str, Any], forged["qa_policy"])["content_digest"] = executed_digest
+    elif mutation == "measurement_order":
+        measurements = cast(list[dict[str, Any]], forged["measurements"])
+        measurements[0], measurements[1] = measurements[1], measurements[0]
+    elif mutation == "failed_measurement":
+        cast(list[dict[str, Any]], forged["measurements"])[0]["threshold_outcome"] = "FAILED"
+    elif mutation == "rejected_review":
+        cast(list[dict[str, Any]], forged["reviews"])[0]["decision"] = "REJECTED"
+    elif mutation == "noncanonical_timestamp":
+        cast(dict[str, Any], forged["qa_run"])["finalized_at"] = "2026-08-18T00:00:01Z"
+    else:
+        raise AssertionError(f"unknown mutation: {mutation}")
+    with pytest.raises(D02AuthorityError):
+        validate_recovered_legacy_qa_snapshot(forged)
+
+
+@pytest.mark.parametrize(
+    "typed_authority_key",
+    (
+        "source_asset_sha256",
+        "source_receipt_digest",
+        "source_authority_digest",
+        "qa_policy_digest",
+        "source_landmark_digest",
+        "source_measurement_digest",
+        "source_provenance_digest",
+        "source_measurement_projection_digest",
+        "raw_measurement_authority_digest",
+        "source_measurement_observation_digest",
+        "source_repeat_certification_digest",
+        "source_p2_candidate_manifest_content_digest",
+        "dimension_authority_manifest_content_digest",
+    ),
+)
+def test_facts_qa_snapshot_digest_alias_fails_after_full_resign(
+    typed_authority_key: str,
+) -> None:
+    facts, identity, _ = _facts_identity_manifest()
+    forged_facts = deepcopy(facts)
+    forged_facts["source_qa_snapshot_digest"] = forged_facts[typed_authority_key]
+    with pytest.raises(D02AuthorityError, match="aliases another typed authority"):
+        validate_facts(forged_facts)
+
+    forged_identity = deepcopy(identity)
+    forged_identity["source_qa_snapshot_digest"] = forged_facts["source_qa_snapshot_digest"]
+    forged_identity["source_fact_snapshot"] = forged_facts
+    forged_identity["source_fact_snapshot_digest"] = mirror_demo_digest(
+        d02_authority.FACTS_SCHEMA, forged_facts
+    )
+    _resign_identity(forged_identity)
+    with pytest.raises(D02AuthorityError, match="aliases another typed authority"):
+        validate_identity_row(forged_identity, facts=forged_facts)
 
 
 def test_facts_v3_exact_keys_digest_and_complete_source_graph() -> None:

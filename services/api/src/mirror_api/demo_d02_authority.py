@@ -12,6 +12,7 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Any, Final, NoReturn, cast
 
@@ -84,6 +85,21 @@ LOCAL_SOURCE_AUTHORITY_KIND: Final = "DEMO_LOCAL_IMPORTED_COPY"
 UNKNOWN_FORMAL_IDENTITY_STATUS: Final = "UNKNOWN_REDACTED_NOT_RECOVERED"
 VARIANT_TYPE: Final = "demo_p3_p7_geometry_v1"
 LOCAL_ADMISSION_CONFIG_SCHEMA: Final = "mirror.demo/D02LocalSyntheticAdmissionConfiguration/v1"
+RECOVERED_LEGACY_QA_SNAPSHOT_SCHEMA: Final = "mirror.demo/RecoveredLegacySyntheticQASnapshot/v1"
+RECOVERED_LEGACY_QA_INDEX_ENTRY_SCHEMA: Final = (
+    "mirror.demo/RecoveredLegacySyntheticQASnapshotIndexEntry/v1"
+)
+RECOVERED_LEGACY_QA_INDEX_SCHEMA: Final = "mirror.demo/RecoveredLegacySyntheticQASnapshotIndex/v1"
+RECOVERED_LEGACY_QA_HEAD: Final = "0011_offline_synth_source"
+RECOVERED_LEGACY_QA_POLICY_CONTENT_DIGEST: Final = (
+    "8305cfaa25d084138fb67e93043a1e37842543a645085d19d3ef52ac8a6ce15f"
+)
+RECOVERED_LEGACY_QA_AUTHORITY_EVIDENCE_DIGEST: Final = (
+    "69dc51045487ba65299785e4a1ee7780f8ae00c08684a033596f6ec7bd7b79e6"
+)
+RECOVERED_LEGACY_QA_HOLDOUT_EVIDENCE_DIGEST: Final = (
+    "759f651662068997933f900007b31ad0265255ee4b2654fb4e682f8059baa31c"
+)
 LOCAL_ADMISSION_CONFIG_PAYLOAD: Final[dict[str, JsonValue]] = {
     "track": "DEMO_PROTOTYPE",
     "source_mode": LOCAL_SOURCE_AUTHORITY_KIND,
@@ -236,6 +252,145 @@ _FACTS_KEYS: Final = {
     "source_repeat_certification",
     "source_repeat_certification_digest",
 }
+_RECOVERED_QA_PAYLOAD_KEYS: Final = {
+    "legacy_authority",
+    "source_binding",
+    "identity_authority",
+    "qa_run",
+    "qa_policy",
+    "measurements",
+    "reviews",
+}
+_RECOVERED_QA_LEGACY_AUTHORITY_KEYS: Final = {
+    "alembic_head",
+    "source_schema_family",
+    "subject_semantics",
+    "transform_semantics",
+    "formal_snapshot_compatibility",
+    "canonicalization",
+}
+_RECOVERED_QA_SOURCE_BINDING_KEYS: Final = {
+    "source_output_id",
+    "source_asset_sha256",
+    "source_receipt_digest",
+    "source_authority_digest",
+    "source_provenance_digest",
+    "qa_policy_digest",
+    "authority_evidence_document_digest",
+    "holdout_evidence_document_digest",
+    "original_formal_identity_id_status",
+}
+_RECOVERED_QA_IDENTITY_AUTHORITY_KEYS: Final = {
+    "authority_kind",
+    "canonical_asset_sha256",
+    "accepted_qa_run_id",
+    "adult_synthetic_attested",
+    "synthetic_only",
+    "real_person_reference_used",
+}
+_RECOVERED_QA_RUN_KEYS: Final = {
+    "id",
+    "schema_version",
+    "synthetic_asset_record_id",
+    "normalized_asset_id",
+    "qa_policy_id",
+    "vision_provider_reference",
+    "vision_algorithm_reference",
+    "status",
+    "result_code",
+    "started_at",
+    "finalized_at",
+}
+_RECOVERED_QA_POLICY_KEYS: Final = {
+    "id",
+    "schema_version",
+    "version",
+    "content_digest",
+    "approval_status",
+    "approved_at",
+}
+_RECOVERED_QA_MEASUREMENT_KEYS: Final = {
+    "schema_version",
+    "measurement_kind",
+    "measurement_code",
+    "payload_digest",
+    "algorithm_reference",
+    "algorithm_version",
+    "confidence_scaled_1e7",
+    "hard_gate",
+    "threshold_outcome",
+    "reason_code",
+}
+_RECOVERED_QA_REVIEW_KEYS: Final = {
+    "schema_version",
+    "review_kind",
+    "decision",
+    "reason_code",
+    "actor_reference",
+    "reviewed_at",
+}
+_RECOVERED_QA_MEASUREMENT_CODES: Final = (
+    "bounded_coordinates",
+    "checksum_binding",
+    "complete_landmarks",
+    "exactly_one_face",
+    "face_occupancy",
+    "frontal_pose",
+    "platform_parity",
+    "repeatability",
+    "transformation_matrix",
+)
+_RECOVERED_QA_REVIEW_KINDS: Final = (
+    "adult_presentation",
+    "background_suitability",
+    "license_rights",
+    "license_scope",
+    "likeness_risk",
+    "text_watermark",
+)
+_RECOVERED_QA_ENVELOPE_KEYS: Final = {
+    "schema_version",
+    "canonical_payload",
+    "content_digest",
+}
+_RECOVERED_QA_INDEX_ENTRY_KEYS: Final = {
+    "item_reference",
+    "source_output_id",
+    "source_asset_sha256",
+    "source_receipt_digest",
+    "source_authority_digest",
+    "source_provenance_digest",
+    "qa_policy_digest",
+    "private_snapshot_output_id",
+    "private_snapshot_file_sha256",
+    "source_qa_snapshot_digest",
+    "adult_synthetic_attested",
+    "recovery_status",
+    "record_digest",
+}
+_RECOVERED_QA_INDEX_KEYS: Final = {
+    "schema_version",
+    "snapshot_schema_version",
+    "legacy_authority_head",
+    "canonicalization",
+    "entries",
+    "content_digest",
+}
+_FACTS_QA_DISTINCT_TYPED_AUTHORITY_KEYS: Final = (
+    "source_asset_sha256",
+    "source_receipt_digest",
+    "source_authority_digest",
+    "qa_policy_digest",
+    "source_landmark_digest",
+    "source_measurement_digest",
+    "source_provenance_digest",
+    "source_measurement_projection_digest",
+    "raw_measurement_authority_digest",
+    "source_measurement_observation_digest",
+    "source_repeat_certification_digest",
+    "source_p2_candidate_manifest_content_digest",
+    "dimension_authority_manifest_content_digest",
+)
 _SOURCE_ENTRY_KEYS: Final = {
     "schema_version",
     "source_ordinal",
@@ -875,6 +1030,12 @@ _FAILURE_REASONS: Final = (
 )
 _PHASH_HEX = re.compile(r"[0-9a-f]{16}$")
 _VERSION = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_AUTHORITY_TEXT = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$")
+_CANONICAL_POLICY_VERSION = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*-v[1-9][0-9]*$")
+_REASON_CODE = re.compile(r"[a-z][a-z0-9_]{2,63}$")
+_FIXED_MICROSECOND_UTC = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[.][0-9]{6}Z$"
+)
 
 
 class D02AuthorityError(ValueError):
@@ -909,6 +1070,17 @@ def _exact(value: object, keys: set[str], label: str) -> dict[str, Any]:
     return {str(key): item for key, item in cast(Mapping[str, Any], value).items()}
 
 
+def _exact_cc05(value: object, keys: set[str], label: str) -> dict[str, Any]:
+    """Enforce CC05 exact keys without changing Revision 9's frozen Boolean registry."""
+    if (
+        not isinstance(value, Mapping)
+        or any(not isinstance(key, str) for key in value)
+        or set(value) != keys
+    ):
+        _fail(f"{label} exact keys do not match")
+    return {str(key): item for key, item in cast(Mapping[str, Any], value).items()}
+
+
 def _digest(value: object, label: str) -> str:
     if not isinstance(value, str) or _DIGEST.fullmatch(value) is None:
         _fail(f"{label} must be a lowercase SHA-256 digest")
@@ -924,6 +1096,22 @@ def _id(value: object, label: str) -> str:
 def _opaque_output_id(value: object, label: str) -> str:
     if not isinstance(value, str) or _OPAQUE_OUTPUT_ID.fullmatch(value) is None:
         _fail(f"{label} must be an opaque output ID")
+    return value
+
+
+def _authority_text(value: object, label: str) -> str:
+    if not isinstance(value, str) or _AUTHORITY_TEXT.fullmatch(value) is None:
+        _fail(f"{label} must be bounded authority text")
+    return value
+
+
+def _fixed_microsecond_utc(value: object, label: str) -> str:
+    if not isinstance(value, str) or _FIXED_MICROSECOND_UTC.fullmatch(value) is None:
+        _fail(f"{label} must use fixed-microsecond UTC")
+    try:
+        datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ")
+    except ValueError as error:
+        raise D02AuthorityError(f"{label} is not a valid UTC timestamp") from error
     return value
 
 
@@ -1137,6 +1325,349 @@ def _require_digest_match(
     claimed = _digest(value.get(key), key)
     if _digest_for(schema, value, excluded | {key}) != claimed:
         _fail(f"{key} does not replay")
+
+
+def _validate_recovered_qa_measurements(value: object) -> list[Mapping[str, Any]]:
+    if not isinstance(value, list) or len(value) != len(_RECOVERED_QA_MEASUREMENT_CODES):
+        _fail("recovered legacy QA must contain exactly nine measurements")
+    result: list[Mapping[str, Any]] = []
+    for expected_code, raw_measurement in zip(_RECOVERED_QA_MEASUREMENT_CODES, value, strict=True):
+        measurement = _exact_cc05(
+            raw_measurement,
+            _RECOVERED_QA_MEASUREMENT_KEYS,
+            "recovered legacy QA measurement",
+        )
+        if (
+            measurement["schema_version"] != "mirror.synthetic-dataset/SyntheticQAMeasurement/v1"
+            or measurement["measurement_code"] != expected_code
+            or measurement["hard_gate"] is not True
+            or measurement["threshold_outcome"] != "PASSED"
+        ):
+            _fail("recovered legacy QA measurement authority is invalid")
+        _authority_text(measurement["measurement_kind"], "measurement kind")
+        _digest(measurement["payload_digest"], "measurement payload digest")
+        _authority_text(measurement["algorithm_reference"], "measurement algorithm reference")
+        if (
+            not isinstance(measurement["algorithm_version"], str)
+            or _VERSION.fullmatch(measurement["algorithm_version"]) is None
+        ):
+            _fail("measurement algorithm version is invalid")
+        confidence = measurement["confidence_scaled_1e7"]
+        if confidence is not None and (
+            type(confidence) is not int or not 0 <= int(confidence) <= 10_000_000
+        ):
+            _fail("measurement confidence_scaled_1e7 is invalid")
+        if (
+            not isinstance(measurement["reason_code"], str)
+            or _REASON_CODE.fullmatch(measurement["reason_code"]) is None
+        ):
+            _fail("measurement reason code is invalid")
+        result.append(measurement)
+    return result
+
+
+def _validate_recovered_qa_reviews(value: object) -> list[Mapping[str, Any]]:
+    if not isinstance(value, list) or len(value) != len(_RECOVERED_QA_REVIEW_KINDS):
+        _fail("recovered legacy QA must contain exactly six reviews")
+    result: list[Mapping[str, Any]] = []
+    for expected_kind, raw_review in zip(_RECOVERED_QA_REVIEW_KINDS, value, strict=True):
+        review = _exact_cc05(raw_review, _RECOVERED_QA_REVIEW_KEYS, "recovered legacy QA review")
+        if (
+            review["schema_version"] != "mirror.synthetic-dataset/SyntheticQAReviewDecision/v1"
+            or review["review_kind"] != expected_kind
+            or review["decision"] != "PASSED"
+        ):
+            _fail("recovered legacy QA review authority is invalid")
+        if (
+            not isinstance(review["reason_code"], str)
+            or _REASON_CODE.fullmatch(review["reason_code"]) is None
+        ):
+            _fail("review reason code is invalid")
+        _authority_text(review["actor_reference"], "review actor reference")
+        _fixed_microsecond_utc(review["reviewed_at"], "reviewed_at")
+        result.append(review)
+    return result
+
+
+def validate_recovered_legacy_qa_snapshot(value: object) -> Mapping[str, Any]:
+    """Replay the exact pre-P2-M4 QA snapshot without fabricating formal fields."""
+    snapshot = _exact_cc05(value, _RECOVERED_QA_PAYLOAD_KEYS, "recovered legacy QA snapshot")
+    legacy = _exact_cc05(
+        snapshot["legacy_authority"],
+        _RECOVERED_QA_LEGACY_AUTHORITY_KEYS,
+        "recovered legacy QA authority",
+    )
+    expected_legacy: dict[str, JsonValue] = {
+        "alembic_head": RECOVERED_LEGACY_QA_HEAD,
+        "source_schema_family": "PRE_P2_M4_SUBJECT_UNION",
+        "subject_semantics": "PRE_0012_SYNTHETIC_ASSET_RECORD_BOUND_CANONICAL_SOURCE",
+        "transform_semantics": "NOT_REPRESENTED_PRE_0012",
+        "formal_snapshot_compatibility": ("DISTINCT_DOMAIN_NOT_FORMAL_SYNTHETIC_QA_SNAPSHOT_V1"),
+        "canonicalization": "demo-canonical-json-v1",
+    }
+    if legacy != expected_legacy:
+        _fail("recovered legacy QA semantics are not the frozen pre-0012 authority")
+
+    source = _exact_cc05(
+        snapshot["source_binding"],
+        _RECOVERED_QA_SOURCE_BINDING_KEYS,
+        "recovered legacy QA source binding",
+    )
+    _opaque_output_id(source["source_output_id"], "recovered source output id")
+    for key in (
+        "source_asset_sha256",
+        "source_receipt_digest",
+        "source_authority_digest",
+        "source_provenance_digest",
+        "qa_policy_digest",
+        "authority_evidence_document_digest",
+        "holdout_evidence_document_digest",
+    ):
+        _digest(source[key], key)
+    if (
+        source["qa_policy_digest"] != RECOVERED_LEGACY_QA_POLICY_CONTENT_DIGEST
+        or source["authority_evidence_document_digest"]
+        != RECOVERED_LEGACY_QA_AUTHORITY_EVIDENCE_DIGEST
+        or source["holdout_evidence_document_digest"] != RECOVERED_LEGACY_QA_HOLDOUT_EVIDENCE_DIGEST
+        or source["original_formal_identity_id_status"] != UNKNOWN_FORMAL_IDENTITY_STATUS
+    ):
+        _fail("recovered legacy QA source binding differs from accepted evidence")
+
+    identity = _exact_cc05(
+        snapshot["identity_authority"],
+        _RECOVERED_QA_IDENTITY_AUTHORITY_KEYS,
+        "recovered legacy QA identity authority",
+    )
+    _digest(identity["canonical_asset_sha256"], "identity canonical Asset sha256")
+    _id(identity["accepted_qa_run_id"], "accepted QA run ID")
+    if (
+        identity["authority_kind"] != "CANONICAL_QA"
+        or identity["adult_synthetic_attested"] is not True
+        or identity["synthetic_only"] is not True
+        or identity["real_person_reference_used"] is not False
+    ):
+        _fail("recovered legacy QA identity authority is ineligible")
+
+    qa_run = _exact_cc05(snapshot["qa_run"], _RECOVERED_QA_RUN_KEYS, "recovered legacy QA run")
+    for key in ("id", "synthetic_asset_record_id", "normalized_asset_id", "qa_policy_id"):
+        _id(qa_run[key], f"QA run {key}")
+    if (
+        qa_run["schema_version"] != "mirror.synthetic-dataset/SyntheticQARun/v1"
+        or qa_run["status"] != "PASSED"
+        or qa_run["result_code"] is not None
+    ):
+        _fail("recovered legacy QA run is not the exact terminal PASSED authority")
+    for key in ("vision_provider_reference", "vision_algorithm_reference"):
+        if qa_run[key] is not None:
+            _authority_text(qa_run[key], f"QA run {key}")
+    started_at = _fixed_microsecond_utc(qa_run["started_at"], "QA run started_at")
+    finalized_at = _fixed_microsecond_utc(qa_run["finalized_at"], "QA run finalized_at")
+    if finalized_at < started_at:
+        _fail("recovered legacy QA run timestamp order is invalid")
+
+    qa_policy = _exact_cc05(
+        snapshot["qa_policy"], _RECOVERED_QA_POLICY_KEYS, "recovered legacy QA policy"
+    )
+    _id(qa_policy["id"], "QA policy ID")
+    _digest(qa_policy["content_digest"], "QA policy content digest")
+    _fixed_microsecond_utc(qa_policy["approved_at"], "QA policy approved_at")
+    if (
+        qa_policy["schema_version"] != "mirror.synthetic-dataset/SyntheticQAPolicy/v1"
+        or not isinstance(qa_policy["version"], str)
+        or _CANONICAL_POLICY_VERSION.fullmatch(qa_policy["version"]) is None
+        or qa_policy["approval_status"] != "APPROVED"
+        or qa_policy["content_digest"] != RECOVERED_LEGACY_QA_POLICY_CONTENT_DIGEST
+    ):
+        _fail("recovered legacy QA policy is not the accepted content authority")
+
+    _validate_recovered_qa_measurements(snapshot["measurements"])
+    _validate_recovered_qa_reviews(snapshot["reviews"])
+    if (
+        source["source_asset_sha256"] != identity["canonical_asset_sha256"]
+        or identity["accepted_qa_run_id"] != qa_run["id"]
+        or qa_run["qa_policy_id"] != qa_policy["id"]
+        or source["qa_policy_digest"] != qa_policy["content_digest"]
+    ):
+        _fail("recovered legacy QA cross-authority equality is invalid")
+    _payload(snapshot, set())
+    return snapshot
+
+
+def digest_recovered_legacy_qa_snapshot(value: Mapping[str, object]) -> str:
+    validate_recovered_legacy_qa_snapshot(value)
+    return _digest_for(RECOVERED_LEGACY_QA_SNAPSHOT_SCHEMA, value, set())
+
+
+def build_recovered_legacy_qa_snapshot(fields: Mapping[str, object]) -> dict[str, JsonValue]:
+    """Build the complete private canonical payload; no filesystem access occurs here."""
+    _exact_cc05(fields, _RECOVERED_QA_PAYLOAD_KEYS, "recovered legacy QA snapshot input")
+    snapshot = cast(dict[str, JsonValue], dict(fields))
+    validate_recovered_legacy_qa_snapshot(snapshot)
+    return snapshot
+
+
+def build_recovered_legacy_qa_snapshot_envelope(
+    snapshot: Mapping[str, object],
+) -> dict[str, JsonValue]:
+    verified = validate_recovered_legacy_qa_snapshot(snapshot)
+    envelope: dict[str, JsonValue] = {
+        "schema_version": RECOVERED_LEGACY_QA_SNAPSHOT_SCHEMA,
+        "canonical_payload": cast(dict[str, JsonValue], dict(verified)),
+        "content_digest": digest_recovered_legacy_qa_snapshot(verified),
+    }
+    validate_recovered_legacy_qa_snapshot_envelope(envelope)
+    return envelope
+
+
+def validate_recovered_legacy_qa_snapshot_envelope(value: object) -> Mapping[str, Any]:
+    envelope = _exact_cc05(value, _RECOVERED_QA_ENVELOPE_KEYS, "recovered legacy QA envelope")
+    if envelope["schema_version"] != RECOVERED_LEGACY_QA_SNAPSHOT_SCHEMA:
+        _fail("recovered legacy QA envelope schema is invalid")
+    snapshot = validate_recovered_legacy_qa_snapshot(envelope["canonical_payload"])
+    if envelope["content_digest"] != digest_recovered_legacy_qa_snapshot(snapshot):
+        _fail("recovered legacy QA envelope content digest does not replay")
+    _payload(envelope, set())
+    return envelope
+
+
+def recovered_legacy_qa_snapshot_file_bytes(value: Mapping[str, object]) -> bytes:
+    envelope = validate_recovered_legacy_qa_snapshot_envelope(value)
+    return _canonical_bytes(envelope, "recovered legacy QA private envelope")
+
+
+def validate_recovered_legacy_qa_index_entry(value: object) -> Mapping[str, Any]:
+    entry = _exact_cc05(value, _RECOVERED_QA_INDEX_ENTRY_KEYS, "recovered legacy QA index entry")
+    _opaque_output_id(entry["item_reference"], "recovered QA item reference")
+    _opaque_output_id(entry["source_output_id"], "recovered QA source output id")
+    _opaque_output_id(entry["private_snapshot_output_id"], "private snapshot output id")
+    for key in (
+        "source_asset_sha256",
+        "source_receipt_digest",
+        "source_authority_digest",
+        "source_provenance_digest",
+        "qa_policy_digest",
+        "private_snapshot_file_sha256",
+        "source_qa_snapshot_digest",
+        "record_digest",
+    ):
+        _digest(entry[key], key)
+    if (
+        entry["qa_policy_digest"] != RECOVERED_LEGACY_QA_POLICY_CONTENT_DIGEST
+        or entry["adult_synthetic_attested"] is not True
+        or entry["recovery_status"] != "CREATED_AND_VERIFIED"
+    ):
+        _fail("recovered legacy QA index entry authority is invalid")
+    if entry["source_qa_snapshot_digest"] in {
+        entry["source_asset_sha256"],
+        entry["source_receipt_digest"],
+        entry["source_authority_digest"],
+        entry["source_provenance_digest"],
+        entry["qa_policy_digest"],
+    }:
+        _fail("recovered legacy QA snapshot digest aliases another typed authority")
+    _require_digest_match(
+        RECOVERED_LEGACY_QA_INDEX_ENTRY_SCHEMA,
+        entry,
+        "record_digest",
+        set(),
+    )
+    return entry
+
+
+def build_recovered_legacy_qa_index_entry(
+    *,
+    item_reference: object,
+    private_snapshot_output_id: object,
+    snapshot_envelope: Mapping[str, object],
+) -> dict[str, JsonValue]:
+    envelope = validate_recovered_legacy_qa_snapshot_envelope(snapshot_envelope)
+    snapshot = cast(Mapping[str, Any], envelope["canonical_payload"])
+    source = cast(Mapping[str, Any], snapshot["source_binding"])
+    identity = cast(Mapping[str, Any], snapshot["identity_authority"])
+    entry: dict[str, JsonValue] = {
+        "item_reference": _opaque_output_id(item_reference, "recovered QA item reference"),
+        "source_output_id": cast(str, source["source_output_id"]),
+        "source_asset_sha256": cast(str, source["source_asset_sha256"]),
+        "source_receipt_digest": cast(str, source["source_receipt_digest"]),
+        "source_authority_digest": cast(str, source["source_authority_digest"]),
+        "source_provenance_digest": cast(str, source["source_provenance_digest"]),
+        "qa_policy_digest": cast(str, source["qa_policy_digest"]),
+        "private_snapshot_output_id": _opaque_output_id(
+            private_snapshot_output_id, "private snapshot output id"
+        ),
+        "private_snapshot_file_sha256": hashlib.sha256(
+            recovered_legacy_qa_snapshot_file_bytes(envelope)
+        ).hexdigest(),
+        "source_qa_snapshot_digest": cast(str, envelope["content_digest"]),
+        "adult_synthetic_attested": cast(bool, identity["adult_synthetic_attested"]),
+        "recovery_status": "CREATED_AND_VERIFIED",
+    }
+    entry["record_digest"] = _digest_for(RECOVERED_LEGACY_QA_INDEX_ENTRY_SCHEMA, entry, set())
+    validate_recovered_legacy_qa_index_entry(entry)
+    return entry
+
+
+def validate_recovered_legacy_qa_snapshot_index(value: object) -> Mapping[str, Any]:
+    document = _exact_cc05(value, _RECOVERED_QA_INDEX_KEYS, "recovered legacy QA index")
+    if (
+        document["schema_version"] != RECOVERED_LEGACY_QA_INDEX_SCHEMA
+        or document["snapshot_schema_version"] != RECOVERED_LEGACY_QA_SNAPSHOT_SCHEMA
+        or document["legacy_authority_head"] != RECOVERED_LEGACY_QA_HEAD
+        or document["canonicalization"] != "demo-canonical-json-v1"
+    ):
+        _fail("recovered legacy QA index metadata is invalid")
+    raw_entries = document["entries"]
+    if not isinstance(raw_entries, list) or len(raw_entries) != 4:
+        _fail("recovered legacy QA index must contain exactly four entries")
+    entries = [validate_recovered_legacy_qa_index_entry(entry) for entry in raw_entries]
+    item_references = [cast(str, entry["item_reference"]) for entry in entries]
+    if item_references != sorted(item_references) or len(set(item_references)) != 4:
+        _fail("recovered legacy QA index item order is invalid")
+    for key in (
+        "source_output_id",
+        "source_asset_sha256",
+        "source_receipt_digest",
+        "source_authority_digest",
+        "source_provenance_digest",
+        "private_snapshot_output_id",
+        "private_snapshot_file_sha256",
+        "source_qa_snapshot_digest",
+    ):
+        if len({entry[key] for entry in entries}) != 4:
+            _fail(f"recovered legacy QA index {key} must be unique")
+    _require_digest_match(
+        RECOVERED_LEGACY_QA_INDEX_SCHEMA,
+        document,
+        "content_digest",
+        {"schema_version"},
+    )
+    return document
+
+
+def build_recovered_legacy_qa_snapshot_index(
+    entries: Sequence[Mapping[str, object]],
+) -> dict[str, JsonValue]:
+    if len(entries) != 4:
+        _fail("recovered legacy QA index requires exactly four entries")
+    ordered_entries = sorted(
+        (
+            cast(dict[str, JsonValue], dict(validate_recovered_legacy_qa_index_entry(entry)))
+            for entry in entries
+        ),
+        key=lambda entry: cast(str, entry["item_reference"]),
+    )
+    document: dict[str, JsonValue] = {
+        "schema_version": RECOVERED_LEGACY_QA_INDEX_SCHEMA,
+        "snapshot_schema_version": RECOVERED_LEGACY_QA_SNAPSHOT_SCHEMA,
+        "legacy_authority_head": RECOVERED_LEGACY_QA_HEAD,
+        "canonicalization": "demo-canonical-json-v1",
+        "entries": cast(list[JsonValue], ordered_entries),
+    }
+    document["content_digest"] = _digest_for(
+        RECOVERED_LEGACY_QA_INDEX_SCHEMA, document, {"schema_version"}
+    )
+    validate_recovered_legacy_qa_snapshot_index(document)
+    return document
 
 
 def validate_measurement_observation(
@@ -1798,6 +2329,11 @@ def validate_facts(value: object) -> Mapping[str, Any]:
         "source_repeat_certification_digest",
     ):
         _digest(facts[key], key)
+    source_qa_snapshot_digest = cast(str, facts["source_qa_snapshot_digest"])
+    if any(
+        source_qa_snapshot_digest == facts[key] for key in _FACTS_QA_DISTINCT_TYPED_AUTHORITY_KEYS
+    ) or source_qa_snapshot_digest == _digest_for(FACTS_SCHEMA, facts, set()):
+        _fail("facts QA snapshot digest aliases another typed authority")
     if (
         type(facts["source_asset_byte_size"]) is not int
         or not 1 <= int(facts["source_asset_byte_size"]) <= 9_223_372_036_854_775_807

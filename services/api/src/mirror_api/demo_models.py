@@ -23,6 +23,55 @@ from sqlalchemy.orm import Mapped, mapped_column
 from mirror_api.db import Base
 from mirror_api.models import new_id, utcnow
 
+D02_LOCAL_QA_DIGEST_SEPARATION_CHECK_SQL = """
+schema_version <> 'mirror.demo/DemoSyntheticIdentity/v3'
+OR source_authority_kind <> 'DEMO_LOCAL_IMPORTED_COPY'
+OR (
+    source_qa_snapshot_digest IS NOT NULL
+    AND jsonb_typeof(source_fact_snapshot) IS NOT DISTINCT FROM 'object'
+    AND (source_fact_snapshot ->> 'source_qa_snapshot_digest')
+        IS NOT DISTINCT FROM source_qa_snapshot_digest
+    AND source_qa_snapshot_digest IS DISTINCT FROM formal_canonical_asset_sha256
+    AND source_qa_snapshot_digest IS DISTINCT FROM source_receipt_digest
+    AND source_qa_snapshot_digest IS DISTINCT FROM source_authority_digest
+    AND source_qa_snapshot_digest IS DISTINCT FROM source_landmark_digest
+    AND source_qa_snapshot_digest IS DISTINCT FROM source_measurement_digest
+    AND source_qa_snapshot_digest IS DISTINCT FROM source_provenance_digest
+    AND source_qa_snapshot_digest IS DISTINCT FROM source_fact_snapshot_digest
+    AND source_qa_snapshot_digest IS DISTINCT FROM source_measurement_projection_digest
+    AND source_qa_snapshot_digest
+        IS DISTINCT FROM (source_fact_snapshot ->> 'source_asset_sha256')
+    AND source_qa_snapshot_digest
+        IS DISTINCT FROM (source_fact_snapshot ->> 'source_receipt_digest')
+    AND source_qa_snapshot_digest
+        IS DISTINCT FROM (source_fact_snapshot ->> 'source_authority_digest')
+    AND source_qa_snapshot_digest
+        IS DISTINCT FROM (source_fact_snapshot ->> 'qa_policy_digest')
+    AND source_qa_snapshot_digest
+        IS DISTINCT FROM (source_fact_snapshot ->> 'source_landmark_digest')
+    AND source_qa_snapshot_digest
+        IS DISTINCT FROM (source_fact_snapshot ->> 'source_measurement_digest')
+    AND source_qa_snapshot_digest
+        IS DISTINCT FROM (source_fact_snapshot ->> 'source_provenance_digest')
+    AND source_qa_snapshot_digest
+        IS DISTINCT FROM (source_fact_snapshot ->> 'source_measurement_projection_digest')
+    AND source_qa_snapshot_digest
+        IS DISTINCT FROM (source_fact_snapshot ->> 'raw_measurement_authority_digest')
+    AND source_qa_snapshot_digest
+        IS DISTINCT FROM (source_fact_snapshot ->> 'source_measurement_observation_digest')
+    AND source_qa_snapshot_digest
+        IS DISTINCT FROM (source_fact_snapshot ->> 'source_repeat_certification_digest')
+    AND source_qa_snapshot_digest
+        IS DISTINCT FROM (
+            source_fact_snapshot ->> 'source_p2_candidate_manifest_content_digest'
+        )
+    AND source_qa_snapshot_digest
+        IS DISTINCT FROM (
+            source_fact_snapshot ->> 'dimension_authority_manifest_content_digest'
+        )
+)
+"""
+
 
 def _authority_constraints(
     table_name: str,
@@ -219,6 +268,10 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
             "OR admission_config_digest = "
             "'ef87c397af7db78211a6d2440f0cb3eef4214080f5117ff7be89b6400b663b21'",
             name="d02_local_admission_config_exact",
+        ),
+        CheckConstraint(
+            D02_LOCAL_QA_DIGEST_SEPARATION_CHECK_SQL,
+            name="d02_local_qa_digest_separation",
         ),
         CheckConstraint(
             "formal_canonical_asset_sha256 ~ '^[0-9a-f]{64}$'",

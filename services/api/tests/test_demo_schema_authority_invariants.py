@@ -78,7 +78,8 @@ from mirror_api.models import (
     utcnow,
 )
 
-DEMO_REVISION = "demo_0006_d02_private_exec"
+DEMO_REVISION = "demo_0007_d02_recovered_qa"
+D02_RECOVERED_QA_DOWN_REVISION = "demo_0006_d02_private_exec"
 D02_PRIVATE_EXEC_DOWN_REVISION = "demo_0005_d02_quality_auth"
 D02_QUALITY_DOWN_REVISION = "demo_0004_d09_episode_prov"
 D09_DOWN_REVISION = "demo_0003_d02_import_auth"
@@ -6010,6 +6011,210 @@ def _insert_episode_values_in_new_connection(
     return "inserted"
 
 
+def _d02_fully_resigned_qa_alias_insert_values(
+    session: Session,
+    *,
+    alias_key: str,
+    source_marker: str,
+) -> dict[str, Any]:
+    facts, identity_authority, _ = _facts_identity_manifest(source_marker=source_marker)
+    source_asset = session.get(Asset, identity_authority["formal_canonical_asset_id"])
+    if source_asset is None:
+        source_asset = Asset(
+            id=identity_authority["formal_canonical_asset_id"],
+            owner_user_id=None,
+            asset_role="synthetic",
+            internal_purpose="synthetic_dataset",
+            storage_key=f"demo-d02-recovered-qa-alias/{new_id()}",
+            mime_type=facts["source_asset_mime_type"],
+            byte_size=facts["source_asset_byte_size"],
+            width=facts["source_asset_width"],
+            height=facts["source_asset_height"],
+            sha256=facts["source_asset_sha256"],
+            synthetic=True,
+            is_ai_generated=True,
+            is_ai_modified=False,
+        )
+        session.add(source_asset)
+        session.commit()
+
+    forged_facts = deepcopy(facts)
+    forged_facts["source_qa_snapshot_digest"] = forged_facts[alias_key]
+    forged_identity = deepcopy(identity_authority)
+    forged_identity["source_qa_snapshot_digest"] = forged_facts["source_qa_snapshot_digest"]
+    forged_identity["source_fact_snapshot"] = forged_facts
+    forged_identity["source_fact_snapshot_digest"] = _digest(
+        "mirror.demo/RecoveredSyntheticIdentityFacts/v3", forged_facts
+    )
+    _resign_identity(forged_identity)
+    values = {
+        column.name: forged_identity[column.name]
+        for column in DemoSyntheticIdentity.__table__.columns
+        if column.name in forged_identity and column.computed is None
+    }
+    values["created_at"] = datetime.fromisoformat(
+        str(forged_identity["created_at"]).replace("Z", "+00:00")
+    )
+    return values
+
+
+@pytest.mark.parametrize(
+    ("alias_key", "source_marker"),
+    (
+        ("source_p2_candidate_manifest_content_digest", "8"),
+        ("dimension_authority_manifest_content_digest", "9"),
+    ),
+)
+def test_d02_recovered_qa_direct_sql_alias_rejected_after_full_resign(
+    session: Session,
+    alias_key: str,
+    source_marker: str,
+) -> None:
+    _truncate_demo_authority(session)
+    values = _d02_fully_resigned_qa_alias_insert_values(
+        session,
+        alias_key=alias_key,
+        source_marker=source_marker,
+    )
+    with pytest.raises(
+        DBAPIError,
+        match="ck_demo_synthetic_identities_d02_local_qa_digest_separation",
+    ):
+        session.execute(cast(Table, DemoSyntheticIdentity.__table__).insert().values(**values))
+        session.commit()
+    session.rollback()
+
+
+def test_d02_recovered_qa_upgrade_alias_audit_fails_closed(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _truncate_demo_authority(session)
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    session.commit()
+    command.downgrade(config, D02_RECOVERED_QA_DOWN_REVISION)
+    values = _d02_fully_resigned_qa_alias_insert_values(
+        session,
+        alias_key="source_p2_candidate_manifest_content_digest",
+        source_marker="7",
+    )
+    session.execute(cast(Table, DemoSyntheticIdentity.__table__).insert().values(**values))
+    session.commit()
+    before = session.scalar(
+        text(
+            "SELECT to_jsonb(identity_row) FROM demo_synthetic_identities identity_row "
+            "WHERE id=:identity_id"
+        ),
+        {"identity_id": values["id"]},
+    )
+    session.commit()
+
+    try:
+        with pytest.raises(
+            DBAPIError,
+            match="D02 recovered QA typed-digest separation audit failed",
+        ):
+            command.upgrade(config, DEMO_REVISION)
+        session.rollback()
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
+            D02_RECOVERED_QA_DOWN_REVISION
+        )
+        assert (
+            session.scalar(
+                text(
+                    "SELECT to_jsonb(identity_row) FROM demo_synthetic_identities identity_row "
+                    "WHERE id=:identity_id"
+                ),
+                {"identity_id": values["id"]},
+            )
+            == before
+        )
+    finally:
+        session.rollback()
+        _truncate_demo_authority(session)
+        command.upgrade(config, DEMO_REVISION)
+
+
+def test_d02_recovered_qa_empty_round_trip(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _truncate_demo_authority(session)
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    session.commit()
+
+    try:
+        command.downgrade(config, D02_RECOVERED_QA_DOWN_REVISION)
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
+            D02_RECOVERED_QA_DOWN_REVISION
+        )
+        assert (
+            session.scalar(
+                text(
+                    "SELECT count(*) FROM pg_constraint WHERE conname = "
+                    "'ck_demo_synthetic_identities_d02_local_qa_digest_separation'"
+                )
+            )
+            == 0
+        )
+        session.commit()
+
+        command.upgrade(config, DEMO_REVISION)
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+        assert (
+            session.scalar(
+                text(
+                    "SELECT count(*) FROM pg_constraint WHERE conname = "
+                    "'ck_demo_synthetic_identities_d02_local_qa_digest_separation'"
+                )
+            )
+            == 1
+        )
+        session.commit()
+
+        command.downgrade(config, D02_RECOVERED_QA_DOWN_REVISION)
+        command.upgrade(config, DEMO_REVISION)
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+    finally:
+        session.rollback()
+        command.upgrade(config, DEMO_REVISION)
+
+
+def test_d02_recovered_qa_populated_downgrade_fails_closed(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, identity = _insert_local_d02_identity(session, marker="recovered-qa-f")
+    identity_id = identity.id
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    session.commit()
+
+    try:
+        with pytest.raises(
+            DBAPIError,
+            match="Cannot downgrade populated D02 recovered QA authority",
+        ):
+            command.downgrade(config, D02_RECOVERED_QA_DOWN_REVISION)
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
+        assert (
+            session.scalar(
+                text("SELECT count(*) FROM demo_synthetic_identities WHERE id=:identity_id"),
+                {"identity_id": identity_id},
+            )
+            == 1
+        )
+    finally:
+        session.rollback()
+        _truncate_demo_authority(session)
+        command.upgrade(config, DEMO_REVISION)
+
+
 def test_d02_private_execution_wrong_config_direct_sql_fails_closed(
     session: Session,
 ) -> None:
@@ -6121,7 +6326,7 @@ def test_d02_private_execution_populated_downgrade_fails_closed(
     try:
         with pytest.raises(
             DBAPIError,
-            match="Cannot downgrade populated D02 v3 identity authority",
+            match="Cannot downgrade populated D02 recovered QA authority",
         ):
             command.downgrade(config, D02_PRIVATE_EXEC_DOWN_REVISION)
         assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
@@ -6236,7 +6441,7 @@ def test_d02_quality_populated_downgrade_fails_closed_without_side_effects(
     try:
         with pytest.raises(
             DBAPIError,
-            match="Cannot downgrade populated D02 v3 identity authority",
+            match="Cannot downgrade populated D02 recovered QA authority",
         ):
             command.downgrade(config, D02_QUALITY_DOWN_REVISION)
 
