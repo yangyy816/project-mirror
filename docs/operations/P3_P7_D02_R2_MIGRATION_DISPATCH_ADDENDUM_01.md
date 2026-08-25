@@ -93,24 +93,24 @@ graphs rejects, including mixed Report/Bank/Pair versions and mixed Identity/Sou
 
 The Report v3 payload contains exactly these 16 top-level groups and required member schemas:
 
-| Group | Required schema |
-| --- | --- |
-| `schema_and_policy` | `D02SchemaAndPolicyBinding/v3` |
-| `ordered_source_manifest` | `D02SourceAuthorityManifestEntry/v4[]` |
-| `ordered_case_manifest` | `D02GeometryCaseManifestEntry/v4[]` |
-| `source_m3_repeat_evidence` | `D02SourceM3RepeatRecord/v3[]` |
-| `m4_repeat_evidence` | `D02M4ExecutionRecord/v2[]` |
-| `result_m3_repeat_evidence` | `D02ResultM3RepeatRecord/v3[]` |
-| `measurement_gate_evidence` | `D02MeasurementGateRecord/v5[]` |
+| Group                                    | Required schema                             |
+| ---------------------------------------- | ------------------------------------------- |
+| `schema_and_policy`                      | `D02SchemaAndPolicyBinding/v3`              |
+| `ordered_source_manifest`                | `D02SourceAuthorityManifestEntry/v4[]`      |
+| `ordered_case_manifest`                  | `D02GeometryCaseManifestEntry/v4[]`         |
+| `source_m3_repeat_evidence`              | `D02SourceM3RepeatRecord/v3[]`              |
+| `m4_repeat_evidence`                     | `D02M4ExecutionRecord/v2[]`                 |
+| `result_m3_repeat_evidence`              | `D02ResultM3RepeatRecord/v3[]`              |
+| `measurement_gate_evidence`              | `D02MeasurementGateRecord/v5[]`             |
 | `decode_structure_immutability_evidence` | `D02DecodeStructureImmutabilityRecord/v2[]` |
-| `manual_review_evidence` | `D02ManualArtifactDecision/v1[]` |
-| `exact_duplicate_evidence` | `D02ExactDuplicateEvidence/v2` |
-| `phash_observation_evidence` | `D02PHashObservationEvidence/v2` |
-| `pair_quality_evidence` | `D02PairScreeningRecord/v4[]` |
-| `dimension_eligibility` | `D02DimensionEligibilityRecord/v4[]` |
-| `fixed_priority_selection_trace` | `D02SelectionTraceRecord/v3[]` |
-| `selected_pair_manifest` | `D02SelectedPairManifest/v3` |
-| `network_and_runtime_boundary` | `D02NetworkRuntimeBoundary/v2` |
+| `manual_review_evidence`                 | `D02ManualArtifactDecision/v1[]`            |
+| `exact_duplicate_evidence`               | `D02ExactDuplicateEvidence/v2`              |
+| `phash_observation_evidence`             | `D02PHashObservationEvidence/v2`            |
+| `pair_quality_evidence`                  | `D02PairScreeningRecord/v4[]`               |
+| `dimension_eligibility`                  | `D02DimensionEligibilityRecord/v4[]`        |
+| `fixed_priority_selection_trace`         | `D02SelectionTraceRecord/v3[]`              |
+| `selected_pair_manifest`                 | `D02SelectedPairManifest/v3`                |
+| `network_and_runtime_boundary`           | `D02NetworkRuntimeBoundary/v2`              |
 
 The row retains all existing structured Report fields and adds
 `measurement_gate_count=48` and `decode_structure_record_count=48`. Both columns are NULL for v1/v2. The canonical
