@@ -44,4 +44,3 @@ This task creates no execution authority. After all Q02-R1 gates and Principal a
 5. Resource facts remain 1/1/0, 31/31, and 62; CAL-REQ-002 remains unconsumed and no generation occurs.
 6. Canonical/mirror tails are generated from one complete ordered map, preserve all R36 governed keys, and end at true EOF.
 7. Scoped formatting, diff/allowlist/no-leak checks, normal push, exact-SHA CI, eight-artifact inspection, independent Security/Privacy/License/Research review, independent Sol High review, and Principal acceptance pass.
-
