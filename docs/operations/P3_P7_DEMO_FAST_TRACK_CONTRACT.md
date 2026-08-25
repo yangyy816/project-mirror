@@ -447,3 +447,55 @@ PRODUCTION_RELEASE: NOT_AUTHORIZED
 Demo may prove real local execution, persistence, evidence, editing, rebuild, recall and Web operability only. It may
 not prove real-user validity, real-face generalization, product aesthetics, biometric identity preservation or
 production readiness.
+
+## D02-R2 forward-only execution candidate
+
+`P3_P7_D02_CC_08` proposes a new Demo-only, synthetic-only D02 execution. It permanently preserves CC07's
+`EVIDENCE_LOCATION_LOST` and `NO_GO_CRITICAL_DEPENDENCY_UNAVAILABLE` result and does not claim a new lead for old D00
+recovery.
+
+The candidate retains the accepted D02 algorithms, schema checkpoints and report/bank rules while creating new source
+authority, receipts and custody. Because `DemoSyntheticIdentity/v3` means recovered local imported copy, new generated
+sources require the forward branch-local `demo_0008_d02_r2_source_auth` extension and
+`DEMO_R2_GENERATED_SOURCE`; no old row is reinterpreted. R2 uses a complete parallel version chain from source receipt,
+authority and QA through Facts/Identity/manifest/execution/Report and QuestionBank/QuestionPair. Old v3/v2 validators,
+digest domains and PostgreSQL triggers remain byte- and semantics-identical.
+
+All R2 evidence must be created under one Principal-designated Git-external evidence root. The first file is the
+immutable `D02_R2_EVIDENCE_ROOT_NAME_RECEIPT.json`; every later output has a preallocated immutable name receipt and a
+post-durability seal receipt. Two append-only registry copies inside the same root must commit each semantic event and
+agree on their chain heads before downstream use. This is logical redundancy within one common failure domain, not
+cross-device backup. Root/name/seal/registry intent/commit/recovery receipts and the two registry databases are an
+explicit non-recursive control namespace; every other evidence byte requires a Principal-created name receipt. The
+producer writes only to a preallocated destination; only the Principal seals and registers it.
+
+The root receipt freezes the exact eight control-name classes, execution/cohort contracts, registry IDs and 40-GiB
+ceiling. Registry A/B share a common genesis and exact metadata/event/transaction schema, while their semantic snapshots
+exclude SQLite layout. Seal-without-intent, partial intent and interrupted initialization have explicit fail-closed
+states; generation receipt, source authority, QA, supporting row, identity and manifest must satisfy direct
+field-by-field anti-splice equality.
+
+Plan acceptance opens only the bounded Principal-owned registry/receipt implementation. The root itself is created only
+after that implementation's schema-contract digest, normalized DDL SHA-256 and tracked implementation SHA pass
+independent review and same-SHA validation. Source candidates additionally require a non-circular generation
+preregistration, four immutable allocations and an exact producer-dispatch receipt.
+
+The immutable registry intent carries the exact canonical event bytes, including the deterministic root-relative opaque
+locator and name-receipt-authorized task list. Per-root partial uniqueness permits only one registered generation
+preregistration, allocation manifest and producer dispatch; an internally re-signed second chain cannot become
+authority. CC07's lost legacy locator remains `NO_GO` only for old D00 recovery and does not impersonate or block a new
+independently registered R2 chain.
+
+CC08 itself authorizes zero source-generation calls, credentials and public egress. The tracked repository has no exact
+D02-R2 generation-capability authority; ADR-026 is P2-only and cannot be broadened. Source producer dispatch remains
+`BLOCKED_PENDING_SEPARATE_GENERATION_CAPABILITY_AUTHORITY` until a separate accepted decision binds the exact tool,
+qualification scope, endpoints, budgets, terms and create-new sink behavior.
+
+Until the exact candidate plan passes independent Sol review, same-SHA CI and Principal acceptance, D02-R2 execution,
+source generation, migration and database admission remain closed. D03, D04-B and D07-B remain blocked until the
+separate full D02 acceptance Gate.
+
+Plan acceptance opens only the Principal-owned evidence-root/name-receipt/two-copy-registry implementation and
+preflight. `demo_0008`, ORM and PostgreSQL admission remain
+`CLOSED_PENDING_SEPARATE_BOUNDED_TASK_AND_PRINCIPAL_ACCEPTANCE`; source generation separately remains blocked by its
+exact capability-authority Gate.

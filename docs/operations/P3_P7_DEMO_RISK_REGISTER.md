@@ -3,7 +3,7 @@
 ## Register authority
 
 ```text
-REGISTER_VERSION: p3-p7-demo-risk-register-v1.1-api-acceptance-amended
+REGISTER_VERSION: p3-p7-demo-risk-register-v1.1-d02-r2-revision5-candidate
 TRACK: DEMO_PROTOTYPE
 OWNER: TERRA_HIGH_PRINCIPAL
 REVIEW_CADENCE: every D checkpoint and immediately after a trigger
@@ -14,22 +14,26 @@ This is a continuous register. `CLOSED` requires evidence; a D00 mitigation does
 the required description, probability, impact, early signal, mitigation, contingency, owner, status and blocked tasks.
 P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 
-## R-DEMO-01 — M3 private runtime/asset locator unavailable
+## R-DEMO-01 — Legacy D00 M3 runtime/asset custody locator unavailable
 
 - **Probability / impact:** Medium / Critical
-- **Description:** accepted Vision runtime, model, asset or receipt cannot be resolved from Principal registry/task receipt.
+- **Description:** the original accepted D00 per-item registry/receipt binding cannot be resolved. This is the immutable
+  CC07 legacy-custody incident; it is not a claim that newly created, independently registered R2 authority is missing.
 - **Early signal:** registry miss, stale custody, missing byte size, digest mismatch or a request to scan storage.
 - **P:** append-only registry, exact receipt/digest/size/authority, downstream retention check before cleanup.
-- **D:** D00 and each consuming task resolve opaque IDs and reverify digest before execution.
+- **D:** only a new exact original D00 task-scoped lead may re-open legacy recovery. R2 independently resolves its new
+  opaque IDs from the new root and two-copy registry before every use.
 - **R:** the one pre-registered receipt/task-owned-root recovery was exhausted on 2026-08-25. Reopen only if the original
   accepted D00 task-scoped registry/receipt becomes available; a new authority ID cannot replace the lost historical
   binding.
-- **S:** current dependency recheck is `NO_GO_CRITICAL_DEPENDENCY_UNAVAILABLE`; D02 private recovery and every dependent
-  DAG node stop. Never ask Owner to recreate Principal-owned output or broad-scan disks.
+- **S:** `NO_GO_CRITICAL_DEPENDENCY_UNAVAILABLE` permanently stops `OLD_D00_RECOVERY` and the legacy D02 source chain.
+  It does not stop the separately accepted forward-only R2 path; R2 still fails closed on any new custody miss. Never ask
+  Owner to recreate Principal-owned output or broad-scan disks.
 - **Incident evidence:** the bounded audit covered 239 known prior receipt files and 9,922 actual tool outputs. Five
   outputs named all four targets, but zero contained the required per-item digest/byte-size/authority/custody binding or
   a resolvable registry reference. Three known standard custody namespaces also had zero exact registry matches.
-- **Owner / status / blocked:** Principal / `TRIGGERED` / D02, D03, D04-B, D05, D06, D07-B, D08, D10, D11, D12.
+- **Owner / status / blocked:** Principal / `ACCEPTED_RESIDUAL` / `OLD_D00_RECOVERY`, legacy D02 source chain. Forward R2
+  and downstream nodes remain dependency-blocked until D02-R2 acceptance, but not by this legacy locator risk.
 
 ## R-DEMO-02 — M4 private geometry runtime cannot load
 
@@ -45,13 +49,16 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 ## R-DEMO-03 — Fewer than two geometry dimensions pass pair screening
 
 - **Probability / impact:** High / High
-- **Description:** fewer than two of jaw width, chin height and eye spacing pass all 16-pair lineage/direction/drift/artifact checks.
+- **Description:** fewer than two of jaw width, chin height and eye spacing survive the complete R2 24-candidate-pair
+  screening universe and permit the frozen 16-pair selected bank.
 - **Early signal:** wrong measured direction, excessive non-target drift, lock conflict, checksum instability or systematic artifact.
-- **P:** D00 screens three candidates; D02 freezes same-source opposite-direction design and pair-level QA before QuestionBank admission.
-- **D:** `4 identities × 2 dimensions × 2 magnitudes` matrix with every required QA field and deterministic replay.
+- **P:** D02-R2 preregisters all three candidate dimensions and same-source/opposite-direction pair QA before any
+  QuestionBank admission; no old D00 screening result substitutes for R2 execution.
+- **D:** screen `4 identities × 3 dimensions × 2 magnitudes = 24` candidate pairs with every required QA field, then
+  select exactly two eligible dimensions and `4 × 2 × 2 = 16` pairs by frozen priority with deterministic replay.
 - **R:** bounded dimension recovery/redesign using the remaining candidate; preserve failed evidence and the two-dimension target.
 - **S:** mark `P4_MULTI_DIMENSION_ACTIVE_ROUTING: BLOCKED` and platform `FAIL`; continue only independent P3/P5/P6/P7 work.
-- **Owner / status / blocked:** Principal + P4/P6 owners / `OPEN` / D04, D12.
+- **Owner / status / blocked:** Principal + P4/P6 owners / `OPEN` / D02-R2 acceptance, D04-B, D12.
 
 ## R-DEMO-04 — Formal worktree contamination or base drift
 
@@ -298,3 +305,176 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
   preserving `FORMAL_HEAD_AUTHORITY: 0014_m5_eval_authority` and `PRODUCTION_RELEASE: NOT_AUTHORIZED`.
 - **Owner / status / blocked:** Principal + CI owner / `MITIGATED_MONITORED` / no D01-C blocker; the conditional remains
   forbidden on main/formal branches.
+
+## R-DEMO-22 — R2 evidence escapes the designated root
+
+- **Probability / impact:** Medium / Critical
+- **Description:** an R2 source, receipt, M3/M4 result, QA record or registry is written to a worktree, cache, OS temp,
+  ordinary CI artifact, coordination mailbox or a second private root.
+- **Early signal:** output has no root-relative name receipt, an absolute locator appears in tracked evidence, or a tool
+  returns bytes without a preallocated destination.
+- **P:** one exact Git-external root, immutable root name receipt, preallocated per-output name receipts and root-scoped
+  producer handles.
+- **D:** resolved-path containment before every write; tracked/private-field scans; registry output-to-name reconciliation.
+- **R:** mark the outside output unregistered negative evidence, consume its ordinal and quarantine without promotion;
+  execution 01 stops, and any replacement requires a new forward change control and allocation.
+- **S:** no decode, QA, runtime, database admission or after-the-fact move/rename for an outside-root output.
+- **Owner / status / blocked:** Principal / `OPEN` / D02-R2 and every dependent task.
+
+## R-DEMO-23 — R2 name or output-ID collision
+
+- **Probability / impact:** Medium / High
+- **Description:** overwrite, automatic suffixing, reused ordinal or an output ID bound to different semantics/bytes
+  makes custody ambiguous.
+- **Early signal:** destination exists, name receipt mismatch, duplicate allocation sequence or same ID with a different
+  canonical payload/digest.
+- **P:** create-new exclusive writes, immutable allocation receipts, typed domain-separated IDs and no retry per ordinal.
+- **D:** registry unique constraints, file-existence preflight and full semantic/digest collision tests.
+- **R:** preserve both facts as negative evidence under different failure receipts; allocate no fallback ID in execution
+  01 for a deterministic collision, and require a new forward change control for replacement.
+- **S:** `OUTPUT_NAME_OR_ID_COLLISION_STOP`, `OUTPUT_NAME_RECEIPT_PARTIAL_OR_CORRUPT_STOP` or
+  `OUTPUT_SEAL_RECEIPT_PARTIAL_OR_CORRUPT_STOP`; no overwrite, suffix, deletion or bank admission.
+- **Owner / status / blocked:** Principal + producer / `OPEN` / D02-R2 source and runtime execution.
+
+## R-DEMO-24 — Two private registry copies diverge
+
+- **Probability / impact:** Medium / Critical
+- **Description:** registry copies differ in sequence, head event digest, semantic snapshot or resolvable output state.
+- **Early signal:** one-sided commit, missing event, SQLite integrity failure, digest mismatch or locator rehash failure.
+- **P:** transaction IDs, previous-event chains, durable two-copy writes and immutable commit receipts.
+- **D:** compare event count/head/snapshot after every transaction and during fresh-process recovery; inject one-side
+  failure before execution.
+- **R:** stop; validate the complete surviving chain and every output under a new Principal change control before
+  rebuilding the damaged copy. No automatic overwrite.
+- **S:** `REGISTRY_INCONSISTENT_STOP`; affected evidence cannot enter M3/M4, PostgreSQL, Report or QuestionBank.
+- **Owner / status / blocked:** Principal / `OPEN` / all D02-R2 execution. Both copies share one root, so no media-level
+  disaster-recovery claim is made.
+
+## R-DEMO-25 — Legacy D00/CC05 authority contaminates R2
+
+- **Probability / impact:** Medium / Critical
+- **Description:** an old output ID, receipt digest, legacy QA snapshot, PostgreSQL row, item reference or reconstructed
+  custody value is mapped into the new R2 chain.
+- **Early signal:** `RecoveredLegacySyntheticQASnapshot/v1`, old P2/D00 ordinal or CC07 identifier appears in an R2
+  source preimage or registry event.
+- **P:** new task/epoch/private namespace, new typed schemas and explicit no-alias validation.
+- **D:** exact old-marker scan, typed digest separation and PostgreSQL contamination negatives.
+- **R:** roll back the R2 transaction, preserve CC07 unchanged and regenerate only under a clean new R2 authority.
+- **S:** `HISTORICAL_AUTHORITY_CONTAMINATION_STOP`; never reinterpret or resign the mixed chain.
+- **Owner / status / blocked:** Principal / `OPEN` / D02-R2 acceptance and all downstream tasks.
+
+## R-DEMO-26 — New source is forced into recovered-import schema
+
+- **Probability / impact:** High / High
+- **Description:** the accepted v3 local-import config is reused for a newly generated R2 source, creating a semantically
+  false `DEMO_LOCAL_IMPORTED_COPY` row.
+- **Early signal:** a new source proposes `DemoSyntheticIdentity/v3`, old import-config digest or recovered snapshot
+  schema; no distinct R2 authority row exists.
+- **P:** freeze `D02R2SourceAuthority/v1`, `DemoSyntheticIdentity/v4`, `DEMO_R2_GENERATED_SOURCE` and forward
+  `demo_0008_d02_r2_source_auth` before database admission.
+- **D:** Python/PostgreSQL mode-matrix, old/new row parity, no-alias and full-resign negative tests.
+- **R:** keep producer evidence private, repair the forward prototype schema and rerun lifecycle before any import.
+- **S:** `SOURCE_AUTHORITY_SCHEMA_MISMATCH_STOP`; no database Report or QuestionBank write.
+- **Owner / status / blocked:** Principal + central data owner / `OPEN` / R2 PostgreSQL admission.
+
+## R-DEMO-27 — Producer output cannot be registered before decode
+
+- **Probability / impact:** High / High
+- **Description:** source generation succeeds but lacks a declared sink, immutable name, recoverable locator or both-copy
+  registry commit, repeating the prior unregistered-output failure.
+- **Early signal:** provider output exists while root/name receipt is absent, or registration cannot seal digest/size
+  before decode.
+- **P:** root and registry Gate before dispatch; Principal-preallocated exact writable destination and name receipt;
+  producer cannot seal or commit registry events.
+- **D:** pre-call bootstrap replay, immediate non-decoding magic/SHA/size registration and fresh-process recovery.
+- **R:** consume the ordinal and budget, record `SOURCE_OUTPUT_REGISTRATION_FAILED`, do not decode or reuse; execution 01
+  stops and any replacement requires a new forward change control with new task/epoch/allocation.
+- **S:** no after-the-fact promotion, path guessing, retry under the same ordinal or PostgreSQL admission.
+- **Owner / status / blocked:** Principal + source producer / `OPEN` / four-source cohort completion.
+
+## R-DEMO-28 — D02-R2 source generation has no exact accepted capability authority
+
+- **Probability / impact:** High / Critical
+- **Description:** a generic native image capability, ADR-026's P2-only offline authorization, local proxy or Owner's
+  forward-execution direction is treated as approval of an unspecified D02-R2 tool/provider/model/network/cost contract.
+- **Early signal:** dispatch contains generation calls or public egress without an accepted capability-authority digest,
+  exact qualification scope, endpoint allowlist, credential boundary, ceilings, terms and create-new sink contract.
+- **P:** CC08 authorizes zero generation calls/egress; require a separate Principal authority decision before producer
+  dispatch, bind it into the non-circular preregistration/allocation/dispatch chain, and bind it directly in every
+  generation receipt.
+- **D:** tracked-authority scan, dispatch schema validation, process egress observation and registry equality against the
+  accepted capability-authority digest.
+- **R:** keep the producer on read-only HOLD; complete a bounded authority decision using an exact candidate or choose a
+  separately Owner-approved source-production mechanism. Do not inherit or relabel P2 evidence.
+- **S:** `GENERATION_CAPABILITY_AUTHORITY_MISSING`; no provider/tool call, candidate byte, source admission or budget is
+  permitted. Core M3/M4 remains public-egress denied.
+- **Owner / status / blocked:** Principal / `OPEN` / D02-R2 source production and all downstream D02 execution.
+
+## R-DEMO-29 — CC08 plan acceptance is mistaken for migration implementation authority
+
+- **Probability / impact:** Medium / Critical
+- **Description:** acceptance of the forward architecture plan is treated as permission to modify `demo_0008`, central
+  ORM or PostgreSQL before a bounded migration/models task, exact review and real-PostgreSQL evidence exist.
+- **Early signal:** a migration/model diff, new Alembic head or database admission appears while the only accepted state
+  is the CC08 plan/root preflight.
+- **P:** freeze `MIGRATION_IMPLEMENTATION=CLOSED_PENDING_SEPARATE_BOUNDED_TASK_AND_PRINCIPAL_ACCEPTANCE` in CC08,
+  Routing and Fast Track; keep migration/models under the central single owner.
+- **D:** branch diff ownership check, Alembic-head check, PostgreSQL write audit and acceptance-state matrix before every
+  D02-R2 dispatch.
+- **R:** stop integration, preserve the unauthorized diff as non-accepted evidence, discard/recreate only through an
+  approved bounded task without rewriting accepted history.
+- **S:** no migration/ORM implementation, database Report or QuestionBank admission until the dedicated task and
+  Principal acceptance pass.
+- **Owner / status / blocked:** Principal + central data owner / `OPEN` / `demo_0008` and all R2 PostgreSQL admission.
+
+## R-DEMO-30 — Seal-to-intent crash creates ambiguous registry transaction
+
+- **Probability / impact:** Medium / Critical
+- **Description:** source bytes and seal are durable, but no complete registry intent exists; recovery invents a
+  transaction ID, timestamp, head or commit name, or overwrites a partial intent/commit receipt.
+- **Early signal:** sealed output has no deterministic intent file, an intent is partial/corrupt, or A/B already contains
+  the output/transaction while recovery claims intent-absent.
+- **P:** non-recursive transaction-ID preimage, deterministic locator/name/task policy, intent-bound exact canonical
+  event bytes, deterministic commit name, Principal single-writer mutex and create-new intent before copy A.
+- **D:** explicit `SEAL_DURABLE_INTENT_ABSENT` and partial-intent fault injection; negative proof against both registry
+  tables and exact control names before the sole legal new-intent creation.
+- **R:** if truly absent, create the unique intent once after output/name/seal/head replay; if any partial or conflicting
+  authority exists, preserve it and stop under a new change control.
+- **S:** `REGISTRY_INTENT_PARTIAL_OR_CORRUPT_STOP` or `REGISTRY_COMMIT_RECEIPT_PARTIAL_OR_CORRUPT_STOP`; never
+  overwrite, suffix or synthesize missing immutable control fields.
+- **Owner / status / blocked:** Principal / `OPEN` / registry preflight and all D02-R2 outputs.
+
+## R-DEMO-31 — Registry genesis or initialization is not reproducible
+
+- **Probability / impact:** Medium / Critical
+- **Description:** two SQLite copies use different genesis, metadata, schema/triggers or snapshot preimages, or a crash
+  leaves one partially initialized file that is silently recreated.
+- **Early signal:** copy metadata/root/contract/genesis differs, unknown tables/triggers exist, one populated copy lacks
+  its peer, or zero-event semantic snapshot differs.
+- **P:** accepted tracked registry implementation SHA, schema-contract and normalized-DDL digests, exact three-table
+  schema with deferred pair FKs, common genesis, fixed copy IDs/metadata, DELETE journaling and closed initialization.
+- **D:** fresh-process schema/trigger replay, partial-file and one-copy fault injection, integrity check and A/B
+  zero-event/count/head/snapshot equality.
+- **R:** only a valid empty single copy may cause exclusive creation of the missing empty copy; any partial, corrupt or
+  populated unilateral state requires a new Principal change control.
+- **S:** `REGISTRY_INITIALIZATION_CORRUPTION_STOP` or `REGISTRY_INCONSISTENT_STOP`; no automatic clone or database-byte
+  overwrite.
+- **Owner / status / blocked:** Principal / `OPEN` / root/registry preflight and D02-R2 execution.
+
+## R-DEMO-32 — Valid-looking R2 authorities are spliced across different outputs
+
+- **Probability / impact:** Medium / Critical
+- **Description:** independently well-shaped generation, source, QA, supporting-row, identity or manifest payloads are
+  mixed so control receipt, capability, provenance, Asset descriptors or attestations come from different candidates.
+- **Early signal:** duplicated scalars are shape-valid but unequal, or a validator accepts a full-chain re-sign using a
+  different valid source.
+- **P:** non-circular preregistration→four immutable allocations→producer dispatch anchor, per-root registry singleton
+  uniqueness, direct root→generation→source→QA→supporting-row equality and typed digest/ID domains; no compatibility
+  fallback or alias.
+- **D:** independent splice negatives for root/contract, output/control receipts, capability/request policy,
+  provenance, Asset descriptors, attestations, source/QA and Report/selection.
+- **R:** reject the entire mixed authority transaction, retain private bytes as unadmitted negative evidence and rebuild
+  only from one registered output chain.
+- **S:** `R2_AUTHORITY_SPLICE_DETECTED`; no Identity, Report, QuestionBank or downstream runtime admission.
+- **Owner / status / blocked:** Principal + central data owner / `OPEN` / migration implementation, source admission and
+  D02-R2 acceptance.

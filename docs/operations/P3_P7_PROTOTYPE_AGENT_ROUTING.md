@@ -3,9 +3,9 @@
 ## Authority and current evidence
 
 ```text
-ROUTING_VERSION: p3-p7-prototype-agent-routing-v1.1-api-acceptance-amended
+ROUTING_VERSION: p3-p7-prototype-agent-routing-v1.1-d02-r2-candidate
 TRACK: DEMO_PROTOTYPE
-STATUS: ACCEPTED_WITH_CC_P3_P7_DEMO_API_08
+STATUS: ACCEPTED_BASE_WITH_P3_P7_D02_CC_08_CANDIDATE
 LOGICAL_MAIN_PROCESS_ROLE: TERRA_HIGH_PRINCIPAL
 REQUESTED_MODEL: gpt-5.6-terra
 REQUESTED_REASONING_EFFORT: high
@@ -202,6 +202,49 @@ proven, `PRINCIPAL_EXECUTES_SENSITIVE_STEP` and reviewer receives only tracked/r
 Network policy is task-specific. D00-A permits only pre-registered approved-source acquisition. D00-B and P3–P7 core
 runtime use `PUBLIC_INTERNET_EGRESS_DISABLED` while retaining localhost and Docker internal data plane. Any hidden core
 egress is `EXTERNAL_RUNTIME_DEPENDENCY_FOUND`.
+
+## D02-R2 forward producer and Principal custody
+
+`P3_P7_D02_CC_08` is a candidate forward-only plan. It does not change CC07 or open execution until independent exact
+plan review, same-SHA CI and Principal acceptance complete.
+
+Even after plan acceptance, `demo_0008`, ORM and PostgreSQL admission remain
+`CLOSED_PENDING_SEPARATE_BOUNDED_TASK_AND_PRINCIPAL_ACCEPTANCE`. The only newly open work is Principal-owned
+evidence-root/name-receipt/two-copy-registry implementation and private preflight.
+
+After that acceptance, the existing source-generation Codex task remains on read-only HOLD until a separate exact
+generation-capability authority is also accepted. Only then may it receive one new dispatch as
+`D02_R2_SOURCE_COHORT_PRODUCER`. It may write candidate bytes and provider-returned provenance only to
+Principal-preallocated create-new destinations. It cannot allocate IDs, create name/seal receipts, commit either
+registry, reuse P2-M5 ordinals or old D00 evidence, write PostgreSQL, perform M3/M4 or QA admission, modify a central file
+or announce acceptance.
+
+The Integration Principal alone owns the single Git-external R2 evidence root, root name receipt, two-copy private
+registry, producer handoff, source admission, runtime execution, manual review, forward migration/model integration,
+Report/QuestionBank transaction, tracked redaction, MEMORY and Gate state. A worker receives only the exact root-scoped
+handle and role limits needed for its task. If least privilege cannot be proven, the Principal performs the sensitive
+step and records a redacted result.
+
+All new R2 evidence remains under the one root. A result created elsewhere is unregistered negative evidence and is not
+moved, renamed or promoted after the fact. CC08 itself authorizes zero generation calls or public egress. Any later
+generation egress must come from the separate accepted capability authority and exact dispatch; M3/M4 and all core
+screening always run with public egress denied.
+
+The root's first file is exactly `D02_R2_EVIDENCE_ROOT_NAME_RECEIPT.json`. The Principal alone initializes the fixed
+two-copy SQLite registry, common genesis, metadata/event/transaction schema and receipt lifecycle. A seal with no intent
+may create the one deterministic intent only after negative proof against both copies and exact control names; a partial
+intent, initialization corruption, copy divergence or cross-source authority splice stops the task. Topic workers never
+repair, copy or infer registry authority.
+
+The root remains absent until the Principal-owned registry implementation's schema-contract digest, normalized DDL
+SHA-256 and exact tracked implementation SHA are independently accepted. Any later producer dispatch is preceded by a
+Principal generation preregistration, exactly four immutable candidate allocations and one allocation-bound dispatch
+receipt; workers cannot substitute a new output by re-signing the chain.
+
+The private intent stores exact canonical event bytes; name receipts freeze allowed task IDs and uniquely derive the
+root-relative opaque locator. Registry-level singleton uniqueness permits only one preregistration/allocation/dispatch
+chain per execution root. CC07 continues to close only legacy D00 recovery; no topic worker may reopen it or use it as a
+shortcut, while the distinct R2 path depends solely on newly registered authority.
 
 ## Cost and context discipline
 
