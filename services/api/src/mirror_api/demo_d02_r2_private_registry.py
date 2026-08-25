@@ -1757,6 +1757,15 @@ def recover_registry_transaction(
             )
         snapshot_a = validate_registry_copy(path_a, REGISTRY_COPY_A_ID, root_receipt)
         snapshot_b = validate_registry_copy(path_b, REGISTRY_COPY_B_ID, root_receipt)
+        if commit_path.exists() and not _current_transaction_is_fully_prepared(
+            snapshot_a,
+            snapshot_b,
+            transaction_id=transaction_id,
+        ):
+            raise D02R2RegistryError(
+                "IMPOSSIBLE_ORDER_OR_CUSTODY_CORRUPTION_STOP",
+                "commit receipt exists before the current transaction is prepared in both copies",
+            )
         committed_prefix = _recovery_committed_prefix(
             snapshot_a,
             snapshot_b,
@@ -1786,6 +1795,11 @@ def recover_registry_transaction(
                     expected_transaction_id=transaction_id,
                 )
             except D02R2RegistryError as error:
+                if commit_path.exists():
+                    raise D02R2RegistryError(
+                        "IMPOSSIBLE_ORDER_OR_CUSTODY_CORRUPTION_STOP",
+                        "commit receipt exists while the current intent cannot be replayed",
+                    ) from error
                 receipt = _write_recovery_receipt(
                     root,
                     root_receipt=root_receipt,
@@ -1818,14 +1832,6 @@ def recover_registry_transaction(
                 transaction_id=transaction_id,
                 commit_exists=commit_path.exists(),
             )
-            if commit_path.exists() and prior_state not in {
-                "COMMITTED_BOTH_COPIES",
-                "BOTH_COPIES_PREPARED_NOT_COMMITTED",
-            }:
-                raise D02R2RegistryError(
-                    "IMPOSSIBLE_ORDER_OR_CUSTODY_CORRUPTION_STOP",
-                    "commit receipt exists before both registry copies are prepared",
-                )
             action = _replay_intent_to_registry_copies(
                 path_a,
                 path_b,
@@ -1935,6 +1941,20 @@ def recover_registry_transaction(
         )
         _validate_committed_history(root, root_receipt, final_a, final_b)
         return recovery_receipt
+
+
+def _current_transaction_is_fully_prepared(
+    snapshot_a: RegistrySnapshot,
+    snapshot_b: RegistrySnapshot,
+    *,
+    transaction_id: str,
+) -> bool:
+    if snapshot_a != snapshot_b or not snapshot_a.ordered_events:
+        return False
+    return (
+        snapshot_a.ordered_events[-1]["transaction_id"] == transaction_id
+        and snapshot_b.ordered_events[-1]["transaction_id"] == transaction_id
+    )
 
 
 def _recovery_committed_prefix(

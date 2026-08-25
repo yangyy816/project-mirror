@@ -906,3 +906,135 @@ def test_recovery_validates_complete_committed_prefix_before_mutation(
         )
     assert durable_state() == before
     assert corrupted_path.read_bytes() == original_bytes[:-1]
+
+
+@pytest.mark.parametrize(
+    ("copy_state", "intent_state"),
+    (
+        ("none", "corrupt"),
+        ("a_only", "corrupt"),
+        ("both", "corrupt"),
+        ("none", "absent"),
+        ("none", "valid"),
+    ),
+)
+def test_premature_commit_stops_before_current_intent_recovery_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    copy_state: str,
+    intent_state: str,
+) -> None:
+    root = _create_root(tmp_path)
+    assert registry.initialize_registry_pair(root, AUTHORITY) == "REGISTRY_READY_EMPTY"
+    name_file, seal_file = _name_and_seal(root)
+    original_append: Callable[..., None] = registry._append_registry_copy
+
+    if intent_state != "absent":
+        if copy_state == "both":
+            original_write: Callable[..., None] = registry._write_exclusive_json
+
+            def interrupt_before_commit(
+                write_root: Path,
+                path: Path,
+                payload: Mapping[str, object],
+                *,
+                maximum_bytes: int,
+            ) -> None:
+                if path.name.startswith("D02_R2_REGISTRY_COMMIT_RECEIPT__"):
+                    raise OSError("simulated interruption before commit receipt")
+                original_write(write_root, path, payload, maximum_bytes=maximum_bytes)
+
+            monkeypatch.setattr(registry, "_write_exclusive_json", interrupt_before_commit)
+            with pytest.raises(OSError, match="simulated interruption"):
+                registry.register_sealed_output(
+                    root,
+                    AUTHORITY,
+                    name_file,
+                    seal_file,
+                    intent_created_at_utc=TIMESTAMP,
+                )
+            monkeypatch.setattr(registry, "_write_exclusive_json", original_write)
+        else:
+            append_calls = 0
+
+            def interrupt_during_copy_append(*args: object, **kwargs: object) -> None:
+                nonlocal append_calls
+                append_calls += 1
+                if copy_state == "none" or append_calls == 2:
+                    raise OSError("simulated interrupted registry append")
+                original_append(*args, **kwargs)
+
+            monkeypatch.setattr(registry, "_append_registry_copy", interrupt_during_copy_append)
+            with pytest.raises(OSError, match="simulated interrupted registry append"):
+                registry.register_sealed_output(
+                    root,
+                    AUTHORITY,
+                    name_file,
+                    seal_file,
+                    intent_created_at_utc=TIMESTAMP,
+                )
+            monkeypatch.setattr(registry, "_append_registry_copy", original_append)
+
+    root_receipt = registry.load_root_name_receipt(root, AUTHORITY)
+    name_receipt = registry._load_name_receipt(
+        root / "control" / "name-receipts" / name_file,
+        root_receipt,
+    )
+    seal_receipt = registry._load_seal_receipt(
+        root / "control" / "seal-receipts" / seal_file,
+        root_receipt,
+        name_receipt,
+    )
+    transaction_id = registry._transaction_id(root_receipt, name_receipt, seal_receipt)
+    intent_path = (
+        root
+        / "control"
+        / "registry-intents"
+        / f"D02_R2_REGISTRY_TRANSACTION_INTENT__{transaction_id}.json"
+    )
+    commit_path = (
+        root
+        / "control"
+        / "registry-commits"
+        / f"D02_R2_REGISTRY_COMMIT_RECEIPT__{transaction_id}.json"
+    )
+    if intent_state == "corrupt":
+        intent_bytes = intent_path.read_bytes()
+        intent_path.write_bytes(intent_bytes[:-1])
+    elif intent_state == "absent":
+        assert not intent_path.exists()
+    else:
+        assert intent_path.is_file()
+    commit_path.write_bytes(b'{"premature":true}')
+
+    path_a, path_b = _registry_paths(root)
+
+    def durable_state() -> tuple[int, int, int, int, int]:
+        return (
+            registry.validate_registry_copy(
+                path_a, registry.REGISTRY_COPY_A_ID, root_receipt
+            ).event_count,
+            registry.validate_registry_copy(
+                path_b, registry.REGISTRY_COPY_B_ID, root_receipt
+            ).event_count,
+            len(list((root / "control" / "registry-intents").iterdir())),
+            len(list((root / "control" / "registry-commits").iterdir())),
+            len(list((root / "control" / "registry-recovery").iterdir())),
+        )
+
+    before = durable_state()
+    with pytest.raises(
+        registry.D02R2RegistryError,
+        match="IMPOSSIBLE_ORDER_OR_CUSTODY_CORRUPTION_STOP",
+    ):
+        registry.recover_registry_transaction(
+            root,
+            AUTHORITY,
+            name_file,
+            seal_file,
+            recovery_attempt=1,
+            principal_authority_digest="f" * 64,
+            created_at_utc=TIMESTAMP,
+            intent_created_at_utc=TIMESTAMP,
+        )
+    assert durable_state() == before
