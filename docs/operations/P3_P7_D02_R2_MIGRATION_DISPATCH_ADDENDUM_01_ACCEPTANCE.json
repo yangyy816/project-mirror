@@ -1,0 +1,131 @@
+{
+  "accepted_addendum_blob_oid": "1c1e080a1088371672eee6502e8fb213c261ccc9",
+  "accepted_addendum_file_sha256": "1d9ce9ca98083acb25f956a105b492177eb4a2aff8080716820f0ad8808bb862",
+  "accepted_addendum_parent_sha": "48174727f2cf6d26d823dabb8bdb84ddfb12d499",
+  "accepted_addendum_path": "docs/operations/P3_P7_D02_R2_MIGRATION_DISPATCH_ADDENDUM_01.md",
+  "accepted_addendum_sha": "9f672674602a171eabd4bf3a02a3e720bdc76338",
+  "accepted_addendum_tree": "cfb0d3e5c66f41614f1cd0c0fb379120ce08b90e",
+  "accepted_contract_acceptance_sha": "214efee32a8a498a1b960d4e8cf4db767bf94966",
+  "accepted_contract_file_sha256": "c472e9e5f7475f49e8a98f2b477997bfb761db9acd5f4d650b01923094d9d800",
+  "accepted_contract_sha": "edac1e8ca1f98b269b9ff496cb2d62d56ac262b2",
+  "accepted_scope": "D02_R2_MIGRATION_DISPATCH_ADDENDUM_01_ONLY",
+  "addendum_id": "P3_P7_D02_R2_MIGRATION_DISPATCH_ADDENDUM_01",
+  "authority_id": "P3_P7_D02_R2_MIGRATION_DISPATCH_ADDENDUM_ACCEPTANCE_01",
+  "authorized_next_action": "P3_P7_D02_R2_MIGRATION_R05_V3_REPORT_BANK_PAIR_AUTHORITY",
+  "canonicalization_version": "demo-canonical-json-v1",
+  "change_control_id": "P3_P7_D02_CC_08",
+  "digest_domains": {
+    "artifact_manifest": "mirror.demo/D02R2MigrationDispatchAddendumCiArtifactManifest/v1",
+    "independent_review": "mirror.demo/D02R2MigrationDispatchAddendumReviewEvidence/v1",
+    "principal_acceptance": "mirror.demo/D02R2MigrationDispatchAddendumPrincipalAcceptance/v1",
+    "record": "mirror.demo/D02R2MigrationDispatchAddendumAcceptance/v1"
+  },
+  "evidence_root_id": "P3_P7_D02_R2_CC08_E1_EVIDENCE_ROOT",
+  "independent_review": {
+    "addendum_blob_sha256": "1d9ce9ca98083acb25f956a105b492177eb4a2aff8080716820f0ad8808bb862",
+    "findings_p0": 0,
+    "findings_p1": 0,
+    "findings_p2": 0,
+    "findings_p3": 0,
+    "result": "PASS",
+    "review_evidence_digest": "38b1894643bc38d861eb78354070950aefbd0281e1b4dcbcc5e774712cf311b4",
+    "review_task_id": "P3_P7_D02_R2_MIGRATION_ADDENDUM_EXACT_SHA_REVIEW_02",
+    "reviewed_sha": "9f672674602a171eabd4bf3a02a3e720bdc76338",
+    "semantic_diff_from_prettier_negative_candidate": "NONE_FORMAT_ONLY"
+  },
+  "negative_ci": {
+    "confirmed_successful_steps": [
+      "PYTHON_QUALITY",
+      "POSTGRESQL_MIGRATION_LIFECYCLE",
+      "PYTHON_TESTS",
+      "DOCKER_VALIDATION",
+      "GITLEAKS"
+    ],
+    "failure_class": "MARKDOWN_PRETTIER_ONLY",
+    "head_sha": "48174727f2cf6d26d823dabb8bdb84ddfb12d499",
+    "remediation_sha": "9f672674602a171eabd4bf3a02a3e720bdc76338",
+    "result": "FAIL_RETAINED_AS_FORMAT_NEGATIVE_EVIDENCE",
+    "run_id": 32911712112
+  },
+  "principal_acceptance": {
+    "acceptance_authority_digest": "888c015ef78daa19c2b6ecff269897666dc1cc65288041c68b87de1889f770a2",
+    "accepted_addendum_sha": "9f672674602a171eabd4bf3a02a3e720bdc76338",
+    "accepted_at_utc": "2026-08-26T00:16:52.980778Z",
+    "artifact_manifest_digest": "f8b077303e047ef157ad2e583e2ab16055a2d6d236a90f1c83f23d1cc30d26f5",
+    "independent_review_evidence_digest": "38b1894643bc38d861eb78354070950aefbd0281e1b4dcbcc5e774712cf311b4",
+    "same_sha_ci_run_id": 32913183655,
+    "status": "PRINCIPAL_ACCEPTED_FOR_HELD_MIGRATION_IMPLEMENTATION_RESUME"
+  },
+  "prohibited_scope": [
+    "SOURCE_GENERATION",
+    "PRIVATE_RUNTIME_EXECUTION",
+    "REAL_D02_R2_EVIDENCE_ADMISSION",
+    "POSTGRESQL_DATA_ADMISSION",
+    "D02_R2_TASK_ACCEPTANCE",
+    "D03_D04_B_D07_B_OPENING",
+    "FORMAL_PHASE_AUTHORITY",
+    "PRODUCTION_RELEASE"
+  ],
+  "record_created_at_utc": "2026-08-26T00:16:52.980778Z",
+  "record_digest": "01c22e1e62b592b48a09bb23a800bb3a2395157fae7c77c8ee82639105a0a34e",
+  "root_name_receipt_digest": "c3ae43887d51d15347153e392ca092866dff890bdcda959572cc1dd07e6195c4",
+  "same_sha_ci": {
+    "artifact_manifest": [
+      {
+        "archive_sha256": "7a9bfb083d2c66ecf80dfa4d218e75e2d70f35d9105c4bd3fedddedffbecb0e7",
+        "artifact_id": 9587554628,
+        "expired": false,
+        "expires_at_utc": "2026-11-23T23:59:32Z",
+        "name": "demo-prototype-ci-boundary",
+        "size_in_bytes": 1565
+      },
+      {
+        "archive_sha256": "85b4dcd3c62dcd7bcec96c89fa2f4c2d5886c556acd475e752f0018174550e39",
+        "artifact_id": 9587213134,
+        "expired": false,
+        "expires_at_utc": "2026-11-23T23:59:32Z",
+        "name": "gitleaks-results.sarif",
+        "size_in_bytes": 6962
+      },
+      {
+        "archive_sha256": "0ab7c9b7b7d832bc81bd9edfd7bf614b7761667ddc76a432a9e100745af8776d",
+        "artifact_id": 9587547633,
+        "expired": false,
+        "expires_at_utc": "2026-09-09T00:13:58Z",
+        "name": "playwright-install-evidence",
+        "size_in_bytes": 3091
+      },
+      {
+        "archive_sha256": "9b1b352cc1b2b83d47cdde0d8b22e5cf275fc732c8379420cb235f877fc9a667",
+        "artifact_id": 9587559169,
+        "expired": false,
+        "expires_at_utc": "2026-11-23T23:59:32Z",
+        "name": "project-audit-evidence",
+        "size_in_bytes": 46433
+      },
+      {
+        "archive_sha256": "46520b5e9cf6f336f3566c3ae89675319fded0909e4a84f50f96c6b77a881180",
+        "artifact_id": 9587239412,
+        "expired": false,
+        "expires_at_utc": "2026-11-23T23:59:32Z",
+        "name": "project-docker-evidence",
+        "size_in_bytes": 5129
+      }
+    ],
+    "artifact_manifest_digest": "f8b077303e047ef157ad2e583e2ab16055a2d6d236a90f1c83f23d1cc30d26f5",
+    "head_sha": "9f672674602a171eabd4bf3a02a3e720bdc76338",
+    "provider": "GITHUB_ACTIONS",
+    "repository": "yangyy816/project-mirror",
+    "required_jobs": [
+      "quality-and-integration",
+      "secret-scan",
+      "docker-validation"
+    ],
+    "result": "PASS",
+    "run_attempt": 1,
+    "run_id": 32913183655,
+    "workflow_identity": ".github/workflows/ci.yml"
+  },
+  "schema_version": "mirror.demo/D02R2MigrationDispatchAddendumAcceptance/v1",
+  "source_generation_calls_authorized": 0
+}
