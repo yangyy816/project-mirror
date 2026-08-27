@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    SmallInteger,
     String,
     UniqueConstraint,
     text,
@@ -177,6 +178,114 @@ class DemoSession(DemoAuthorityMixin, Base):
     )
 
 
+class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
+    """Public structural projection of one private D02-R2 source authority."""
+
+    __tablename__ = "demo_d02_r2_source_authorities"
+
+    execution_contract_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_root_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    root_name_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    generation_preregistration_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_allocation_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_producer_dispatch_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_ordinal: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    source_output_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    source_asset_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_asset_byte_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    source_asset_mime_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_asset_width: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_asset_height: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_generation_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    output_name_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    output_seal_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    registry_commit_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    generation_capability_authority_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    generation_request_policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_provenance_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_provenance_output_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_provenance_name_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_provenance_seal_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_provenance_registry_commit_receipt_digest: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )
+    source_authority_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_authority_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_qa_snapshot_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    adult_synthetic_attested: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    synthetic_only_attested: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    real_person_reference_used: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    authority_state: Mapped[str] = mapped_column(String(32), nullable=False)
+
+    __table_args__ = (
+        *_authority_constraints(
+            __tablename__,
+            schema_version_expression=(
+                "schema_version = 'mirror.demo/D02R2SourceAuthorityRecord/v1'"
+            ),
+        ),
+        UniqueConstraint("execution_contract_digest", "source_ordinal", name="execution_ordinal"),
+        UniqueConstraint("source_output_id", name="source_output_id"),
+        UniqueConstraint("source_generation_receipt_digest", name="source_generation_receipt"),
+        UniqueConstraint("output_name_receipt_digest", name="output_name_receipt"),
+        UniqueConstraint("output_seal_receipt_digest", name="output_seal_receipt"),
+        UniqueConstraint("registry_commit_receipt_digest", name="registry_commit_receipt"),
+        UniqueConstraint("source_provenance_output_id", name="source_provenance_output_id"),
+        UniqueConstraint("source_provenance_name_receipt_digest", name="source_provenance_name"),
+        UniqueConstraint("source_provenance_seal_receipt_digest", name="source_provenance_seal"),
+        UniqueConstraint(
+            "source_provenance_registry_commit_receipt_digest", name="source_provenance_commit"
+        ),
+        UniqueConstraint("source_authority_digest", name="source_authority_digest"),
+        UniqueConstraint("source_authority_key", name="source_authority_key"),
+        UniqueConstraint("source_qa_snapshot_digest", name="source_qa_snapshot_digest"),
+        CheckConstraint("source_ordinal BETWEEN 1 AND 4", name="source_ordinal"),
+        CheckConstraint("source_asset_byte_size > 0", name="positive_asset_byte_size"),
+        CheckConstraint(
+            "source_asset_width > 0 AND source_asset_height > 0", name="positive_dimensions"
+        ),
+        CheckConstraint("source_asset_mime_type IN ('image/jpeg')", name="decoded_mime"),
+        CheckConstraint(
+            "adult_synthetic_attested IS TRUE AND synthetic_only_attested IS TRUE "
+            "AND real_person_reference_used IS FALSE",
+            name="fixed_attestations",
+        ),
+        CheckConstraint("authority_state = 'PRINCIPAL_ACCEPTED'", name="authority_state"),
+        CheckConstraint(
+            "evidence_root_id = 'P3_P7_D02_R2_CC08_E1_EVIDENCE_ROOT'", name="evidence_root"
+        ),
+        CheckConstraint(
+            "source_output_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' "
+            "AND source_provenance_output_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'",
+            name="opaque_output_ids",
+        ),
+        CheckConstraint(
+            "source_asset_sha256 ~ '^[0-9a-f]{64}$' AND source_authority_key ~ '^[0-9a-f]{64}$' "
+            "AND execution_contract_digest ~ '^[0-9a-f]{64}$' "
+            "AND root_name_receipt_digest ~ '^[0-9a-f]{64}$' "
+            "AND generation_preregistration_digest ~ '^[0-9a-f]{64}$' "
+            "AND source_allocation_manifest_digest ~ '^[0-9a-f]{64}$' "
+            "AND source_producer_dispatch_digest ~ '^[0-9a-f]{64}$' "
+            "AND source_generation_receipt_digest ~ '^[0-9a-f]{64}$' "
+            "AND output_name_receipt_digest ~ '^[0-9a-f]{64}$' "
+            "AND output_seal_receipt_digest ~ '^[0-9a-f]{64}$' "
+            "AND registry_commit_receipt_digest ~ '^[0-9a-f]{64}$' "
+            "AND generation_capability_authority_digest ~ '^[0-9a-f]{64}$' "
+            "AND generation_request_policy_digest ~ '^[0-9a-f]{64}$' "
+            "AND source_provenance_digest ~ '^[0-9a-f]{64}$' "
+            "AND source_provenance_name_receipt_digest ~ '^[0-9a-f]{64}$' "
+            "AND source_provenance_seal_receipt_digest ~ '^[0-9a-f]{64}$' "
+            "AND source_provenance_registry_commit_receipt_digest ~ '^[0-9a-f]{64}$' "
+            "AND source_authority_digest ~ '^[0-9a-f]{64}$' "
+            "AND source_qa_snapshot_digest ~ '^[0-9a-f]{64}$'",
+            name="digest_shapes",
+        ),
+    )
+
+
 class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
     __tablename__ = "demo_synthetic_identities"
 
@@ -213,11 +322,15 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
     adult_synthetic_attested: Mapped[bool | None] = mapped_column(Boolean)
     importer_version: Mapped[str | None] = mapped_column(String(64))
     import_config_digest: Mapped[str | None] = mapped_column(String(64))
+    r2_source_authority_record_id: Mapped[str | None] = mapped_column(
+        ForeignKey("demo_d02_r2_source_authorities.id", ondelete="RESTRICT"), index=True
+    )
     source_authority_kind: Mapped[str] = mapped_column(
         String(32),
         Computed(
             "CASE WHEN formal_synthetic_identity_id IS NOT NULL "
-            "THEN 'FORMAL_REFERENCE' ELSE 'DEMO_LOCAL_IMPORTED_COPY' END",
+            "THEN 'FORMAL_REFERENCE' WHEN r2_source_authority_record_id IS NOT NULL "
+            "THEN 'DEMO_R2_GENERATED_SOURCE' ELSE 'DEMO_LOCAL_IMPORTED_COPY' END",
             persisted=True,
         ),
         nullable=False,
@@ -227,7 +340,11 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
         Computed(
             "CASE WHEN formal_synthetic_identity_id IS NOT NULL "
             "THEN mirror_demo_formal_source_authority_key(formal_synthetic_identity_id) "
-            "ELSE mirror_demo_local_source_authority_key(source_output_id, "
+            "WHEN r2_source_authority_record_id IS NOT NULL "
+            "THEN mirror_demo_r2_source_authority_key(source_output_id, "
+            "formal_canonical_asset_id, formal_canonical_asset_sha256, source_receipt_digest, "
+            "source_authority_digest) ELSE "
+            "mirror_demo_local_source_authority_key(source_output_id, "
             "formal_canonical_asset_id, formal_canonical_asset_sha256, "
             "source_receipt_digest) END",
             persisted=True,
@@ -241,7 +358,8 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
             schema_version_expression=(
                 "schema_version IN ('mirror.demo/DemoSyntheticIdentity/v1',"
                 "'mirror.demo/DemoSyntheticIdentity/v2',"
-                "'mirror.demo/DemoSyntheticIdentity/v3')"
+                "'mirror.demo/DemoSyntheticIdentity/v3',"
+                "'mirror.demo/DemoSyntheticIdentity/v4')"
             ),
         ),
         UniqueConstraint(
@@ -283,7 +401,8 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
             name="qa_snapshot_digest_shape",
         ),
         CheckConstraint(
-            "source_authority_kind IN ('FORMAL_REFERENCE','DEMO_LOCAL_IMPORTED_COPY')",
+            "source_authority_kind IN ('FORMAL_REFERENCE','DEMO_LOCAL_IMPORTED_COPY',"
+            "'DEMO_R2_GENERATED_SOURCE')",
             name="source_authority_kind",
         ),
         CheckConstraint(
@@ -317,6 +436,26 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
             name="local_json_objects",
         ),
         CheckConstraint(
+            "(schema_version = 'mirror.demo/DemoSyntheticIdentity/v4' "
+            "AND source_authority_kind = 'DEMO_R2_GENERATED_SOURCE' "
+            "AND r2_source_authority_record_id IS NOT NULL "
+            "AND formal_synthetic_identity_id IS NULL "
+            "AND formal_accepted_qa_run_id IS NULL "
+            "AND formal_accepted_qa_snapshot_digest IS NULL "
+            "AND source_output_id IS NOT NULL AND source_receipt_digest IS NOT NULL "
+            "AND source_authority_digest IS NOT NULL "
+            "AND source_qa_snapshot_digest IS NOT NULL "
+            "AND source_landmark_digest IS NOT NULL AND source_measurement_digest IS NOT NULL "
+            "AND source_provenance_digest IS NOT NULL AND source_fact_snapshot IS NOT NULL "
+            "AND source_fact_snapshot_digest IS NOT NULL "
+            "AND source_measurement_projection IS NOT NULL "
+            "AND source_measurement_projection_digest IS NOT NULL "
+            "AND original_formal_identity_id_status = 'NOT_APPLICABLE_DEMO_R2_GENERATED_SOURCE' "
+            "AND adult_synthetic_attested IS TRUE "
+            "AND importer_version = 'demo-d02-r2-identity-importer-v1' "
+            "AND import_config_digest IS NOT NULL) OR "
+            "(schema_version <> 'mirror.demo/DemoSyntheticIdentity/v4' "
+            "AND r2_source_authority_record_id IS NULL AND ("
             "(source_authority_kind = 'FORMAL_REFERENCE' "
             "AND schema_version <> 'mirror.demo/DemoSyntheticIdentity/v3' "
             "AND formal_synthetic_identity_id IS NOT NULL "
@@ -352,7 +491,7 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
             "AND importer_version = 'demo-d02-identity-importer-v2') OR "
             "(schema_version = 'mirror.demo/DemoSyntheticIdentity/v3' "
             "AND importer_version = 'demo-d02-identity-importer-v3')) "
-            "AND import_config_digest IS NOT NULL)",
+            "AND import_config_digest IS NOT NULL)))",
             name="source_mode_null_matrix",
         ),
         CheckConstraint(
@@ -574,6 +713,8 @@ class DemoPairScreeningReport(DemoAuthorityMixin, Base):
     source_m3_repeat_count: Mapped[int] = mapped_column(Integer, nullable=False)
     m4_execution_count: Mapped[int] = mapped_column(Integer, nullable=False)
     result_m3_repeat_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    measurement_gate_count: Mapped[int | None] = mapped_column(Integer)
+    decode_structure_record_count: Mapped[int | None] = mapped_column(Integer)
     manual_decision_count: Mapped[int] = mapped_column(Integer, nullable=False)
     exact_sha_record_count: Mapped[int] = mapped_column(Integer, nullable=False)
     phash_comparison_count: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -589,13 +730,14 @@ class DemoPairScreeningReport(DemoAuthorityMixin, Base):
             __tablename__,
             schema_version_expression=(
                 "schema_version IN ('mirror.demo/D02PairScreeningReport/v1',"
-                "'mirror.demo/D02PairScreeningReport/v2')"
+                "'mirror.demo/D02PairScreeningReport/v2',"
+                "'mirror.demo/D02PairScreeningReport/v3')"
             ),
         ),
         UniqueConstraint("report_digest", name="uq_demo_pair_screening_reports_report_digest"),
         CheckConstraint(
             "schema_version IN ('mirror.demo/D02PairScreeningReport/v1',"
-            "'mirror.demo/D02PairScreeningReport/v2')",
+            "'mirror.demo/D02PairScreeningReport/v2','mirror.demo/D02PairScreeningReport/v3')",
             name="exact_schema_version",
         ),
         CheckConstraint(
@@ -637,6 +779,14 @@ class DemoPairScreeningReport(DemoAuthorityMixin, Base):
             "AND selected_pair_manifest_digest IS NULL))",
             name="fixed_cardinality",
         ),
+        CheckConstraint(
+            "(schema_version IN ('mirror.demo/D02PairScreeningReport/v1',"
+            "'mirror.demo/D02PairScreeningReport/v2') AND measurement_gate_count IS NULL "
+            "AND decode_structure_record_count IS NULL) OR "
+            "(schema_version = 'mirror.demo/D02PairScreeningReport/v3' "
+            "AND measurement_gate_count = 48 AND decode_structure_record_count = 48)",
+            name="r2_v3_exact_counts",
+        ),
     )
 
 
@@ -660,7 +810,7 @@ class DemoQuestionBank(DemoAuthorityMixin, Base):
             __tablename__,
             schema_version_expression=(
                 "schema_version IN ('mirror.demo/DemoQuestionBank/v1',"
-                "'mirror.demo/DemoQuestionBank/v2')"
+                "'mirror.demo/DemoQuestionBank/v2','mirror.demo/DemoQuestionBank/v3')"
             ),
         ),
         UniqueConstraint("version", name="uq_demo_question_banks_version"),
@@ -676,7 +826,8 @@ class DemoQuestionBank(DemoAuthorityMixin, Base):
             "(schema_version = 'mirror.demo/DemoQuestionBank/v1' "
             "AND jsonb_typeof(dimension_manifest) = 'array' "
             "AND screening_report_id IS NULL AND screening_report_digest IS NULL) OR "
-            "(schema_version = 'mirror.demo/DemoQuestionBank/v2' "
+            "(schema_version IN ('mirror.demo/DemoQuestionBank/v2',"
+            "'mirror.demo/DemoQuestionBank/v3') "
             "AND jsonb_typeof(dimension_manifest) = 'object' "
             "AND screening_report_id IS NOT NULL AND screening_report_digest IS NOT NULL)",
             name="versioned_dimension_manifest",
@@ -733,7 +884,7 @@ class DemoQuestionPair(DemoAuthorityMixin, Base):
             __tablename__,
             schema_version_expression=(
                 "schema_version IN ('mirror.demo/DemoQuestionPair/v1',"
-                "'mirror.demo/DemoQuestionPair/v2')"
+                "'mirror.demo/DemoQuestionPair/v2','mirror.demo/DemoQuestionPair/v3')"
             ),
         ),
         UniqueConstraint(
@@ -764,7 +915,8 @@ class DemoQuestionPair(DemoAuthorityMixin, Base):
         CheckConstraint(
             "(schema_version = 'mirror.demo/DemoQuestionPair/v1' "
             "AND screening_report_id IS NULL AND screening_report_digest IS NULL) OR "
-            "(schema_version = 'mirror.demo/DemoQuestionPair/v2' "
+            "(schema_version IN ('mirror.demo/DemoQuestionPair/v2',"
+            "'mirror.demo/DemoQuestionPair/v3') "
             "AND screening_report_id IS NOT NULL AND screening_report_digest IS NOT NULL)",
             name="versioned_report_binding",
         ),
@@ -2053,6 +2205,7 @@ DEMO_TABLE_NAMES = frozenset(
     {
         "demo_actors",
         "demo_sessions",
+        "demo_d02_r2_source_authorities",
         "demo_synthetic_identities",
         "demo_face_observations",
         "demo_face_observation_repeats",

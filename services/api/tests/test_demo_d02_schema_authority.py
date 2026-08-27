@@ -27,6 +27,7 @@ from test_demo_schema_authority_invariants import (
     _insert_full_demo_graph,
     _insert_legacy_d02_question_bank_fixture,
     _insert_legacy_local_d02_identity,
+    _persist_historical_authority_rows,
     _result_variant,
     _synthetic_admission_fields,
     _truncate_demo_authority,
@@ -65,6 +66,8 @@ _AUTHORITY_EXCLUDED_COLUMNS = {
     "tombstoned_at",
 }
 
+_HEAD_DEMO_REVISION = "demo_0008_d02_r2_source_auth"
+
 
 @pytest.fixture
 def session() -> Generator[Session]:
@@ -94,7 +97,7 @@ def revision9_session(session: Session, monkeypatch: pytest.MonkeyPatch) -> Gene
     finally:
         session.rollback()
         session.close()
-        command.upgrade(config, DEMO_REVISION)
+        command.upgrade(config, _HEAD_DEMO_REVISION)
 
 
 def _alembic_config(database_url: str) -> Config:
@@ -991,7 +994,7 @@ def test_populated_v2_identity_blocks_demo_0003_downgrade_before_ddl(
             )
         engine.dispose()
     finally:
-        command.upgrade(config, DEMO_REVISION)
+        command.upgrade(config, _HEAD_DEMO_REVISION)
 
 
 def test_populated_report_authority_is_counted_before_any_downgrade_ddl(
@@ -1045,7 +1048,7 @@ def test_populated_report_authority_is_counted_before_any_downgrade_ddl(
             )
         engine.dispose()
     finally:
-        command.upgrade(config, DEMO_REVISION)
+        command.upgrade(config, _HEAD_DEMO_REVISION)
 
 
 def test_populated_v2_bank_and_pairs_are_all_counted_before_any_downgrade_ddl(
@@ -1113,7 +1116,7 @@ def test_populated_v2_bank_and_pairs_are_all_counted_before_any_downgrade_ddl(
             )
         engine.dispose()
     finally:
-        command.upgrade(config, DEMO_REVISION)
+        command.upgrade(config, _HEAD_DEMO_REVISION)
 
 
 def test_screening_report_forgery_and_failed_report_bank_binding_fail_closed(
@@ -1235,8 +1238,8 @@ def test_revision9_recanonicalized_report_attacks_fail_closed(
         report_payload=report_payload,
         field_overrides=field_overrides,
     )
-    session.add(attacked_report)
     with pytest.raises(DBAPIError, match=expected_error):
+        _persist_historical_authority_rows(session, attacked_report, commit=False)
         session.commit()
     session.rollback()
 
@@ -1486,4 +1489,4 @@ def test_populated_legacy_v1_round_trip_is_byte_exact_and_formal_ddl_is_unchange
         engine.dispose()
         assert second_source_key == first_source_key
     finally:
-        command.upgrade(config, DEMO_REVISION)
+        command.upgrade(config, _HEAD_DEMO_REVISION)

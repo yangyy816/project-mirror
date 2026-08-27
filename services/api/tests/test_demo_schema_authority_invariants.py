@@ -16,7 +16,7 @@ from typing import Any, cast
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import JSON, Table, create_engine, delete, inspect, select, text, update
+from sqlalchemy import JSON, MetaData, Table, create_engine, delete, inspect, select, text, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import conv
@@ -78,7 +78,9 @@ from mirror_api.models import (
     utcnow,
 )
 
-DEMO_REVISION = "demo_0007_d02_recovered_qa"
+_LEGACY_DEMO_GRAPH_TABLE_NAMES = set(DEMO_TABLE_NAMES) - {"demo_d02_r2_source_authorities"}
+
+DEMO_REVISION = "demo_0008_d02_r2_source_auth"
 D02_RECOVERED_QA_DOWN_REVISION = "demo_0006_d02_private_exec"
 D02_PRIVATE_EXEC_DOWN_REVISION = "demo_0005_d02_quality_auth"
 D02_QUALITY_DOWN_REVISION = "demo_0004_d09_episode_prov"
@@ -147,6 +149,18 @@ def _build_demo_row(
             payload[column.name] = None
         else:
             payload[column.name] = _authority_time(value) if isinstance(value, datetime) else value
+    if model is DemoSyntheticIdentity and schema_version in {
+        "mirror.demo/DemoSyntheticIdentity/v1",
+        "mirror.demo/DemoSyntheticIdentity/v2",
+        "mirror.demo/DemoSyntheticIdentity/v3",
+    }:
+        payload.pop("r2_source_authority_record_id", None)
+    if model is DemoPairScreeningReport and schema_version in {
+        "mirror.demo/D02PairScreeningReport/v1",
+        "mirror.demo/D02PairScreeningReport/v2",
+    }:
+        payload.pop("measurement_gate_count", None)
+        payload.pop("decode_structure_record_count", None)
     if model is DemoSyntheticIdentity and schema_version.endswith(("/v2", "/v3")):
         formal_identity_id = authority_fields.get("formal_synthetic_identity_id")
         if formal_identity_id is not None:
@@ -194,6 +208,66 @@ def _build_demo_row(
     return row
 
 
+def _persist_historical_authority_rows(session: Session, *rows: Any, commit: bool = True) -> None:
+    """Insert authority rows through reflected tables after a historical downgrade."""
+    reflected_tables: dict[str, Table] = {}
+    requires_reflection = False
+    for row in rows:
+        model_table = cast(Table, row.__table__)
+        reflected_table = reflected_tables.get(model_table.name)
+        if reflected_table is None:
+            reflected_table = Table(
+                model_table.name,
+                MetaData(),
+                autoload_with=session.connection(),
+            )
+            reflected_tables[model_table.name] = reflected_table
+        if set(model_table.columns.keys()) - set(reflected_table.columns.keys()):
+            requires_reflection = True
+
+    if not requires_reflection:
+        session.add_all(rows)
+        if commit:
+            session.commit()
+        return
+
+    for row in rows:
+        model_table = cast(Table, row.__table__)
+        reflected_table = reflected_tables[model_table.name]
+        missing_columns = set(model_table.columns.keys()) - set(reflected_table.columns.keys())
+        if missing_columns:
+            payload = dict(row.canonical_payload)
+            for column_name in missing_columns:
+                payload.pop(column_name, None)
+            row.canonical_payload = payload
+            row.content_digest = _digest(row.schema_version, payload)
+            if isinstance(row, DemoSyntheticIdentity) and row.schema_version.endswith(
+                ("/v2", "/v3")
+            ):
+                row.source_authority_kind = cast(str, payload["source_authority_kind"])
+                row.source_authority_key = cast(str, payload["source_authority_key"])
+                row.id = _digest(
+                    "mirror.demo/DemoSyntheticIdentityAdmissionEventId/v2",
+                    {
+                        "admission_action": row.admission_action,
+                        "admission_config_digest": row.admission_config_digest,
+                        "admission_sequence": row.admission_sequence,
+                        "canonical_payload_digest": row.content_digest,
+                        "source_authority_key": payload["source_authority_key"],
+                        "source_authority_kind": payload["source_authority_kind"],
+                        "supersedes_id": row.supersedes_id,
+                    },
+                )[:32]
+        values = {}
+        for column in reflected_table.columns:
+            value = getattr(row, column.name)
+            if column.computed is None and value is not None and value is not JSON.NULL:
+                values[column.name] = value
+        session.execute(reflected_table.insert().values(**values))
+    if commit:
+        session.commit()
+
+
 def _insert_demo_row(
     session: Session,
     model: type[Any],
@@ -207,8 +281,7 @@ def _insert_demo_row(
         created_at=created_at,
         **authority_fields,
     )
-    session.add(row)
-    session.commit()
+    _persist_historical_authority_rows(session, row)
     return row
 
 
@@ -1864,8 +1937,7 @@ def _insert_legacy_d02_question_bank_fixture(
         selected_dimension_keys=list(_D02_CANDIDATE_DIMENSIONS[:2]),
         selected_pair_manifest_digest=selected_pair_manifest_digest,
     )
-    session.add(report)
-    session.commit()
+    _persist_historical_authority_rows(session, report)
 
     algorithm_config_digest = evidence_digest("questionnaire-algorithm-config")
     dimension_manifest = {
@@ -1993,9 +2065,7 @@ def _insert_legacy_d02_question_bank_fixture(
     session.flush()
     session.add_all(result_variants)
     session.flush()
-    session.add(bank)
-    session.add_all(pairs)
-    session.commit()
+    _persist_historical_authority_rows(session, bank, *pairs)
     return bank, pairs[0]
 
 
@@ -2076,8 +2146,7 @@ def _insert_d02_question_bank(
             cast(str, identity_authority["created_at"]).replace("Z", "+00:00")
         )
         identity_row = DemoSyntheticIdentity(**identity_fields)
-        session.add(identity_row)
-        session.commit()
+        _persist_historical_authority_rows(session, identity_row)
         identity_by_id[identity_row.id] = identity_row
 
     image_by_case = {
@@ -2138,8 +2207,7 @@ def _insert_d02_question_bank(
         cast(str, report_authority["created_at"]).replace("Z", "+00:00")
     )
     report = DemoPairScreeningReport(**report_fields)
-    session.add(report)
-    session.commit()
+    _persist_historical_authority_rows(session, report)
 
     report_payload = cast(dict[str, Any], report.report_payload)
     execution_config = cast(
@@ -2267,9 +2335,7 @@ def _insert_d02_question_bank(
                 screening_report_digest=report.report_digest,
             )
         )
-    session.add(bank)
-    session.add_all(pairs)
-    session.commit()
+    _persist_historical_authority_rows(session, bank, *pairs)
     return bank, pairs[0]
 
 
@@ -2977,8 +3043,15 @@ def _insert_full_demo_graph(
         else _insert_legacy_d02_question_bank_fixture
     )
     bank, question_pair = insert_question_bank(session, source_asset, synthetic_identity)
-    pair_screening_report = session.get(DemoPairScreeningReport, bank.screening_report_id)
-    assert pair_screening_report is not None
+    report_table = Table(
+        "demo_pair_screening_reports", MetaData(), autoload_with=session.connection()
+    )
+    report_values = (
+        session.execute(select(report_table).where(report_table.c.id == bank.screening_report_id))
+        .mappings()
+        .one()
+    )
+    pair_screening_report = DemoPairScreeningReport(**dict(report_values))
     questionnaire_run = _insert_demo_row(
         session,
         DemoQuestionnaireRun,
@@ -4581,16 +4654,17 @@ def test_full_demo_authority_graph_covers_every_table(session: Session) -> None:
         row
         for value in graph.values()
         for row in (value if isinstance(value, list) else [value])
-        if getattr(row, "__table__", None) is not None and row.__table__.name in DEMO_TABLE_NAMES
+        if getattr(row, "__table__", None) is not None
+        and row.__table__.name in _LEGACY_DEMO_GRAPH_TABLE_NAMES
     ]
-    assert {row.__table__.name for row in authority_rows} == set(DEMO_TABLE_NAMES)
-    for table_name in DEMO_TABLE_NAMES:
+    assert {row.__table__.name for row in authority_rows} == _LEGACY_DEMO_GRAPH_TABLE_NAMES
+    for table_name in _LEGACY_DEMO_GRAPH_TABLE_NAMES:
         assert session.scalar(text(f"SELECT count(*) FROM {table_name}")) >= 1  # noqa: S608
 
 
 def test_every_demo_authority_row_rejects_direct_update_and_delete(session: Session) -> None:
     _insert_full_demo_graph(session)
-    for table_name in sorted(DEMO_TABLE_NAMES):
+    for table_name in sorted(_LEGACY_DEMO_GRAPH_TABLE_NAMES):
         row_id = session.scalar(text(f"SELECT id FROM {table_name} LIMIT 1"))  # noqa: S608
         assert row_id is not None
         with pytest.raises(DBAPIError):
@@ -4970,7 +5044,7 @@ def test_accepted_episode_rejects_isolated_terminal_plan_provenance_drift(
 
 
 def test_demo_metadata_and_database_objects_match(session: Session) -> None:
-    assert len(DEMO_TABLE_NAMES) == 29
+    assert len(DEMO_TABLE_NAMES) == 30
     database_tables = set(
         session.scalars(
             text(
@@ -5061,7 +5135,7 @@ def test_demo_orm_and_database_foreign_keys_match(session: Session) -> None:
         actual_count += len(actual)
         assert actual == expected, table_name
 
-    assert expected_count == actual_count == 89
+    assert expected_count == actual_count == 91
 
 
 def test_canonical_json_digest_and_integer_numeric_authority(session: Session) -> None:
@@ -5945,7 +6019,15 @@ def _d02_authority_snapshot(session: Session) -> dict[str, Any]:
             "'[]'::jsonb) FROM demo_question_pairs AS row_value"
         ),
     }
-    return {name: session.scalar(text(query)) for name, query in queries.items()}
+    snapshot = {name: session.scalar(text(query)) for name, query in queries.items()}
+    for identity in cast(list[dict[str, Any]], snapshot["identities"]):
+        if identity.get("r2_source_authority_record_id") is None:
+            identity.pop("r2_source_authority_record_id", None)
+    for report in cast(list[dict[str, Any]], snapshot["reports"]):
+        for column_name in ("measurement_gate_count", "decode_structure_record_count"):
+            if report.get(column_name) is None:
+                report.pop(column_name, None)
+    return snapshot
 
 
 def _d02_trigger_definitions(session: Session) -> list[tuple[str, str, str]]:
@@ -6371,11 +6453,19 @@ def test_d02_quality_round_trip_preserves_legacy_rows_and_rejects_new_v1_report(
         source_asset,
         primary_admission,
     )
-    report = session.get(DemoPairScreeningReport, bank.screening_report_id)
-    assert report is not None
+    report_table = Table(
+        "demo_pair_screening_reports",
+        MetaData(),
+        autoload_with=session.connection(),
+    )
+    report = (
+        session.execute(select(report_table).where(report_table.c.id == bank.screening_report_id))
+        .mappings()
+        .one()
+    )
     report_values = {
-        column.name: getattr(report, column.name)
-        for column in DemoPairScreeningReport.__table__.columns
+        column.name: report[column.name]
+        for column in report_table.columns
         if column.computed is None
     }
     legacy_snapshot = _d02_authority_snapshot(session)
