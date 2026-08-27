@@ -3,11 +3,13 @@
 ## Register authority
 
 ```text
-REGISTER_VERSION: p3-p7-demo-risk-register-v1.1-d02-r2-revision5-candidate
+REGISTER_VERSION: p3-p7-demo-risk-register-v1.1-d02-r2-locator-custody-cc09-revision-8-candidate
 TRACK: DEMO_PROTOTYPE
 OWNER: TERRA_HIGH_PRINCIPAL
 REVIEW_CADENCE: every D checkpoint and immediately after a trigger
-ALLOWED_STATUS: OPEN | MITIGATED_MONITORED | TRIGGERED | RECOVERING | CLOSED | ACCEPTED_RESIDUAL
+STATUS_ENUM_VERSION: P3_P7_DEMO_RISK_STATUS_V1
+STATUS_ENUM: OPEN | PARTIALLY_MITIGATED | MITIGATED_MONITORED | TRIGGERED | RECOVERING | CLOSED | ACCEPTED_RESIDUAL
+RISK_COUNT: 38
 ```
 
 This is a continuous register. `CLOSED` requires evidence; a D00 mitigation does not erase the risk. Each entry records
@@ -253,8 +255,15 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 - **Probability / impact:** Medium / Critical
 - **Description:** P3–P7 core or its dependency silently requires public DNS/HTTP/model/service access at runtime.
 - **Early signal:** socket/DNS attempt, proxy variable consumption, public default route use, retry waiting on external host or success only when proxy is enabled.
-- **P:** separate D00-A acquisition from frozen D00-B runtime; no proxy in core environment; frozen artifacts and local service topology.
-- **D:** process/container public-egress denial with localhost/Docker services still healthy; network-attempt logging and offline replay.
+- **P:** separate D00-A acquisition from frozen D00-B runtime; no proxy in core environment; frozen artifacts and local
+  service topology. The locator bridge uses an exclusive serialized maintenance window plus deterministic UUIDv5,
+  dynamic, image-wide WFP denial for all processes using its four accepted executable images.
+- **D:** process/container public-egress denial with localhost/Docker services still healthy; network-attempt logging and
+  offline replay. For CC09, `FwpmSessionEnum0` binds session key/current PID/current SID/dynamic flags; provider,
+  sublayer and all eight filters correlate before exact caller-controlled replay of display/description/data/zero-null/
+  condition/action/context fields and V4/V6 `WSAEACCES` probes. Host-assigned ID/effective-weight fields follow their
+  separate policy. Tests acknowledge same-image collateral; filter lookup, audit denial or generic unreachability alone
+  is insufficient.
 - **R:** classify `EXTERNAL_RUNTIME_DEPENDENCY_FOUND`, remove or vendor only through approved bounded acquisition/change control, then rerun offline Gate.
 - **S:** stop the affected core Gate immediately; never silently enable egress. Generative Provider remains unavailable without blocking deterministic core.
 - **Owner / status / blocked:** Principal + infra/runtime owners / `MITIGATED_MONITORED` / D03–D12 affected core path.
@@ -478,3 +487,162 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 - **S:** `R2_AUTHORITY_SPLICE_DETECTED`; no Identity, Report, QuestionBank or downstream runtime admission.
 - **Owner / status / blocked:** Principal + central data owner / `OPEN` / migration implementation, source admission and
   D02-R2 acceptance.
+
+## R-DEMO-33 — CC08 root has no durable locator authority
+
+- **Probability / impact:** High / Critical
+- **Description:** the accepted CC08 implementation is present, but no replayable Principal custody record binds the
+  one root ID to a recoverable locator and original creation timestamp. A plausible pre-CC09 directory elsewhere would
+  be an unbound orphan, not proof of current authority.
+- **Early signal:** only a digest or environment absence is available, a caller proposes a guessed path, the Windows
+  principal SID/Known Folder/private-home physical identity changes, or `CREATE_NEW` versus `RECOVER_EXISTING` cannot be
+  decided from an append-only record.
+- **P:** tracked Windows host-binding and private-home physical-binding acceptances; canonical SID and typed Known
+  Folder/System Directory handle identities; handle-relative two-component `ProjectMirror`/private-home creation with
+  exact protected DACLs and one immutable receipt per component; locator name receipt; namespace-absent replay of all
+  boundary identities; two-copy custody commit `PREPARED` before root creation; and one consumability predicate requiring
+  the committed CC09 allocation plus exact CC08 receipt/registry.
+- **D:** replay host/private-home acceptances, current SID/Known Folder/project-container/private-home identities/DACLs,
+  both component receipts and A/B count/head/snapshot before every root operation; fault-test alternate users, folder
+  remaps, each directory-only crash prefix and delete/recreate-at-same-path; reject direct caller-supplied root entry.
+- **R:** only an unaccepted tracked private-home binding candidate JSON may be superseded through the normal tracked
+  candidate-revision workflow. No physical directory, receipt, identity, ACL or private byte may be deleted, replaced,
+  repaired or rebound before or after acceptance. After acceptance, any physical drift fails closed. Continue only the
+  exact frozen transition; treat any unbound existing root as
+  `ORPHANED_UNBOUND_NON_AUTHORITY`; never search, adopt, suffix, rebind or allocate an alternate destination.
+- **S:** `WINDOWS_HOST_BINDING_AUTHORITY_MISSING_STOP`, `WINDOWS_PRINCIPAL_SID_CHANGED_STOP`,
+  `KNOWN_FOLDER_IDENTITY_CHANGED_STOP`, `PRIVATE_HOME_PROJECT_COMPONENT_UNBOUND_STOP`,
+  `PRIVATE_HOME_BINDING_AUTHORITY_MISSING_STOP`,
+  `PRIVATE_HOME_DIRECTORY_ONLY_STOP`, `PRIVATE_HOME_RECEIPT_PARTIAL_OR_CORRUPT_STOP`,
+  `PRIVATE_HOME_IDENTITY_CHANGED_STOP`, `PRIVATE_HOME_REDIRECTION_STOP`, `UNBOUND_EXISTING_EVIDENCE_ROOT_STOP` or
+  `SECOND_ROOT_OR_REBIND_STOP`; generation and all D02-R2 execution remain closed.
+- **Owner / status / blocked:** Principal / `TRIGGERED` / root preflight, R05 durable evidence, D02-R2 execution.
+
+## R-DEMO-34 — Locator custody copies or control receipts diverge
+
+- **Probability / impact:** Medium / Critical
+- **Description:** an interrupted namespace bootstrap or locator transition leaves a directory-only namespace, one
+  copy genesis, different A/B chains, partial intent/commit bytes, a sequence gap or an authority state without its
+  immutable commit receipt.
+- **Early signal:** unknown bootstrap object, unequal count/head/snapshot, copy-ID swap, partial canonical JSON or a
+  transition state ahead of the latest committed event.
+- **P:** predetermined namespace/copy/locator bytes; exact ordered scaffold and bootstrap state tables; every directory
+  and immutable file uses `NtCreateFile(RootDirectory=validated parent, FILE_CREATE, OBJ_DONT_REPARSE)`, a no-delete-share
+  parent handle, creation-time protected DACL, full-write/child flush, parent-directory durability flush and
+  handle-relative reopen/identity replay; transaction order is durable intent, A, replay, B, equal replay, commit and
+  full replay.
+- **D:** fault injection for namespace-directory-only, every empty scaffold prefix, receipt-only/one-genesis,
+  intent-only/A-only/A+B-no-commit and corruption, plus short write, file/parent flush failure, crash between file and
+  parent flush, unsupported native/`OBJ_DONT_REPARSE`/directory-flush capability, path-based fallback, ADS/reparse,
+  reopen mismatch and parent/child identity swap; full chain replay on every open.
+- **R:** resume only from the last fully proven durable stage and replay only exact frozen bytes. Any corruption,
+  unproven parent barrier or semantic divergence requires a new Principal change control; one copy never overwrites the
+  other.
+- **S:** `HANDLE_RELATIVE_CREATION_UNAVAILABLE_STOP`, `CUSTODY_DURABILITY_BARRIER_FAILED_STOP`,
+  `CUSTODY_PARENT_IDENTITY_CHANGED_STOP`,
+  `LOCATOR_COPY_DIVERGENCE_STOP`, `LOCATOR_INTENT_PARTIAL_OR_CORRUPT_STOP` or
+  `LOCATOR_COMMIT_PARTIAL_OR_CORRUPT_STOP`; no root operation or handoff.
+- **Owner / status / blocked:** Principal / `OPEN` / locator implementation and all D02-R2 private tasks.
+
+## R-DEMO-35 — Absolute root locator escapes the Principal boundary
+
+- **Probability / impact:** Low / Critical
+- **Description:** the D02 absolute evidence-root/private-home locator appears outside its exact allowed capability
+  fields in argv, outer bridge environment, Git, CI, an exception, ordinary log, coordination mailbox, Agent packet or
+  MEMORY, or escapes the sole trusted ACL-child environment exception. Accepted capability paths `SystemRoot`,
+  `WINDIR`, `ComSpec`, `PATH`, `PSModulePath`, `TEMP` and `TMP` are not themselves root-locator leakage.
+- **Early signal:** path-like token in captured stdout/stderr or a tracked/private-field scan match, an inherited
+  `MIRROR_*` binding, Windows-directory/System-directory relationship drift, code-cache/scratch/runtime/Git/PowerShell
+  projection drift, WFP session/provider/sublayer/filter/probe/cleanup mismatch, unauthorized subprocess or any
+  executable other than the accepted detached bridge or accepted ACL child receiving the locator.
+- **P:** fixed Known Folder resolution inside the Principal; accepted Python/Git/PowerShell/cmd and complete
+  Security/Utility manifest/member/cmdlet/four-row AST-script/runtime projections with exact row literals and source
+  cross-equalities; accepted local code-cache checkout and
+  receipt-bound private scratch; isolated Python startup; verified Git-only PATH and system-directory-bound
+  `PSModulePath`; synthesized environment and narrow handles; one length-prefixed binary UTF-8 locator frame;
+  deterministic dynamic image-wide WFP V4/V6 denial with session/object correlation; active-process-limit-two/no-
+  breakaway Job Object; and fail-closed socket/DNS audit denial. The byte-identical CC08 ACL verifier may place the path
+  only in its trusted child's
+  `MIRROR_D02_R2_ACL_PATH` for that process lifetime.
+- **D:** runtime/Git plus exact manifest empty/member rows, cmdlet-role rows, four script source/function/assignment rows,
+  version source, four PowerShell projection and closure replay; Windows Directory/System Directory equality;
+  code-cache/ref/seal and scratch receipt-only replay; fake PATH/startup/import/handle/subprocess faults; non-ASCII/frame
+  tests; WFP session ownership and provider/sublayer/eight-filter correlation, exact filter-byte replay, V4/V6 probes,
+  image-wide collateral and cleanup observer; argv/environment/stdout/stderr leakage tests and tracked/artifact scans.
+- **R:** stop processing, preserve evidence, remove no authority and perform a bounded Principal exposure review before
+  any new handoff.
+- **S:** `ABSOLUTE_LOCATOR_DISCLOSURE_STOP`, `DETACHED_RUNTIME_IDENTITY_CHANGED_STOP`,
+  `DETACHED_GIT_IDENTITY_CHANGED_STOP`, `POWERSHELL_ACL_MODULE_CLOSURE_UNPROVEN_STOP`,
+  `POWERSHELL_MANIFEST_PROJECTION_MISMATCH_STOP`, `POWERSHELL_CMDLET_PROJECTION_MISMATCH_STOP`,
+  `POWERSHELL_ACL_SCRIPT_PROJECTION_MISMATCH_STOP`, `POWERSHELL_RUNTIME_PROJECTION_MISMATCH_STOP`,
+  `WFP_SESSION_OWNERSHIP_UNPROVEN_STOP`, `WFP_PROVIDER_SUBLAYER_FILTER_CORRELATION_STOP`,
+  `BRIDGE_NETWORK_DENIAL_UNAVAILABLE_STOP`, `WFP_EGRESS_SESSION_CLEANUP_FAILED_STOP`,
+  `CODE_CHECKOUT_PARTIAL_OR_CORRUPT_STOP`, `BRIDGE_SCRATCH_RESIDUE_STOP` or
+  `BRIDGE_UNAUTHORIZED_SUBPROCESS_STOP`; no sub-agent access, private execution or evidence publication.
+- **Owner / status / blocked:** Principal / `OPEN` / root creation, every private handoff and D12 boundary review.
+
+## R-DEMO-36 — Pre-root expected digest is mistaken for durable receipt evidence
+
+- **Probability / impact:** High / Critical
+- **Description:** the value `c3ae4388...` referenced by migration governance or local R05 metadata is treated as proof
+  that the fixed root and receipt bytes already exist, despite no replayable locator/receipt custody authority.
+- **Early signal:** an admission contract uses the value without resolving and rehashing exact receipt bytes, or a new
+  root is backdated to force the digest.
+- **P:** CC09 labels the value `PRE_ROOT_EXPECTATION_DIGEST`, places both accepted migration records in
+  `HELD_PENDING_ACTUAL_ROOT_RECEIPT_REBIND`, creates the real receipt only after `PREPARED`, and records its actual digest
+  in both custody copies.
+- **D:** exact receipt-byte replay plus a tracked addendum candidate and distinct independently reviewed, same-SHA-CI
+  and Principal-accepted forward acceptance before any
+  PostgreSQL evidence admission; require post-R05 event count `8`, equal final A/B snapshots, final head event and the
+  ordered eight output IDs; explicitly reject the sequence-3 `READY_EMPTY` snapshot as R05 durable evidence. The
+  effective authority predicate requires the acceptance record rather than the candidate or scalar equality alone.
+- **R:** keep R05 code verdict separate from evidence persistence, register existing evidence under the actual root and
+  supersede only the old input binding through a forward record while preserving historical bytes.
+- **S:** `PRE_ROOT_EXPECTATION_DIGEST_NON_CONSUMABLE_STOP`, `MIGRATION_ROOT_BINDING_HELD_STOP` or
+  `ROOT_RECEIPT_MISMATCH_STOP`; no R05 task acceptance, D02-R2 admission or downstream opening based on the expected
+  digest alone.
+- **Owner / status / blocked:** Principal / `TRIGGERED` / R05 durable acceptance, D02-R2 PostgreSQL admission.
+
+## R-DEMO-37 — Candidate-local R05 evidence is lost or relabelled during durable registration
+
+- **Probability / impact:** Medium / High
+- **Description:** the seven known R05 correctness-evidence files remain worktree-local, or are moved, overwritten,
+  renamed after the fact, assigned misleading CC08 control roles, or registered without prior output-name receipts.
+- **Early signal:** source count/name/digest drift, an output exists before its CC08 name receipt, a destination hash
+  differs, or the final two-copy registry snapshot omits an ordered output.
+- **P:** one task-scoped source handle, frozen seven-file manifest, eight exact-sequence `BANK_IMPORT_EVIDENCE` output
+  IDs including a rehome manifest, accepted producer task `P3_P7_D02_R2_EXECUTION_01`, deterministic timestamps,
+  create-new byte-identical copies, seals and A-then-B transactions. The distinct R05 durability ID is orchestration
+  metadata only.
+- **D:** source and destination reopen/rehash, exact name-receipt-before-copy checks, equal final A/B snapshots, count
+  eight, ordered output IDs/final head and a tracked forward binding to the rehome-manifest digest.
+- **R:** preserve both source and destination bytes and follow the accepted CC08 per-ordinal recovery ladder only:
+  name receipt durable/output absent; output durable/seal absent; seal durable/intent absent; intent durable/A+B
+  absent; A only; A+B/commit absent; or complete commit. Partial/corrupt and B-only states preserve-and-stop. Never
+  scan, move, overwrite, suffix or treat legacy root/registry labels as CC08 control authority.
+- **S:** `R05_SOURCE_EVIDENCE_MISMATCH_STOP` or any inherited CC08 output/registry stop; R05 durability acceptance and
+  actual-root binding remain closed.
+- **Owner / status / blocked:** Principal / `TRIGGERED` / R05 durable acceptance and D02-R2 execution.
+
+## R-DEMO-38 — Bridge code-cache or scratch state is partial, replaced or contaminated
+
+- **Probability / impact:** Medium / Critical
+- **Description:** the accepted-R06 code-only cache is pre-existing, partial, rebound, points at the wrong ref/tree,
+  retains a source locator, or the private bridge scratch contains unreceipted residue before/after a locator session.
+- **Early signal:** directory exists without its name receipt, local clone stops mid-stage, `origin` remains, detached
+  HEAD/tree/ref/governed blob drift, checkout seal mismatch, scratch is not receipt-only, or a crash leaves temp bytes.
+- **P:** host-candidate `ABSENT_CREATE_NEW`; handle-relative protected-DACL creation; local no-hardlink/no-network clone;
+  remove origin, recreate the exact accepted ref, detach exact R06 SHA; immutable cache and checkout-seal receipts; create
+  scratch only after private-home acceptance with its own first-file receipt; receipt-only state before/after every
+  locator session; no automatic cleanup.
+- **D:** reopen and replay code-cache/checkout/scratch handle identities, DACLs, receipts and host/implementation bindings;
+  verify Git config has no source locator, exact HEAD/tree/ref and all governed blobs; enumerate scratch and require the
+  one receipt at rest; fault-test every directory-only/partial/replaced/ref-drift/crash-residue state.
+- **R:** preserve all bytes and stop. An unaccepted tracked governance candidate may be superseded, but no physical
+  cache, checkout, receipt, scratch identity or private residue may be deleted, repaired, replaced, rebound or suffixed.
+  Resume only through a new forward change control that disposes the exact preserved state.
+- **S:** `CODE_CACHE_PREEXISTING_UNBOUND_STOP`, `CODE_CACHE_DIRECTORY_ONLY_STOP`,
+  `CODE_CHECKOUT_PARTIAL_OR_CORRUPT_STOP`, `CODE_CHECKOUT_ACCEPTED_REF_MISMATCH_STOP`,
+  `BRIDGE_SCRATCH_DIRECTORY_ONLY_STOP` or `BRIDGE_SCRATCH_RESIDUE_STOP`; no locator disclosure, root operation or D02-R2
+  private execution.
+- **Owner / status / blocked:** Principal / `OPEN` / CC09 host/private-home execution, root creation and D02-R2 execution.
