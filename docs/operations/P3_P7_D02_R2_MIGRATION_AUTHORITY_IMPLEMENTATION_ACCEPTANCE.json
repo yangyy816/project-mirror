@@ -1,0 +1,58 @@
+{
+  "acceptance_scope": "D02_R2_MIGRATION_ORM_VALIDATOR_IMPLEMENTATION_ONLY",
+  "authority_id": "P3_P7_D02_R2_MIGRATION_AUTHORITY_IMPLEMENTATION_ACCEPTANCE_01",
+  "change_control_id": "P3_P7_D02_CC_08",
+  "d02_r2_overall": "NOT_TASK_ACCEPTED",
+  "downstream_state": {
+    "D03": "BLOCKED_D02_R2_NOT_TASK_ACCEPTED",
+    "D04_B": "BLOCKED_D02_R2_AND_D03_NOT_TASK_ACCEPTED",
+    "D07_B": "BLOCKED_D02_R2_AND_D03_NOT_TASK_ACCEPTED"
+  },
+  "implementation": {
+    "integration_sha": "ed89d7d5b88825b5f01315b11d279ea8d1fd5de6",
+    "migration_head": "demo_0008_d02_r2_source_auth",
+    "r05_code_commit": "63febde91a28b492f550ef047dcb4da6b34f1dba",
+    "r05_code_parent": "49e35eded41a1ff2b4eea32b6afee76f75fc7c84",
+    "relevant_file_blobs_digest": "81a87049f27339569ae233f4632fa590b62c7135ef7dea1d9a252ffa4f6948d1"
+  },
+  "independent_review": {
+    "findings_p0": 0,
+    "findings_p1": 0,
+    "findings_p2": 0,
+    "findings_p3": 0,
+    "result": "PASS",
+    "review_task_id": "P3_P7_D02_R2_R05_FINAL_CORRECTNESS_REVIEW_01",
+    "reviewed_sha": "ed89d7d5b88825b5f01315b11d279ea8d1fd5de6"
+  },
+  "principal_acceptance": {
+    "accepted_at_utc": "2026-08-27T11:28:30.896Z",
+    "status": "R05_CLOSED_ACCEPTED_CHECKPOINT"
+  },
+  "record_created_at_utc": "2026-08-27T11:28:30.896Z",
+  "record_digest": "f90754f637e6c03c3117edd80da05b6ae03b58688ce96ad706da4e1509353f4d",
+  "same_sha_ci": {
+    "head_sha": "ed89d7d5b88825b5f01315b11d279ea8d1fd5de6",
+    "provider": "GITHUB_ACTIONS",
+    "repository": "yangyy816/project-mirror",
+    "required_jobs": [
+      "quality-and-integration",
+      "secret-scan",
+      "docker-validation"
+    ],
+    "result": "PASS",
+    "run_id": 33042678958,
+    "run_url": "https://github.com/yangyy816/project-mirror/actions/runs/33042678958",
+    "workflow_identity": ".github/workflows/ci.yml"
+  },
+  "schema_version": "mirror.demo/D02R2MigrationAuthorityImplementationAcceptance/v1",
+  "task_id": "P3_P7_D02_R2_MIGRATION_R05_V3_REPORT_BANK_PAIR_AUTHORITY",
+  "validation_fingerprint": {
+    "decision": "REUSE_ACCEPTED_EVIDENCE",
+    "dependency_lock_digest": "79440418bb17dc3142a578c102687a17f4643199a61716dcb29a1d44735bbca4",
+    "digest": "b75697ba5a0177279834f97bba9e85aeefc2ca299d553f47c5cc4f4dfdbf65c0",
+    "environment_class": "GITHUB_ACTIONS_UBUNTU_PYTHON_3_13_1_POSTGRESQL_17_REDIS_8_DOCKER",
+    "migration_head": "demo_0008_d02_r2_source_auth",
+    "relevant_file_blobs_digest": "81a87049f27339569ae233f4632fa590b62c7135ef7dea1d9a252ffa4f6948d1",
+    "test_config_digest": "59c10a108aea86c454df89c1186448e5dbf7802f8b518cc5c3cd442b7cd75a09"
+  }
+}
