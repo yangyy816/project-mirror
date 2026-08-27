@@ -681,3 +681,12 @@
   `CAL-REQ-002` 恢复一个最多 4 次调用的 bounded tranche；CC04 使用独立 formal worktree/branch、private
   namespace、registry、ordinal、database 与资源，低优先级、concurrency 1，Demo 需要本地 M3/M4/CI 资源时立即
   让路，且永不进入 Demo critical path。
+
+- 2026-08-27：D02-R2 registry R06 implementation `ab08a6e861ec364c62a6ab3dcf46a69483f1b741`
+  前向关闭 Windows evidence-root 首次创建的 ACL 继承缺口：固定顺序为 mkdir、non-reparse、ACL harden、
+  ACL validate、empty check、first receipt；失败只对仍为空的新目录执行非递归 `os.rmdir`。PowerShell 与
+  Security module authority 由 `GetSystemDirectoryW`、fixed-local、逐组件 non-reparse、严格 containment 和
+  exact path 绑定，不再信任继承的 `SystemRoot`。独立 Sol exact-hash review 为 PASS 且 P0/P1/P2/P3 全零；
+  38 个离线 targeted tests、Ruff、strict mypy、Windows native ACL probe 和 same-SHA run `33085380915`
+  三 jobs 均 PASS。该接受只开放 designated evidence-root/name-receipt/two-copy-registry 初始化；root、private
+  locator、ImageGen 调用和完整 D02-R2 尚未发生，D03/D04-B/D07-B 继续关闭。
