@@ -9,4 +9,5 @@ packages/contracts/src/schema.ts
 docs/research/P2_M5_CC02_DIAGNOSTIC_MANIFEST.json
 docs/operations/P3_P7_D02_R2_REGISTRY_IMPLEMENTATION_ACCEPTANCE.json
 docs/operations/P3_P7_D02_R2_REGISTRY_R06_IMPLEMENTATION_ACCEPTANCE.json
+docs/operations/P3_P7_D02_R2_LOCATOR_CUSTODY_PLAN_ACCEPTANCE.json
 pytest-cache-files-*/
