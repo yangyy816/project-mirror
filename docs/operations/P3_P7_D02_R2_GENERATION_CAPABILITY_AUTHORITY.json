@@ -29,9 +29,7 @@
   "qualification": {
     "qualification_tier": "RESEARCH_QUALIFIED",
     "current_status": "OWNER_AUTHORIZED_FOR_EXACT_D02_R2_DEMO_ONLY",
-    "approved_scope": [
-      "DEMO_ONLY_SYNTHETIC_SOURCE_PRODUCTION"
-    ],
+    "approved_scope": ["DEMO_ONLY_SYNTHETIC_SOURCE_PRODUCTION"],
     "prohibited_scope": [
       "REAL_USER_INPUT",
       "REFERENCE_IMAGE_INPUT",
@@ -115,9 +113,7 @@
   },
   "approved_endpoint_policy": {
     "schema_version": "mirror.demo/D02R2GenerationEndpointPolicy/v1",
-    "approved_control_plane_invocations": [
-      "image_gen.imagegen"
-    ],
+    "approved_control_plane_invocations": ["image_gen.imagegen"],
     "built_in_remote_control_plane_allowed": true,
     "approved_direct_network_endpoints": [],
     "direct_http_allowed": false,
