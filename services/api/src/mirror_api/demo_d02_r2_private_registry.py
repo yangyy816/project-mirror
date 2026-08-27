@@ -23,7 +23,7 @@ import stat
 import subprocess
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Final, NoReturn, cast
 
 from mirror_api.demo_measurement_quality import canonical_json_bytes, mirror_demo_digest
@@ -94,11 +94,14 @@ CLEANUP_DEPENDENCY_SCAN_POLICY: Final = (
 )
 DEFAULT_CUSTODY: Final = "PRINCIPAL_PRIVATE_OUTPUT_CUSTODY"
 
-REGISTRY_IMPLEMENTATION_AUTHORITY_ID: Final = "P3_P7_D02_R2_REGISTRY_IMPLEMENTATION_ACCEPTANCE_01"
-REGISTRY_IMPLEMENTATION_TASK_ID: Final = "P3_P7_D02_R2_REGISTRY_IMPLEMENTATION_01"
+REGISTRY_IMPLEMENTATION_AUTHORITY_ID: Final = (
+    "P3_P7_D02_R2_REGISTRY_R06_IMPLEMENTATION_ACCEPTANCE_01"
+)
+REGISTRY_IMPLEMENTATION_TASK_ID: Final = "P3_P7_D02_R2_R06_WINDOWS_ROOT_ACL_HARDENING"
+REGISTRY_IMPLEMENTATION_REVIEW_TASK_ID: Final = "P3_P7_D02_R2_REGISTRY_R06_EXACT_SHA_REVIEW_01"
 REGISTRY_IMPLEMENTATION_ACCEPTANCE_REF: Final = "refs/remotes/origin/codex/p3-p7-core-demo"
 REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH: Final = (
-    "docs/operations/P3_P7_D02_R2_REGISTRY_IMPLEMENTATION_ACCEPTANCE.json"
+    "docs/operations/P3_P7_D02_R2_REGISTRY_R06_IMPLEMENTATION_ACCEPTANCE.json"
 )
 REGISTRY_SOURCE_REPO_PATH: Final = "services/api/src/mirror_api/demo_d02_r2_private_registry.py"
 REGISTRY_TEST_REPO_PATH: Final = "services/api/tests/test_demo_d02_r2_private_registry.py"
@@ -864,7 +867,7 @@ def _validate_registry_implementation_acceptance_record(record: JsonObject) -> N
         "independent review",
     )
     if (
-        review["review_task_id"] != "P3_P7_D02_R2_REGISTRY_EXACT_SHA_REVIEW_01"
+        review["review_task_id"] != REGISTRY_IMPLEMENTATION_REVIEW_TASK_ID
         or review["reviewed_implementation_sha"] != record["registry_implementation_sha"]
         or review["result"] != "PASS"
         or any(review[f"findings_p{priority}"] != 0 for priority in range(4))
@@ -1139,13 +1142,21 @@ def create_evidence_root(
                 "EVIDENCE_ROOT_NAME_COLLISION_STOP",
                 "the evidence root appeared during exclusive creation",
             ) from error
-        _require_not_reparse(root)
-        _validate_root_access_boundary(root)
-        if any(root.iterdir()):  # pragma: no cover - the mutex and exclusive mkdir prevent it.
-            raise D02R2RegistryError(
-                "EVIDENCE_ROOT_NAME_COLLISION_STOP",
-                "the new evidence root was not empty",
-            )
+        try:
+            _require_not_reparse(root)
+            _harden_new_root_access_boundary(root)
+            _validate_root_access_boundary(root)
+            if any(root.iterdir()):  # pragma: no cover - the mutex prevents it.
+                raise D02R2RegistryError(
+                    "EVIDENCE_ROOT_NAME_COLLISION_STOP",
+                    "the new evidence root was not empty",
+                )
+        except (OSError, D02R2RegistryError):
+            # Never recurse or remove content.  A failed empty create may be
+            # retried after repair; a non-empty/raced root remains fail-closed.
+            with contextlib.suppress(OSError):
+                os.rmdir(root)
+            raise
         _write_exclusive_json(
             root,
             root / ROOT_RECEIPT_LOGICAL_NAME,
@@ -3321,6 +3332,25 @@ def _validate_root_access_boundary(root: Path) -> None:
         _fail_root("Principal cannot read and write the evidence root")
 
 
+def _harden_new_root_access_boundary(root: Path) -> None:
+    """Convert the restricted parent ACL inherited by a new Windows root to explicit ACLs."""
+
+    if os.name != "nt":
+        return
+    script = r"""
+$ErrorActionPreference = 'Stop'
+Import-Module $env:MIRROR_D02_R2_SECURITY_MODULE_PATH -Force
+$acl = Get-Acl -LiteralPath $env:MIRROR_D02_R2_ACL_PATH
+$acl.SetAccessRuleProtection($true, $true)
+Set-Acl -LiteralPath $env:MIRROR_D02_R2_ACL_PATH -AclObject $acl
+"""
+    _run_trusted_windows_acl_script(
+        root,
+        script,
+        failure_message="Windows evidence-root ACL hardening failed closed",
+    )
+
+
 def _is_within_casefolded(candidate: str, parent: str) -> bool:
     separator = os.sep.casefold()
     normalized_parent = parent.rstrip("\\/")
@@ -3356,7 +3386,7 @@ def _validate_windows_restricted_acl(path: Path) -> None:
     script = r"""
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-Import-Module (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -Force
+Import-Module $env:MIRROR_D02_R2_SECURITY_MODULE_PATH -Force
 $acl = Get-Acl -LiteralPath $env:MIRROR_D02_R2_ACL_PATH
 $ownerSid = ([System.Security.Principal.NTAccount]$acl.Owner).Translate(
   [System.Security.Principal.SecurityIdentifier]
@@ -3378,33 +3408,15 @@ $rules = @($acl.Access | ForEach-Object {
   rules = $rules
 } | ConvertTo-Json -Compress -Depth 4
 """
-    environment = os.environ.copy()
-    environment["MIRROR_D02_R2_ACL_PATH"] = str(path)
-    system_root = Path(environment.get("SystemRoot", r"C:\Windows")).resolve(strict=True)
-    powershell = (
-        system_root / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
-    ).resolve(strict=True)
-    if not _is_within(powershell, system_root):
-        _fail_root("trusted Windows PowerShell path escaped SystemRoot")
     try:
-        completed = subprocess.run(  # noqa: S603 - fixed SystemRoot executable and static script.
-            [
-                str(powershell),
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
+        parsed = json.loads(
+            _run_trusted_windows_acl_script(
+                path,
                 script,
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=15,
-            env=environment,
+                failure_message="Windows ACL verification failed closed",
+            )
         )
-        parsed = json.loads(completed.stdout)
-    except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
+    except json.JSONDecodeError as error:
         _fail_root("Windows ACL verification failed closed", cause=error)
     if not isinstance(parsed, dict):
         _fail_root("Windows ACL verification returned an invalid payload")
@@ -3423,6 +3435,122 @@ $rules = @($acl.Access | ForEach-Object {
             _fail_root("evidence root ACL grants an unapproved principal")
         if rule.get("type") == "Allow" and rule.get("inherited") is not False:
             _fail_root("evidence root ACL contains inherited allow access")
+
+
+def _run_trusted_windows_acl_script(
+    path: Path,
+    script: str,
+    *,
+    failure_message: str,
+) -> str:
+    system_directory = _get_windows_system_directory()
+    powershell = _resolve_trusted_windows_system_path(
+        system_directory,
+        ("WindowsPowerShell", "v1.0", "powershell.exe"),
+        description="Windows PowerShell executable",
+    )
+    security_module = _resolve_trusted_windows_system_path(
+        system_directory,
+        (
+            "WindowsPowerShell",
+            "v1.0",
+            "Modules",
+            "Microsoft.PowerShell.Security",
+            "Microsoft.PowerShell.Security.psd1",
+        ),
+        description="PowerShell Security module",
+    )
+    environment = os.environ.copy()
+    environment["MIRROR_D02_R2_ACL_PATH"] = str(path)
+    environment["MIRROR_D02_R2_SECURITY_MODULE_PATH"] = str(security_module)
+    # Never inherit executable or module authority from a caller-controlled
+    # SystemRoot.  Some Windows components still expect the variable, so bind
+    # it to the parent of the kernel32-reported system directory.
+    environment["SystemRoot"] = str(system_directory.parent)
+    try:
+        completed = subprocess.run(  # noqa: S603 - GetSystemDirectoryW-bound executable.
+            [
+                str(powershell),
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                script,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=15,
+            env=environment,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        _fail_root(failure_message, cause=error)
+    return completed.stdout
+
+
+def _get_windows_system_directory() -> Path:
+    """Resolve the real local Windows system directory through kernel32."""
+
+    from ctypes import wintypes
+
+    win_dll = getattr(ctypes, "WinDLL", None)
+    if not callable(win_dll):
+        _fail_root("Windows DLL loader is unavailable")
+    kernel32 = win_dll("kernel32", use_last_error=True)
+    get_system_directory = kernel32.GetSystemDirectoryW
+    get_system_directory.argtypes = [wintypes.LPWSTR, wintypes.UINT]
+    get_system_directory.restype = wintypes.UINT
+    buffer = ctypes.create_unicode_buffer(32_768)
+    written = get_system_directory(buffer, len(buffer))
+    if (
+        not isinstance(written, int)
+        or isinstance(written, bool)
+        or written < 1
+        or written >= len(buffer)
+        or written != len(buffer.value)
+    ):
+        _fail_root("GetSystemDirectoryW returned an invalid or truncated path")
+    value = buffer.value
+    windows_path = PureWindowsPath(value)
+    if (
+        not windows_path.is_absolute()
+        or windows_path.anchor.startswith("\\\\")
+        or len(windows_path.drive) != 2
+        or windows_path.drive[1] != ":"
+    ):
+        _fail_root("GetSystemDirectoryW did not return an absolute fixed-drive path")
+    candidate = Path(value)
+    _require_not_reparse(candidate)
+    resolved = candidate.resolve(strict=True)
+    _validate_windows_fixed_drive(resolved)
+    _require_not_reparse(resolved)
+    return resolved
+
+
+def _resolve_trusted_windows_system_path(
+    system_directory: Path,
+    relative_parts: tuple[str, ...],
+    *,
+    description: str,
+) -> Path:
+    """Resolve one exact non-reparse descendant of the real system directory."""
+
+    resolved_system = system_directory.resolve(strict=True)
+    _validate_windows_fixed_drive(resolved_system)
+    _require_not_reparse(resolved_system)
+    candidate = resolved_system
+    for part in relative_parts:
+        candidate = candidate / part
+        _require_not_reparse(candidate)
+    resolved_candidate = candidate.resolve(strict=True)
+    if not _is_within(resolved_candidate, resolved_system):
+        _fail_root(f"trusted {description} escaped the Windows system directory")
+    expected = resolved_system.joinpath(*relative_parts)
+    if os.path.normcase(str(resolved_candidate)) != os.path.normcase(str(expected)):
+        _fail_root(f"trusted {description} was redirected from its exact system path")
+    _validate_windows_fixed_drive(resolved_candidate)
+    return resolved_candidate
 
 
 def _require_contained(root: Path, target: Path, *, allow_missing: bool) -> None:

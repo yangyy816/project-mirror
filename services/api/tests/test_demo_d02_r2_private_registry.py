@@ -92,7 +92,7 @@ def _accepted_registry_authority(
         "registry_normalized_ddl_sha256": registry.REGISTRY_NORMALIZED_DDL_SHA256,
         "governed_paths": governed_paths,
         "independent_review": {
-            "review_task_id": "P3_P7_D02_R2_REGISTRY_EXACT_SHA_REVIEW_01",
+            "review_task_id": registry.REGISTRY_IMPLEMENTATION_REVIEW_TASK_ID,
             "reviewed_implementation_sha": implementation_sha,
             "result": "PASS",
             "findings_p0": 0,
@@ -211,6 +211,54 @@ def test_root_receipt_is_first_file_and_exactly_replays(tmp_path: Path) -> None:
     assert registry.create_evidence_root(root, AUTHORITY, excluded_roots=[]) == created
 
 
+def test_root_creation_hardens_acl_before_validating_new_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _root(tmp_path)
+    observed: list[tuple[str, Path]] = []
+
+    def record_validation(path: Path) -> None:
+        observed.append(("validate", path))
+
+    def record_hardening(path: Path) -> None:
+        observed.append(("harden", path))
+
+    monkeypatch.setattr(registry, "_validate_root_access_boundary", record_validation)
+    monkeypatch.setattr(registry, "_harden_new_root_access_boundary", record_hardening)
+
+    registry.create_evidence_root(root, AUTHORITY, excluded_roots=[])
+
+    assert observed == [
+        ("validate", root.parent),
+        ("harden", root),
+        ("validate", root),
+        ("validate", root),
+    ]
+    assert [entry.name for entry in root.iterdir()] == [registry.ROOT_RECEIPT_LOGICAL_NAME]
+
+
+def test_root_creation_removes_only_empty_root_after_acl_hardening_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _root(tmp_path)
+    monkeypatch.setattr(registry, "_validate_root_access_boundary", lambda _: None)
+
+    def fail_hardening(_: Path) -> None:
+        raise registry.D02R2RegistryError(
+            "EVIDENCE_ROOT_NAME_COLLISION_STOP",
+            "synthetic ACL hardening failure",
+        )
+
+    monkeypatch.setattr(registry, "_harden_new_root_access_boundary", fail_hardening)
+
+    with pytest.raises(registry.D02R2RegistryError, match="synthetic ACL hardening failure"):
+        registry.create_evidence_root(root, AUTHORITY, excluded_roots=[])
+
+    assert not root.exists()
+
+
 def test_root_rejects_collision_corruption_and_escape(tmp_path: Path) -> None:
     root = _create_root(tmp_path)
     receipt_path = root / registry.ROOT_RECEIPT_LOGICAL_NAME
@@ -310,6 +358,88 @@ def test_acceptance_loader_rejects_missing_record_and_arbitrary_implementation_s
             registry.REGISTRY_IMPLEMENTATION_ACCEPTANCE_REF,
             acceptance_sha,
         )
+
+
+def test_acceptance_loader_rejects_superseded_review_task_id(
+    _accepted_registry_authority: tuple[Path, str, str],
+) -> None:
+    authority_repository, _, acceptance_sha = _accepted_registry_authority
+    record = registry._parse_canonical_json_bytes(
+        _git(
+            authority_repository,
+            "show",
+            f"{acceptance_sha}:{registry.REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH}",
+        )
+    )
+    review = registry._require_json_object(record["independent_review"], "independent review")
+    review["review_task_id"] = "P3_P7_D02_R2_REGISTRY_EXACT_SHA_REVIEW_01"
+    record_without_digest = {key: value for key, value in record.items() if key != "record_digest"}
+    record["record_digest"] = mirror_demo_digest(
+        registry.REGISTRY_IMPLEMENTATION_ACCEPTANCE_SCHEMA,
+        record_without_digest,
+    )
+
+    with pytest.raises(
+        registry.D02R2RegistryError,
+        match="independent exact implementation review is not an all-zero PASS",
+    ):
+        registry._validate_registry_implementation_acceptance_record(record)
+
+
+@pytest.mark.parametrize("poisoned_system_root", [r"C:\attacker", r"\\attacker\share"])
+def test_windows_acl_runner_cannot_be_redirected_by_inherited_system_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    poisoned_system_root: str,
+) -> None:
+    system_directory = tmp_path / "trusted-windows" / "System32"
+    powershell = system_directory / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    security_module = (
+        system_directory
+        / "WindowsPowerShell"
+        / "v1.0"
+        / "Modules"
+        / "Microsoft.PowerShell.Security"
+        / "Microsoft.PowerShell.Security.psd1"
+    )
+    powershell.parent.mkdir(parents=True)
+    security_module.parent.mkdir(parents=True)
+    powershell.write_bytes(b"test-only-executable-placeholder")
+    security_module.write_bytes(b"test-only-module-placeholder")
+    observed: dict[str, Any] = {}
+
+    def fake_run(
+        command: list[str],
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        observed["command"] = command
+        observed["environment"] = kwargs["env"]
+        return subprocess.CompletedProcess(command, 0, stdout="acl-result", stderr="")
+
+    monkeypatch.setenv("SystemRoot", poisoned_system_root)
+    monkeypatch.setattr(registry, "_get_windows_system_directory", lambda: system_directory)
+    monkeypatch.setattr(registry, "_validate_windows_fixed_drive", lambda _: None)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert (
+        registry._run_trusted_windows_acl_script(
+            tmp_path,
+            "Write-Output 'acl-result'",
+            failure_message="test failure",
+        )
+        == "acl-result"
+    )
+    command = observed["command"]
+    environment = observed["environment"]
+    assert isinstance(command, list)
+    assert isinstance(environment, dict)
+    assert command[0] == str(powershell.resolve(strict=True))
+    assert environment["SystemRoot"] == str(system_directory.parent)
+    assert environment["MIRROR_D02_R2_SECURITY_MODULE_PATH"] == str(
+        security_module.resolve(strict=True)
+    )
+    assert poisoned_system_root not in command
+    assert poisoned_system_root not in environment["MIRROR_D02_R2_SECURITY_MODULE_PATH"]
 
 
 def test_root_rejects_reparse_points_and_insufficient_capacity(
