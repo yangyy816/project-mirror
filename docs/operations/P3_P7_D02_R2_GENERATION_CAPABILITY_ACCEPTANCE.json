@@ -1,0 +1,86 @@
+{
+  "schema_version": "mirror.demo/D02R2GenerationCapabilityAcceptance/v1",
+  "authority_id": "P3_P7_D02_R2_GENERATION_CAPABILITY_ACCEPTANCE_01",
+  "change_control_id": "P3_P7_D02_CC_08",
+  "goal_epoch_id": "P3_P7_COMPLETE_DEMO_EPOCH_02",
+  "track": "DEMO_PROTOTYPE",
+  "accepted_capability": {
+    "candidate_sha": "99c1a4f1a31d2fe1f0d2d7e33012ff025ad649aa",
+    "candidate_tree": "d1b47fc5146afd184aa5b1f656283b6ce53f8de1",
+    "semantic_commit": "d5a78b213626bd3072d07043e65e5383e0e38fb1",
+    "format_repair_commit": "99c1a4f1a31d2fe1f0d2d7e33012ff025ad649aa",
+    "generation_capability_authority_digest": "891988bd0abe14c0c83c6750d63c36029b65053041049f1892819d75272b2696",
+    "governed_paths": [
+      {
+        "path": "docs/operations/P3_P7_D02_R2_GENERATION_CAPABILITY_AUTHORITY.json",
+        "sha256": "c7808987b95a9af8c5fdeeddadbf1b7de53630621f103d2d1fa8cda29c3c3a64",
+        "git_blob_oid": "e9ecf0b669cdcce2aea00a3ed4559dc4b527d56a"
+      },
+      {
+        "path": "services/api/src/mirror_api/demo_d02_r2_generation_capability.py",
+        "sha256": "db54b7c995a7ab3aab996c4ccd1d92ed762eada0fd6a88489992d9a3be74b60d",
+        "git_blob_oid": "49faf0c2245fdc96f2e3ee65d01ff2767d4f4397"
+      },
+      {
+        "path": "services/api/tests/test_demo_d02_r2_generation_capability.py",
+        "sha256": "ba538dcddf50ebb27dc0677fb06fbccf058043ad657dcac6d81869bc8273fa68",
+        "git_blob_oid": "7805e8eb18fa5a2e816afc7152ce0b1ed4d4efc3"
+      }
+    ]
+  },
+  "independent_review": {
+    "semantic_review_task_id": "P3_P7_D02_R2_GENERATION_CAPABILITY_EXACT_BYTES_REVIEW_01",
+    "format_repair_review_task_id": "capability_prettier_repair_review",
+    "result": "PASS",
+    "reviewed_candidate_sha": "99c1a4f1a31d2fe1f0d2d7e33012ff025ad649aa",
+    "findings_p0": 0,
+    "findings_p1": 0,
+    "findings_p2": 0,
+    "findings_p3": 0
+  },
+  "validation": {
+    "local_targeted": "PASS_28_TESTS_RUFF_STRICT_MYPY",
+    "format_repair_delta": "TWO_SINGLE_ELEMENT_ARRAY_LAYOUTS_ONLY",
+    "authority_replay": "PASS",
+    "private_locator_scan": "PASS_ZERO",
+    "imagegen_calls_executed": 0
+  },
+  "same_sha_ci": {
+    "provider": "GITHUB_ACTIONS",
+    "repository": "yangyy816/project-mirror",
+    "workflow_identity": ".github/workflows/ci.yml",
+    "run_id": 33077381226,
+    "run_url": "https://github.com/yangyy816/project-mirror/actions/runs/33077381226",
+    "head_sha": "99c1a4f1a31d2fe1f0d2d7e33012ff025ad649aa",
+    "result": "PASS",
+    "required_jobs": [
+      "quality-and-integration",
+      "secret-scan",
+      "docker-validation"
+    ]
+  },
+  "principal_acceptance": {
+    "status": "PRINCIPAL_ACCEPTED",
+    "accepted_at_utc": "2026-08-27T14:30:25.585344Z",
+    "accepted_capability_sha": "99c1a4f1a31d2fe1f0d2d7e33012ff025ad649aa"
+  },
+  "execution_boundary": {
+    "d02_r2": "NOT_TASK_ACCEPTED",
+    "evidence_root": "NOT_CREATED",
+    "root_name_receipt": "NOT_CREATED",
+    "two_copy_registry": "NOT_INITIALIZED",
+    "imagegen_calls_executed": 0,
+    "primary_calls_authorized": 4,
+    "retry_ceiling": 0,
+    "concurrency": 1,
+    "production_provider": false,
+    "questionnaire_runtime_generation_calls": 0
+  },
+  "downstream_state": {
+    "D03": "BLOCKED_D02_R2_NOT_TASK_ACCEPTED",
+    "D04_B": "BLOCKED_D02_R2_AND_D03_NOT_TASK_ACCEPTED",
+    "D07_B": "BLOCKED_D02_R2_AND_D03_NOT_TASK_ACCEPTED"
+  },
+  "record_created_at_utc": "2026-08-27T14:30:25.585344Z",
+  "record_digest": "b76833d44ed9c7189fb4abea71bd37ba529aea72872247c34818e713e91c9927"
+}

@@ -89,7 +89,7 @@
 - Docker Compose 全镜像 build、五服务 health、API/Web smoke、PostgreSQL migration lifecycle/schema consistency、8 个数据库 invariant、Linux Celery+Redis round trip 均有实际 PASS 证据。
 - Gitleaks v8.28.0 Docker 扫描 Git 可提交文件快照 PASS；`.venv` 与 `.next` 是被 Git 忽略的依赖/构建产物，不属于提交扫描范围。
 - `.github/workflows/ci.yml` 已覆盖真实 PostgreSQL/Redis、migration lifecycle、Linux Celery、Gitleaks、供应链与 Docker Compose Gates；修复提交 `796ab552fb3a92af5eddac5ef23086a4037323e7` 的远端 run `31871724239` 三个 jobs 全部通过，Phase 0 Gate 更新为 `PASS`。
-- GitHub 私有远端为 `yangyy816/project-mirror`，默认分支 `main`；初始 baseline commit 为 `39b14c68a05438b302f0f5b9471d8a0a1bef06e0`，首次远端 run `31871452535` 的 quality/Gitleaks PASS，Docker behavior 因 Compose 缺少应用 healthcheck 发生启动竞态而 FAIL。
+- GitHub 远端为 `yangyy816/project-mirror`，默认分支 `main`；当前 visibility 已核验为 `PUBLIC`。Owner 已授权正常 non-force push，公开可见性不放宽 private bytes、locator、Prompt、secret、真实人脸或受保护 evidence 禁止进入 Git/普通 CI 的边界。初始 baseline commit 为 `39b14c68a05438b302f0f5b9471d8a0a1bef06e0`，首次远端 run `31871452535` 的 quality/Gitleaks PASS，Docker behavior 因 Compose 缺少应用 healthcheck 发生启动竞态而 FAIL。
 - Compose 已为 API、Worker、Web 增加真实 healthcheck，Web 等待 API healthy；本地 `up --wait` 后首次 live/ready/Web 请求均为 200。该 `CI_CONFIGURATION_DEFECT` 已由修复提交的完整远端 run `31871724239` 关闭。
 - Run `31871724239` 的 `quality-and-integration`、`secret-scan`、`docker-validation` 均 PASS，并产出 `phase-0-audit-evidence`、`phase-0-docker-evidence` 与 `gitleaks-results.sarif`；Node 20 弃用 annotation 非阻断，runner 已强制 Node 24。
 
@@ -669,3 +669,15 @@
   `D02_R2_EVIDENCE_ROOT_NAME_RECEIPT.json`；绝对 locator 仍只在 Principal custody。当前只开放
   Principal-owned root-receipt/two-copy-registry implementation；在其独立审查与 same-SHA acceptance 前，
   root creation、generation、M3/M4、migration、PostgreSQL admission、D03/D04-B/D07-B 均继续关闭。
+
+- 2026-08-27：D02-R2 generation capability authority 最终 SHA `99c1a4f1a31d2fe1f0d2d7e33012ff025ad649aa`
+  通过两轮独立 Sol exact-bytes/format-only review，P0/P1/P2/P3 均为零；same-SHA run `33077381226`
+  的 quality/integration、Docker 与 Gitleaks 三 jobs 全绿。Principal 仅接受 exactly 4 次、retry 0、
+  concurrency 1 的 `CODEX_NATIVE_IMAGEGEN` Demo-only synthetic source capability；root、收据、registry 与
+  ImageGen 调用仍未发生，D02-R2 未接受，D03/D04-B/D07-B 继续关闭。
+
+- 2026-08-27：Owner 澄清 CC04 是 formal P2 完整 QuestionBank 生成任务，不是 D02-R2 四源 producer。
+  固定调度为先完成并封存 D02-R2 exactly 4 次主 ImageGen 调用，再释放 generation slot 并让原 CC04 从
+  `CAL-REQ-002` 恢复一个最多 4 次调用的 bounded tranche；CC04 使用独立 formal worktree/branch、private
+  namespace、registry、ordinal、database 与资源，低优先级、concurrency 1，Demo 需要本地 M3/M4/CI 资源时立即
+  让路，且永不进入 Demo critical path。
