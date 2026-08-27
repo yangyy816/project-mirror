@@ -1,0 +1,54 @@
+{
+  "schema_version": "mirror.demo/P3P7DemoExecutionState/v1",
+  "goal_epoch": "P3_P7_COMPLETE_DEMO_EPOCH_02",
+  "integration_branch": "codex/p3-p7-core-demo",
+  "integration_head": "81410d60d3c897e209216f0644be7684592a3647",
+  "migration_head": "demo_0008_d02_r2_source_auth",
+  "closed_checkpoints": [
+    "D00",
+    "D01_A",
+    "D01_B",
+    "D01_C",
+    "D04_A",
+    "D07_A",
+    "D09",
+    "D02_R2_R05"
+  ],
+  "active_checkpoint": "D02_R2_GENERATION_CAPABILITY_AUTHORITY",
+  "accepted_task_shas": {
+    "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
+    "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
+    "D04_A": "b8fa8edfb1c20731413e3a569cf5ac3eea0ba9ae",
+    "D07_A": "38d152f969d1235b2fc6ae39076adc79d4e72683",
+    "D09": "17b790de6393434430d8462195a87c548c1fa15a",
+    "D02_R2_R05_CODE": "63febde91a28b492f550ef047dcb4da6b34f1dba",
+    "D02_R2_R05_INTEGRATION": "ed89d7d5b88825b5f01315b11d279ea8d1fd5de6"
+  },
+  "accepted_ci_runs": {
+    "D09": 32701906246,
+    "D02_R2_R05_IMPLEMENTATION": 33042678958,
+    "D02_R2_R05_ACCEPTANCE_STATE": 33067727602
+  },
+  "generation_capability_candidate": {
+    "authority_id": "P3_P7_D02_R2_GENERATION_CAPABILITY_AUTHORITY_01",
+    "authority_digest": "891988bd0abe14c0c83c6750d63c36029b65053041049f1892819d75272b2696",
+    "review_task_id": "P3_P7_D02_R2_GENERATION_CAPABILITY_EXACT_BYTES_REVIEW_01",
+    "independent_review": "PASS_FINDINGS_P0_0_P1_0_P2_0_P3_0",
+    "local_validation": "PASS_28_TESTS_RUFF_MYPY",
+    "same_sha_ci": "PENDING",
+    "principal_acceptance": "PENDING"
+  },
+  "current_blockers": {
+    "D02_R2": "GENERATION_CAPABILITY_CANDIDATE_NOT_YET_SAME_SHA_CI_ACCEPTED",
+    "D03": "BLOCKED_D02_R2_NOT_TASK_ACCEPTED",
+    "D04_B": "BLOCKED_D02_R2_AND_D03_NOT_TASK_ACCEPTED",
+    "D07_B": "BLOCKED_D02_R2_AND_D03_NOT_TASK_ACCEPTED"
+  },
+  "next_ready_nodes": [
+    "D02_R2_GENERATION_CAPABILITY_CANDIDATE_COMMIT",
+    "D02_R2_GENERATION_CAPABILITY_SAME_SHA_CI",
+    "D02_R2_GENERATION_CAPABILITY_PRINCIPAL_ACCEPTANCE"
+  ],
+  "production_release": "NOT_AUTHORIZED",
+  "updated_by_principal": "INTEGRATION_PRINCIPAL"
+}
