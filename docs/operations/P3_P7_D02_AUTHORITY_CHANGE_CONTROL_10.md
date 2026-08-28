@@ -1992,3 +1992,44 @@ CC10 adds R-DEMO-39–41 while R-DEMO-33–38 remain active. An accepted plan au
 accepted implementation authorizes one read-only projection only. A candidate is not authority. Only later host
 acceptance may open the exact code-cache/private-home candidate-and-receipt stage. None of these states proves formal
 P3–P7, real-user validity, production security or production readiness.
+
+## Forward-only Owner-directed closure disposition
+
+This disposition is forward-only. It preserves every historical CC09/CC10 commit, review result, stop rule and
+unexecuted Gate above; it neither rewrites those records nor relabels an unexecuted native or ETW Gate as PASS. Under
+the Owner's Epoch 02 product-first, risk-tiered policy, the remaining native host collector, ETW proof, SC candidate,
+SH host acceptance and historical G7–G10 work are outside the threat model of the local synthetic-only Demo and are
+therefore deferred without blocking the product DAG.
+
+```text
+DISPOSITION_DATE: 2026-08-29
+CODE_SHA: accae2835e9ec9e8831dff9cdd17172f29814588
+CODE_TREE: c67774a8c14838b92034a873c08e3f4b47105897
+SAME_SHA_CI_RUN: 33191941771
+SAME_SHA_CI_CONCLUSION: PASS
+CC10_OUTCOME: PASS_WITH_DEFERRED_NON_BLOCKING_FINDINGS
+R4_NATIVE_AND_ETW: NOT_IMPLEMENTED_DEFERRED
+HISTORICAL_S10_G7_G10: NOT_EXECUTED_NOT_PASSED
+EVIDENCE_CUSTODY_HOST_BINDING: FROZEN_DEFERRED
+LOCAL_SYNTHETIC_DEMO_DAG_BLOCK: LIFTED
+NEXT_READY_NODE: D02_R2_EXACTLY_FOUR_CONTROLLED_SYNTHETIC_GENERATION_EXECUTION
+D02_R2_TASK_ACCEPTED: NO
+D03: BLOCKED_PENDING_D02_R2_TASK_ACCEPTED
+D04_B: BLOCKED_PENDING_D02_R2_AND_D03_TASK_ACCEPTED
+D07_B: BLOCKED_PENDING_D02_R2_AND_D03_TASK_ACCEPTED
+REAL_USER_VALIDITY: NOT_EVALUATED
+PRODUCTION_SECURITY: DEFERRED_FOR_FORMAL_PHASE
+PRODUCTION_RELEASE: NOT_AUTHORIZED
+```
+
+The accepted code SHA above retains the fail-closed one-shot S10 execution context and strict authority validation.
+It does not implement or claim the native collector, precise production clock, native no-write proof, ETW observer,
+candidate authority or host acceptance. Those findings remain recorded as `DEFERRED_NON_BLOCKING_FINDING` and become
+blocking again only if a reproducible wrong-root write, unauthorized network call or persistence failure appears, or
+if the scope later includes real faces, production credentials, public multi-tenancy, real payment or production
+release.
+
+No CC11/CC12 or equivalent evidence/custody/host-binding expansion is authorized. The next product node must use the
+already accepted exactly-four generation capability and must independently satisfy its existing unique evidence-root,
+name-receipt and two-copy-registry preconditions before any ImageGen call. This disposition does not create, accept,
+reuse or overwrite an evidence root and does not accept D02-R2.

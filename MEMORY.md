@@ -698,3 +698,14 @@
   strict validators 与 injected projection seam，没有真实 Windows collector/candidate emitter，因此下一 ready
   node 是前向 `P3_P7_D02_CC_10` governance。evidence root、private home、locator namespace、two-copy registry、
   ImageGen、M3/M4、PostgreSQL admission 与 D03/D04-B/D07-B 均继续保持未启动或 blocked。
+
+- 2026-08-29：Owner 将后续交付政策冻结为
+  `DELIVERY_POLICY: PRODUCT_AND_ALGORITHM_FIRST_RISK_TIERED`；CC09/CC10 是最后两次专门的
+  evidence/custody/host-binding 建设周期，CC10 后统一为
+  `EVIDENCE_CUSTODY_HOST_BINDING_FROZEN_DEFERRED`。非阻断 finding 只记录并延后，不得阻塞产品 DAG；
+  QuestionBank、Tool、Memory 与 Web 的正式领域实现不得化简。CC10 code SHA
+  `accae2835e9ec9e8831dff9cdd17172f29814588` 的 run `33191941771` 三 jobs 全绿后，Principal 以前向
+  `PASS_WITH_DEFERRED_NON_BLOCKING_FINDINGS` 收口：native/ETW 与历史 S10/G7–G10 均为
+  `NOT_IMPLEMENTED_DEFERRED` / `NOT_EXECUTED_NOT_PASSED`，不伪造 PASS，不创建 CC11/CC12，并解除其对本地
+  synthetic Demo 产品 DAG 的阻断。D02-R2 仍未接受，D03/D04-B/D07-B 继续等待真实 D02-R2 completion；
+  `PRODUCTION_RELEASE: NOT_AUTHORIZED`。
