@@ -179,12 +179,27 @@ def _install_predecessor_root_receipt(
     root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> registry.JsonObject:
+    fixed_predecessor_digest = registry.PRE_R06_ROOT_RECEIPT_DIGEST
+    production_digest = mirror_demo_digest
+
+    def replay_fixed_predecessor_digest(
+        schema_version: str,
+        payload: Mapping[str, registry.JsonValue],
+    ) -> str:
+        if (
+            schema_version == registry.ROOT_RECEIPT_SCHEMA
+            and payload.get("registry_implementation_sha")
+            == registry.PRE_R06_REGISTRY_IMPLEMENTATION_SHA
+        ):
+            return fixed_predecessor_digest
+        return production_digest(schema_version, payload)
+
+    monkeypatch.setattr(registry, "mirror_demo_digest", replay_fixed_predecessor_digest)
     receipt = registry._build_root_name_receipt_for_registry_implementation(
         AUTHORITY,
         registry_implementation_sha=registry.PRE_R06_REGISTRY_IMPLEMENTATION_SHA,
     )
-    receipt_digest = str(receipt["receipt_digest"])
-    monkeypatch.setattr(registry, "PRE_R06_ROOT_RECEIPT_DIGEST", receipt_digest)
+    assert receipt["receipt_digest"] == fixed_predecessor_digest
     (root / registry.ROOT_RECEIPT_LOGICAL_NAME).write_bytes(canonical_json_bytes(receipt))
     return receipt
 
@@ -195,6 +210,106 @@ def _resign_acceptance_record(record: registry.JsonObject) -> None:
         registry.REGISTRY_IMPLEMENTATION_ACCEPTANCE_SCHEMA,
         payload,
     )
+
+
+def _bind_acceptance_record_to_implementation(
+    record: registry.JsonObject,
+    *,
+    implementation_sha: str,
+    implementation_tree: str,
+) -> None:
+    record["registry_implementation_sha"] = implementation_sha
+    record["registry_implementation_tree"] = implementation_tree
+    review = registry._require_json_object(record["independent_review"], "review")
+    review["reviewed_implementation_sha"] = implementation_sha
+    ci = registry._require_json_object(record["same_sha_ci"], "same-SHA CI")
+    ci["head_sha"] = implementation_sha
+    principal = registry._require_json_object(
+        record["principal_acceptance"],
+        "Principal acceptance",
+    )
+    principal["accepted_implementation_sha"] = implementation_sha
+    _resign_acceptance_record(record)
+
+
+def _install_history_mismatch_successor(
+    authority_repository: Path,
+    *,
+    source_implementation_sha: str,
+    source_acceptance_sha: str,
+    alternate_parent_sha: str,
+) -> tuple[str, str]:
+    implementation_tree = (
+        _git(
+            authority_repository,
+            "rev-parse",
+            f"{source_implementation_sha}^{{tree}}",
+        )
+        .decode()
+        .strip()
+    )
+    alternate_implementation_sha = (
+        _git(
+            authority_repository,
+            "commit-tree",
+            implementation_tree,
+            "-p",
+            alternate_parent_sha,
+            "-m",
+            "test: alternate successor history",
+        )
+        .decode()
+        .strip()
+    )
+    _git(
+        authority_repository,
+        "checkout",
+        "--quiet",
+        "--detach",
+        alternate_implementation_sha,
+    )
+    acceptance_path = authority_repository / registry.REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH
+    acceptance_record = registry._parse_canonical_json_bytes(
+        _git(
+            authority_repository,
+            "show",
+            f"{source_acceptance_sha}:{registry.REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH}",
+        )
+    )
+    _bind_acceptance_record_to_implementation(
+        acceptance_record,
+        implementation_sha=alternate_implementation_sha,
+        implementation_tree=implementation_tree,
+    )
+    acceptance_path.write_bytes(canonical_json_bytes(acceptance_record))
+    _git(
+        authority_repository,
+        "add",
+        "--",
+        registry.REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH,
+    )
+    _git(
+        authority_repository,
+        "commit",
+        "--quiet",
+        "-m",
+        "test: accept alternate successor history",
+    )
+    alternate_acceptance_sha = _git(authority_repository, "rev-parse", "HEAD").decode().strip()
+    _git(
+        authority_repository,
+        "update-ref",
+        registry.REGISTRY_IMPLEMENTATION_ACCEPTANCE_REF,
+        alternate_acceptance_sha,
+    )
+    _git(
+        authority_repository,
+        "checkout",
+        "--quiet",
+        "--detach",
+        alternate_implementation_sha,
+    )
+    return alternate_implementation_sha, alternate_acceptance_sha
 
 
 def _name_and_seal(
@@ -496,16 +611,23 @@ def test_acceptance_loader_rejects_superseded_review_task_id(
     "mutation",
     ("implementation", "acceptance", "schema", "ddl"),
 )
-def test_acceptance_loader_rejects_resigned_predecessor_authority_drift(
+@pytest.mark.parametrize(
+    "historical_acceptance_path",
+    (
+        registry.PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH,
+        registry.R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH,
+    ),
+    ids=("predecessor", "r06"),
+)
+def test_acceptance_loader_rejects_resigned_historical_authority_drift(
     _accepted_registry_authority: tuple[Path, str, str],
     mutation: str,
+    historical_acceptance_path: str,
 ) -> None:
     authority_repository, implementation_sha, acceptance_sha = _accepted_registry_authority
-    predecessor_path = (
-        authority_repository / registry.PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH
-    )
+    historical_path = authority_repository / historical_acceptance_path
     _git(authority_repository, "checkout", "--quiet", "--detach", acceptance_sha)
-    record = registry._parse_canonical_json_bytes(predecessor_path.read_bytes())
+    record = registry._parse_canonical_json_bytes(historical_path.read_bytes())
     if mutation == "implementation":
         alternate_sha = "c" * 40
         alternate_tree = "d" * 40
@@ -531,12 +653,12 @@ def test_acceptance_loader_rejects_resigned_predecessor_authority_drift(
     else:
         record["registry_normalized_ddl_sha256"] = "c" * 64
     _resign_acceptance_record(record)
-    predecessor_path.write_bytes(canonical_json_bytes(record))
+    historical_path.write_bytes(canonical_json_bytes(record))
     _git(
         authority_repository,
         "add",
         "--",
-        registry.PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH,
+        historical_acceptance_path,
     )
     _git(authority_repository, "commit", "--quiet", "-m", f"test: forged {mutation}")
     forged_acceptance_sha = _git(authority_repository, "rev-parse", "HEAD").decode().strip()
@@ -545,6 +667,57 @@ def test_acceptance_loader_rejects_resigned_predecessor_authority_drift(
         "update-ref",
         registry.REGISTRY_IMPLEMENTATION_ACCEPTANCE_REF,
         forged_acceptance_sha,
+    )
+    _git(authority_repository, "checkout", "--quiet", "--detach", implementation_sha)
+    try:
+        with pytest.raises(
+            registry.D02R2RegistryError,
+            match="historical registry acceptance bytes differ from their fixed checkpoint",
+        ):
+            registry._load_accepted_root_receipt_authority(
+                authority_repository,
+                running_source=authority_repository / registry.REGISTRY_SOURCE_REPO_PATH,
+                created_at_utc=TIMESTAMP,
+            )
+    finally:
+        _git(
+            authority_repository,
+            "update-ref",
+            registry.REGISTRY_IMPLEMENTATION_ACCEPTANCE_REF,
+            acceptance_sha,
+        )
+        _git(authority_repository, "checkout", "--quiet", "--detach", implementation_sha)
+
+
+@pytest.mark.parametrize(
+    "historical_acceptance_path",
+    (
+        registry.PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH,
+        registry.R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH,
+    ),
+    ids=("predecessor", "r06"),
+)
+def test_acceptance_loader_rejects_missing_historical_record(
+    _accepted_registry_authority: tuple[Path, str, str],
+    historical_acceptance_path: str,
+) -> None:
+    authority_repository, implementation_sha, acceptance_sha = _accepted_registry_authority
+    _git(authority_repository, "checkout", "--quiet", "--detach", acceptance_sha)
+    historical_path = authority_repository / historical_acceptance_path
+    historical_path.unlink()
+    _git(
+        authority_repository,
+        "add",
+        "--",
+        historical_acceptance_path,
+    )
+    _git(authority_repository, "commit", "--quiet", "-m", "test: remove historical record")
+    missing_acceptance_sha = _git(authority_repository, "rev-parse", "HEAD").decode().strip()
+    _git(
+        authority_repository,
+        "update-ref",
+        registry.REGISTRY_IMPLEMENTATION_ACCEPTANCE_REF,
+        missing_acceptance_sha,
     )
     _git(authority_repository, "checkout", "--quiet", "--detach", implementation_sha)
     try:
@@ -564,32 +737,60 @@ def test_acceptance_loader_rejects_resigned_predecessor_authority_drift(
         _git(authority_repository, "checkout", "--quiet", "--detach", implementation_sha)
 
 
-def test_acceptance_loader_rejects_missing_predecessor_record(
+@pytest.mark.parametrize(
+    ("historical_authority", "alternate_parent_sha", "excluded_checkpoint_sha"),
+    (
+        (
+            "predecessor",
+            registry.ACCEPTED_PLAN_SHA,
+            registry.PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_CHECKPOINT_SHA,
+        ),
+        (
+            "r06",
+            registry.PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_CHECKPOINT_SHA,
+            registry.R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_CHECKPOINT_SHA,
+        ),
+    ),
+)
+def test_acceptance_loader_rejects_historical_checkpoint_outside_successor_ancestry(
     _accepted_registry_authority: tuple[Path, str, str],
+    historical_authority: str,
+    alternate_parent_sha: str,
+    excluded_checkpoint_sha: str,
 ) -> None:
     authority_repository, implementation_sha, acceptance_sha = _accepted_registry_authority
-    _git(authority_repository, "checkout", "--quiet", "--detach", acceptance_sha)
-    predecessor_path = (
-        authority_repository / registry.PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH
-    )
-    predecessor_path.unlink()
-    _git(
-        authority_repository,
-        "add",
-        "--",
-        registry.PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH,
-    )
-    _git(authority_repository, "commit", "--quiet", "-m", "test: remove predecessor record")
-    missing_acceptance_sha = _git(authority_repository, "rev-parse", "HEAD").decode().strip()
-    _git(
-        authority_repository,
-        "update-ref",
-        registry.REGISTRY_IMPLEMENTATION_ACCEPTANCE_REF,
-        missing_acceptance_sha,
-    )
-    _git(authority_repository, "checkout", "--quiet", "--detach", implementation_sha)
     try:
-        with pytest.raises(registry.D02R2RegistryError, match="COLLISION_STOP"):
+        alternate_implementation_sha, _ = _install_history_mismatch_successor(
+            authority_repository,
+            source_implementation_sha=implementation_sha,
+            source_acceptance_sha=acceptance_sha,
+            alternate_parent_sha=alternate_parent_sha,
+        )
+        assert (
+            registry._git_result(
+                authority_repository,
+                "merge-base",
+                "--is-ancestor",
+                excluded_checkpoint_sha,
+                alternate_implementation_sha,
+            ).returncode
+            != 0
+        )
+        if historical_authority == "r06":
+            assert (
+                registry._git_result(
+                    authority_repository,
+                    "merge-base",
+                    "--is-ancestor",
+                    registry.PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_CHECKPOINT_SHA,
+                    alternate_implementation_sha,
+                ).returncode
+                == 0
+            )
+        with pytest.raises(
+            registry.D02R2RegistryError,
+            match="historical registry acceptance is not an ancestor of the successor",
+        ):
             registry._load_accepted_root_receipt_authority(
                 authority_repository,
                 running_source=authority_repository / registry.REGISTRY_SOURCE_REPO_PATH,
