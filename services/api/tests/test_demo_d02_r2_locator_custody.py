@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import hashlib
+import importlib.util
 import json
 import os
+import pickle
 import subprocess
 import sys
 import threading
 import time
+import types
+import uuid
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -945,6 +950,8 @@ def test_host_candidate_rejects_all_resigned_runtime_and_windows_replacements() 
             "private_home_handle_id",
             "project_container_precondition",
             "project_code_cache_precondition",
+            "locator_custody_implementation_sha",
+            "locator_custody_implementation_acceptance_record_digest",
             "observed_at_utc",
             "record_digest",
         }
@@ -987,6 +994,535 @@ def test_host_candidate_rejects_all_resigned_runtime_and_windows_replacements() 
                 closure=records[custody.PS_CLOSURE_SCHEMA],
             )
         assert error.value.code == "WINDOWS_HOST_BINDING_AUTHORITY_MISSING_STOP"
+
+
+def _synthetic_host_observation() -> custody.WindowsHostObservation:
+    records = _wire_records()
+    candidate, contracts = _host_candidate(records)
+    bindings = {
+        key: value
+        for key, value in candidate.items()
+        if key
+        not in {
+            "schema_version",
+            "authority_id",
+            "change_control_id",
+            "private_home_handle_id",
+            "project_container_precondition",
+            "project_code_cache_precondition",
+            "locator_custody_implementation_sha",
+            "locator_custody_implementation_acceptance_record_digest",
+            "observed_at_utc",
+            "record_digest",
+        }
+    }
+    return custody.WindowsHostObservation(
+        candidate_bindings=bindings,
+        contracts=contracts,
+        powershell_closure=records[custody.PS_CLOSURE_SCHEMA],
+        private_preimages={"sid": "S-1-5-21-private", "path": "C:\\private"},
+    )
+
+
+def _fresh_s10_module(*, preload_token: bool = True) -> tuple[types.ModuleType, object]:
+    """Execute the exact implementation source under a fresh launcher-only token."""
+    token = object()
+    module_name = f"mirror_api._cc10_s10_isolated_{uuid.uuid4().hex}"
+    spec = importlib.util.spec_from_loader(module_name, loader=None)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    source_path = Path(custody.__file__).resolve()
+    module.__dict__.update({"__file__": str(source_path), "__package__": "mirror_api"})
+    if preload_token:
+        module.__dict__["__cc10_s10_bootstrap_token__"] = token
+    sys.modules[module_name] = module
+    source_bytes = source_path.read_bytes()
+    exec(compile(source_bytes, str(source_path), "exec"), module.__dict__)  # noqa: S102
+    return module, token
+
+
+def _s10_acceptance(
+    module: types.ModuleType,
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    implementation_sha = "c" * 40
+    implementation_tree = "d" * 40
+    source_row: dict[str, object] = {
+        "path": module._S10_SOURCE_PATH,
+        "sha256": digest("s10-source"),
+        "git_blob_oid": "e" * 40,
+    }
+    test_row: dict[str, object] = {
+        "path": module._S10_TEST_PATH,
+        "sha256": digest("s10-test"),
+        "git_blob_oid": "f" * 40,
+    }
+    dependency_row: dict[str, object] = {
+        "path": module._S10_DEPENDENCY_PATH,
+        "sha256": digest("s10-dependency"),
+        "git_blob_oid": "a" * 40,
+    }
+    governed_paths: list[object] = [source_row, test_row]
+    runtime_dependencies: list[object] = [dependency_row]
+    review: dict[str, object] = {
+        "review_task_id": "CC10_I10_EXACT_REVIEW",
+        "reviewed_implementation_sha": implementation_sha,
+        "findings_p0": 0,
+        "findings_p1": 0,
+        "findings_p2": 0,
+        "findings_p3": 0,
+        "result": "PASS",
+    }
+    review["evidence_digest"] = module.typed_digest(
+        "mirror.demo/D02R2WindowsHostProjectionImplementationReviewEvidence/v1",
+        {
+            "review_task_id": review["review_task_id"],
+            "reviewed_implementation_sha": implementation_sha,
+            "reviewed_implementation_tree": implementation_tree,
+            "governed_paths": governed_paths,
+            "runtime_dependencies": runtime_dependencies,
+            "findings_p0": 0,
+            "findings_p1": 0,
+            "findings_p2": 0,
+            "findings_p3": 0,
+            "result": "PASS",
+        },
+    )
+    ci: dict[str, object] = {
+        "artifact_manifest_digest": digest("s10-ci"),
+        "head_sha": implementation_sha,
+        "provider": "GITHUB_ACTIONS",
+        "repository": "yangyy816/project-mirror",
+        "required_jobs": list(module._S10_REQUIRED_JOBS),
+        "result": "PASS",
+        "run_id": 1,
+        "workflow_identity": ".github/workflows/ci.yml",
+    }
+    created_at = "2026-08-29T00:00:00.000001Z"
+    principal: dict[str, object] = {
+        "status": "PRINCIPAL_ACCEPTED",
+        "accepted_implementation_sha": implementation_sha,
+        "accepted_at_utc": created_at,
+    }
+    principal["acceptance_authority_digest"] = module.typed_digest(
+        "mirror.demo/D02R2WindowsHostProjectionImplementationPrincipalAcceptance/v1",
+        {
+            "status": principal["status"],
+            "accepted_implementation_sha": implementation_sha,
+            "accepted_at_utc": created_at,
+            "independent_review_evidence_digest": review["evidence_digest"],
+            "same_sha_ci_artifact_manifest_digest": ci["artifact_manifest_digest"],
+        },
+    )
+    acceptance: dict[str, object] = {
+        "schema_version": module._S10_IMPLEMENTATION_SCHEMA,
+        "authority_id": "P3_P7_D02_R2_WINDOWS_HOST_PROJECTION_IMPLEMENTATION_ACCEPTANCE_01",
+        "change_control_id": "P3_P7_D02_CC_10",
+        "accepted_plan_sha": module._S10_GOVERNANCE_SHA,
+        "accepted_plan_tree": module._S10_GOVERNANCE_TREE,
+        "accepted_plan_acceptance_record_digest": module._S10_PLAN_RECORD_DIGEST,
+        "predecessor_implementation_sha": module._S10_PREDECESSOR_IMPLEMENTATION_SHA,
+        "predecessor_implementation_acceptance_record_digest": (
+            module._S10_PREDECESSOR_IMPLEMENTATION_ACCEPTANCE_DIGEST
+        ),
+        "implementation_sha": implementation_sha,
+        "implementation_tree": implementation_tree,
+        "governed_paths": governed_paths,
+        "runtime_dependencies": runtime_dependencies,
+        "schema_contract_digest": module._S10_ACCEPTANCE_SCHEMA_DIGEST,
+        "host_projection_contract_digest": module._FROZEN_HOST_PROJECTION_CONTRACT_DIGEST,
+        "independent_review": review,
+        "same_sha_ci": ci,
+        "principal_acceptance": principal,
+        "authorized_scope": (
+            "EXECUTE_READ_ONLY_WINDOWS_HOST_PROJECTION_AND_EMIT_CANONICAL_HOST_CANDIDATE_BYTES_ONLY"
+        ),
+        "prohibited_scope": list(module._S10_PROHIBITED_SCOPE),
+        "record_created_at_utc": created_at,
+    }
+    acceptance["record_digest"] = module.typed_digest(
+        module._S10_IMPLEMENTATION_SCHEMA,
+        acceptance,
+    )
+    return acceptance, source_row, dependency_row
+
+
+def _isolated_synthetic_observation(module: types.ModuleType) -> Any:
+    observation = _synthetic_host_observation()
+    return module.WindowsHostObservation(
+        candidate_bindings=dict(observation.candidate_bindings),
+        contracts=dict(observation.contracts),
+        powershell_closure=dict(observation.powershell_closure),
+        private_preimages=dict(observation.private_preimages),
+    )
+
+
+def _resign_s10_acceptance(module: types.ModuleType, acceptance: dict[str, object]) -> None:
+    review = cast(dict[str, object], acceptance["independent_review"])
+    implementation_sha = cast(str, acceptance["implementation_sha"])
+    implementation_tree = cast(str, acceptance["implementation_tree"])
+    review["evidence_digest"] = module.typed_digest(
+        "mirror.demo/D02R2WindowsHostProjectionImplementationReviewEvidence/v1",
+        {
+            "review_task_id": review["review_task_id"],
+            "reviewed_implementation_sha": implementation_sha,
+            "reviewed_implementation_tree": implementation_tree,
+            "governed_paths": acceptance["governed_paths"],
+            "runtime_dependencies": acceptance["runtime_dependencies"],
+            "findings_p0": review["findings_p0"],
+            "findings_p1": review["findings_p1"],
+            "findings_p2": review["findings_p2"],
+            "findings_p3": review["findings_p3"],
+            "result": review["result"],
+        },
+    )
+    principal = cast(dict[str, object], acceptance["principal_acceptance"])
+    ci = cast(dict[str, object], acceptance["same_sha_ci"])
+    principal["acceptance_authority_digest"] = module.typed_digest(
+        "mirror.demo/D02R2WindowsHostProjectionImplementationPrincipalAcceptance/v1",
+        {
+            "status": principal["status"],
+            "accepted_implementation_sha": implementation_sha,
+            "accepted_at_utc": principal["accepted_at_utc"],
+            "independent_review_evidence_digest": review["evidence_digest"],
+            "same_sha_ci_artifact_manifest_digest": ci["artifact_manifest_digest"],
+        },
+    )
+    acceptance["record_digest"] = module.typed_digest(
+        module._S10_IMPLEMENTATION_SCHEMA,
+        {key: value for key, value in acceptance.items() if key != "record_digest"},
+    )
+
+
+def test_s10_validator_rejects_canonical_and_fully_resigned_authority_attacks() -> None:
+    def future_field(value: dict[str, object]) -> None:
+        value["future_candidate_record_digest"] = digest("future")
+
+    def frozen_literal(value: dict[str, object]) -> None:
+        value["accepted_plan_acceptance_record_digest"] = digest("forged-plan")
+
+    def ci_order(value: dict[str, object]) -> None:
+        cast(dict[str, object], value["same_sha_ci"])["required_jobs"] = [
+            "secret-scan",
+            "quality-and-integration",
+            "docker-validation",
+        ]
+
+    def source_resigned(value: dict[str, object]) -> None:
+        cast(list[dict[str, object]], value["governed_paths"])[0]["sha256"] = digest(
+            "forged-source"
+        )
+
+    def dependency_resigned(value: dict[str, object]) -> None:
+        cast(list[dict[str, object]], value["runtime_dependencies"])[0]["git_blob_oid"] = "b" * 40
+
+    for mutate, resign in (
+        (future_field, False),
+        (frozen_literal, True),
+        (ci_order, True),
+        (source_resigned, True),
+        (dependency_resigned, True),
+    ):
+        module, token = _fresh_s10_module()
+        acceptance, source_row, dependency_row = _s10_acceptance(module)
+        supplied_source = copy.deepcopy(source_row)
+        supplied_dependency = copy.deepcopy(dependency_row)
+        mutate(acceptance)
+        if resign:
+            _resign_s10_acceptance(module, acceptance)
+        with pytest.raises(module.LocatorCustodyError):
+            module._initialize_s10_execution_context(
+                token, canonical_json_bytes(acceptance), supplied_source, supplied_dependency
+            )
+        assert module._S10_CONTEXT_STATE == "POISONED"
+        with pytest.raises(
+            module.LocatorCustodyError, match="CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP"
+        ):
+            module._initialize_s10_execution_context(
+                token, canonical_json_bytes(_s10_acceptance(module)[0]), source_row, dependency_row
+            )
+
+    module, token = _fresh_s10_module()
+    acceptance, source_row, dependency_row = _s10_acceptance(module)
+    raw = canonical_json_bytes(acceptance)
+    duplicate_raw = raw[:-1] + b',"record_digest":"' + digest("duplicate").encode() + b'"}'
+    with pytest.raises(module.LocatorCustodyError, match="CUSTODY_JSON_DUPLICATE_KEY_STOP"):
+        module._initialize_s10_execution_context(token, duplicate_raw, source_row, dependency_row)
+    assert module._S10_CONTEXT_STATE == "POISONED"
+
+
+def test_s10_context_is_one_shot_redacted_and_not_mintable_from_normal_import() -> None:
+    with pytest.raises(
+        custody.LocatorCustodyError, match="CC10_IMPLEMENTATION_ACCEPTANCE_MISSING_STOP"
+    ):
+        custody.collect_and_emit_windows_host_binding_candidate()
+    normal_module, _ = _fresh_s10_module(preload_token=False)
+    normal_acceptance, normal_source, normal_dependency = _s10_acceptance(normal_module)
+    with pytest.raises(
+        normal_module.LocatorCustodyError, match="CC10_ACCEPTANCE_LOADER_UNTRUSTED_STOP"
+    ):
+        normal_module._initialize_s10_execution_context(
+            object(),
+            canonical_json_bytes(normal_acceptance),
+            normal_source,
+            normal_dependency,
+        )
+    assert normal_module._S10_CONTEXT_STATE == "POISONED"
+
+    module, token = _fresh_s10_module()
+    acceptance, source_row, dependency_row = _s10_acceptance(module)
+    with pytest.raises(module.LocatorCustodyError, match="CC10_ACCEPTANCE_LOADER_UNTRUSTED_STOP"):
+        module._S10ExecutionContext(
+            implementation_sha="a" * 40,
+            implementation_acceptance_record_digest=digest("forged"),
+            token=object(),
+        )
+    module._initialize_s10_execution_context(
+        token, canonical_json_bytes(acceptance), source_row, dependency_row
+    )
+    context = module._S10_CONTEXT
+    assert context is not None
+    assert repr(context) == "_S10ExecutionContext(redacted=True)"
+    for operation in (
+        lambda: copy.copy(context),
+        lambda: copy.deepcopy(context),
+        lambda: pickle.dumps(context),
+        lambda: json.dumps(context),
+        lambda: vars(context),
+        lambda: dataclasses.asdict(context),
+        lambda: list(context),
+    ):
+        with pytest.raises((module.LocatorCustodyError, TypeError)):
+            operation()
+    with pytest.raises(
+        module.LocatorCustodyError, match="CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP"
+    ):
+        _ = context.implementation_sha
+
+
+def test_s10_candidate_authority_uses_context_and_rejects_observation_replacement() -> None:
+    module, token = _fresh_s10_module()
+    acceptance, source_row, dependency_row = _s10_acceptance(module)
+    module._initialize_s10_execution_context(
+        token, canonical_json_bytes(acceptance), source_row, dependency_row
+    )
+    observation = _isolated_synthetic_observation(module)
+    candidate = module._build_windows_host_binding_candidate(
+        observation, "2026-08-28T00:00:00.000001Z"
+    )
+    assert candidate["locator_custody_implementation_sha"] == acceptance["implementation_sha"]
+    assert (
+        candidate["locator_custody_implementation_acceptance_record_digest"]
+        == acceptance["record_digest"]
+    )
+    assert "locator_custody_implementation_sha" not in observation.candidate_bindings
+    with pytest.raises(
+        module.LocatorCustodyError, match="CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP"
+    ):
+        module._build_windows_host_binding_candidate(observation, "2026-08-28T00:00:00.000001Z")
+
+    polluted_bindings = dict(_synthetic_host_observation().candidate_bindings)
+    polluted_bindings["locator_custody_implementation_sha"] = "a" * 40
+    polluted_bindings["locator_custody_implementation_acceptance_record_digest"] = digest(
+        "forged-observation"
+    )
+    polluted = module.WindowsHostObservation(
+        candidate_bindings=polluted_bindings,
+        contracts=dict(_synthetic_host_observation().contracts),
+        powershell_closure=dict(_synthetic_host_observation().powershell_closure),
+        private_preimages=dict(_synthetic_host_observation().private_preimages),
+    )
+    with pytest.raises(
+        module.LocatorCustodyError, match="CC10_HOST_PROJECTION_CONTRACT_MISMATCH_STOP"
+    ):
+        polluted.validate()
+
+    replacement_module, replacement_token = _fresh_s10_module()
+    replacement_acceptance, replacement_source, replacement_dependency = _s10_acceptance(
+        replacement_module
+    )
+    replacement_module._initialize_s10_execution_context(
+        replacement_token,
+        canonical_json_bytes(replacement_acceptance),
+        replacement_source,
+        replacement_dependency,
+    )
+    clean = _isolated_synthetic_observation(replacement_module)
+    replaced_bindings = dict(clean.candidate_bindings)
+    replaced_bindings["powershell_executable_identity_digest"] = digest("replaced-powershell")
+    replaced = replacement_module.WindowsHostObservation(
+        candidate_bindings=replaced_bindings,
+        contracts=dict(clean.contracts),
+        powershell_closure=dict(clean.powershell_closure),
+        private_preimages=dict(clean.private_preimages),
+    )
+    with pytest.raises(replacement_module.LocatorCustodyError):
+        replacement_module._build_windows_host_binding_candidate(
+            replaced, "2026-08-28T00:00:00.000001Z"
+        )
+
+
+def test_s10_concurrent_initialization_and_consumption_have_one_winner() -> None:
+    module, token = _fresh_s10_module()
+    acceptance, source_row, dependency_row = _s10_acceptance(module)
+
+    def initialize() -> bool:
+        try:
+            module._initialize_s10_execution_context(
+                token, canonical_json_bytes(acceptance), source_row, dependency_row
+            )
+        except module.LocatorCustodyError:
+            return False
+        return True
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        assert sum(executor.map(lambda _: initialize(), range(8))) == 1
+    assert module._S10_CONTEXT_STATE == "READY"
+
+    def consume() -> bool:
+        try:
+            module._consume_s10_execution_context()
+        except module.LocatorCustodyError:
+            return False
+        return True
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        assert sum(executor.map(lambda _: consume(), range(8))) == 1
+    assert module._S10_CONTEXT_STATE == "CONSUMED"
+
+
+def test_s10_production_entry_consumes_once_then_collects_builds_and_emits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module, token = _fresh_s10_module()
+    acceptance, source_row, dependency_row = _s10_acceptance(module)
+    module._initialize_s10_execution_context(
+        token, canonical_json_bytes(acceptance), source_row, dependency_row
+    )
+    observation = _isolated_synthetic_observation(module)
+    host_calls: list[str] = []
+
+    def collect() -> object:
+        host_calls.append("observation")
+        return observation
+
+    def timestamp() -> str:
+        host_calls.append("timestamp")
+        return "2026-08-28T00:00:00.000001Z"
+
+    monkeypatch.setattr(module, "_collect_windows_host_observation", collect)
+    monkeypatch.setattr(module, "_collect_windows_host_observed_at_utc", timestamp)
+
+    candidate_bytes = module.collect_and_emit_windows_host_binding_candidate()
+    candidate = module.canonical_loads(candidate_bytes)
+
+    assert host_calls == ["observation", "timestamp"]
+    assert module._S10_CONTEXT_STATE == "CONSUMED"
+    assert candidate["locator_custody_implementation_sha"] == acceptance["implementation_sha"]
+    assert (
+        candidate["locator_custody_implementation_acceptance_record_digest"]
+        == acceptance["record_digest"]
+    )
+    with pytest.raises(
+        module.LocatorCustodyError, match="CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP"
+    ):
+        module.collect_and_emit_windows_host_binding_candidate()
+    assert host_calls == ["observation", "timestamp"]
+
+
+def test_cc10_host_projection_preimage_and_synthetic_candidate_are_closed() -> None:
+    assert custody.windows_host_projection_contract_digest() == (
+        "65cdc704b011cdda121d3815e345a2c5d36dc05e598811fd7f51dfe5151c3b65"
+    )
+    first_module, first_token = _fresh_s10_module()
+    first_acceptance, first_source, first_dependency = _s10_acceptance(first_module)
+    first_module._initialize_s10_execution_context(
+        first_token, canonical_json_bytes(first_acceptance), first_source, first_dependency
+    )
+    first_observation = _isolated_synthetic_observation(first_module)
+    first_backend = first_module.SyntheticWindowsHostProjectionBackend(first_observation)
+    first_collected = first_module._collect_windows_host_observation_from_backend(first_backend)
+    first = first_module.emit_windows_host_binding_candidate_bytes(
+        first_collected, "2026-08-28T00:00:00.000001Z"
+    )
+
+    second_module, second_token = _fresh_s10_module()
+    second_acceptance, second_source, second_dependency = _s10_acceptance(second_module)
+    second_module._initialize_s10_execution_context(
+        second_token, canonical_json_bytes(second_acceptance), second_source, second_dependency
+    )
+    second_observation = _isolated_synthetic_observation(second_module)
+    second_backend = second_module.SyntheticWindowsHostProjectionBackend(second_observation)
+    second_collected = second_module._collect_windows_host_observation_from_backend(second_backend)
+    second = second_module.emit_windows_host_binding_candidate_bytes(
+        second_collected, "2026-08-28T00:00:00.000001Z"
+    )
+    assert first == second
+    assert b"S-1-5-21-private" not in first
+    assert "S-1-5-21-private" not in repr(first_collected)
+    assert first_backend.ledger == [
+        ("1", "COLLECTOR", "TOKEN_QUERY", "READ", "READ", "OPEN_EXISTING", "MEMORY", "PASS")
+    ]
+
+
+@pytest.mark.parametrize(
+    ("role", "api_family", "access", "disposition", "output_class", "code"),
+    [
+        (
+            "EXTRA",
+            "TOKEN_QUERY",
+            "READ",
+            "OPEN_EXISTING",
+            "MEMORY",
+            "CC10_HOST_PROJECTION_CONTRACT_MISMATCH_STOP",
+        ),
+        (
+            "COLLECTOR",
+            "NETWORK",
+            "READ",
+            "OPEN_EXISTING",
+            "MEMORY",
+            "WINDOWS_HOST_PROJECTION_NETWORK_EVENT_DETECTED_STOP",
+        ),
+        (
+            "COLLECTOR",
+            "TOKEN_QUERY",
+            "WRITE",
+            "CREATE_NEW",
+            "MEMORY",
+            "WINDOWS_HOST_PROJECTION_MUTATION_DETECTED_STOP",
+        ),
+        (
+            "COLLECTOR",
+            "PATH_FALLBACK",
+            "READ",
+            "OPEN_EXISTING",
+            "MEMORY",
+            "WINDOWS_HOST_PROJECTION_NETWORK_EVENT_DETECTED_STOP",
+        ),
+    ],
+)
+def test_cc10_synthetic_ledger_rejects_out_of_contract_operations(
+    role: str, api_family: str, access: str, disposition: str, output_class: str, code: str
+) -> None:
+    backend = custody.SyntheticWindowsHostProjectionBackend(_synthetic_host_observation())
+    with pytest.raises(custody.LocatorCustodyError) as error:
+        backend.record(role, api_family, access, "READ", disposition, output_class, "PASS")
+    assert error.value.code == code
+
+
+def test_cc10_observation_and_production_entrypoint_fail_closed() -> None:
+    observation = _synthetic_host_observation()
+    with pytest.raises(custody.LocatorCustodyError) as error:
+        custody.WindowsHostObservation(
+            candidate_bindings={**observation.candidate_bindings, "extra": "x"},
+            contracts=observation.contracts,
+            powershell_closure=observation.powershell_closure,
+            private_preimages=observation.private_preimages,
+        ).validate()
+    assert error.value.code == "CC10_HOST_PROJECTION_CONTRACT_MISMATCH_STOP"
+    with pytest.raises(custody.LocatorCustodyError) as error:
+        custody.collect_and_emit_windows_host_binding_candidate()
+    assert error.value.code == "CC10_IMPLEMENTATION_ACCEPTANCE_MISSING_STOP"
 
 
 def test_wfp_contract_is_closed_and_uuidv5_replays_exactly() -> None:

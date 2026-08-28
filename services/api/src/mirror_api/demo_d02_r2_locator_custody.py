@@ -2189,6 +2189,10 @@ def validate_windows_host_candidate(
         raise LocatorCustodyError("WINDOWS_HOST_BINDING_AUTHORITY_MISSING_STOP")
     _timestamp(value["observed_at_utc"])
     _sha(value["locator_custody_implementation_sha"], "implementation SHA")
+    _digest(
+        value["locator_custody_implementation_acceptance_record_digest"],
+        "implementation acceptance digest",
+    )
     binding_keys = keys - {
         "schema_version",
         "authority_id",
@@ -2196,6 +2200,8 @@ def validate_windows_host_candidate(
         "private_home_handle_id",
         "project_container_precondition",
         "project_code_cache_precondition",
+        "locator_custody_implementation_sha",
+        "locator_custody_implementation_acceptance_record_digest",
         "observed_at_utc",
         "record_digest",
     }
@@ -5631,3 +5637,1158 @@ def _recover_synthetic_transition_unlocked(
     if final_a != expected_post or final_b != expected_post:
         raise LocatorCustodyError("LOCATOR_COPY_DIVERGENCE_STOP")
     return "COMMIT_DURABLE"
+
+
+_HOST_PROJECTION_CONTRACT_DOMAIN: Final = "mirror.demo/D02R2WindowsHostProjectionContract/v1"
+_FROZEN_HOST_PROJECTION_CONTRACT_DIGEST: Final = (
+    "65cdc704b011cdda121d3815e345a2c5d36dc05e598811fd7f51dfe5151c3b65"
+)
+_HOST_CANDIDATE_BINDING_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "resolver_contract_digest",
+        "principal_sid_digest",
+        "known_folder_identity_digest",
+        "known_folder_boundary_contract_digest",
+        "restricted_ancestor_acl_contract_digest",
+        "project_code_checkout_resolver_contract_digest",
+        "python_runtime_identity_digest",
+        "python_runtime_file_sha256",
+        "python_runtime_version",
+        "git_executable_identity_digest",
+        "git_executable_file_sha256",
+        "windows_directory_identity_digest",
+        "windows_system_directory_identity_digest",
+        "ntdll_library_identity_digest",
+        "ntdll_library_file_sha256",
+        "kernel32_library_identity_digest",
+        "kernel32_library_file_sha256",
+        "advapi32_library_identity_digest",
+        "advapi32_library_file_sha256",
+        "fwpuclnt_library_identity_digest",
+        "fwpuclnt_library_file_sha256",
+        "powershell_executable_identity_digest",
+        "powershell_executable_file_sha256",
+        "powershell_version",
+        "cmd_executable_identity_digest",
+        "cmd_executable_file_sha256",
+        "powershell_module_root_directory_identity_digest",
+        "powershell_module_manifest_projection_digest",
+        "powershell_required_cmdlet_projection_digest",
+        "powershell_acl_bootstrap_script_projection_digest",
+        "powershell_acl_runtime_projection_digest",
+        "powershell_acl_module_closure_digest",
+        "native_relative_create_contract_digest",
+        "protected_directory_dacl_contract_digest",
+        "wfp_egress_denial_contract_digest",
+    }
+)
+
+
+def windows_host_projection_contract_preimage() -> JsonObject:
+    """Return the immutable CC10 host-projection preimage without host access."""
+    return cast(
+        JsonObject,
+        {
+            "acceptance_loader": {
+                "acceptance_path": "docs/operations/P3_P7_D02_R2_WINDOWS_HOST_PROJECTION_IMPLEMENTATION_ACCEPTANCE.json",
+                "dependency_module": "mirror_api.demo_measurement_quality",
+                "governed_paths": [
+                    "services/api/src/mirror_api/demo_d02_r2_locator_custody.py",
+                    "services/api/tests/test_demo_d02_r2_locator_custody.py",
+                ],
+                "runtime_dependencies": ["services/api/src/mirror_api/demo_measurement_quality.py"],
+                "source_module": "mirror_api.demo_d02_r2_locator_custody",
+                "trust_root": "PRINCIPAL_S10_EXTERNAL_HANDLE_LOADER",
+            },
+            "bootstrap": {
+                "application_name": "EXACT_VALIDATED_PARENT_SYS_EXECUTABLE",
+                "arguments": [
+                    "-I",
+                    "-S",
+                    "-B",
+                    "-X",
+                    "utf8",
+                    "-c",
+                    "FIXED_ASCII_BOOTSTRAP",
+                    "--",
+                    "SOURCE_HANDLE_16HEX",
+                    "MEASUREMENT_HANDLE_16HEX",
+                    "ACCEPTANCE_HANDLE_16HEX",
+                ],
+                "creation_flags": [
+                    "CREATE_SUSPENDED",
+                    "CREATE_UNICODE_ENVIRONMENT",
+                    "EXTENDED_STARTUPINFO_PRESENT",
+                    "CREATE_NO_WINDOW",
+                ],
+                "cwd": "VALIDATED_WINDOWS_DIRECTORY",
+                "environment_keys": ["COMSPEC", "SystemRoot", "windir"],
+                "inherited_handle_roles": [
+                    "SOURCE_READ",
+                    "MEASUREMENT_READ",
+                    "ACCEPTANCE_READ",
+                    "STDOUT_WRITE",
+                    "STDERR_WRITE",
+                    "STDIN_EOF_READ",
+                ],
+                "job_active_process_limit": 2,
+                "job_limits": ["NON_BREAKAWAY", "KILL_ON_CLOSE"],
+                "mapped_image_identity": "HELD_NO_WRITE_DELETE_SHARE_PLUS_QUERY_FULL_PROCESS_IMAGE_NAME_PLUS_FILE_ID_SIZE_SHA_REPLAY",
+                "module_loading": "IN_MEMORY_VERIFIED_BYTES_ONLY",
+            },
+            "etw": {
+                "calibration": [
+                    "FILE_EVENT_HEADER_PID",
+                    "FILE_CREATE_DISPOSITION",
+                    "FILE_READ_IRP_OPERATION_END",
+                    "REGISTRY_QUERY_EVENT_HEADER_PID",
+                    "AFD_LOOPBACK_ATTRIBUTION",
+                    "NAME_RESOLUTION_LOCALHOST_ATTRIBUTION",
+                ],
+                "file_mutator_events": [
+                    [16, [0, 1]],
+                    [17, [0, 1]],
+                    [18, [0, 1]],
+                    [19, [0, 1]],
+                    [21, [0, 1]],
+                    [23, [0, 1]],
+                    [26, [0, 1]],
+                    [27, [0, 1]],
+                    [28, [0, 1]],
+                    [29, [0, 1]],
+                    [30, [0, 1]],
+                    [31, [1]],
+                    [33, [1]],
+                ],
+                "file_open_event": [12, [0, 1], "FILE_OPEN_1_ONLY"],
+                "file_operation_end_event": [24, 0, "IRP_EXTRA_INFORMATION_STATUS"],
+                "file_read_event": [15, [0, 1]],
+                "loss_counters": ["EventsLost", "LogBuffersLost", "RealTimeBuffersLost"],
+                "process_start_event": [
+                    1,
+                    [3, 4],
+                    "ProcessSequenceNumber",
+                    "ParentProcessSequenceNumber",
+                ],
+                "providers": [
+                    ["22FB2CD6-0E7B-422B-A0C7-2FAD1FD0E716", 4, 16, 0],
+                    ["EDD08927-9CC4-4E65-B970-C2560FB5C289", 4, 7920, 0],
+                    ["70EB4F03-C1DE-4F73-A051-33D13D5413BD", 4, 21316, 0],
+                    ["E53C6823-7BB8-44BB-90DC-3F86090D48A6", 5, 4, 0],
+                    ["55404E71-4DB9-4DEB-A5F5-8F86E46DDE56", 4, 0, 0],
+                ],
+                "registry_query_event": [7, 0, 38],
+                "registry_mutator_events": [
+                    [1, 0, 32],
+                    [3, 0, 34],
+                    [5, 0, 36],
+                    [6, 0, 37],
+                    [11, 0, 42],
+                    [15, 0, 46],
+                ],
+                "session": {
+                    "buffer_size_kib": 64,
+                    "client_context": 1,
+                    "enable_property": 0,
+                    "filter_count": 0,
+                    "flush_timer_seconds": 1,
+                    "log_file_mode": [
+                        "EVENT_TRACE_REAL_TIME_MODE",
+                        "EVENT_TRACE_NO_PER_PROCESSOR_BUFFERING",
+                    ],
+                    "maximum_buffers": 64,
+                    "minimum_buffers": 64,
+                    "name_prefix": "ProjectMirror.CC10.NativeNoWrite.",
+                    "raw_retention": "NONE",
+                    "terminal_sequence": [
+                        "CONTROL_TRACE_STOP_OWNED_HANDLE_RETURNS_FINAL_PROPERTIES",
+                        "PROCESS_TRACE_COMPLETE_DRAIN",
+                        "CONSUMER_THREAD_JOIN",
+                        "VALIDATE_FINAL_STOP_TIME_LOSS_COUNTERS",
+                        "CLOSE_TRACE_CONSUMER_HANDLE",
+                        "EXACT_NAME_ABSENCE_REPLAY",
+                    ],
+                    "version_number": 2,
+                    "wnode_flags": ["WNODE_FLAG_TRACED_GUID", "WNODE_FLAG_VERSIONED_PROPERTIES"],
+                    "wnode_guid": "GUID_NULL",
+                },
+            },
+            "network_claim": "ZERO_TARGET_ATTRIBUTED_NETWORK_EVENTS_OBSERVED_NOT_EGRESS_ENFORCEMENT",
+            "os_build_authority": {
+                "call_count": 2,
+                "caller": "PRINCIPAL_S10_EXTERNAL_HANDLE_LOADER_WITH_VERIFIED_SYS_EXECUTABLE",
+                "components": ["major", "minor", "build"],
+                "forbidden_sources": [
+                    "SYS_GETWINDOWSVERSION_PLATFORM_VERSION",
+                    "REGISTRY_UBR",
+                    "KERNEL32_OR_OTHER_PE_PRODUCTVERSION_OR_REVISION",
+                    "APPENDED_ZERO",
+                    "CALLER_OR_ENVIRONMENT_VALUE",
+                    "MIXED_SOURCE_COMPONENTS",
+                ],
+                "format": "CANONICAL_DOTTED_UINT32_X3",
+                "replay": "IDENTICAL_PRE_TARGET_AND_POST_CLEANUP_SYS_GETWINDOWSVERSION",
+                "source": "DIRECT_BUILTIN_SYS_GETWINDOWSVERSION",
+            },
+            "output_frame": {
+                "failure_stderr": "ONE_FIXED_ASCII_STOP_CODE_PLUS_LF",
+                "failure_stdout": "EMPTY",
+                "length": "UINT32_BIG_ENDIAN",
+                "magic_ascii_hex": "504d44303243433130484f535443414e444944415445563100",
+                "max_candidate_bytes": 65536,
+                "max_stderr_bytes": 256,
+                "success_eof": "IMMEDIATE",
+                "success_stderr": "EMPTY",
+            },
+            "pe_versioninfo": {
+                "metadata_source": "STILL_OPEN_VERIFIED_BYTES_ONLY",
+                "resource_leaf_count": 1,
+                "translation_conflict": "STOP",
+                "translation_selector": "SMALLEST_LANGUAGE_ID_CODEPAGE_AFTER_EQUALITY",
+                "wintrust": "FORBIDDEN",
+            },
+            "powershell": {
+                "application_name": "EXACT_VALIDATED_SYSTEM32_WINDOWS_POWERSHELL",
+                "arguments": [
+                    "-NoLogo",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-EncodedCommand",
+                    "FIXED_UTF16LE_SCRIPT",
+                ],
+                "command_line": "EXACT_QUOTED_APPLICATION_NAME_PLUS_FIXED_ARGUMENTS",
+                "creation_flags": [
+                    "CREATE_SUSPENDED",
+                    "CREATE_UNICODE_ENVIRONMENT",
+                    "EXTENDED_STARTUPINFO_PRESENT",
+                    "CREATE_NO_WINDOW",
+                ],
+                "cwd": "VALIDATED_WINDOWS_DIRECTORY",
+                "environment_keys": [
+                    "COMSPEC",
+                    "PSModuleAnalysisCachePath",
+                    "PSModulePath",
+                    "SystemRoot",
+                    "windir",
+                ],
+                "forbidden_inherited_handle_roles": [
+                    "SOURCE_READ",
+                    "MEASUREMENT_READ",
+                    "ACCEPTANCE_READ",
+                ],
+                "handle_inheritance": "TRUE_WITH_PROC_THREAD_ATTRIBUTE_HANDLE_LIST_ONLY",
+                "inherited_handle_roles": ["STDIN_EOF_READ", "STDOUT_WRITE", "STDERR_WRITE"],
+                "job_membership": "SAME_NON_BREAKAWAY_JOB_VERIFIED_BEFORE_RESUME",
+                "mapped_image_identity": "HELD_NO_WRITE_DELETE_SHARE_PLUS_QUERY_FULL_PROCESS_IMAGE_NAME_PLUS_FILE_ID_SIZE_SHA_REPLAY_BEFORE_RESUME",
+                "module_analysis_cache": "NUL",
+                "module_autoloading": "NONE",
+                "persistent_write": "STOP",
+                "startup_stdio": "STARTF_USESTDHANDLES_TRUE",
+            },
+            "privilege": {
+                "name": "SeSystemProfilePrivilege",
+                "restore": "EXACT_PRIOR_ATTRIBUTES_AND_REREAD",
+                "token_access": ["TOKEN_QUERY", "TOKEN_ADJUST_PRIVILEGES"],
+            },
+            "production_entrypoint": {
+                "arguments": 0,
+                "name": "collect_and_emit_windows_host_binding_candidate",
+                "result": "CANONICAL_HOST_CANDIDATE_BYTES_ONLY",
+            },
+            "proof_schema": {
+                "authority_equations": [
+                    "PROOF_IMPLEMENTATION_SHA_EQ_I10",
+                    "PROOF_IMPLEMENTATION_TREE_EQ_TREE_I10",
+                    "PROOF_IMPLEMENTATION_ACCEPTANCE_STATE_SHA_EQ_S10",
+                    "PROOF_IMPLEMENTATION_ACCEPTANCE_STATE_TREE_EQ_TREE_S10",
+                    "PROOF_IMPLEMENTATION_ACCEPTANCE_PATH_EQ_FIXED",
+                    "PROOF_IMPLEMENTATION_ACCEPTANCE_BLOB_EQ_BLOB_S10_PATH",
+                    "PROOF_IMPLEMENTATION_ACCEPTANCE_FILE_SHA_EQ_SHA256_S10_PATH",
+                    "PROOF_IMPLEMENTATION_ACCEPTANCE_RECORD_DIGEST_EQ_A_RECORD_DIGEST",
+                    "PROOF_PLAN_ACCEPTANCE_RECORD_DIGEST_EQ_A_ACCEPTED_PLAN_RECORD_DIGEST",
+                    "PROOF_SCHEMA_CONTRACT_DIGEST_EQ_A_SCHEMA_CONTRACT_DIGEST",
+                    "PROOF_HOST_CONTRACT_DIGEST_EQ_A_HOST_CONTRACT_DIGEST",
+                    "PROOF_CANDIDATE_SHA_EQ_SC",
+                    "PROOF_CANDIDATE_TREE_EQ_TREE_SC",
+                    "PROOF_CANDIDATE_PATH_EQ_FIXED",
+                    "PROOF_CANDIDATE_BLOB_EQ_BLOB_SC_PATH",
+                    "PROOF_CANDIDATE_FILE_SHA_EQ_SHA256_SC_PATH",
+                    "PROOF_CANDIDATE_BYTE_SIZE_EQ_SIZE_SC_PATH",
+                    "PROOF_CANDIDATE_RECORD_DIGEST_EQ_C_RECORD_DIGEST",
+                    "CANDIDATE_STRICT_CANONICAL_BYTES_EQ_SC_C",
+                    "SC_IMPLEMENTATION_ACCEPTANCE_BYTES_EQ_S10",
+                ],
+                "calibration_keys": [
+                    "file_event_header_pid_attribution",
+                    "file_create_disposition_decode",
+                    "file_irp_operation_end_correlation",
+                    "registry_event_header_pid_attribution",
+                    "afd_target_attribution",
+                    "name_resolution_target_attribution",
+                    "file_read_probe_count",
+                    "registry_query_probe_count",
+                    "file_mutator_intent_count",
+                    "registry_mutator_intent_count",
+                    "loopback_afd_event_count",
+                    "localhost_name_resolution_event_count",
+                    "non_loopback_network_event_count",
+                    "persistent_filesystem_mutation_count",
+                    "persistent_registry_mutation_count",
+                    "result",
+                ],
+                "candidate_path": "docs/operations/P3_P7_D02_R2_WINDOWS_HOST_BINDING_CANDIDATE.json",
+                "canonicalization": "demo-canonical-json-v1",
+                "cleanup_keys": [
+                    "control_trace_stop",
+                    "stop_returned_final_properties",
+                    "process_trace_drain_complete",
+                    "consumer_thread_joined",
+                    "final_loss_counters_validated",
+                    "close_trace",
+                    "session_absence_replay",
+                    "terminal_sequence",
+                    "job_active_processes",
+                    "job_closed",
+                    "process_thread_pipe_socket_handles_closed",
+                    "privilege_restored",
+                    "result",
+                ],
+                "duplicate_keys": "REJECT",
+                "field_type_rules": [
+                    "schema_version=LITERAL:mirror.demo/D02R2WindowsHostProjectionNativeProof/v1",
+                    "authority_id=LITERAL:P3_P7_D02_R2_WINDOWS_HOST_PROJECTION_NATIVE_PROOF_01",
+                    "change_control_id=LITERAL:P3_P7_D02_CC_10",
+                    "proof_task_id=LITERAL:P3_P7_D02_CC10_NATIVE_PROOF_01",
+                    "proof_run_id=LOWER_HEX_32",
+                    "implementation_sha=LOWER_HEX_40",
+                    "implementation_tree=LOWER_HEX_40",
+                    "implementation_acceptance_record_digest=LOWER_HEX_64",
+                    "implementation_acceptance_state_sha=LOWER_HEX_40",
+                    "implementation_acceptance_state_tree=LOWER_HEX_40",
+                    "implementation_acceptance_path=LITERAL:docs/operations/P3_P7_D02_R2_WINDOWS_HOST_PROJECTION_IMPLEMENTATION_ACCEPTANCE.json",
+                    "implementation_acceptance_git_blob_oid=LOWER_HEX_40",
+                    "implementation_acceptance_file_sha256=LOWER_HEX_64",
+                    "plan_acceptance_record_digest=LOWER_HEX_64",
+                    "schema_contract_digest=LOWER_HEX_64",
+                    "host_projection_contract_digest=LOWER_HEX_64",
+                    "candidate_sha=LOWER_HEX_40",
+                    "candidate_tree=LOWER_HEX_40",
+                    "candidate_path=LITERAL:docs/operations/P3_P7_D02_R2_WINDOWS_HOST_BINDING_CANDIDATE.json",
+                    "candidate_git_blob_oid=LOWER_HEX_40",
+                    "candidate_record_digest=LOWER_HEX_64",
+                    "candidate_file_sha256=LOWER_HEX_64",
+                    "candidate_byte_size=NONBOOLEAN_INTEGER_1_TO_65536",
+                    "os_build=CANONICAL_DOTTED_UINT32_X3",
+                    "os_architecture=LITERAL:AMD64",
+                    "python_version=CANONICAL_DOTTED_UINT32_X3",
+                    "invocation_contract_digest=LOWER_HEX_64",
+                    "runtime_dependency_digest=LOWER_HEX_64",
+                    "synthetic_ledger_digest=LOWER_HEX_64",
+                    "etw_contract_digest=LOWER_HEX_64",
+                    "process_tree=EXACT_OBJECT:process_tree_keys",
+                    "calibration=EXACT_OBJECT:calibration_keys",
+                    "filesystem_observation=EXACT_OBJECT:filesystem_observation_keys",
+                    "registry_observation=EXACT_OBJECT:registry_observation_keys",
+                    "network_observation=EXACT_OBJECT:network_observation_keys",
+                    "loss_counters=EXACT_OBJECT:loss_counter_keys",
+                    "lifecycle=EXACT_OBJECT:lifecycle_keys",
+                    "cleanup=EXACT_OBJECT:cleanup_keys",
+                    "private_retention=LITERAL:RAW_ETW_NONE_PRIVATE_PREIMAGE_MEMORY_ONLY",
+                    "network_claim=LITERAL:ZERO_TARGET_ATTRIBUTED_NETWORK_EVENTS_OBSERVED_NOT_EGRESS_ENFORCEMENT",
+                    "result=LITERAL:PASS",
+                    "record_created_at_utc=NORMALIZED_UTC_6_FRACTIONAL_DIGITS",
+                    "record_digest=LOWER_HEX_64",
+                ],
+                "field_keys": [
+                    "schema_version",
+                    "authority_id",
+                    "change_control_id",
+                    "proof_task_id",
+                    "proof_run_id",
+                    "implementation_sha",
+                    "implementation_tree",
+                    "implementation_acceptance_record_digest",
+                    "implementation_acceptance_state_sha",
+                    "implementation_acceptance_state_tree",
+                    "implementation_acceptance_path",
+                    "implementation_acceptance_git_blob_oid",
+                    "implementation_acceptance_file_sha256",
+                    "plan_acceptance_record_digest",
+                    "schema_contract_digest",
+                    "host_projection_contract_digest",
+                    "candidate_sha",
+                    "candidate_tree",
+                    "candidate_path",
+                    "candidate_git_blob_oid",
+                    "candidate_record_digest",
+                    "candidate_file_sha256",
+                    "candidate_byte_size",
+                    "os_build",
+                    "os_architecture",
+                    "python_version",
+                    "invocation_contract_digest",
+                    "runtime_dependency_digest",
+                    "synthetic_ledger_digest",
+                    "etw_contract_digest",
+                    "process_tree",
+                    "calibration",
+                    "filesystem_observation",
+                    "registry_observation",
+                    "network_observation",
+                    "loss_counters",
+                    "lifecycle",
+                    "cleanup",
+                    "private_retention",
+                    "network_claim",
+                    "result",
+                    "record_created_at_utc",
+                    "record_digest",
+                ],
+                "filesystem_observation_keys": [
+                    "open_existing_event_count",
+                    "mutator_intent_count",
+                    "mutator_success_count",
+                    "unresolved_irp_count",
+                    "unsupported_result_event_count",
+                    "result",
+                ],
+                "lifecycle_keys": [
+                    "session_preexisting",
+                    "versioned_properties_flag_present",
+                    "all_providers_enabled",
+                    "mapped_python_identity_replayed",
+                    "mapped_powershell_identity_replayed",
+                    "output_frame_valid",
+                    "candidate_replay_valid",
+                    "result",
+                ],
+                "loss_counter_keys": ["events_lost", "log_buffers_lost", "real_time_buffers_lost"],
+                "network_observation_keys": [
+                    "afd_target_event_count",
+                    "name_resolution_target_event_count",
+                    "unattributed_provider_event_count",
+                    "enforcement",
+                    "result",
+                ],
+                "nested_value_rules": {
+                    "calibration": [
+                        "file_event_header_pid_attribution=LITERAL:PASS",
+                        "file_create_disposition_decode=LITERAL:PASS",
+                        "file_irp_operation_end_correlation=LITERAL:PASS",
+                        "registry_event_header_pid_attribution=LITERAL:PASS",
+                        "afd_target_attribution=LITERAL:PASS",
+                        "name_resolution_target_attribution=LITERAL:PASS",
+                        "file_read_probe_count=NONBOOLEAN_INTEGER_GTE_1",
+                        "registry_query_probe_count=NONBOOLEAN_INTEGER_GTE_1",
+                        "file_mutator_intent_count=INTEGER_0",
+                        "registry_mutator_intent_count=INTEGER_0",
+                        "loopback_afd_event_count=NONBOOLEAN_INTEGER_GTE_1",
+                        "localhost_name_resolution_event_count=NONBOOLEAN_INTEGER_GTE_1",
+                        "non_loopback_network_event_count=INTEGER_0",
+                        "persistent_filesystem_mutation_count=INTEGER_0",
+                        "persistent_registry_mutation_count=INTEGER_0",
+                        "result=LITERAL:PASS",
+                    ],
+                    "cleanup": [
+                        "control_trace_stop=LITERAL:PASS",
+                        "stop_returned_final_properties=BOOLEAN_TRUE",
+                        "process_trace_drain_complete=BOOLEAN_TRUE",
+                        "consumer_thread_joined=BOOLEAN_TRUE",
+                        "final_loss_counters_validated=BOOLEAN_TRUE",
+                        "close_trace=LITERAL:PASS",
+                        "session_absence_replay=LITERAL:PASS",
+                        "terminal_sequence=LITERAL:CONTROL_TRACE_STOP_THEN_PROCESS_TRACE_DRAIN_JOIN_THEN_FINAL_LOSS_VALIDATION_THEN_CLOSE_TRACE_THEN_ABSENCE_REPLAY",
+                        "job_active_processes=INTEGER_0",
+                        "job_closed=BOOLEAN_TRUE",
+                        "process_thread_pipe_socket_handles_closed=BOOLEAN_TRUE",
+                        "privilege_restored=BOOLEAN_TRUE",
+                        "result=LITERAL:PASS",
+                    ],
+                    "filesystem_observation": [
+                        "open_existing_event_count=NONBOOLEAN_INTEGER_GTE_1",
+                        "mutator_intent_count=INTEGER_0",
+                        "mutator_success_count=INTEGER_0",
+                        "unresolved_irp_count=INTEGER_0",
+                        "unsupported_result_event_count=INTEGER_0",
+                        "result=LITERAL:PASS",
+                    ],
+                    "lifecycle": [
+                        "session_preexisting=BOOLEAN_FALSE",
+                        "versioned_properties_flag_present=BOOLEAN_TRUE",
+                        "all_providers_enabled=BOOLEAN_TRUE",
+                        "mapped_python_identity_replayed=BOOLEAN_TRUE",
+                        "mapped_powershell_identity_replayed=BOOLEAN_TRUE",
+                        "output_frame_valid=BOOLEAN_TRUE",
+                        "candidate_replay_valid=BOOLEAN_TRUE",
+                        "result=LITERAL:PASS",
+                    ],
+                    "loss_counters": [
+                        "events_lost=INTEGER_0",
+                        "log_buffers_lost=INTEGER_0",
+                        "real_time_buffers_lost=INTEGER_0",
+                    ],
+                    "network_observation": [
+                        "afd_target_event_count=INTEGER_0",
+                        "name_resolution_target_event_count=INTEGER_0",
+                        "unattributed_provider_event_count=INTEGER_0",
+                        "enforcement=LITERAL:NOT_PROVIDED_BY_CC10",
+                        "result=LITERAL:PASS",
+                    ],
+                    "process_tree": [
+                        "identity_field=LITERAL:ProcessSequenceNumber",
+                        "observer_before_calibration=BOOLEAN_TRUE",
+                        "observer_before_target=BOOLEAN_TRUE",
+                        "target_created_suspended=BOOLEAN_TRUE",
+                        "job_assigned_before_resume=BOOLEAN_TRUE",
+                        "job_breakaway_forbidden=BOOLEAN_TRUE",
+                        "job_active_process_limit=INTEGER_2",
+                        "calibration_process_count=INTEGER_1",
+                        "collector_process_count=INTEGER_1",
+                        "powershell_child_count=INTEGER_1",
+                        "unexpected_process_count=INTEGER_0",
+                        "all_processes_terminal=BOOLEAN_TRUE",
+                        "result=LITERAL:PASS",
+                    ],
+                    "registry_observation": [
+                        "query_event_count=NONBOOLEAN_INTEGER_GTE_1",
+                        "mutator_intent_count=INTEGER_0",
+                        "mutator_success_count=INTEGER_0",
+                        "unsupported_result_event_count=INTEGER_0",
+                        "result=LITERAL:PASS",
+                    ],
+                },
+                "observation_draft_authority": "NONE_NONAUTHORITY_UNTRACKED_UNTIL_SC",
+                "process_tree_keys": [
+                    "identity_field",
+                    "observer_before_calibration",
+                    "observer_before_target",
+                    "target_created_suspended",
+                    "job_assigned_before_resume",
+                    "job_breakaway_forbidden",
+                    "job_active_process_limit",
+                    "calibration_process_count",
+                    "collector_process_count",
+                    "powershell_child_count",
+                    "unexpected_process_count",
+                    "all_processes_terminal",
+                    "result",
+                ],
+                "proof_path": "docs/operations/P3_P7_D02_R2_WINDOWS_HOST_PROJECTION_NATIVE_PROOF.json",
+                "record_digest_equation": "TD_SCHEMA_VERSION_RECORD_EXCLUDING_ONLY_RECORD_DIGEST",
+                "registry_observation_keys": [
+                    "query_event_count",
+                    "mutator_intent_count",
+                    "mutator_success_count",
+                    "unsupported_result_event_count",
+                    "result",
+                ],
+                "schema_version": "mirror.demo/D02R2WindowsHostProjectionNativeProof/v1",
+            },
+            "stop_rules": [
+                "CC10_PLAN_ACCEPTANCE_MISSING_STOP",
+                "CC10_IMPLEMENTATION_ACCEPTANCE_MISSING_STOP",
+                "CC10_ACCEPTANCE_SCHEMA_CONTRACT_MISMATCH_STOP",
+                "CC10_HOST_PROJECTION_CONTRACT_MISMATCH_STOP",
+                "CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP",
+                "CC10_IMPLEMENTATION_BINDING_MISMATCH_STOP",
+                "CC10_ACCEPTANCE_LOADER_UNTRUSTED_STOP",
+                "CC10_RUNTIME_DEPENDENCY_UNBOUND_STOP",
+                "CC10_ISOLATED_BOOTSTRAP_IMPORT_STOP",
+                "CC10_EXECUTED_IMAGE_IDENTITY_UNPROVEN_STOP",
+                "CC10_OUTPUT_FRAME_INVALID_STOP",
+                "WINDOWS_HOST_PROJECTION_NOT_WINDOWS_STOP",
+                "WINDOWS_HOST_PROJECTION_NATIVE_API_UNAVAILABLE_STOP",
+                "WINDOWS_HOST_PROJECTION_PRIVATE_PREIMAGE_DISCLOSURE_STOP",
+                "WINDOWS_HOST_PROJECTION_GIT_AUTHORITY_UNAVAILABLE_STOP",
+                "WINDOWS_HOST_PROJECTION_GIT_AUTHORITY_AMBIGUOUS_STOP",
+                "WINDOWS_HOST_PROJECTION_EXECUTABLE_IDENTITY_DRIFT_STOP",
+                "WINDOWS_HOST_PROJECTION_PE_METADATA_MISMATCH_STOP",
+                "PE_VERSION_RESOURCE_AMBIGUOUS_STOP",
+                "PE_VERSION_TRANSLATION_CONFLICT_STOP",
+                "PE_SAME_HANDLE_REPLAY_STOP",
+                "WINDOWS_HOST_PROJECTION_POWERSHELL_CLOSURE_STOP",
+                "POWERSHELL_ENVIRONMENT_OR_CACHE_WRITE_STOP",
+                "WINDOWS_HOST_PROJECTION_PRECONDITION_NOT_ABSENT_STOP",
+                "WINDOWS_HOST_PROJECTION_OS_BUILD_AUTHORITY_STOP",
+                "WINDOWS_HOST_PROJECTION_TIMESTAMP_AUTHORITY_STOP",
+                "WINDOWS_HOST_PROJECTION_MUTATION_DETECTED_STOP",
+                "WINDOWS_HOST_PROJECTION_NETWORK_EVENT_DETECTED_STOP",
+                "NATIVE_NO_WRITE_PROOF_UNAVAILABLE_STOP",
+                "ETW_SESSION_COLLISION_STOP",
+                "ETW_PRIVILEGE_ENABLE_STOP",
+                "ETW_PRIVILEGE_RESTORE_STOP",
+                "ETW_EVENT_SCHEMA_UNSUPPORTED_STOP",
+                "ETW_FILE_CREATE_SEMANTICS_UNAVAILABLE_STOP",
+                "ETW_FILE_PID_ATTRIBUTION_UNAVAILABLE_STOP",
+                "ETW_FILE_OPERATION_UNRESOLVED_STOP",
+                "ETW_REGISTRY_PID_ATTRIBUTION_UNAVAILABLE_STOP",
+                "ETW_NETWORK_ATTRIBUTION_UNAVAILABLE_STOP",
+                "ETW_EVENT_LOSS_STOP",
+                "ETW_PID_TREE_INCOMPLETE_STOP",
+                "ETW_CLEANUP_FAILED_STOP",
+                "WINDOWS_HOST_BINDING_CANDIDATE_COLLISION_STOP",
+            ],
+        },
+    )
+
+
+def windows_host_projection_contract_digest() -> str:
+    digest = typed_digest(
+        _HOST_PROJECTION_CONTRACT_DOMAIN, windows_host_projection_contract_preimage()
+    )
+    if digest != _FROZEN_HOST_PROJECTION_CONTRACT_DIGEST:
+        raise LocatorCustodyError("CC10_HOST_PROJECTION_CONTRACT_MISMATCH_STOP")
+    return digest
+
+
+@dataclass(frozen=True, slots=True)
+class WindowsHostObservation:
+    """Transient, typed projection with private preimages excluded from repr."""
+
+    candidate_bindings: Mapping[str, object] = field(repr=False)
+    contracts: Mapping[str, str]
+    powershell_closure: Mapping[str, object]
+    private_preimages: Mapping[str, str] = field(repr=False)
+
+    def validate(self) -> None:
+        if set(self.candidate_bindings) != _HOST_CANDIDATE_BINDING_KEYS:
+            raise LocatorCustodyError("CC10_HOST_PROJECTION_CONTRACT_MISMATCH_STOP")
+        if not all(isinstance(value, str) for value in self.private_preimages.values()):
+            raise LocatorCustodyError("WINDOWS_HOST_PROJECTION_PRIVATE_PREIMAGE_DISCLOSURE_STOP")
+        if set(self.contracts) != {
+            "native_relative_create_contract_digest",
+            "protected_directory_dacl_contract_digest",
+            "wfp_egress_denial_contract_digest",
+        }:
+            raise LocatorCustodyError("CC10_HOST_PROJECTION_CONTRACT_MISMATCH_STOP")
+
+
+class WindowsHostProjectionBackend(Protocol):
+    """Read-only collector seam; production has no injectable backend."""
+
+    def collect_observation(self) -> WindowsHostObservation: ...
+
+
+@dataclass
+class SyntheticWindowsHostProjectionBackend:
+    """Test-only in-memory ledger; it cannot execute host operations."""
+
+    observation: WindowsHostObservation
+    ledger: list[tuple[str, str, str, str, str, str, str, str]] = field(default_factory=list)
+
+    def record(
+        self,
+        role: str,
+        api_family: str,
+        requested_access: str,
+        share_mask: str,
+        disposition: str,
+        output_class: str,
+        result_class: str,
+    ) -> None:
+        if role not in {"COLLECTOR", "POWERSHELL", "CALIBRATION"}:
+            raise LocatorCustodyError("CC10_HOST_PROJECTION_CONTRACT_MISMATCH_STOP")
+        if api_family in {"NETWORK", "DNS", "PATH_FALLBACK", "MUTATOR"}:
+            raise LocatorCustodyError("WINDOWS_HOST_PROJECTION_NETWORK_EVENT_DETECTED_STOP")
+        if disposition != "OPEN_EXISTING" or output_class not in {"MEMORY", "ANONYMOUS_PIPE"}:
+            raise LocatorCustodyError("WINDOWS_HOST_PROJECTION_MUTATION_DETECTED_STOP")
+        if "WRITE" in requested_access and output_class != "ANONYMOUS_PIPE":
+            raise LocatorCustodyError("WINDOWS_HOST_PROJECTION_MUTATION_DETECTED_STOP")
+        self.ledger.append(
+            (
+                str(len(self.ledger) + 1),
+                role,
+                api_family,
+                requested_access,
+                share_mask,
+                disposition,
+                output_class,
+                result_class,
+            )
+        )
+
+    def collect_observation(self) -> WindowsHostObservation:
+        self.record("COLLECTOR", "TOKEN_QUERY", "READ", "READ", "OPEN_EXISTING", "MEMORY", "PASS")
+        self.observation.validate()
+        return self.observation
+
+
+def _collect_windows_host_observation_from_backend(
+    backend: WindowsHostProjectionBackend,
+) -> WindowsHostObservation:
+    """Private synthetic seam; production never receives a backend argument."""
+    observation = backend.collect_observation()
+    if not isinstance(observation, WindowsHostObservation):
+        raise LocatorCustodyError("WINDOWS_HOST_PROJECTION_NATIVE_API_UNAVAILABLE_STOP")
+    observation.validate()
+    return observation
+
+
+def _collect_windows_host_observation() -> WindowsHostObservation:
+    """Production collector boundary, intentionally unavailable until native S10 work."""
+    if os.name != "nt":
+        raise LocatorCustodyError("WINDOWS_HOST_PROJECTION_NOT_WINDOWS_STOP")
+    raise LocatorCustodyError("WINDOWS_HOST_PROJECTION_NATIVE_API_UNAVAILABLE_STOP")
+
+
+def _collect_windows_host_observed_at_utc() -> str:
+    """Production clock boundary, intentionally unavailable until native S10 work."""
+    if os.name != "nt":
+        raise LocatorCustodyError("WINDOWS_HOST_PROJECTION_NOT_WINDOWS_STOP")
+    raise LocatorCustodyError("WINDOWS_HOST_PROJECTION_NATIVE_API_UNAVAILABLE_STOP")
+
+
+def _build_windows_host_binding_candidate(
+    observation: WindowsHostObservation,
+    observed_at_utc: str,
+) -> JsonObject:
+    """Build one canonical CC09 candidate from a validated transient observation."""
+    context = _consume_s10_execution_context()
+    return _build_windows_host_binding_candidate_from_context(observation, observed_at_utc, context)
+
+
+def _build_windows_host_binding_candidate_from_context(
+    observation: WindowsHostObservation,
+    observed_at_utc: str,
+    context: _S10ExecutionContext,
+) -> JsonObject:
+    """Use the already-consumed production context without retaining acceptance bytes."""
+    observation.validate()
+    bindings = _json_object(observation.candidate_bindings)
+    implementation_sha, acceptance_record_digest = context._candidate_authority_values()
+    candidate: JsonObject = {
+        "schema_version": HOST_CANDIDATE_SCHEMA,
+        "authority_id": "P3_P7_D02_R2_WINDOWS_HOST_BINDING_AUTHORITY_01",
+        "change_control_id": "P3_P7_D02_CC_09",
+        "private_home_handle_id": "PM_PROJECT_MIRROR_PRIVATE_HOME_V1",
+        **bindings,
+        "project_container_precondition": "ABSENT_CREATE_NEW",
+        "project_code_cache_precondition": "ABSENT_CREATE_NEW",
+        "locator_custody_implementation_sha": implementation_sha,
+        "locator_custody_implementation_acceptance_record_digest": acceptance_record_digest,
+        "observed_at_utc": observed_at_utc,
+    }
+    candidate["record_digest"] = typed_digest(HOST_CANDIDATE_SCHEMA, candidate)
+    return validate_windows_host_candidate(
+        candidate,
+        contracts=observation.contracts,
+        expected_bindings=bindings,
+        closure=observation.powershell_closure,
+    )
+
+
+def emit_windows_host_binding_candidate_bytes(
+    observation: WindowsHostObservation,
+    observed_at_utc: str,
+) -> bytes:
+    """Serialize a synthetic or externally verified observation; never writes a file."""
+    return canonical_json_bytes(_build_windows_host_binding_candidate(observation, observed_at_utc))
+
+
+def collect_and_emit_windows_host_binding_candidate() -> bytes:
+    """Consume S10 once, collect the host once and emit canonical candidate bytes."""
+    # Consume before any host call: an ordinary import cannot probe the host, and
+    # one production attempt can never reuse or replace its acceptance authority.
+    context = _consume_s10_execution_context()
+    observation = _collect_windows_host_observation()
+    observed_at_utc = _collect_windows_host_observed_at_utc()
+    return canonical_json_bytes(
+        _build_windows_host_binding_candidate_from_context(
+            observation,
+            observed_at_utc,
+            context,
+        )
+    )
+
+
+_S10_BOOTSTRAP_TOKEN = globals().get("__cc10_s10_bootstrap_token__")
+_S10_CONTEXT_LOCK = threading.Lock()
+_S10_CONTEXT_STATE = "UNINITIALIZED"
+_S10_CONTEXT: _S10ExecutionContext | None = None
+_S10_IMPLEMENTATION_SCHEMA: Final = (
+    "mirror.demo/D02R2WindowsHostProjectionImplementationAcceptance/v1"
+)
+_S10_PLAN_RECORD_DIGEST: Final = "bf61094d4d45259b82650ef3f717439867e2ff09604d5d7154f7bda175439c3f"
+_S10_SOURCE_PATH: Final = "services/api/src/mirror_api/demo_d02_r2_locator_custody.py"
+_S10_TEST_PATH: Final = "services/api/tests/test_demo_d02_r2_locator_custody.py"
+_S10_DEPENDENCY_PATH: Final = "services/api/src/mirror_api/demo_measurement_quality.py"
+_S10_GOVERNANCE_SHA: Final = "7ce8a58b18b60f0ad98d01fb73bc0cdf7f096f30"
+_S10_GOVERNANCE_TREE: Final = "eeb86eef8db930bbf227b8898216d782a741924b"
+_S10_PREDECESSOR_IMPLEMENTATION_SHA: Final = "dd16624ed5ff679b03fefc61994f4ea9fd85e71e"
+_S10_PREDECESSOR_IMPLEMENTATION_ACCEPTANCE_DIGEST: Final = (
+    "9421b293f88c6015f1f2f42d449d54bf93bd806fedcf73cb7a76ec4c3bef4f2c"
+)
+_S10_ACCEPTANCE_SCHEMA_DIGEST: Final = (
+    "e8d9b8c2fcae83b17e01528dde28eb020a76275d48e4b72d3d148cabe378baa0"
+)
+_S10_PROHIBITED_SCOPE: Final[tuple[str, ...]] = (
+    "ANY_IMPLEMENTATION_OR_TEST_PATH_CHANGE",
+    "PERSISTENT_FILESYSTEM_REGISTRY_ACL_OR_WFP_MUTATION",
+    "RAW_ETW_OR_PRIVATE_PREIMAGE_RETENTION",
+    "PRIVATE_ROOT_HOME_OR_LOCATOR_CREATION",
+    "WORKER_CANDIDATE_WRITE",
+    "SOURCE_GENERATION",
+    "M3_M4_EXECUTION",
+    "MIGRATION_OR_ORM",
+    "POSTGRESQL_ADMISSION",
+    "PUBLIC_API_OR_ROUTER_CHANGE",
+    "DEPENDENCY_OR_CI_CHANGE",
+    "D02_R2_TASK_ACCEPTANCE",
+    "D03_D04_B_D07_B_OPENING",
+    "FORMAL_PHASE_AUTHORITY",
+    "PRODUCTION_RELEASE",
+)
+_S10_REQUIRED_JOBS: Final[tuple[str, ...]] = (
+    "quality-and-integration",
+    "secret-scan",
+    "docker-validation",
+)
+_S10_ACCEPTANCE_KEYS: Final = frozenset(
+    {
+        "schema_version",
+        "authority_id",
+        "change_control_id",
+        "accepted_plan_sha",
+        "accepted_plan_tree",
+        "accepted_plan_acceptance_record_digest",
+        "predecessor_implementation_sha",
+        "predecessor_implementation_acceptance_record_digest",
+        "implementation_sha",
+        "implementation_tree",
+        "governed_paths",
+        "runtime_dependencies",
+        "schema_contract_digest",
+        "host_projection_contract_digest",
+        "independent_review",
+        "same_sha_ci",
+        "principal_acceptance",
+        "authorized_scope",
+        "prohibited_scope",
+        "record_created_at_utc",
+        "record_digest",
+    }
+)
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class _S10ExecutionContext:
+    _implementation_sha: str = field(repr=False)
+    _implementation_acceptance_record_digest: str = field(repr=False)
+    _token: object = field(repr=False, compare=False)
+
+    def __init__(
+        self,
+        *,
+        implementation_sha: str,
+        implementation_acceptance_record_digest: str,
+        token: object,
+    ) -> None:
+        if _S10_BOOTSTRAP_TOKEN is None or token is not _S10_BOOTSTRAP_TOKEN:
+            raise LocatorCustodyError("CC10_ACCEPTANCE_LOADER_UNTRUSTED_STOP")
+        object.__setattr__(self, "_implementation_sha", implementation_sha)
+        object.__setattr__(
+            self,
+            "_implementation_acceptance_record_digest",
+            implementation_acceptance_record_digest,
+        )
+        object.__setattr__(self, "_token", token)
+
+    def __getattribute__(self, name: str) -> object:
+        if name in {
+            "_implementation_sha",
+            "_implementation_acceptance_record_digest",
+            "implementation_sha",
+            "implementation_acceptance_record_digest",
+            "_token",
+        }:
+            raise LocatorCustodyError("CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP")
+        return object.__getattribute__(self, name)
+
+    def __repr__(self) -> str:
+        return "_S10ExecutionContext(redacted=True)"
+
+    def __copy__(self) -> object:
+        raise LocatorCustodyError("CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP")
+
+    def __deepcopy__(self, memo: object) -> object:
+        del memo
+        raise LocatorCustodyError("CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP")
+
+    def __reduce__(self) -> str:
+        raise LocatorCustodyError("CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP")
+
+    def __iter__(self) -> Iterator[object]:
+        raise LocatorCustodyError("CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP")
+
+    def _candidate_authority_values(self) -> tuple[str, str]:
+        return (
+            cast(str, object.__getattribute__(self, "_implementation_sha")),
+            cast(
+                str,
+                object.__getattribute__(self, "_implementation_acceptance_record_digest"),
+            ),
+        )
+
+
+def _validate_s10_row(value: Mapping[str, object], expected_path: str) -> JsonObject:
+    row = _json_object(value)
+    _exact(row, {"path", "sha256", "git_blob_oid"}, "S10 binding row")
+    if row["path"] != expected_path:
+        raise LocatorCustodyError("CC10_IMPLEMENTATION_BINDING_MISMATCH_STOP")
+    _digest(row["sha256"], "S10 row SHA-256")
+    _sha(row["git_blob_oid"], "S10 row Git blob")
+    return row
+
+
+def _s10_exact(value: object, keys: set[str]) -> JsonObject:
+    record = _json_object(cast(Mapping[str, object], value))
+    _exact(record, keys, "S10 nested record")
+    return record
+
+
+def _s10_nonboolean_zero(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value == 0
+
+
+def _validate_s10_independent_review(
+    value: object,
+    *,
+    implementation_sha: str,
+    implementation_tree: str,
+    governed_paths: list[Json],
+    runtime_dependencies: list[Json],
+) -> None:
+    review = _s10_exact(
+        value,
+        {
+            "evidence_digest",
+            "findings_p0",
+            "findings_p1",
+            "findings_p2",
+            "findings_p3",
+            "result",
+            "review_task_id",
+            "reviewed_implementation_sha",
+        },
+    )
+    if (
+        not isinstance(review["review_task_id"], str)
+        or not review["review_task_id"]
+        or review["reviewed_implementation_sha"] != implementation_sha
+        or review["result"] != "PASS"
+        or not all(
+            _s10_nonboolean_zero(review[key])
+            for key in ("findings_p0", "findings_p1", "findings_p2", "findings_p3")
+        )
+    ):
+        raise LocatorCustodyError("CC10_ACCEPTANCE_SCHEMA_CONTRACT_MISMATCH_STOP")
+    expected = typed_digest(
+        "mirror.demo/D02R2WindowsHostProjectionImplementationReviewEvidence/v1",
+        {
+            "review_task_id": review["review_task_id"],
+            "reviewed_implementation_sha": implementation_sha,
+            "reviewed_implementation_tree": implementation_tree,
+            "governed_paths": governed_paths,
+            "runtime_dependencies": runtime_dependencies,
+            "findings_p0": review["findings_p0"],
+            "findings_p1": review["findings_p1"],
+            "findings_p2": review["findings_p2"],
+            "findings_p3": review["findings_p3"],
+            "result": review["result"],
+        },
+    )
+    if review["evidence_digest"] != expected:
+        raise LocatorCustodyError("CC10_ACCEPTANCE_SCHEMA_CONTRACT_MISMATCH_STOP")
+
+
+def _validate_s10_same_sha_ci(value: object, implementation_sha: str) -> str:
+    ci = _s10_exact(
+        value,
+        {
+            "artifact_manifest_digest",
+            "head_sha",
+            "provider",
+            "repository",
+            "required_jobs",
+            "result",
+            "run_id",
+            "workflow_identity",
+        },
+    )
+    if (
+        ci["head_sha"] != implementation_sha
+        or ci["provider"] != "GITHUB_ACTIONS"
+        or ci["repository"] != "yangyy816/project-mirror"
+        or ci["required_jobs"] != list(_S10_REQUIRED_JOBS)
+        or ci["result"] != "PASS"
+        or ci["workflow_identity"] != ".github/workflows/ci.yml"
+        or not isinstance(ci["run_id"], int)
+        or isinstance(ci["run_id"], bool)
+        or ci["run_id"] < 1
+    ):
+        raise LocatorCustodyError("CC10_ACCEPTANCE_SCHEMA_CONTRACT_MISMATCH_STOP")
+    _digest(ci["artifact_manifest_digest"], "S10 CI artifact manifest")
+    return cast(str, ci["artifact_manifest_digest"])
+
+
+def _validate_s10_principal_acceptance(
+    value: object,
+    *,
+    implementation_sha: str,
+    record_created_at_utc: object,
+    independent_review: object,
+    same_sha_ci_artifact_manifest_digest: str,
+) -> None:
+    principal = _s10_exact(
+        value,
+        {
+            "acceptance_authority_digest",
+            "accepted_at_utc",
+            "accepted_implementation_sha",
+            "status",
+        },
+    )
+    if (
+        principal["status"] != "PRINCIPAL_ACCEPTED"
+        or principal["accepted_implementation_sha"] != implementation_sha
+        or principal["accepted_at_utc"] != record_created_at_utc
+    ):
+        raise LocatorCustodyError("CC10_ACCEPTANCE_SCHEMA_CONTRACT_MISMATCH_STOP")
+    _timestamp(principal["accepted_at_utc"])
+    review = _json_object(cast(Mapping[str, object], independent_review))
+    expected = typed_digest(
+        "mirror.demo/D02R2WindowsHostProjectionImplementationPrincipalAcceptance/v1",
+        {
+            "status": principal["status"],
+            "accepted_implementation_sha": implementation_sha,
+            "accepted_at_utc": principal["accepted_at_utc"],
+            "independent_review_evidence_digest": review["evidence_digest"],
+            "same_sha_ci_artifact_manifest_digest": same_sha_ci_artifact_manifest_digest,
+        },
+    )
+    if principal["acceptance_authority_digest"] != expected:
+        raise LocatorCustodyError("CC10_ACCEPTANCE_SCHEMA_CONTRACT_MISMATCH_STOP")
+
+
+def _initialize_s10_execution_context(
+    token: object,
+    acceptance_bytes: bytes,
+    source_row: Mapping[str, object],
+    dependency_row: Mapping[str, object],
+) -> None:
+    """One-shot, bootstrap-only validator; it retains no acceptance bytes or rows."""
+    global _S10_CONTEXT, _S10_CONTEXT_STATE
+    with _S10_CONTEXT_LOCK:
+        if _S10_CONTEXT_STATE != "UNINITIALIZED":
+            raise LocatorCustodyError("CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP")
+        try:
+            if _S10_BOOTSTRAP_TOKEN is None or token is not _S10_BOOTSTRAP_TOKEN:
+                raise LocatorCustodyError("CC10_ACCEPTANCE_LOADER_UNTRUSTED_STOP")
+            value = canonical_loads(acceptance_bytes)
+            _exact(value, set(_S10_ACCEPTANCE_KEYS), "S10 implementation acceptance")
+            if (
+                value["schema_version"] != _S10_IMPLEMENTATION_SCHEMA
+                or value["authority_id"]
+                != "P3_P7_D02_R2_WINDOWS_HOST_PROJECTION_IMPLEMENTATION_ACCEPTANCE_01"
+                or value["change_control_id"] != "P3_P7_D02_CC_10"
+                or value["accepted_plan_sha"] != _S10_GOVERNANCE_SHA
+                or value["accepted_plan_tree"] != _S10_GOVERNANCE_TREE
+                or value["accepted_plan_acceptance_record_digest"] != _S10_PLAN_RECORD_DIGEST
+                or value["predecessor_implementation_sha"] != _S10_PREDECESSOR_IMPLEMENTATION_SHA
+                or value["predecessor_implementation_acceptance_record_digest"]
+                != _S10_PREDECESSOR_IMPLEMENTATION_ACCEPTANCE_DIGEST
+                or value["schema_contract_digest"] != _S10_ACCEPTANCE_SCHEMA_DIGEST
+                or value["host_projection_contract_digest"]
+                != _FROZEN_HOST_PROJECTION_CONTRACT_DIGEST
+                or value["authorized_scope"]
+                != "EXECUTE_READ_ONLY_WINDOWS_HOST_PROJECTION_AND_EMIT_CANONICAL_HOST_CANDIDATE_BYTES_ONLY"
+                or value["prohibited_scope"] != list(_S10_PROHIBITED_SCOPE)
+            ):
+                raise LocatorCustodyError("CC10_ACCEPTANCE_SCHEMA_CONTRACT_MISMATCH_STOP")
+            _sha(value["accepted_plan_sha"], "S10 accepted plan SHA")
+            _sha(value["accepted_plan_tree"], "S10 accepted plan tree")
+            _sha(value["predecessor_implementation_sha"], "S10 predecessor implementation SHA")
+            _digest(
+                value["predecessor_implementation_acceptance_record_digest"],
+                "S10 predecessor acceptance digest",
+            )
+            _digest(value["schema_contract_digest"], "S10 schema contract digest")
+            _digest(value["host_projection_contract_digest"], "S10 host contract digest")
+            _sha(value["implementation_sha"], "S10 implementation SHA")
+            _sha(value["implementation_tree"], "S10 implementation tree")
+            implementation_sha = value["implementation_sha"]
+            implementation_tree = value["implementation_tree"]
+            if not isinstance(implementation_sha, str) or not isinstance(implementation_tree, str):
+                raise LocatorCustodyError("CC10_ACCEPTANCE_SCHEMA_CONTRACT_MISMATCH_STOP")
+            _timestamp(value["record_created_at_utc"])
+            if value["record_digest"] != typed_digest(
+                _S10_IMPLEMENTATION_SCHEMA,
+                {key: item for key, item in value.items() if key != "record_digest"},
+            ):
+                raise LocatorCustodyError("CC10_ACCEPTANCE_SCHEMA_CONTRACT_MISMATCH_STOP")
+            if not isinstance(value["governed_paths"], list) or len(value["governed_paths"]) != 2:
+                raise LocatorCustodyError("CC10_IMPLEMENTATION_BINDING_MISMATCH_STOP")
+            source_value = value["governed_paths"][0]
+            test_value = value["governed_paths"][1]
+            if not isinstance(source_value, Mapping) or not isinstance(test_value, Mapping):
+                raise LocatorCustodyError("CC10_IMPLEMENTATION_BINDING_MISMATCH_STOP")
+            source = _validate_s10_row(source_value, _S10_SOURCE_PATH)
+            _validate_s10_row(test_value, _S10_TEST_PATH)
+            supplied_source = _validate_s10_row(source_row, _S10_SOURCE_PATH)
+            if source != supplied_source:
+                raise LocatorCustodyError("CC10_IMPLEMENTATION_BINDING_MISMATCH_STOP")
+            if (
+                not isinstance(value["runtime_dependencies"], list)
+                or len(value["runtime_dependencies"]) != 1
+            ):
+                raise LocatorCustodyError("CC10_RUNTIME_DEPENDENCY_UNBOUND_STOP")
+            dependency_value = value["runtime_dependencies"][0]
+            if not isinstance(dependency_value, Mapping):
+                raise LocatorCustodyError("CC10_RUNTIME_DEPENDENCY_UNBOUND_STOP")
+            dependency = _validate_s10_row(dependency_value, _S10_DEPENDENCY_PATH)
+            supplied_dependency = _validate_s10_row(dependency_row, _S10_DEPENDENCY_PATH)
+            if dependency != supplied_dependency:
+                raise LocatorCustodyError("CC10_RUNTIME_DEPENDENCY_UNBOUND_STOP")
+            governed_paths = value["governed_paths"]
+            runtime_dependencies = value["runtime_dependencies"]
+            _validate_s10_independent_review(
+                value["independent_review"],
+                implementation_sha=implementation_sha,
+                implementation_tree=implementation_tree,
+                governed_paths=governed_paths,
+                runtime_dependencies=runtime_dependencies,
+            )
+            artifact_manifest_digest = _validate_s10_same_sha_ci(
+                value["same_sha_ci"], implementation_sha
+            )
+            _validate_s10_principal_acceptance(
+                value["principal_acceptance"],
+                implementation_sha=implementation_sha,
+                record_created_at_utc=value["record_created_at_utc"],
+                independent_review=value["independent_review"],
+                same_sha_ci_artifact_manifest_digest=artifact_manifest_digest,
+            )
+        except Exception as exc:
+            _S10_CONTEXT_STATE = "POISONED"
+            if isinstance(exc, LocatorCustodyError):
+                raise
+            raise LocatorCustodyError("CC10_ACCEPTANCE_SCHEMA_CONTRACT_MISMATCH_STOP") from exc
+        _S10_CONTEXT = _S10ExecutionContext(
+            implementation_sha=implementation_sha,
+            implementation_acceptance_record_digest=value["record_digest"],
+            token=token,
+        )
+        _S10_CONTEXT_STATE = "READY"
+
+
+def _consume_s10_execution_context() -> _S10ExecutionContext:
+    global _S10_CONTEXT, _S10_CONTEXT_STATE
+    with _S10_CONTEXT_LOCK:
+        if _S10_CONTEXT_STATE == "UNINITIALIZED":
+            raise LocatorCustodyError("CC10_IMPLEMENTATION_ACCEPTANCE_MISSING_STOP")
+        if _S10_CONTEXT_STATE != "READY" or _S10_CONTEXT is None:
+            raise LocatorCustodyError("CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP")
+        context = _S10_CONTEXT
+        _S10_CONTEXT = None
+        _S10_CONTEXT_STATE = "CONSUMED"
+        return context
