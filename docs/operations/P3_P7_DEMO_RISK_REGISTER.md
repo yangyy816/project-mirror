@@ -715,33 +715,41 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
   `ETW_CLEANUP_FAILED_STOP`; host projection and D02-R2 remain blocked.
 - **Owner / status / blocked:** Principal/Windows implementation owner / `OPEN` / CC10 native Gate and host binding.
 
-## R-DEMO-41 — Git, PowerShell or PE authority is ambiguous or causes an implicit cache write
+## R-DEMO-41 — Git, PowerShell, PE or OS-build authority is ambiguous or causes an implicit cache write
 
 - **Probability / impact:** Medium / High
 - **Description:** PATH/cwd/per-user/32-bit fallback selects a different Git, path-based PE metadata is read after
   replacement, isolated Python silently imports an unbound repository dependency, CreateProcess runs a substituted
   image, PowerShell inherits source/dependency/acceptance or caller handles, resolves a second module root or writes
   profile/module-analysis cache, PE translations conflict, or executable identity cannot be replayed from held bytes
-  to the mapped child image.
+  to the mapped child image. The proof may also derive `os_build` from an implementation-selected fourth component,
+  compatibility `platform_version`, registry UBR, PE revision, appended zero, caller text or mixed sources instead of
+  the exact verified Principal Python launcher authority.
 - **Early signal:** missing/wrong-type HKLM 64-bit GitForWindows InstallPath, second resolver use, identity/hash/version/
   machine drift, import from cwd/sys.path/site, unexpected inherited handle/environment key, malformed/duplicate PE
   resource or translation mismatch, missing suspended/Unicode/extended-startup/no-window flag, unexpected inherited
   handle, missing `STARTF_USESTDHANDLES`, wrong cwd/Job membership, mapped-image mismatch,
   `ERROR_NOT_ALL_ASSIGNED`, extra module/cmdlet/script row, stderr/extra child, invalid frame, or ETW shows a persistent
-  PowerShell write.
+  PowerShell write; OS-build component count/source differs from the frozen three-field rule or its pre/post values do
+  not replay identically.
 - **P:** one HKLM 64-bit REG_SZ Git resolver plus `cmd\\git.exe`, no fallback; fixed System32 PowerShell with
   fixed encoded script and five-key synthesized environment; Principal S10 loader injects source/dependency/acceptance
   handles only into `-I -S -B` Python; both children use exact `lpApplicationName`, command line, validated Windows cwd,
   suspended/Unicode/extended-startup/no-window flags, explicit handle list and `STARTF_USESTDHANDLES`; PowerShell
   inherits only stdin EOF/stdout/stderr and is verified in the same non-breakaway Job before resume; held
   no-write/delete-share image handles plus pre-resume mapped-image equality; same-handle PE parser evaluates every
-  translation; exact privilege replay.
+  translation; exact privilege replay. The Principal S10 launcher, while holding and replaying exact `sys.executable`,
+  calls the real built-in `sys.getwindowsversion()` before target launch and after cleanup, requires identical bounded
+  integer `major/minor/build`, and serializes only canonical `major.minor.build`; all alternate or mixed sources are
+  forbidden.
 - **D:** PATH/PATHEXT/cwd/HKCU/32-bit/import decoys; IFEO/replacement/role-substitution attacks; duplicate/malformed/
   conflicting VERSIONINFO; missing or extra creation flag, wrong cwd/Job, source/dependency/acceptance handle leakage,
   extra environment/handle/stdout/stderr; manifest/member/cmdlet/script/runtime closure replay;
-  `ERROR_NOT_ALL_ASSIGNED` and restore-negative controls; static API audit and calibrated native observation.
+  `ERROR_NOT_ALL_ASSIGNED` and restore-negative controls; static API audit and calibrated native observation;
+  wrong-source, wrong-count, four-component, appended-zero, mixed-source and pre/post OS-build mismatch controls.
 - **R:** preserve host state and stop without trying a second executable, installing anything, changing cache/profile
-  settings, deleting cache bytes or relaxing metadata checks. A changed resolver requires forward governance.
+  settings, deleting cache bytes, synthesizing an OS-build component or relaxing metadata checks. A changed resolver
+  or unavailable exact OS-build replay requires forward governance.
 - **S:** `WINDOWS_HOST_PROJECTION_GIT_AUTHORITY_UNAVAILABLE_STOP`,
   `WINDOWS_HOST_PROJECTION_GIT_AUTHORITY_AMBIGUOUS_STOP`,
   `WINDOWS_HOST_PROJECTION_EXECUTABLE_IDENTITY_DRIFT_STOP`,
@@ -749,5 +757,6 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
   `CC10_OUTPUT_FRAME_INVALID_STOP`, `PE_VERSION_RESOURCE_AMBIGUOUS_STOP`,
   `PE_VERSION_TRANSLATION_CONFLICT_STOP`, `PE_SAME_HANDLE_REPLAY_STOP`,
   `WINDOWS_HOST_PROJECTION_PE_METADATA_MISMATCH_STOP`, `POWERSHELL_ENVIRONMENT_OR_CACHE_WRITE_STOP` or
-  `WINDOWS_HOST_PROJECTION_POWERSHELL_CLOSURE_STOP`; no candidate or host acceptance.
+  `WINDOWS_HOST_PROJECTION_POWERSHELL_CLOSURE_STOP`,
+  `WINDOWS_HOST_PROJECTION_OS_BUILD_AUTHORITY_STOP`; no candidate or host acceptance.
 - **Owner / status / blocked:** Windows implementation owner/Principal / `OPEN` / CC10 host projection and binding.

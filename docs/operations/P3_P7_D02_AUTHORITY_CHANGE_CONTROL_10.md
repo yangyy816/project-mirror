@@ -5,7 +5,7 @@
 ```text
 CHANGE_CONTROL_ID: P3_P7_D02_CC_10
 TRACK: DEMO_PROTOTYPE
-STATUS: CANDIDATE_REVISION_3_PENDING_INDEPENDENT_SOL_EXACT_PLAN_REVIEW
+STATUS: CANDIDATE_REVISION_4_PENDING_INDEPENDENT_SOL_EXACT_PLAN_REVIEW
 BASE_SHA: eacec651518ce84b0a94db28b4fefcb867c2ecff
 TASK_ID: P3_P7_D02_CC10_WINDOWS_HOST_PROJECTION_IMPLEMENTATION_01
 REVISION_1_NEGATIVE_REVIEW_SHA: 543fd14ee4d9c87785d713a47f2d8398084cc30b
@@ -14,6 +14,9 @@ REVISION_1_DISPOSITION: REPAIR_REQUIRED_P0_0
 REVISION_2_NEGATIVE_REVIEW_SHA: c74978442e4ca38f794d05fdbaae9d1acf2b79c5
 REVISION_2_NEGATIVE_REVIEW_TREE: 8b4062b1a0e15a10d3e6d8ebef4752d65a871ffe
 REVISION_2_DISPOSITION: REPAIR_REQUIRED_P0_0_P1_3_P2_2_P3_0
+REVISION_3_NEGATIVE_REVIEW_SHA: 60422fa8a7abcb129c862583dad7677c29621a00
+REVISION_3_NEGATIVE_REVIEW_TREE: d153329da7f67d265a8946a8a8ff481d12b3ff33
+REVISION_3_DISPOSITION: REPAIR_REQUIRED_P0_0_P1_1_P2_0_P3_0
 PREDECESSOR_CHANGE_CONTROL: P3_P7_D02_CC_09
 PREDECESSOR_IMPLEMENTATION_SHA: dd16624ed5ff679b03fefc61994f4ea9fd85e71e
 PREDECESSOR_IMPLEMENTATION_ACCEPTANCE_DIGEST: 9421b293f88c6015f1f2f42d449d54bf93bd806fedcf73cb7a76ec4c3bef4f2c
@@ -42,10 +45,10 @@ read-only projection seam; repository inspection proved that those bytes contain
 canonical candidate builder, production emitter or native no-write proof harness. Those capabilities exceed the CC09
 implementation acceptance and therefore require this new change control rather than a Repair Task.
 
-Revisions 1 and 2 are preserved at the SHAs above as negative review evidence. Revision 3 is a normal forward commit
-and does not amend, force-rewrite or relabel those bytes. It retains revision 2's closure and additionally freezes the
-versioned-ETW flag, terminal STOP/drain/loss sequence, complete proof typing/SC equations, omitted tree equations and
-PowerShell-child process contract; it still authorizes no execution.
+Revisions 1 through 3 are preserved at the SHAs above as negative review evidence. Revision 4 is a normal forward
+commit and does not amend, force-rewrite or relabel those bytes. It retains revision 3's closure and additionally
+freezes the sole three-component OS-build authority, its pre/post replay, prohibited alternate sources and fail-closed
+negative controls; it still authorizes no execution.
 
 ## Accepted predecessor Gate
 
@@ -781,6 +784,19 @@ The collector reproduces the accepted two manifests, three nested members, three
 four-part PowerShell version and runtime closure. stdout contains one bounded canonical projection; stderr, an extra
 object/module root/child or network attempt stops. `cmd.exe` is identified but not launched.
 
+The Principal-owned S10 proof launcher is the sole OS-build authority. While it still holds and has replayed the exact
+normalized `sys.executable` file identity, size and SHA-256, it calls the real built-in `sys.getwindowsversion()` once
+before creating the calibration/target process and once after target/PowerShell termination, native-observer cleanup
+and privilege restoration. Both calls must return non-boolean integer `major`, `minor` and `build` fields in
+`[0,4294967295]`, and the ordered triples must be identical. `os_build` is exactly the canonical no-leading-zero decimal
+serialization `major.minor.build` (with the single character `0` allowed for zero).
+
+`sys.getwindowsversion().platform_version`, registry UBR, kernel32 or other PE ProductVersion/revision, an appended
+zero, caller/environment text and components combined from different sources are forbidden. There is no fallback,
+retry-selected value or normalization from a four-component token. A missing field, wrong type/range/count, alternate
+source, mixed source or pre/post mismatch is `WINDOWS_HOST_PROJECTION_OS_BUILD_AUTHORITY_STOP` and produces no proof or
+candidate.
+
 Production time comes from exactly one `GetSystemTimePreciseAsFileTime` call after all handles, hashes, ACLs,
 PowerShell rows and cross-equalities replay and while identity handles remain open. FILETIME ticks subtract
 `116444736000000000`; Unix microseconds use integer floor by ten. The UTC form has six fractional digits and `Z`.
@@ -987,8 +1003,9 @@ result, record_created_at_utc, record_digest
 `os_architecture=AMD64`, `private_retention=RAW_ETW_NONE_PRIVATE_PREIMAGE_MEMORY_ONLY`,
 `network_claim=ZERO_TARGET_ATTRIBUTED_NETWORK_EVENTS_OBSERVED_NOT_EGRESS_ENFORCEMENT` and `result=PASS`.
 `candidate_byte_size` is an integer in `[1,65536]`; all other counters below are nonnegative non-boolean integers.
-`os_build` is a dotted decimal Windows build token, and `python_version` is the bounded dotted decimal version returned
-by the verified executable; neither accepts arbitrary host text.
+`os_build` is the three-component dotted decimal Windows version built only from the Principal launcher's two matching
+`sys.getwindowsversion()` observations described below, and `python_version` is the bounded dotted decimal version
+returned by the verified executable; neither accepts arbitrary host text.
 
 Native-proof bytes use `demo-canonical-json-v1` exactly: UTF-8 without BOM, duplicate keys rejected, no insignificant
 whitespace, lexicographically sorted object keys, preserved array order, only JSON booleans/integers/strings/null and
@@ -1011,7 +1028,7 @@ all *_digest and *_sha256 values = exactly 64 lowercase hex
 implementation_acceptance_path = fixed implementation-acceptance path above
 candidate_path = fixed candidate path above
 candidate_byte_size = non-boolean integer [1,65536]
-os_build = four canonical unsigned decimal components, each [0,4294967295]
+os_build = three canonical unsigned decimal components, each [0,4294967295]
 os_architecture = literal AMD64
 python_version = three canonical unsigned decimal components, each [0,4294967295]
 private_retention = literal RAW_ETW_NONE_PRIVATE_PREIMAGE_MEMORY_ONLY
@@ -1341,6 +1358,22 @@ implementation must expose the same payload as a pure constant builder; neither 
     }
   },
   "network_claim": "ZERO_TARGET_ATTRIBUTED_NETWORK_EVENTS_OBSERVED_NOT_EGRESS_ENFORCEMENT",
+  "os_build_authority": {
+    "call_count": 2,
+    "caller": "PRINCIPAL_S10_EXTERNAL_HANDLE_LOADER_WITH_VERIFIED_SYS_EXECUTABLE",
+    "components": ["major", "minor", "build"],
+    "forbidden_sources": [
+      "SYS_GETWINDOWSVERSION_PLATFORM_VERSION",
+      "REGISTRY_UBR",
+      "KERNEL32_OR_OTHER_PE_PRODUCTVERSION_OR_REVISION",
+      "APPENDED_ZERO",
+      "CALLER_OR_ENVIRONMENT_VALUE",
+      "MIXED_SOURCE_COMPONENTS"
+    ],
+    "format": "CANONICAL_DOTTED_UINT32_X3",
+    "replay": "IDENTICAL_PRE_TARGET_AND_POST_CLEANUP_SYS_GETWINDOWSVERSION",
+    "source": "DIRECT_BUILTIN_SYS_GETWINDOWSVERSION"
+  },
   "output_frame": {
     "failure_stderr": "ONE_FIXED_ASCII_STOP_CODE_PLUS_LF",
     "failure_stdout": "EMPTY",
@@ -1493,7 +1526,7 @@ implementation must expose the same payload as a pure constant builder; neither 
       "candidate_record_digest=LOWER_HEX_64",
       "candidate_file_sha256=LOWER_HEX_64",
       "candidate_byte_size=NONBOOLEAN_INTEGER_1_TO_65536",
-      "os_build=CANONICAL_DOTTED_UINT32_X4",
+      "os_build=CANONICAL_DOTTED_UINT32_X3",
       "os_architecture=LITERAL:AMD64",
       "python_version=CANONICAL_DOTTED_UINT32_X3",
       "invocation_contract_digest=LOWER_HEX_64",
@@ -1728,6 +1761,7 @@ implementation must expose the same payload as a pure constant builder; neither 
     "WINDOWS_HOST_PROJECTION_POWERSHELL_CLOSURE_STOP",
     "POWERSHELL_ENVIRONMENT_OR_CACHE_WRITE_STOP",
     "WINDOWS_HOST_PROJECTION_PRECONDITION_NOT_ABSENT_STOP",
+    "WINDOWS_HOST_PROJECTION_OS_BUILD_AUTHORITY_STOP",
     "WINDOWS_HOST_PROJECTION_TIMESTAMP_AUTHORITY_STOP",
     "WINDOWS_HOST_PROJECTION_MUTATION_DETECTED_STOP",
     "WINDOWS_HOST_PROJECTION_NETWORK_EVENT_DETECTED_STOP",
@@ -1750,7 +1784,7 @@ implementation must expose the same payload as a pure constant builder; neither 
 ```
 
 ```text
-FROZEN_HOST_PROJECTION_CONTRACT_DIGEST: 501045318a46444eb9883625abf407d8d0e39c46151e4ab394a00b8d6cd9478b
+FROZEN_HOST_PROJECTION_CONTRACT_DIGEST: 65cdc704b011cdda121d3815e345a2c5d36dc05e598811fd7f51dfe5151c3b65
 ```
 
 The decimal provider keyword values above are exact encodings of `0x1EF0` and `0x5344`. Any implementation constant,
@@ -1810,6 +1844,9 @@ Cross-platform tests must prove:
 - exact target/PowerShell application name, command line, cwd, creation flags, environment, handle allowlist,
   `STARTF_USESTDHANDLES`, mapped-image identity, same-Job pre-resume membership and privilege replay are attacked;
 - PowerShell is rejected if it inherits source, measurement, acceptance or any caller handle;
+- OS build comes only from matching pre-target/post-cleanup `sys.getwindowsversion().major/minor/build` triples;
+  platform-version, UBR, PE revision, appended-zero, caller/environment, wrong-count, mixed-source and mismatch cases
+  fail closed;
 - clock injection, multiple reads, invalid FILETIME, rounding drift and malformed UTC fail;
 - Ruff, strict mypy, targeted pytest and `git diff --check` pass.
 
@@ -1820,6 +1857,8 @@ Native Windows tests must prove:
 - both Project Mirror candidates are truly absent and no directory is created;
 - Python, registry Git, PowerShell, cmd, system DLLs, manifests and members pass same-handle replay;
 - PowerShell cmdlet/script/runtime closure is real, bounded and path-free;
+- the verified Principal Python launcher replays an identical canonical three-component OS build before target launch
+  and after native cleanup, and every prohibited alternate source/count/mix/mismatch negative control stops;
 - saved observation plus its timestamp rebuilds byte-identical candidate bytes without a second native attempt;
 - emitted bytes pass existing `validate_windows_host_candidate` with externally replayed S10 bindings;
 - calibration proves File/Registry/AFD/NameResolution attribution and File Irp/status semantics without persistent
@@ -1866,6 +1905,7 @@ PE_SAME_HANDLE_REPLAY_STOP
 WINDOWS_HOST_PROJECTION_POWERSHELL_CLOSURE_STOP
 POWERSHELL_ENVIRONMENT_OR_CACHE_WRITE_STOP
 WINDOWS_HOST_PROJECTION_PRECONDITION_NOT_ABSENT_STOP
+WINDOWS_HOST_PROJECTION_OS_BUILD_AUTHORITY_STOP
 WINDOWS_HOST_PROJECTION_TIMESTAMP_AUTHORITY_STOP
 WINDOWS_HOST_PROJECTION_MUTATION_DETECTED_STOP
 WINDOWS_HOST_PROJECTION_NETWORK_EVENT_DETECTED_STOP
@@ -1913,7 +1953,8 @@ CURRENT:
   CC09_IMPLEMENTATION_ACCEPTED
   CC10_REVISION_1=REPAIR_REQUIRED_PRESERVED
   CC10_REVISION_2=REPAIR_REQUIRED_PRESERVED
-  CC10_REVISION_3=PENDING_INDEPENDENT_EXACT_PLAN_REVIEW
+  CC10_REVISION_3=REPAIR_REQUIRED_PRESERVED
+  CC10_REVISION_4=PENDING_INDEPENDENT_EXACT_PLAN_REVIEW
   NEXT_READY_NODE=P3_P7_D02_CC_10_GOVERNANCE
 
 AFTER_CC10_PLAN_ACCEPTANCE:
