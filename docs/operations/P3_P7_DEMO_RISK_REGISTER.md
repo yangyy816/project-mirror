@@ -3,13 +3,13 @@
 ## Register authority
 
 ```text
-REGISTER_VERSION: p3-p7-demo-risk-register-v1.1-d02-r2-locator-custody-cc09-revision-8-candidate
+REGISTER_VERSION: p3-p7-demo-risk-register-v1.1-d02-r2-windows-host-projection-cc10-revision-1-candidate
 TRACK: DEMO_PROTOTYPE
 OWNER: TERRA_HIGH_PRINCIPAL
 REVIEW_CADENCE: every D checkpoint and immediately after a trigger
 STATUS_ENUM_VERSION: P3_P7_DEMO_RISK_STATUS_V1
 STATUS_ENUM: OPEN | PARTIALLY_MITIGATED | MITIGATED_MONITORED | TRIGGERED | RECOVERING | CLOSED | ACCEPTED_RESIDUAL
-RISK_COUNT: 38
+RISK_COUNT: 41
 ```
 
 This is a continuous register. `CLOSED` requires evidence; a D00 mitigation does not erase the risk. Each entry records
@@ -646,3 +646,68 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
   `BRIDGE_SCRATCH_DIRECTORY_ONLY_STOP` or `BRIDGE_SCRATCH_RESIDUE_STOP`; no locator disclosure, root operation or D02-R2
   private execution.
 - **Owner / status / blocked:** Principal / `OPEN` / CC09 host/private-home execution, root creation and D02-R2 execution.
+
+## R-DEMO-39 — CC10 acceptance becomes circular or the candidate self-signs authority
+
+- **Probability / impact:** Medium / Critical
+- **Description:** implementation source embeds its future acceptance digest/SHA, a candidate or caller mapping mints
+  its own trusted bindings, or plan/implementation/candidate evidence from different commits is combined into a
+  plausible but circular authority chain.
+- **Early signal:** a future acceptance digest appears in I10 source, `expected_bindings` comes from candidate fields,
+  S10 acceptance bytes differ at SC, governed blobs do not match I10/SC, or SC contains any path beyond the fixed
+  candidate.
+- **P:** immutable CC09 predecessor; external `G10 -> P10 -> I10 -> S10 -> SC` order; distinct CC10 plan and
+  implementation acceptances; no future digest in source; existing candidate implementation fields bind I10/A only;
+  exact Git byte equations and candidate-only SC diff.
+- **D:** recompute every typed digest, SHA/tree/blob/file hash and governed-path projection; compare S10/SC acceptance
+  bytes; attack-test fully re-signed candidate/mapping, mixed-SHA records, future-digest cycles and extra SC paths.
+- **R:** preserve CC09 and all rejected CC10 bytes. Supersede only an unaccepted CC10 governance/candidate through a
+  new reviewed forward revision; never rewrite an accepted predecessor or accept a locally re-signed chain.
+- **S:** `CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP`, `CC10_IMPLEMENTATION_BINDING_MISMATCH_STOP` or any Git byte
+  equation failure; no implementation acceptance, native run, candidate or downstream opening.
+- **Owner / status / blocked:** Principal / `OPEN` / CC10 implementation, host candidate and D02-R2 execution.
+
+## R-DEMO-40 — Native no-write proof has a blind spot, event loss, mutation or cleanup failure
+
+- **Probability / impact:** Medium / Critical
+- **Description:** the collector or PowerShell child performs a persistent filesystem/registry mutation, escapes the
+  observed Job/process tree, produces Winsock/DNS traffic, loses ETW events, or leaves a trace session/privilege/child
+  behind while a summary incorrectly reports PASS.
+- **Early signal:** unsupported provider version/opcode, ambiguous completion status, missing ProcessStartKey, Job
+  escape, any nonzero mutation/network/loss counter, target created before observer, or failed CloseTrace/STOP/session
+  absence/privilege restore.
+- **P:** three-layer proof: static production call graph/access/disposition allowlist, exact synthetic backend ledger,
+  and real-time ETW around a suspended target joined to a non-breakaway active-process-two Job before resume; memory-
+  only providers, raw retention none and `finally` cleanup.
+- **D:** correlate File/Registry start/end status; stable process-start identity; zero Winsock/NameResolution and loss
+  counters; complete process-tree closure; verify Job, pipes, session and privilege cleanup; path-free canonical proof
+  summary bound to candidate/review evidence.
+- **R:** terminate the Job, stop/close the trace session, restore privilege and emit only a redacted fixed failure code.
+  Create no candidate. If reliable proof is unavailable, require a new forward architecture change control rather than
+  weakening the claim or retaining raw trace outside custody.
+- **S:** `NATIVE_NO_WRITE_PROOF_UNAVAILABLE_STOP`, `WINDOWS_HOST_PROJECTION_MUTATION_DETECTED_STOP`,
+  `WINDOWS_HOST_PROJECTION_NETWORK_EVENT_DETECTED_STOP`, `ETW_EVENT_SCHEMA_UNSUPPORTED_STOP`, `ETW_EVENT_LOSS_STOP`,
+  `ETW_PID_TREE_INCOMPLETE_STOP` or `ETW_CLEANUP_FAILED_STOP`; host projection and D02-R2 remain blocked.
+- **Owner / status / blocked:** Principal/Windows implementation owner / `OPEN` / CC10 native Gate and host binding.
+
+## R-DEMO-41 — Git, PowerShell or PE authority is ambiguous or causes an implicit cache write
+
+- **Probability / impact:** Medium / High
+- **Description:** PATH/cwd/per-user/32-bit fallback selects a different Git, path-based PE metadata is read after
+  replacement, PowerShell resolves a second module root or writes profile/module-analysis cache, or executable identity
+  cannot be replayed from one held handle.
+- **Early signal:** missing/wrong-type HKLM 64-bit GitForWindows InstallPath, second resolver use, identity/hash/version/
+  machine drift, extra module/cmdlet/script row, stderr/extra child, or ETW shows a persistent PowerShell write.
+- **P:** one HKLM 64-bit REG_SZ Git resolver plus `cmd\\git.exe`, no fallback; fixed System32 PowerShell with
+  `-NoProfile -NonInteractive -NoLogo` and synthesized environment; same-handle hash/identity/PE-resource parsing;
+  held handles through final replay and timestamp.
+- **D:** PATH/PATHEXT/cwd/HKCU/32-bit decoys; replacement and role-substitution attacks; manifest/member/cmdlet/script/
+  runtime closure replay; static API audit and native ETW zero-write/network proof.
+- **R:** preserve host state and stop without trying a second executable, installing anything, changing cache/profile
+  settings, deleting cache bytes or relaxing metadata checks. A changed resolver requires forward governance.
+- **S:** `WINDOWS_HOST_PROJECTION_GIT_AUTHORITY_UNAVAILABLE_STOP`,
+  `WINDOWS_HOST_PROJECTION_GIT_AUTHORITY_AMBIGUOUS_STOP`,
+  `WINDOWS_HOST_PROJECTION_EXECUTABLE_IDENTITY_DRIFT_STOP`,
+  `WINDOWS_HOST_PROJECTION_PE_METADATA_MISMATCH_STOP` or
+  `WINDOWS_HOST_PROJECTION_POWERSHELL_CLOSURE_STOP`; no candidate or host acceptance.
+- **Owner / status / blocked:** Windows implementation owner/Principal / `OPEN` / CC10 host projection and binding.
