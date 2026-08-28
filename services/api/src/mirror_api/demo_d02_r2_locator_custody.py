@@ -4224,8 +4224,43 @@ _NAMESPACE_GUARD_STATE: Final = threading.local()
 def _windows_namespace_mutex(identity_digest: str) -> Iterator[None]:
     import ctypes
 
+    class CreateMutexW(Protocol):
+        argtypes: list[object]
+        restype: object
+
+        def __call__(
+            self,
+            security_attributes: object | None,
+            initial_owner: int,
+            name: str,
+        ) -> int | None: ...
+
+    class WaitForSingleObject(Protocol):
+        argtypes: list[object]
+        restype: object
+
+        def __call__(self, handle: int, milliseconds: int) -> int: ...
+
+    class CloseableHandleFunction(Protocol):
+        argtypes: list[object]
+        restype: object
+
+        def __call__(self, handle: int) -> int: ...
+
+    class Kernel32Api(Protocol):
+        CreateMutexW: CreateMutexW
+        WaitForSingleObject: WaitForSingleObject
+        ReleaseMutex: CloseableHandleFunction
+        CloseHandle: CloseableHandleFunction
+
     try:
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        win_dll = cast(
+            Callable[..., Kernel32Api] | None,
+            getattr(ctypes, "WinDLL", None),
+        )
+        if win_dll is None:
+            raise AttributeError("WinDLL is unavailable")
+        kernel32 = win_dll("kernel32", use_last_error=True)
         create_mutex = kernel32.CreateMutexW
         wait_for_single_object = kernel32.WaitForSingleObject
         release_mutex = kernel32.ReleaseMutex
