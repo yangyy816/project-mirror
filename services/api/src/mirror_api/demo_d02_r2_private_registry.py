@@ -95,13 +95,48 @@ CLEANUP_DEPENDENCY_SCAN_POLICY: Final = (
 DEFAULT_CUSTODY: Final = "PRINCIPAL_PRIVATE_OUTPUT_CUSTODY"
 
 REGISTRY_IMPLEMENTATION_AUTHORITY_ID: Final = (
-    "P3_P7_D02_R2_REGISTRY_R06_IMPLEMENTATION_ACCEPTANCE_01"
+    "P3_P7_D02_R2_REGISTRY_R07_IMPLEMENTATION_ACCEPTANCE_01"
 )
-REGISTRY_IMPLEMENTATION_TASK_ID: Final = "P3_P7_D02_R2_R06_WINDOWS_ROOT_ACL_HARDENING"
-REGISTRY_IMPLEMENTATION_REVIEW_TASK_ID: Final = "P3_P7_D02_R2_REGISTRY_R06_EXACT_SHA_REVIEW_01"
+REGISTRY_IMPLEMENTATION_TASK_ID: Final = "P3_P7_D02_R2_R07_PREDECESSOR_ROOT_REPLAY"
+REGISTRY_IMPLEMENTATION_REVIEW_TASK_ID: Final = "P3_P7_D02_R2_REGISTRY_R07_EXACT_SHA_REVIEW_01"
 REGISTRY_IMPLEMENTATION_ACCEPTANCE_REF: Final = "refs/remotes/origin/codex/p3-p7-core-demo"
 REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH: Final = (
+    "docs/operations/P3_P7_D02_R2_REGISTRY_R07_IMPLEMENTATION_ACCEPTANCE.json"
+)
+PRE_R06_REGISTRY_IMPLEMENTATION_AUTHORITY_ID: Final = (
+    "P3_P7_D02_R2_REGISTRY_IMPLEMENTATION_ACCEPTANCE_01"
+)
+PRE_R06_REGISTRY_IMPLEMENTATION_TASK_ID: Final = "P3_P7_D02_R2_REGISTRY_IMPLEMENTATION_01"
+PRE_R06_REGISTRY_IMPLEMENTATION_REVIEW_TASK_ID: Final = "P3_P7_D02_R2_REGISTRY_EXACT_SHA_REVIEW_01"
+PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH: Final = (
+    "docs/operations/P3_P7_D02_R2_REGISTRY_IMPLEMENTATION_ACCEPTANCE.json"
+)
+PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_CHECKPOINT_SHA: Final = (
+    "1f3e9d2a6e81fc608f35db78fc19d3581b4c4455"
+)
+PRE_R06_REGISTRY_IMPLEMENTATION_SHA: Final = "06ab0db004b6d2a8204a263762ccabb30b4e9b81"
+PRE_R06_REGISTRY_IMPLEMENTATION_TREE: Final = "0268ad827759c2f349363ec2f0cd924429b0b4a5"
+PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_RECORD_DIGEST: Final = (
+    "249f4b1840b379fb54647fa6bf7586b22448a1646f5ace0aaab1ae7666ba92b7"
+)
+PRE_R06_ROOT_RECEIPT_DIGEST: Final = (
+    "c3ae43887d51d15347153e392ca092866dff890bdcda959572cc1dd07e6195c4"
+)
+R06_REGISTRY_IMPLEMENTATION_AUTHORITY_ID: Final = (
+    "P3_P7_D02_R2_REGISTRY_R06_IMPLEMENTATION_ACCEPTANCE_01"
+)
+R06_REGISTRY_IMPLEMENTATION_TASK_ID: Final = "P3_P7_D02_R2_R06_WINDOWS_ROOT_ACL_HARDENING"
+R06_REGISTRY_IMPLEMENTATION_REVIEW_TASK_ID: Final = "P3_P7_D02_R2_REGISTRY_R06_EXACT_SHA_REVIEW_01"
+R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH: Final = (
     "docs/operations/P3_P7_D02_R2_REGISTRY_R06_IMPLEMENTATION_ACCEPTANCE.json"
+)
+R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_CHECKPOINT_SHA: Final = (
+    "3c743cdf5167bf3484be98b4f50e0ea6c77c5f13"
+)
+R06_REGISTRY_IMPLEMENTATION_SHA: Final = "ab08a6e861ec364c62a6ab3dcf46a69483f1b741"
+R06_REGISTRY_IMPLEMENTATION_TREE: Final = "47f1b6ccfa73f757348dd3c4038cf3dae9335ba1"
+R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_RECORD_DIGEST: Final = (
+    "a7170831675c35aaf9354a12a788d16251ec40d98fcd472c8f4c78dbf3f1d1e3"
 )
 REGISTRY_SOURCE_REPO_PATH: Final = "services/api/src/mirror_api/demo_d02_r2_private_registry.py"
 REGISTRY_TEST_REPO_PATH: Final = "services/api/tests/test_demo_d02_r2_private_registry.py"
@@ -770,6 +805,53 @@ def _load_accepted_root_receipt_authority(
         if blob_oid != item["git_blob_oid"]:
             _fail_root("governed registry implementation blob OID does not replay")
 
+    predecessor_record = _load_historical_registry_acceptance_record(
+        repository_root,
+        acceptance_sha=acceptance_sha,
+        acceptance_path=PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH,
+        expected_acceptance_checkpoint_sha=(
+            PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_CHECKPOINT_SHA
+        ),
+        successor_implementation_sha=implementation_sha,
+        authority_id=PRE_R06_REGISTRY_IMPLEMENTATION_AUTHORITY_ID,
+        implementation_task_id=PRE_R06_REGISTRY_IMPLEMENTATION_TASK_ID,
+        review_task_id=PRE_R06_REGISTRY_IMPLEMENTATION_REVIEW_TASK_ID,
+        expected_implementation_sha=PRE_R06_REGISTRY_IMPLEMENTATION_SHA,
+        expected_implementation_tree=PRE_R06_REGISTRY_IMPLEMENTATION_TREE,
+        expected_record_digest=PRE_R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_RECORD_DIGEST,
+    )
+    r06_record = _load_historical_registry_acceptance_record(
+        repository_root,
+        acceptance_sha=acceptance_sha,
+        acceptance_path=R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_PATH,
+        expected_acceptance_checkpoint_sha=(R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_CHECKPOINT_SHA),
+        successor_implementation_sha=implementation_sha,
+        authority_id=R06_REGISTRY_IMPLEMENTATION_AUTHORITY_ID,
+        implementation_task_id=R06_REGISTRY_IMPLEMENTATION_TASK_ID,
+        review_task_id=R06_REGISTRY_IMPLEMENTATION_REVIEW_TASK_ID,
+        expected_implementation_sha=R06_REGISTRY_IMPLEMENTATION_SHA,
+        expected_implementation_tree=R06_REGISTRY_IMPLEMENTATION_TREE,
+        expected_record_digest=R06_REGISTRY_IMPLEMENTATION_ACCEPTANCE_RECORD_DIGEST,
+    )
+    if (
+        predecessor_record["registry_schema_contract_digest"]
+        != r06_record["registry_schema_contract_digest"]
+        or predecessor_record["registry_normalized_ddl_sha256"]
+        != r06_record["registry_normalized_ddl_sha256"]
+    ):
+        _fail_root("predecessor and R06 registry contracts do not replay identically")
+    if (
+        _git_result(
+            repository_root,
+            "merge-base",
+            "--is-ancestor",
+            PRE_R06_REGISTRY_IMPLEMENTATION_SHA,
+            R06_REGISTRY_IMPLEMENTATION_SHA,
+        ).returncode
+        != 0
+    ):
+        _fail_root("R06 registry implementation is not a descendant of the predecessor")
+
     record_digest = _require_string(record["record_digest"], "acceptance record digest")
     authority = object.__new__(RootReceiptAuthority)
     object.__setattr__(authority, "accepted_plan_sha", ACCEPTED_PLAN_SHA)
@@ -784,7 +866,16 @@ def _load_accepted_root_receipt_authority(
     return authority
 
 
-def _validate_registry_implementation_acceptance_record(record: JsonObject) -> None:
+def _validate_registry_implementation_acceptance_record(
+    record: JsonObject,
+    *,
+    authority_id: str = REGISTRY_IMPLEMENTATION_AUTHORITY_ID,
+    implementation_task_id: str = REGISTRY_IMPLEMENTATION_TASK_ID,
+    review_task_id: str = REGISTRY_IMPLEMENTATION_REVIEW_TASK_ID,
+    expected_implementation_sha: str | None = None,
+    expected_implementation_tree: str | None = None,
+    expected_record_digest: str | None = None,
+) -> None:
     expected_keys = {
         "schema_version",
         "authority_id",
@@ -810,9 +901,9 @@ def _validate_registry_implementation_acceptance_record(record: JsonObject) -> N
     _require_exact_keys(record, expected_keys, "registry implementation acceptance record")
     if (
         record["schema_version"] != REGISTRY_IMPLEMENTATION_ACCEPTANCE_SCHEMA
-        or record["authority_id"] != REGISTRY_IMPLEMENTATION_AUTHORITY_ID
+        or record["authority_id"] != authority_id
         or record["change_control_id"] != CHANGE_CONTROL_ID
-        or record["implementation_task_id"] != REGISTRY_IMPLEMENTATION_TASK_ID
+        or record["implementation_task_id"] != implementation_task_id
         or record["evidence_root_id"] != EVIDENCE_ROOT_ID
         or record["accepted_plan_sha"] != ACCEPTED_PLAN_SHA
         or record["accepted_plan_tree"] != ACCEPTED_PLAN_TREE
@@ -830,6 +921,16 @@ def _validate_registry_implementation_acceptance_record(record: JsonObject) -> N
         value = record[commit_field]
         if not isinstance(value, str) or _SHA_RE.fullmatch(value) is None:
             _fail_root(f"{commit_field} is not a lowercase 40-hex Git object ID")
+    if (
+        expected_implementation_sha is not None
+        and record["registry_implementation_sha"] != expected_implementation_sha
+    ):
+        _fail_root("registry implementation SHA differs from the fixed replay authority")
+    if (
+        expected_implementation_tree is not None
+        and record["registry_implementation_tree"] != expected_implementation_tree
+    ):
+        _fail_root("registry implementation tree differs from the fixed replay authority")
     _require_digest(record["registry_schema_contract_digest"], "registry schema contract")
     _require_digest(record["registry_normalized_ddl_sha256"], "normalized registry DDL")
     _require_timestamp(record["record_created_at_utc"])
@@ -867,7 +968,7 @@ def _validate_registry_implementation_acceptance_record(record: JsonObject) -> N
         "independent review",
     )
     if (
-        review["review_task_id"] != REGISTRY_IMPLEMENTATION_REVIEW_TASK_ID
+        review["review_task_id"] != review_task_id
         or review["reviewed_implementation_sha"] != record["registry_implementation_sha"]
         or review["result"] != "PASS"
         or any(review[f"findings_p{priority}"] != 0 for priority in range(4))
@@ -929,6 +1030,104 @@ def _validate_registry_implementation_acceptance_record(record: JsonObject) -> N
     payload = {key: value for key, value in record.items() if key != "record_digest"}
     if mirror_demo_digest(REGISTRY_IMPLEMENTATION_ACCEPTANCE_SCHEMA, payload) != claimed:
         _fail_root("registry implementation acceptance record digest does not replay")
+    if expected_record_digest is not None and claimed != expected_record_digest:
+        _fail_root(
+            "registry implementation acceptance record differs from the fixed replay authority"
+        )
+
+
+def _load_historical_registry_acceptance_record(
+    repository_root: Path,
+    *,
+    acceptance_sha: str,
+    acceptance_path: str,
+    expected_acceptance_checkpoint_sha: str,
+    successor_implementation_sha: str,
+    authority_id: str,
+    implementation_task_id: str,
+    review_task_id: str,
+    expected_implementation_sha: str,
+    expected_implementation_tree: str,
+    expected_record_digest: str,
+) -> JsonObject:
+    """Replay a fixed historical acceptance as Git data without executing its source."""
+
+    record_bytes = _git_bytes(
+        repository_root,
+        "show",
+        f"{acceptance_sha}:{acceptance_path}",
+    )
+    original_record_bytes = _git_bytes(
+        repository_root,
+        "show",
+        f"{expected_acceptance_checkpoint_sha}:{acceptance_path}",
+    )
+    if record_bytes != original_record_bytes:
+        _fail_root("historical registry acceptance bytes differ from their fixed checkpoint")
+    record = _parse_canonical_json_bytes(record_bytes)
+    _validate_registry_implementation_acceptance_record(
+        record,
+        authority_id=authority_id,
+        implementation_task_id=implementation_task_id,
+        review_task_id=review_task_id,
+        expected_implementation_sha=expected_implementation_sha,
+        expected_implementation_tree=expected_implementation_tree,
+        expected_record_digest=expected_record_digest,
+    )
+    if (
+        _git_result(
+            repository_root,
+            "merge-base",
+            "--is-ancestor",
+            expected_acceptance_checkpoint_sha,
+            successor_implementation_sha,
+        ).returncode
+        != 0
+    ):
+        _fail_root("historical registry acceptance is not an ancestor of the successor")
+    if (
+        _git_result(
+            repository_root,
+            "merge-base",
+            "--is-ancestor",
+            expected_implementation_sha,
+            successor_implementation_sha,
+        ).returncode
+        != 0
+    ):
+        _fail_root("historical registry implementation is not an ancestor of the successor")
+    implementation_tree = _git_text(
+        repository_root,
+        "rev-parse",
+        "--verify",
+        f"{expected_implementation_sha}^{{tree}}",
+    )
+    if implementation_tree != expected_implementation_tree:
+        _fail_root("historical registry implementation tree does not replay")
+
+    governed = cast(list[JsonValue], record["governed_paths"])
+    governed_by_path = {
+        cast(str, cast(dict[str, JsonValue], item)["path"]): cast(dict[str, JsonValue], item)
+        for item in governed
+    }
+    for relative_path in REGISTRY_GOVERNED_PATHS:
+        item = governed_by_path[relative_path]
+        historical_bytes = _git_bytes(
+            repository_root,
+            "show",
+            f"{expected_implementation_sha}:{relative_path}",
+        )
+        if hashlib.sha256(historical_bytes).hexdigest() != item["sha256"]:
+            _fail_root("historical governed-path SHA-256 does not replay")
+        blob_oid = _git_text(
+            repository_root,
+            "rev-parse",
+            "--verify",
+            f"{expected_implementation_sha}:{relative_path}",
+        )
+        if blob_oid != item["git_blob_oid"]:
+            _fail_root("historical governed-path blob OID does not replay")
+    return record
 
 
 def _discover_implementation_repository(running_source: Path) -> Path:
@@ -1044,7 +1243,23 @@ COHORT_POLICY_DIGEST: Final = mirror_demo_digest(COHORT_POLICY_SCHEMA, cohort_po
 
 
 def execution_contract_payload(authority: RootReceiptAuthority) -> JsonObject:
+    return _execution_contract_payload_for_registry_implementation(
+        authority,
+        registry_implementation_sha=authority.registry_implementation_sha,
+    )
+
+
+def _execution_contract_payload_for_registry_implementation(
+    authority: RootReceiptAuthority,
+    *,
+    registry_implementation_sha: str,
+) -> JsonObject:
     _validate_authority(authority)
+    if registry_implementation_sha not in {
+        authority.registry_implementation_sha,
+        PRE_R06_REGISTRY_IMPLEMENTATION_SHA,
+    }:
+        _fail_root("registry implementation SHA is outside the exact replay compatibility set")
     return {
         "change_control_id": CHANGE_CONTROL_ID,
         "task_id": TASK_ID,
@@ -1064,7 +1279,7 @@ def execution_contract_payload(authority: RootReceiptAuthority) -> JsonObject:
         "registry_recovery_receipt_schema_version": REGISTRY_RECOVERY_SCHEMA,
         "registry_schema_contract_digest": REGISTRY_SCHEMA_CONTRACT_DIGEST,
         "registry_normalized_ddl_sha256": REGISTRY_NORMALIZED_DDL_SHA256,
-        "registry_implementation_sha": authority.registry_implementation_sha,
+        "registry_implementation_sha": registry_implementation_sha,
         "source_generation_preregistration_schema_version": (
             SOURCE_GENERATION_PREREGISTRATION_SCHEMA
         ),
@@ -1079,10 +1294,26 @@ def execution_contract_payload(authority: RootReceiptAuthority) -> JsonObject:
 
 
 def build_root_name_receipt(authority: RootReceiptAuthority) -> JsonObject:
+    """Build only the active successor receipt used by create-new root initialization."""
+
+    return _build_root_name_receipt_for_registry_implementation(
+        authority,
+        registry_implementation_sha=authority.registry_implementation_sha,
+    )
+
+
+def _build_root_name_receipt_for_registry_implementation(
+    authority: RootReceiptAuthority,
+    *,
+    registry_implementation_sha: str,
+) -> JsonObject:
     _validate_authority(authority)
     contract_digest = mirror_demo_digest(
         EXECUTION_CONTRACT_SCHEMA,
-        execution_contract_payload(authority),
+        _execution_contract_payload_for_registry_implementation(
+            authority,
+            registry_implementation_sha=registry_implementation_sha,
+        ),
     )
     payload: JsonObject = {
         "schema_version": ROOT_RECEIPT_SCHEMA,
@@ -1105,7 +1336,7 @@ def build_root_name_receipt(authority: RootReceiptAuthority) -> JsonObject:
         "registry_copy_b_id": REGISTRY_COPY_B_ID,
         "registry_schema_contract_digest": REGISTRY_SCHEMA_CONTRACT_DIGEST,
         "registry_normalized_ddl_sha256": REGISTRY_NORMALIZED_DDL_SHA256,
-        "registry_implementation_sha": authority.registry_implementation_sha,
+        "registry_implementation_sha": registry_implementation_sha,
         "relative_subtree_manifest": control_subtree_manifest(),
         "created_at_utc": authority.created_at_utc,
         "retention_policy": RETENTION_POLICY,
@@ -1227,8 +1458,18 @@ def load_root_name_receipt(root: Path, authority: RootReceiptAuthority) -> JsonO
     if mirror_demo_digest(ROOT_RECEIPT_SCHEMA, payload) != claimed:
         _fail_root("root receipt digest does not replay")
     expected = build_root_name_receipt(authority)
-    if receipt != expected:
+    if receipt == expected:
+        return receipt
+    if claimed != PRE_R06_ROOT_RECEIPT_DIGEST:
         _fail_root("root receipt fixed authority does not replay")
+    predecessor_expected = _build_root_name_receipt_for_registry_implementation(
+        authority,
+        registry_implementation_sha=PRE_R06_REGISTRY_IMPLEMENTATION_SHA,
+    )
+    if predecessor_expected["receipt_digest"] != PRE_R06_ROOT_RECEIPT_DIGEST:
+        _fail_root("predecessor root receipt timestamp or fixed authority does not replay")
+    if receipt != predecessor_expected:
+        _fail_root("predecessor root receipt differs from the sole compatibility authority")
     return receipt
 
 
