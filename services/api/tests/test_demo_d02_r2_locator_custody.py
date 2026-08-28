@@ -3,7 +3,13 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
+import subprocess
+import sys
+import threading
+import time
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import cast
 
@@ -1409,9 +1415,9 @@ def trusted_bindings(
     )
 
 
-def candidate_acceptance(
+def candidate_acceptance_record(
     *, schema: str, candidate: custody.JsonObject, private_home: bool
-) -> tuple[custody.JsonObject, custody.TrustedAcceptanceBindingSource]:
+) -> custody.JsonObject:
     candidate_sha = "c" * 40
     bindings: custody.JsonObject = {
         "accepted_candidate_sha": candidate_sha,
@@ -1425,8 +1431,8 @@ def candidate_acceptance(
         "accepted_candidate_file_sha256": digest("candidate-bytes"),
         "accepted_candidate_record_digest": candidate["record_digest"],
         "accepted_plan_acceptance_record_digest": digest("plan-acceptance"),
-        "locator_custody_implementation_acceptance_record_digest": digest(
-            "implementation-acceptance"
+        "locator_custody_implementation_acceptance_record_digest": (
+            "1afa590ef8284d9dbd0977d1777091e11b4ecd0032cc974471c3dfd3a81ec950"
         ),
     }
     if private_home:
@@ -1511,7 +1517,17 @@ def candidate_acceptance(
         ),
         "record_created_at_utc": "2026-08-28T00:00:00.000001Z",
     }
-    acceptance = resign(schema, record)
+    return resign(schema, record)
+
+
+def candidate_acceptance(
+    *, schema: str, candidate: custody.JsonObject, private_home: bool
+) -> tuple[custody.JsonObject, custody.TrustedAcceptanceBindingSource]:
+    acceptance = candidate_acceptance_record(
+        schema=schema,
+        candidate=candidate,
+        private_home=private_home,
+    )
     return acceptance, trusted_bindings(
         acceptance,
         (
@@ -1756,9 +1772,116 @@ def test_host_and_private_acceptance_bind_external_git_candidate_and_nested_auth
             validator(altered, candidate=candidate, expected_bindings=trusted)
 
 
-def actual_root_addendum_records() -> tuple[
-    custody.JsonObject, custody.JsonObject, custody.TrustedAcceptanceBindingSource
-]:
+def test_fully_resigned_future_acceptance_chain_cannot_mint_bootstrap_authority() -> None:
+    plan = json.loads(
+        (
+            Path(__file__).parents[3]
+            / "docs/operations/P3_P7_D02_R2_LOCATOR_CUSTODY_PLAN_ACCEPTANCE.json"
+        ).read_text()
+    )
+    implementation = implementation_acceptance(plan)
+    host_candidate = cast(custody.JsonObject, _host_candidate(_wire_records())[0])
+    host_candidate["locator_custody_implementation_sha"] = implementation["implementation_sha"]
+    host_candidate["locator_custody_implementation_acceptance_record_digest"] = implementation[
+        "record_digest"
+    ]
+    resign(custody.HOST_CANDIDATE_SCHEMA, host_candidate)
+    host_acceptance = candidate_acceptance_record(
+        schema=custody.HOST_ACCEPTANCE_SCHEMA,
+        candidate=host_candidate,
+        private_home=False,
+    )
+    host_acceptance["accepted_plan_acceptance_record_digest"] = plan["record_digest"]
+    host_acceptance["locator_custody_implementation_acceptance_record_digest"] = implementation[
+        "record_digest"
+    ]
+    resign(custody.HOST_ACCEPTANCE_SCHEMA, host_acceptance)
+    private_candidate = cc09_record(custody.PRIVATE_HOME_CANDIDATE_SCHEMA)
+    private_candidate["host_binding_acceptance_record_digest"] = host_acceptance["record_digest"]
+    private_candidate["locator_custody_implementation_acceptance_record_digest"] = implementation[
+        "record_digest"
+    ]
+    resign(custody.PRIVATE_HOME_CANDIDATE_SCHEMA, private_candidate)
+    private_acceptance = candidate_acceptance_record(
+        schema=custody.PRIVATE_HOME_ACCEPTANCE_SCHEMA,
+        candidate=private_candidate,
+        private_home=True,
+    )
+    private_acceptance["accepted_plan_acceptance_record_digest"] = plan["record_digest"]
+    private_acceptance["locator_custody_implementation_acceptance_record_digest"] = implementation[
+        "record_digest"
+    ]
+    private_acceptance["host_binding_acceptance_record_digest"] = host_acceptance["record_digest"]
+    resign(custody.PRIVATE_HOME_ACCEPTANCE_SCHEMA, private_acceptance)
+
+    with pytest.raises(
+        custody.LocatorCustodyError, match="CUSTODY_BOOTSTRAP_AUTHORITY_ANCHOR_REQUIRED_STOP"
+    ):
+        custody.load_locator_bootstrap_authority_anchor(
+            implementation_acceptance=cast(
+                custody.TrustedAcceptanceBindingSource,
+                implementation,
+            ),
+            private_home_acceptance=cast(
+                custody.TrustedAcceptanceBindingSource,
+                private_acceptance,
+            ),
+        )
+
+
+def registry_snapshot(*, populated: bool) -> custody.JsonObject:
+    root_receipt_digest = digest("root")
+    common_genesis_digest = digest("genesis")
+    ordered_events: list[custody.Json] = []
+    if populated:
+        for sequence, output_id in enumerate(custody.ORDERED_R05_OUTPUT_IDS, 1):
+            ordered_events.append(
+                {
+                    "sequence": sequence,
+                    "transaction_id": digest(f"registry-transaction-{sequence}"),
+                    "output_id": output_id,
+                    "semantic_role": "BANK_IMPORT_EVIDENCE",
+                    "authority_digest": digest(f"registry-authority-{sequence}"),
+                    "event_digest": digest(f"registry-event-{sequence}"),
+                }
+            )
+    snapshot: custody.JsonObject = {
+        "schema_version": custody.REGISTRY_SNAPSHOT_SCHEMA,
+        "evidence_root_id": "P3_P7_D02_R2_CC08_E1_EVIDENCE_ROOT",
+        "root_name_receipt_digest": root_receipt_digest,
+        "execution_contract_digest": digest("execution-contract"),
+        "registry_schema_contract_digest": digest("registry-schema-contract"),
+        "common_genesis_digest": common_genesis_digest,
+        "event_count": len(ordered_events),
+        "head_event_digest": (
+            cast(dict[str, custody.Json], ordered_events[-1])["event_digest"]
+            if ordered_events
+            else common_genesis_digest
+        ),
+        "ordered_events": ordered_events,
+    }
+    snapshot["semantic_snapshot_digest"] = custody.typed_digest(
+        custody.REGISTRY_SNAPSHOT_SCHEMA, snapshot
+    )
+    return snapshot
+
+
+type ActualRootAddendumRecords = tuple[
+    custody.JsonObject,
+    custody.JsonObject,
+    custody.TrustedAcceptanceBindingSource,
+    custody.JsonObject,
+    custody.JsonObject,
+    custody.JsonObject,
+    custody.JsonObject,
+]
+
+
+def actual_root_addendum_records() -> ActualRootAddendumRecords:
+    before_a = registry_snapshot(populated=False)
+    before_b = copy.deepcopy(before_a)
+    after_a = registry_snapshot(populated=True)
+    after_b = copy.deepcopy(after_a)
     candidate: custody.JsonObject = {
         "schema_version": custody.ADDENDUM_SCHEMA,
         "authority_id": "P3_P7_D02_R2_ACTUAL_ROOT_DIGEST_BINDING_ADDENDUM_01",
@@ -1767,22 +1890,22 @@ def actual_root_addendum_records() -> tuple[
         "cc09_implementation_acceptance_record_digest": digest("implementation"),
         "cc09_locator_name_receipt_digest": digest("locator"),
         "cc09_root_registry_ready_commit_digest": digest("ready"),
-        "cc08_root_receipt_digest": digest("root"),
-        "cc08_registry_common_genesis_digest": digest("genesis"),
-        "cc08_registry_copy_a_snapshot_digest": digest("snapshot-a"),
-        "cc08_registry_copy_b_snapshot_digest": digest("snapshot-b"),
+        "cc08_root_receipt_digest": before_a["root_name_receipt_digest"],
+        "cc08_registry_common_genesis_digest": before_a["common_genesis_digest"],
+        "cc08_registry_copy_a_snapshot_digest": before_a["semantic_snapshot_digest"],
+        "cc08_registry_copy_b_snapshot_digest": before_b["semantic_snapshot_digest"],
         "r05_committed_output_count": 8,
         "cc08_registry_event_count_after_r05": 8,
-        "cc08_registry_copy_a_snapshot_digest_after_r05": digest("after-a"),
-        "cc08_registry_copy_b_snapshot_digest_after_r05": digest("after-b"),
-        "cc08_registry_head_event_digest_after_r05": digest("head"),
-        "ordered_r05_output_ids": [f"OUTPUT_{index}" for index in range(8)],
-        "held_contract_acceptance_authority_id": "HELD_CONTRACT",
-        "held_contract_acceptance_record_digest": digest("held-contract"),
-        "held_dispatch_acceptance_authority_id": "HELD_DISPATCH",
-        "held_dispatch_acceptance_record_digest": digest("held-dispatch"),
-        "pre_root_expectation_digest": digest("pre-root"),
-        "effective_root_name_receipt_digest": digest("effective-root"),
+        "cc08_registry_copy_a_snapshot_digest_after_r05": after_a["semantic_snapshot_digest"],
+        "cc08_registry_copy_b_snapshot_digest_after_r05": after_b["semantic_snapshot_digest"],
+        "cc08_registry_head_event_digest_after_r05": after_a["head_event_digest"],
+        "ordered_r05_output_ids": list(custody.ORDERED_R05_OUTPUT_IDS),
+        "held_contract_acceptance_authority_id": (custody._HELD_CONTRACT_ACCEPTANCE_AUTHORITY_ID),
+        "held_contract_acceptance_record_digest": (custody._HELD_CONTRACT_ACCEPTANCE_RECORD_DIGEST),
+        "held_dispatch_acceptance_authority_id": (custody._HELD_DISPATCH_ACCEPTANCE_AUTHORITY_ID),
+        "held_dispatch_acceptance_record_digest": (custody._HELD_DISPATCH_ACCEPTANCE_RECORD_DIGEST),
+        "pre_root_expectation_digest": custody._PRE_ROOT_EXPECTATION_DIGEST,
+        "effective_root_name_receipt_digest": before_a["root_name_receipt_digest"],
         "r05_rehome_manifest_digest": digest("rehome"),
         "candidate_state": (
             "CANDIDATE_PENDING_INDEPENDENT_REVIEW_SAME_SHA_CI_AND_PRINCIPAL_ACCEPTANCE"
@@ -1858,12 +1981,26 @@ def actual_root_addendum_records() -> tuple[
         candidate,
         acceptance,
         trusted_bindings(acceptance, custody.ADDENDUM_ACCEPTANCE_TEST_ANCHOR_ID),
+        before_a,
+        before_b,
+        after_a,
+        after_b,
     )
 
 
 def test_actual_root_addendum_rejects_fully_resigned_nested_and_git_binding_attacks() -> None:
-    candidate, acceptance, trusted = actual_root_addendum_records()
-    custody.validate_actual_root_addendum(candidate, acceptance, expected_bindings=trusted)
+    candidate, acceptance, trusted, before_a, before_b, after_a, after_b = (
+        actual_root_addendum_records()
+    )
+    snapshot_args = {
+        "registry_copy_a_snapshot_before_r05": before_a,
+        "registry_copy_b_snapshot_before_r05": before_b,
+        "registry_copy_a_snapshot_after_r05": after_a,
+        "registry_copy_b_snapshot_after_r05": after_b,
+    }
+    custody.validate_actual_root_addendum(
+        candidate, acceptance, expected_bindings=trusted, **snapshot_args
+    )
     for path, replacement in (
         (("independent_review", "findings_p0"), False),
         (("same_sha_ci",), "self-attested"),
@@ -1879,7 +2016,95 @@ def test_actual_root_addendum_rejects_fully_resigned_nested_and_git_binding_atta
         target[path[-1]] = replacement
         resign(custody.ADDENDUM_ACCEPTANCE_SCHEMA, altered)
         with pytest.raises(custody.LocatorCustodyError):
-            custody.validate_actual_root_addendum(candidate, altered, expected_bindings=trusted)
+            custody.validate_actual_root_addendum(
+                candidate, altered, expected_bindings=trusted, **snapshot_args
+            )
+
+
+def test_actual_root_snapshots_reject_extra_keys_contract_drift_copy_swap_and_wrong_order() -> None:
+    candidate, acceptance, trusted, before_a, before_b, after_a, after_b = (
+        actual_root_addendum_records()
+    )
+
+    extra = copy.deepcopy(after_a)
+    extra["registry_copy_id"] = "COPY_A"
+    with pytest.raises(custody.LocatorCustodyError, match="MIGRATION_ROOT_BINDING_HELD_STOP"):
+        custody.canonical_registry_snapshot_projection(extra)
+
+    swapped_before_b = copy.deepcopy(before_b)
+    swapped_before_b["root_name_receipt_digest"] = digest("swapped-root")
+    swapped_before_b["semantic_snapshot_digest"] = custody.typed_digest(
+        custody.REGISTRY_SNAPSHOT_SCHEMA,
+        {
+            key: value
+            for key, value in swapped_before_b.items()
+            if key != "semantic_snapshot_digest"
+        },
+    )
+    with pytest.raises(custody.LocatorCustodyError, match="MIGRATION_ROOT_BINDING_HELD_STOP"):
+        custody.validate_actual_root_addendum(
+            candidate,
+            acceptance,
+            expected_bindings=trusted,
+            registry_copy_a_snapshot_before_r05=before_a,
+            registry_copy_b_snapshot_before_r05=swapped_before_b,
+            registry_copy_a_snapshot_after_r05=after_a,
+            registry_copy_b_snapshot_after_r05=after_b,
+        )
+
+    for immutable_key in ("execution_contract_digest", "registry_schema_contract_digest"):
+        drift_a = copy.deepcopy(after_a)
+        drift_b = copy.deepcopy(after_b)
+        for snapshot in (drift_a, drift_b):
+            snapshot[immutable_key] = digest(f"drift:{immutable_key}")
+            snapshot["semantic_snapshot_digest"] = custody.typed_digest(
+                custody.REGISTRY_SNAPSHOT_SCHEMA,
+                {
+                    key: value
+                    for key, value in snapshot.items()
+                    if key != "semantic_snapshot_digest"
+                },
+            )
+        drift_candidate = copy.deepcopy(candidate)
+        drift_candidate["cc08_registry_copy_a_snapshot_digest_after_r05"] = drift_a[
+            "semantic_snapshot_digest"
+        ]
+        drift_candidate["cc08_registry_copy_b_snapshot_digest_after_r05"] = drift_b[
+            "semantic_snapshot_digest"
+        ]
+        resign(custody.ADDENDUM_SCHEMA, drift_candidate)
+        with pytest.raises(custody.LocatorCustodyError, match="MIGRATION_ROOT_BINDING_HELD_STOP"):
+            custody.validate_actual_root_addendum(
+                drift_candidate,
+                acceptance,
+                expected_bindings=trusted,
+                registry_copy_a_snapshot_before_r05=before_a,
+                registry_copy_b_snapshot_before_r05=before_b,
+                registry_copy_a_snapshot_after_r05=drift_a,
+                registry_copy_b_snapshot_after_r05=drift_b,
+            )
+
+    wrong_order_a = copy.deepcopy(after_a)
+    wrong_order_b = copy.deepcopy(after_b)
+    for snapshot in (wrong_order_a, wrong_order_b):
+        rows = cast(list[custody.Json], snapshot["ordered_events"])
+        first = cast(dict[str, custody.Json], rows[0])
+        second = cast(dict[str, custody.Json], rows[1])
+        first["output_id"], second["output_id"] = second["output_id"], first["output_id"]
+        snapshot["semantic_snapshot_digest"] = custody.typed_digest(
+            custody.REGISTRY_SNAPSHOT_SCHEMA,
+            {key: value for key, value in snapshot.items() if key != "semantic_snapshot_digest"},
+        )
+    with pytest.raises(custody.LocatorCustodyError, match="MIGRATION_ROOT_BINDING_HELD_STOP"):
+        custody.validate_actual_root_addendum(
+            candidate,
+            acceptance,
+            expected_bindings=trusted,
+            registry_copy_a_snapshot_before_r05=before_a,
+            registry_copy_b_snapshot_before_r05=before_b,
+            registry_copy_a_snapshot_after_r05=wrong_order_a,
+            registry_copy_b_snapshot_after_r05=wrong_order_b,
+        )
 
 
 def test_cc09_e5_wire_records_are_closed_and_resigned_drift_stops() -> None:
@@ -2208,23 +2433,57 @@ type LocatorLedgerRecords = tuple[
 ]
 
 
+def synthetic_bootstrap_authority() -> tuple[
+    custody.TrustedAcceptanceBindingSource,
+    custody.TrustedAcceptanceBindingSource,
+    custody.LocatorBootstrapAuthorityAnchor,
+]:
+    plan = json.loads(
+        (
+            Path(__file__).parents[3]
+            / "docs/operations/P3_P7_D02_R2_LOCATOR_CUSTODY_PLAN_ACCEPTANCE.json"
+        ).read_text()
+    )
+    implementation = implementation_acceptance(plan)
+    private_candidate = cc09_record(custody.PRIVATE_HOME_CANDIDATE_SCHEMA)
+    _, private_source = candidate_acceptance(
+        schema=custody.PRIVATE_HOME_ACCEPTANCE_SCHEMA,
+        candidate=private_candidate,
+        private_home=True,
+    )
+    implementation_source = trusted_bindings(
+        implementation, custody.IMPLEMENTATION_ACCEPTANCE_TEST_ANCHOR_ID
+    )
+    return (
+        implementation_source,
+        private_source,
+        custody.load_locator_bootstrap_authority_anchor(
+            implementation_acceptance=implementation_source,
+            private_home_acceptance=private_source,
+        ),
+    )
+
+
 def locator_ledger_records(tmp_path: Path) -> LocatorLedgerRecords:
     created_at = "2026-08-28T00:00:00.000001Z"
-    copy_a_id = "P3_P7_D02_R2_LOCATOR_CUSTODY_A"
-    copy_b_id = "P3_P7_D02_R2_LOCATOR_CUSTODY_B"
+    implementation_source, private_home_source, anchor = synthetic_bootstrap_authority()
+    copy_a_id = custody._COPY_A_ID
+    copy_b_id = custody._COPY_B_ID
     namespace = custody.make_namespace_name_receipt(
         {
             "schema_version": custody.NAMESPACE_SCHEMA,
             "project_id": "PROJECT_MIRROR",
             "private_home_handle_id": "PM_PROJECT_MIRROR_PRIVATE_HOME_V1",
-            "custody_namespace_id": "P3_P7_D02_R2_LOCATOR_CUSTODY_NAMESPACE_01",
+            "custody_namespace_id": custody._CUSTODY_NAMESPACE_ID,
             "purpose": "D02_R2_SINGLE_ROOT_LOCATOR_CUSTODY_ONLY",
             "change_control_id": "P3_P7_D02_CC_09",
             "authority_id": "P3_P7_D02_R2_LOCATOR_CUSTODY_AUTHORITY_01",
             "allowed_subject_root_ids": ["P3_P7_D02_R2_CC08_E1_EVIDENCE_ROOT"],
             "resolver_contract_digest": digest("resolver"),
-            "host_binding_acceptance_record_digest": digest("host-acceptance"),
-            "private_home_binding_acceptance_record_digest": digest("home-acceptance"),
+            "host_binding_acceptance_record_digest": (anchor.host_binding_acceptance_record_digest),
+            "private_home_binding_acceptance_record_digest": (
+                anchor.private_home_binding_acceptance_record_digest
+            ),
             "principal_sid_digest": digest("sid"),
             "known_folder_identity_digest": digest("known-folder"),
             "private_home_identity_digest": digest("private-home"),
@@ -2244,9 +2503,9 @@ def locator_ledger_records(tmp_path: Path) -> LocatorLedgerRecords:
             "worktree_set_schema_version": custody.WORKTREE_SCHEMA,
             "canonicalization_version": "demo-canonical-json-v1",
             "relative_control_manifest": [dict(row) for row in custody.RELATIVE_CONTROL_MANIFEST],
-            "locator_custody_implementation_sha": "a" * 40,
-            "locator_custody_implementation_acceptance_record_digest": digest(
-                "implementation-acceptance"
+            "locator_custody_implementation_sha": anchor.implementation_sha,
+            "locator_custody_implementation_acceptance_record_digest": (
+                anchor.implementation_acceptance_record_digest
             ),
             "retention_policy": "RETAIN_UNTIL_D02_R2_AND_ALL_DEPENDENT_TASKS_RELEASE_CUSTODY",
             "cleanup_policy": "PRINCIPAL_EXACT_DEPENDENCY_SCAN_AND_FORWARD_CHANGE_CONTROL_REQUIRED",
@@ -2257,7 +2516,7 @@ def locator_ledger_records(tmp_path: Path) -> LocatorLedgerRecords:
         {
             "schema_version": custody.COMMON_GENESIS_SCHEMA,
             "namespace_receipt_digest": namespace["receipt_digest"],
-            "locator_authority_id": "P3_P7_D02_R2_CC08_E1_ROOT_LOCATOR_AUTHORITY",
+            "locator_authority_id": custody._CUSTODY_AUTHORITY_ID,
             "allocation_id": custody._ALLOCATION,
             "evidence_root_id": "P3_P7_D02_R2_CC08_E1_EVIDENCE_ROOT",
             "root_basename": "p3-p7-d02-r2-cc08-e1-evidence",
@@ -2313,18 +2572,24 @@ def locator_ledger_records(tmp_path: Path) -> LocatorLedgerRecords:
                 "P3_P7_D02_R2_EVIDENCE_REVIEW_01",
                 "P3_P7_D02_R2_R05_DURABILITY_01",
             ],
-            "accepted_cc08_plan_sha": "b" * 40,
-            "accepted_cc08_plan_tree": "c" * 40,
-            "registry_implementation_sha": "d" * 40,
-            "registry_implementation_tree": "e" * 40,
-            "registry_implementation_acceptance_record_digest": digest("registry-acceptance"),
-            "registry_implementation_acceptance_authority_digest": digest("registry-authority"),
+            "accepted_cc08_plan_sha": custody._CC08_PLAN_SHA,
+            "accepted_cc08_plan_tree": custody._CC08_PLAN_TREE,
+            "registry_implementation_sha": custody._R06_SHA,
+            "registry_implementation_tree": custody._R06_TREE,
+            "registry_implementation_acceptance_record_digest": custody._R06_ACCEPTANCE_DIGEST,
+            "registry_implementation_acceptance_authority_digest": (
+                custody._R06_ACCEPTANCE_AUTHORITY_DIGEST
+            ),
             "maximum_bytes": 42_949_672_960,
             "retention": "RETAIN_UNTIL_D02_R2_AND_ALL_DEPENDENT_TASKS_RELEASE_CUSTODY",
             "allocated_at_utc": created_at,
         }
     )
-    ledger = custody.SyntheticLocatorCustodyLedger(tmp_path / "locator-custody")
+    ledger = custody.SyntheticLocatorCustodyLedger(
+        tmp_path / "locator-custody",
+        implementation_source,
+        private_home_source,
+    )
     assert ledger.bootstrap(namespace, common, copy_a, copy_b, locator) == (
         "LOCATOR_CUSTODY_BOOTSTRAPPED"
     )
@@ -2399,6 +2664,70 @@ def replay_locator_ledger(
         copy_a_genesis=copy_a,
         copy_b_genesis=copy_b,
     )
+
+
+def test_locator_bootstrap_rejects_caller_constructed_anchor_and_resigned_swaps_before_write(
+    tmp_path: Path,
+) -> None:
+    ledger, namespace, common, copy_a, copy_b, locator, _, _, _ = locator_ledger_records(tmp_path)
+    forged_anchor = custody.LocatorBootstrapAuthorityAnchor(
+        implementation_sha="9" * 40,
+        implementation_acceptance_record_digest=digest("forged-implementation"),
+        host_binding_acceptance_record_digest=digest("forged-host"),
+        private_home_binding_acceptance_record_digest=digest("forged-home"),
+        authority_created_at_utc="2026-08-28T00:00:00.000001Z",
+        _token=custody._BOOTSTRAP_AUTHORITY_ANCHOR_TOKEN,
+    )
+    forged_root = tmp_path / "forged-anchor-root"
+    forged_ledger = custody.SyntheticLocatorCustodyLedger(
+        forged_root,
+        cast(custody.TrustedAcceptanceBindingSource, forged_anchor),
+        ledger.bootstrap_private_home_acceptance,
+    )
+    with pytest.raises(
+        custody.LocatorCustodyError, match="CUSTODY_BOOTSTRAP_AUTHORITY_ANCHOR_REQUIRED_STOP"
+    ):
+        forged_ledger.bootstrap(namespace, common, copy_a, copy_b, locator)
+    assert not forged_root.exists()
+    assert forged_ledger.mutations == []
+
+    swapped_namespace = copy.deepcopy(namespace)
+    swapped_namespace["copy_a_id"], swapped_namespace["copy_b_id"] = (
+        swapped_namespace["copy_b_id"],
+        swapped_namespace["copy_a_id"],
+    )
+    swapped_namespace["receipt_digest"] = custody.typed_digest(
+        custody.NAMESPACE_SCHEMA,
+        {key: value for key, value in swapped_namespace.items() if key != "receipt_digest"},
+    )
+    swap_root = tmp_path / "copy-swap-root"
+    swap_ledger = custody.SyntheticLocatorCustodyLedger(
+        swap_root,
+        ledger.bootstrap_implementation_acceptance,
+        ledger.bootstrap_private_home_acceptance,
+    )
+    with pytest.raises(
+        custody.LocatorCustodyError, match="CUSTODY_BOOTSTRAP_AUTHORITY_MISMATCH_STOP"
+    ):
+        swap_ledger.bootstrap(swapped_namespace, common, copy_a, copy_b, locator)
+    assert not swap_root.exists()
+    assert swap_ledger.mutations == []
+
+    swapped_common = copy.deepcopy(common)
+    swapped_common["evidence_root_id"] = "P3_P7_D02_R2_CC08_E2_FORGED_ROOT"
+    swapped_common = custody.make_common_genesis(swapped_common)
+    root_swap = tmp_path / "root-swap-root"
+    root_swap_ledger = custody.SyntheticLocatorCustodyLedger(
+        root_swap,
+        ledger.bootstrap_implementation_acceptance,
+        ledger.bootstrap_private_home_acceptance,
+    )
+    with pytest.raises(
+        custody.LocatorCustodyError, match="CUSTODY_BOOTSTRAP_AUTHORITY_MISMATCH_STOP"
+    ):
+        root_swap_ledger.bootstrap(namespace, swapped_common, copy_a, copy_b, locator)
+    assert not root_swap.exists()
+    assert root_swap_ledger.mutations == []
 
 
 def make_followup_locator_transaction(
@@ -3016,3 +3345,205 @@ def test_locator_commit_forces_fresh_full_replay_and_idempotent_read_only_recove
         ledger, namespace, common, copy_a, copy_b, locator
     )
     assert replayed_a == replayed_b
+
+
+def test_namespace_guard_serializes_classification_through_commit_across_ledger_instances(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first, namespace, common, copy_a, copy_b, locator, prior, event, intent = (
+        locator_ledger_records(tmp_path)
+    )
+    second = custody.SyntheticLocatorCustodyLedger(
+        first.root,
+        first.bootstrap_implementation_acceptance,
+        first.bootstrap_private_home_acceptance,
+    )
+    first_entered = threading.Event()
+    release_first = threading.Event()
+    second_started = threading.Event()
+    second_entered = threading.Event()
+    original_first_classify = first._classify_transition_prefix
+    original_second_classify = second._classify_transition_prefix
+
+    def blocking_first_classify(
+        *,
+        event: Mapping[str, object],
+        intent: Mapping[str, object],
+        copy_a_genesis: Mapping[str, object],
+        copy_b_genesis: Mapping[str, object],
+        prior_snapshot: Mapping[str, object],
+    ) -> tuple[
+        str,
+        custody.JsonObject,
+        custody.JsonObject,
+        custody.JsonObject,
+        custody.JsonObject,
+        custody.JsonObject,
+    ]:
+        first_entered.set()
+        assert release_first.wait(5)
+        return original_first_classify(
+            event=event,
+            intent=intent,
+            copy_a_genesis=copy_a_genesis,
+            copy_b_genesis=copy_b_genesis,
+            prior_snapshot=prior_snapshot,
+        )
+
+    def observed_second_classify(
+        *,
+        event: Mapping[str, object],
+        intent: Mapping[str, object],
+        copy_a_genesis: Mapping[str, object],
+        copy_b_genesis: Mapping[str, object],
+        prior_snapshot: Mapping[str, object],
+    ) -> tuple[
+        str,
+        custody.JsonObject,
+        custody.JsonObject,
+        custody.JsonObject,
+        custody.JsonObject,
+        custody.JsonObject,
+    ]:
+        second_entered.set()
+        return original_second_classify(
+            event=event,
+            intent=intent,
+            copy_a_genesis=copy_a_genesis,
+            copy_b_genesis=copy_b_genesis,
+            prior_snapshot=prior_snapshot,
+        )
+
+    monkeypatch.setattr(first, "_classify_transition_prefix", blocking_first_classify)
+    monkeypatch.setattr(second, "_classify_transition_prefix", observed_second_classify)
+
+    def recover(ledger: custody.SyntheticLocatorCustodyLedger) -> str:
+        return custody.recover_synthetic_transition(
+            ledger,
+            event=event,
+            intent=intent,
+            copy_a_genesis=copy_a,
+            copy_b_genesis=copy_b,
+            prior_snapshot=prior,
+        )
+
+    def recover_second() -> str:
+        second_started.set()
+        return recover(second)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first_future = executor.submit(recover, first)
+        assert first_entered.wait(5)
+        second_future = executor.submit(recover_second)
+        assert second_started.wait(5)
+        assert not second_entered.wait(0.2)
+        release_first.set()
+        assert first_future.result(timeout=5) == "COMMIT_DURABLE"
+        assert second_future.result(timeout=5) == "COMMIT_DURABLE"
+    assert second_entered.is_set()
+    replayed_a, replayed_b = replay_locator_ledger(
+        first, namespace, common, copy_a, copy_b, locator
+    )
+    assert replayed_a == replayed_b
+    assert replayed_a["event_count"] == 1
+
+
+def _wait_for_marker(path: Path, process: subprocess.Popen[bytes]) -> None:
+    deadline = time.monotonic() + 10
+    while not path.exists() and time.monotonic() < deadline:
+        if process.poll() is not None:
+            break
+        time.sleep(0.01)
+    assert path.is_file(), f"child exited before acquiring guard: {process.poll()}"
+
+
+def _namespace_guard_child(
+    root: Path,
+    acquired: Path,
+    release: Path,
+    *,
+    crash: bool,
+) -> subprocess.Popen[bytes]:
+    script = """
+import os
+from pathlib import Path
+import sys
+import time
+from mirror_api.demo_d02_r2_locator_custody import _namespace_scoped_exclusive_guard
+
+root = Path(sys.argv[1])
+acquired = Path(sys.argv[2])
+release = Path(sys.argv[3])
+crash = sys.argv[4] == "crash"
+with _namespace_scoped_exclusive_guard(root):
+    acquired.write_bytes(b"LOCKED")
+    if crash:
+        os._exit(0)
+    while not release.exists():
+        time.sleep(0.01)
+"""
+    return subprocess.Popen(  # noqa: S603 - exact current interpreter and fixed inline script
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(root),
+            str(acquired),
+            str(release),
+            "crash" if crash else "release",
+        ],
+        env={
+            **os.environ,
+            "PYTHONPATH": os.pathsep.join(
+                filter(
+                    None,
+                    [
+                        str(Path(__file__).parents[1] / "src"),
+                        os.environ.get("PYTHONPATH", ""),
+                    ],
+                )
+            ),
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+def test_namespace_guard_is_cross_process_and_released_after_process_exit(tmp_path: Path) -> None:
+    root = tmp_path / "cross-process-namespace"
+    acquired = tmp_path / "child-acquired"
+    release = tmp_path / "release-child"
+    child = _namespace_guard_child(root, acquired, release, crash=False)
+    try:
+        _wait_for_marker(acquired, child)
+        parent_started = threading.Event()
+        parent_acquired = threading.Event()
+
+        def acquire_in_parent() -> None:
+            parent_started.set()
+            with custody._namespace_scoped_exclusive_guard(root):
+                parent_acquired.set()
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            parent_future = executor.submit(acquire_in_parent)
+            assert parent_started.wait(5)
+            assert not parent_acquired.wait(0.2)
+            release.write_bytes(b"RELEASE")
+            assert parent_future.result(timeout=10) is None
+        assert child.wait(timeout=10) == 0
+        assert parent_acquired.is_set()
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait(timeout=10)
+
+    crash_acquired = tmp_path / "crash-acquired"
+    crash_release = tmp_path / "unused-release"
+    crash_child = _namespace_guard_child(root, crash_acquired, crash_release, crash=True)
+    _wait_for_marker(crash_acquired, crash_child)
+    assert crash_child.wait(timeout=10) == 0
+    with custody._namespace_scoped_exclusive_guard(root):
+        assert not root.exists()
+    if os.name == "posix":
+        lock_files = list(tmp_path.glob(".project-mirror-d02-r2-custody-*.lock"))
+        assert len(lock_files) == 1

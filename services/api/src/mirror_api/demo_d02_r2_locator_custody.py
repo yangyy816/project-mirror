@@ -13,10 +13,14 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import importlib
 import json
+import os
 import re
+import threading
 import uuid
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,6 +41,7 @@ class LocatorCustodyError(RuntimeError):
 
 
 _TRUSTED_BINDING_SOURCE_TOKEN: Final = object()
+_BOOTSTRAP_AUTHORITY_ANCHOR_TOKEN: Final = object()
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -76,6 +81,54 @@ class TrustedAcceptanceBindingSource:
         object.__setattr__(self, "record_digest", record_digest)
         object.__setattr__(self, "source_file_sha256", source_file_sha256)
         object.__setattr__(self, "canonical_record_bytes", canonical_record_bytes)
+        object.__setattr__(self, "_token", _token)
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class LocatorBootstrapAuthorityAnchor:
+    """Validated projection of the authorities required before a custody write.
+
+    This value is not treated as a Python capability.  A write path must retain
+    and replay the underlying accepted sources (or the fixed tracked-path
+    chain), rather than accepting a caller-constructed instance of this class.
+    """
+
+    implementation_sha: str
+    implementation_acceptance_record_digest: str
+    host_binding_acceptance_record_digest: str
+    private_home_binding_acceptance_record_digest: str
+    authority_created_at_utc: str
+    _token: object = field(repr=False, compare=False)
+
+    def __init__(
+        self,
+        *,
+        implementation_sha: str,
+        implementation_acceptance_record_digest: str,
+        host_binding_acceptance_record_digest: str,
+        private_home_binding_acceptance_record_digest: str,
+        authority_created_at_utc: str,
+        _token: object,
+    ) -> None:
+        if _token is not _BOOTSTRAP_AUTHORITY_ANCHOR_TOKEN:
+            raise LocatorCustodyError("CUSTODY_BOOTSTRAP_AUTHORITY_ANCHOR_REQUIRED_STOP")
+        object.__setattr__(self, "implementation_sha", implementation_sha)
+        object.__setattr__(
+            self,
+            "implementation_acceptance_record_digest",
+            implementation_acceptance_record_digest,
+        )
+        object.__setattr__(
+            self,
+            "host_binding_acceptance_record_digest",
+            host_binding_acceptance_record_digest,
+        )
+        object.__setattr__(
+            self,
+            "private_home_binding_acceptance_record_digest",
+            private_home_binding_acceptance_record_digest,
+        )
+        object.__setattr__(self, "authority_created_at_utc", authority_created_at_utc)
         object.__setattr__(self, "_token", _token)
 
 
@@ -144,22 +197,22 @@ _FROZEN_ACCEPTANCE_ANCHORS: Final[tuple[tuple[str, str, str, str, str], ...]] = 
         HOST_ACCEPTANCE_TEST_ANCHOR_ID,
         "P3_P7_D02_R2_WINDOWS_HOST_BINDING_ACCEPTANCE_01",
         HOST_ACCEPTANCE_SCHEMA,
-        "ae3f5df49025a398def57c1cc863608de564cba012383a5a71fcb197a9969451",
-        "6f450b24ddc6d2478d36870ecac5f2710ca234828e0fa64490380f415fbaf6c7",
+        "8bf3f30d6286524792d1e9cbeb4eaef16feac970edfa1ad5a0fa902066cabed6",
+        "1e45df59ee709acc0ec9e30a862e45a2ae43f44b9baebfb4dd044c51e2c2a03b",
     ),
     (
         PRIVATE_HOME_ACCEPTANCE_TEST_ANCHOR_ID,
         "P3_P7_D02_R2_PRIVATE_HOME_BINDING_ACCEPTANCE_01",
         "mirror.demo/D02R2PrivateHomeBindingAcceptance/v1",
-        "33e4cc2084b28d0e0cca07af18556702eae10d93d567b749903f4004d399a739",
-        "2c3ca92e7671f33baf00f739e51aea523a77c9ee37eb5267356e7d0a5f88eac1",
+        "bb1a751ac836a5a90a99298cf5c2ed237520b693b11fa9bcede399328ed49173",
+        "9068ec7e1cd45b9d1fa05f9b61f06f7c738acddba53a692393b7634fb2edc1be",
     ),
     (
         ADDENDUM_ACCEPTANCE_TEST_ANCHOR_ID,
         "P3_P7_D02_R2_ACTUAL_ROOT_DIGEST_BINDING_ADDENDUM_ACCEPTANCE_01",
         ADDENDUM_ACCEPTANCE_SCHEMA,
-        "73a1622bf0b1b76a5a281e31fdc9d2071193b3e6cc3c7237e7b6232877563342",
-        "141f82f91b6a58c57a94cb976731210a81907ea5d0842c64bf86ffeae7907a50",
+        "f6edc154ec8b7f182f70c8ca439fcef480f817687907343e6f7e5da2118f9690",
+        "383716f6bf39f1421dc795d9197460efbc90860587340993285375d32fd9f111",
     ),
 )
 
@@ -734,6 +787,21 @@ def validate_implementation_acceptance(
     expected_bindings: TrustedAcceptanceBindingSource,
     plan_expected_bindings: TrustedAcceptanceBindingSource,
 ) -> JsonObject:
+    value = _validate_implementation_acceptance_core(
+        record,
+        plan,
+        plan_expected_bindings=plan_expected_bindings,
+    )
+    _validate_trusted_record_bindings(value, expected_bindings, "record_digest")
+    return value
+
+
+def _validate_implementation_acceptance_core(
+    record: Mapping[str, object],
+    plan: Mapping[str, object],
+    *,
+    plan_expected_bindings: TrustedAcceptanceBindingSource,
+) -> JsonObject:
     keys = {
         "schema_version",
         "authority_id",
@@ -756,7 +824,6 @@ def validate_implementation_acceptance(
     value = _validate_acceptance(
         record, IMPLEMENTATION_SCHEMA, "record_digest", keys, "implementation_sha"
     )
-    _validate_trusted_record_bindings(value, expected_bindings, "record_digest")
     checked_plan = validate_plan_acceptance(plan, expected_bindings=plan_expected_bindings)
     if (
         value["authority_id"] != "P3_P7_D02_R2_LOCATOR_CUSTODY_IMPLEMENTATION_ACCEPTANCE_01"
@@ -879,6 +946,69 @@ def _validate_trusted_record_bindings(
     _exact(expected, set(value) - {digest_key}, "trusted acceptance bindings")
     if any(value[key] != expected[key] for key in expected):
         raise LocatorCustodyError("CUSTODY_ACCEPTED_BINDING_DRIFT_STOP")
+
+
+def _trusted_acceptance_record(
+    source: TrustedAcceptanceBindingSource,
+    *,
+    schema: str,
+    authority_id: str,
+) -> JsonObject:
+    if (
+        not isinstance(source, TrustedAcceptanceBindingSource)
+        or source.schema_version != schema
+        or source.authority_id != authority_id
+    ):
+        raise LocatorCustodyError("CUSTODY_BOOTSTRAP_AUTHORITY_ANCHOR_REQUIRED_STOP")
+    record = canonical_loads(source.canonical_record_bytes)
+    _validate_trusted_record_bindings(record, source, "record_digest")
+    return record
+
+
+def load_locator_bootstrap_authority_anchor(
+    *,
+    implementation_acceptance: TrustedAcceptanceBindingSource,
+    private_home_acceptance: TrustedAcceptanceBindingSource,
+) -> LocatorBootstrapAuthorityAnchor:
+    """Mint a synthetic-test bootstrap projection from frozen acceptance bytes.
+
+    This helper is not the future real-host authority loader.  In particular,
+    fixed tracked paths, self-consistent acceptance JSON, and Python object
+    identity are not candidate-independent checkout proof.  A later accepted
+    host bridge must introduce and replay its own independently sealed checkout
+    authority before any real namespace write; this module deliberately has no
+    such real-host entry point in the current implementation checkpoint.
+    """
+
+    implementation = _trusted_acceptance_record(
+        implementation_acceptance,
+        schema=IMPLEMENTATION_SCHEMA,
+        authority_id="P3_P7_D02_R2_LOCATOR_CUSTODY_IMPLEMENTATION_ACCEPTANCE_01",
+    )
+    private_home = _trusted_acceptance_record(
+        private_home_acceptance,
+        schema="mirror.demo/D02R2PrivateHomeBindingAcceptance/v1",
+        authority_id="P3_P7_D02_R2_PRIVATE_HOME_BINDING_ACCEPTANCE_01",
+    )
+    if (
+        private_home.get("locator_custody_implementation_acceptance_record_digest")
+        != implementation["record_digest"]
+    ):
+        raise LocatorCustodyError("CUSTODY_BOOTSTRAP_AUTHORITY_ANCHOR_MISMATCH_STOP")
+    implementation_sha = implementation.get("implementation_sha")
+    host_acceptance_digest = private_home.get("host_binding_acceptance_record_digest")
+    created_at = implementation.get("record_created_at_utc")
+    _sha(implementation_sha, "bootstrap implementation SHA")
+    _digest(host_acceptance_digest, "bootstrap host acceptance")
+    _timestamp(created_at)
+    return LocatorBootstrapAuthorityAnchor(
+        implementation_sha=cast(str, implementation_sha),
+        implementation_acceptance_record_digest=cast(str, implementation["record_digest"]),
+        host_binding_acceptance_record_digest=cast(str, host_acceptance_digest),
+        private_home_binding_acceptance_record_digest=private_home_acceptance.record_digest,
+        authority_created_at_utc=cast(str, created_at),
+        _token=_BOOTSTRAP_AUTHORITY_ANCHOR_TOKEN,
+    )
 
 
 def _validate_acceptance_evidence(
@@ -2209,11 +2339,140 @@ def r05_recovery_action(stage: RehomeStage) -> str:
     return actions[-1]
 
 
+REGISTRY_SNAPSHOT_SCHEMA: Final = "mirror.demo/D02R2PrivateRegistrySemanticSnapshot/v1"
+ORDERED_R05_OUTPUT_IDS: Final[tuple[str, ...]] = (
+    "D02_R2_R05_E2_LEGACY_ROOT_RECEIPT_BYTES",
+    "D02_R2_R05_E2_LEGACY_REGISTRY_RECEIPT_BYTES",
+    "D02_R2_R05_E2_EXACT_CANDIDATE_MANIFEST",
+    "D02_R2_R05_E2_INDEPENDENT_REVIEW",
+    "D02_R2_R05_E2_LEGACY_MANIFEST_SEAL_BYTES",
+    "D02_R2_R05_E2_LEGACY_REVIEW_SEAL_BYTES",
+    "D02_R2_R05_E2_VALIDATION_SUMMARY",
+    "D02_R2_R05_E2_REHOME_MANIFEST",
+)
+ACTUAL_ROOT_ADDENDUM_HASH_DEPENDENCY_ORDER: Final[tuple[str, ...]] = (
+    "POST_R05_PRIOR_REGISTRY_HEAD",
+    "ACTUAL_ROOT_ADDENDUM_RECORD_DIGEST",
+    "FUTURE_NEXT_REGISTRY_HEAD",
+)
+_HELD_CONTRACT_ACCEPTANCE_AUTHORITY_ID: Final = (
+    "P3_P7_D02_R2_MIGRATION_AUTHORITY_CONTRACT_ACCEPTANCE_01"
+)
+_HELD_CONTRACT_ACCEPTANCE_RECORD_DIGEST: Final = (
+    "9954d9e91a041f9db94ca069ce618eac36f869d7017b09e55faa786736aa062a"
+)
+_HELD_DISPATCH_ACCEPTANCE_AUTHORITY_ID: Final = (
+    "P3_P7_D02_R2_MIGRATION_DISPATCH_ADDENDUM_ACCEPTANCE_01"
+)
+_HELD_DISPATCH_ACCEPTANCE_RECORD_DIGEST: Final = (
+    "01c22e1e62b592b48a09bb23a800bb3a2395157fae7c77c8ee82639105a0a34e"
+)
+_PRE_ROOT_EXPECTATION_DIGEST: Final = (
+    "c3ae43887d51d15347153e392ca092866dff890bdcda959572cc1dd07e6195c4"
+)
+_REGISTRY_SNAPSHOT_LOGICAL_FIELDS: Final[tuple[str, ...]] = (
+    "schema_version",
+    "evidence_root_id",
+    "root_name_receipt_digest",
+    "execution_contract_digest",
+    "registry_schema_contract_digest",
+    "common_genesis_digest",
+    "event_count",
+    "head_event_digest",
+    "ordered_events",
+)
+_REGISTRY_SNAPSHOT_EVENT_FIELDS: Final[tuple[str, ...]] = (
+    "sequence",
+    "transaction_id",
+    "output_id",
+    "semantic_role",
+    "authority_digest",
+    "event_digest",
+)
+_REGISTRY_SNAPSHOT_IMMUTABLE_AUTHORITY_FIELDS: Final[tuple[str, ...]] = (
+    "schema_version",
+    "evidence_root_id",
+    "root_name_receipt_digest",
+    "execution_contract_digest",
+    "registry_schema_contract_digest",
+    "common_genesis_digest",
+)
+
+
+def canonical_registry_snapshot_projection(record: Mapping[str, object]) -> JsonObject:
+    """Validate and return the exact CC08 semantic snapshot payload."""
+
+    value = _json_object(record)
+    required = {*_REGISTRY_SNAPSHOT_LOGICAL_FIELDS, "semantic_snapshot_digest"}
+    if set(value) != required:
+        raise LocatorCustodyError("MIGRATION_ROOT_BINDING_HELD_STOP")
+    if value["schema_version"] != REGISTRY_SNAPSHOT_SCHEMA:
+        raise LocatorCustodyError("MIGRATION_ROOT_BINDING_HELD_STOP")
+    if value["evidence_root_id"] != "P3_P7_D02_R2_CC08_E1_EVIDENCE_ROOT":
+        raise LocatorCustodyError("MIGRATION_ROOT_BINDING_HELD_STOP")
+    for key in (
+        "root_name_receipt_digest",
+        "execution_contract_digest",
+        "registry_schema_contract_digest",
+        "common_genesis_digest",
+        "head_event_digest",
+        "semantic_snapshot_digest",
+    ):
+        _digest(value[key], key)
+    count = value["event_count"]
+    rows = value["ordered_events"]
+    if (
+        not isinstance(count, int)
+        or isinstance(count, bool)
+        or count < 0
+        or not isinstance(rows, list)
+        or len(rows) != count
+    ):
+        raise LocatorCustodyError("MIGRATION_ROOT_BINDING_HELD_STOP")
+    ordered: list[Json] = []
+    seen_outputs: set[str] = set()
+    for expected_sequence, row in enumerate(rows, 1):
+        item = _mapping(row, "registry snapshot event")
+        _exact(item, set(_REGISTRY_SNAPSHOT_EVENT_FIELDS), "registry snapshot event")
+        if item["sequence"] != expected_sequence or item["semantic_role"] != "BANK_IMPORT_EVIDENCE":
+            raise LocatorCustodyError("MIGRATION_ROOT_BINDING_HELD_STOP")
+        transaction_id = item["transaction_id"]
+        output_id = item["output_id"]
+        _digest(transaction_id, "registry transaction ID")
+        _id(output_id, "registry output ID")
+        if cast(str, output_id) in seen_outputs:
+            raise LocatorCustodyError("MIGRATION_ROOT_BINDING_HELD_STOP")
+        seen_outputs.add(cast(str, output_id))
+        _digest(item["authority_digest"], "registry authority digest")
+        _digest(item["event_digest"], "registry event digest")
+        ordered.append(_json_object(item))
+    expected_head = (
+        cast(str, cast(dict[str, Json], ordered[-1])["event_digest"])
+        if ordered
+        else cast(str, value["common_genesis_digest"])
+    )
+    if value["head_event_digest"] != expected_head:
+        raise LocatorCustodyError("MIGRATION_ROOT_BINDING_HELD_STOP")
+    projection = _json_object(
+        {
+            key: ordered if key == "ordered_events" else value[key]
+            for key in _REGISTRY_SNAPSHOT_LOGICAL_FIELDS
+        }
+    )
+    if value["semantic_snapshot_digest"] != typed_digest(REGISTRY_SNAPSHOT_SCHEMA, projection):
+        raise LocatorCustodyError("MIGRATION_ROOT_BINDING_HELD_STOP")
+    return projection
+
+
 def validate_actual_root_addendum(
     candidate: Mapping[str, object],
     acceptance: Mapping[str, object],
     *,
     expected_bindings: TrustedAcceptanceBindingSource,
+    registry_copy_a_snapshot_before_r05: Mapping[str, object],
+    registry_copy_b_snapshot_before_r05: Mapping[str, object],
+    registry_copy_a_snapshot_after_r05: Mapping[str, object],
+    registry_copy_b_snapshot_after_r05: Mapping[str, object],
 ) -> None:
     """Prove the forward-only addendum predicate; candidate-only is non-authority."""
     candidate_keys = {
@@ -2271,11 +2530,53 @@ def validate_actual_root_addendum(
         if not isinstance(candidate_value[key], int) or isinstance(candidate_value[key], bool):
             raise LocatorCustodyError("MIGRATION_ROOT_BINDING_HELD_STOP")
     ids = candidate_value["ordered_r05_output_ids"]
+    if ids != list(ORDERED_R05_OUTPUT_IDS):
+        raise LocatorCustodyError("MIGRATION_ROOT_BINDING_HELD_STOP")
     if (
-        not isinstance(ids, list)
-        or len(ids) != 8
-        or len(set(ids)) != 8
-        or not all(isinstance(item, str) for item in ids)
+        candidate_value["held_contract_acceptance_authority_id"]
+        != _HELD_CONTRACT_ACCEPTANCE_AUTHORITY_ID
+        or candidate_value["held_contract_acceptance_record_digest"]
+        != _HELD_CONTRACT_ACCEPTANCE_RECORD_DIGEST
+        or candidate_value["held_dispatch_acceptance_authority_id"]
+        != _HELD_DISPATCH_ACCEPTANCE_AUTHORITY_ID
+        or candidate_value["held_dispatch_acceptance_record_digest"]
+        != _HELD_DISPATCH_ACCEPTANCE_RECORD_DIGEST
+        or candidate_value["pre_root_expectation_digest"] != _PRE_ROOT_EXPECTATION_DIGEST
+        or candidate_value["effective_root_name_receipt_digest"]
+        != candidate_value["cc08_root_receipt_digest"]
+    ):
+        raise LocatorCustodyError("MIGRATION_ROOT_BINDING_HELD_STOP")
+    before_a = canonical_registry_snapshot_projection(registry_copy_a_snapshot_before_r05)
+    before_b = canonical_registry_snapshot_projection(registry_copy_b_snapshot_before_r05)
+    after_a = canonical_registry_snapshot_projection(registry_copy_a_snapshot_after_r05)
+    after_b = canonical_registry_snapshot_projection(registry_copy_b_snapshot_after_r05)
+    before_digest = typed_digest(REGISTRY_SNAPSHOT_SCHEMA, before_a)
+    after_digest = typed_digest(REGISTRY_SNAPSHOT_SCHEMA, after_a)
+    before_rows = cast(list[Json], before_a["ordered_events"])
+    after_rows = cast(list[Json], after_a["ordered_events"])
+    if (
+        before_a != before_b
+        or after_a != after_b
+        or before_a["event_count"] != 0
+        or before_rows
+        or before_a["head_event_digest"] != before_a["common_genesis_digest"]
+        or after_a["event_count"] != 8
+        or len(after_rows) != 8
+        or candidate_value["cc08_registry_common_genesis_digest"]
+        != before_a["common_genesis_digest"]
+        or any(
+            before_a[key] != after_a[key] for key in _REGISTRY_SNAPSHOT_IMMUTABLE_AUTHORITY_FIELDS
+        )
+        or before_a["root_name_receipt_digest"] != candidate_value["cc08_root_receipt_digest"]
+        or after_a["root_name_receipt_digest"] != candidate_value["cc08_root_receipt_digest"]
+        or candidate_value["cc08_registry_copy_a_snapshot_digest"] != before_digest
+        or candidate_value["cc08_registry_copy_b_snapshot_digest"] != before_digest
+        or candidate_value["cc08_registry_copy_a_snapshot_digest_after_r05"] != after_digest
+        or candidate_value["cc08_registry_copy_b_snapshot_digest_after_r05"] != after_digest
+        or candidate_value["cc08_registry_head_event_digest_after_r05"]
+        != after_a["head_event_digest"]
+        or [cast(dict[str, Json], row)["output_id"] for row in after_rows]
+        != list(ORDERED_R05_OUTPUT_IDS)
     ):
         raise LocatorCustodyError("MIGRATION_ROOT_BINDING_HELD_STOP")
     acceptance_keys = {
@@ -3362,6 +3663,33 @@ def _validate_candidate_acceptance(
     extra_candidate_bindings: tuple[str, ...],
 ) -> str:
     """Validate an acceptance chain without letting it attest its own Git bindings."""
+    value = _validate_candidate_acceptance_core(
+        record,
+        candidate=candidate,
+        acceptance_schema=acceptance_schema,
+        candidate_schema=candidate_schema,
+        authority_id=authority_id,
+        candidate_path=candidate_path,
+        authorized_scope=authorized_scope,
+        prohibited_scope=prohibited_scope,
+        extra_candidate_bindings=extra_candidate_bindings,
+    )
+    _validate_trusted_record_bindings(value, expected_bindings, "record_digest")
+    return cast(str, value["record_digest"])
+
+
+def _validate_candidate_acceptance_core(
+    record: Mapping[str, object],
+    *,
+    candidate: Mapping[str, object],
+    acceptance_schema: str,
+    candidate_schema: str,
+    authority_id: str,
+    candidate_path: str,
+    authorized_scope: str,
+    prohibited_scope: list[str],
+    extra_candidate_bindings: tuple[str, ...],
+) -> JsonObject:
     binding_keys = {
         "accepted_candidate_sha",
         "accepted_candidate_tree",
@@ -3388,7 +3716,6 @@ def _validate_candidate_acceptance(
         "record_digest",
     }
     _exact(value, keys, "candidate acceptance")
-    _validate_trusted_record_bindings(value, expected_bindings, "record_digest")
     validate_typed_record(value, acceptance_schema, "record_digest")
     candidate_value = validate_typed_record(
         _json_object(candidate), candidate_schema, "record_digest"
@@ -3417,7 +3744,7 @@ def _validate_candidate_acceptance(
         review_sha_key="reviewed_candidate_sha",
         principal_sha_key="accepted_candidate_sha",
     )
-    return cast(str, value["record_digest"])
+    return value
 
 
 def validate_project_private_bridge_scratch_name_receipt(
@@ -3845,6 +4172,19 @@ _NAMESPACE_FILE: Final = "PROJECT_MIRROR_PRIVATE_OUTPUT_REGISTRY_NAMESPACE_NAME_
 _GENESIS_FILE: Final = "D02_R2_LOCATOR_CUSTODY_COPY_GENESIS.json"
 _LOCATOR_FILE: Final = "D02_R2_EVIDENCE_ROOT_LOCATOR_NAME_RECEIPT.json"
 _ALLOCATION: Final = "P3_P7_D02_R2_CC08_E1_ROOT_LOCATOR_ALLOCATION"
+_CUSTODY_NAMESPACE_ID: Final = "pm-project-mirror-principal-private-output-registry-v1"
+_CUSTODY_AUTHORITY_ID: Final = "P3_P7_D02_R2_LOCATOR_CUSTODY_AUTHORITY_01"
+_COPY_A_ID: Final = "P3_P7_D02_R2_LOCATOR_CUSTODY_A"
+_COPY_B_ID: Final = "P3_P7_D02_R2_LOCATOR_CUSTODY_B"
+_EVIDENCE_ROOT_ID: Final = "P3_P7_D02_R2_CC08_E1_EVIDENCE_ROOT"
+_EVIDENCE_ROOT_BASENAME: Final = "p3-p7-d02-r2-cc08-e1-evidence"
+_PRIVATE_HOME_HANDLE_ID: Final = "PM_PROJECT_MIRROR_PRIVATE_HOME_V1"
+_CC08_PLAN_SHA: Final = "218f4b5a5ee4e6e2223995d232da61496dd47de3"
+_CC08_PLAN_TREE: Final = "1cff56bd1f1127a310622d5b8a72045b39290549"
+_R06_ACCEPTANCE_AUTHORITY_DIGEST: Final = (
+    "08af0bbc6802939cee9a26020b505dc9b323c3f67992f987ee4dc7b5d4930943"
+)
+PROTECTED_CUSTODY_WRITE_BOUNDARY: Final = "SyntheticLocatorCustodyLedger.root_AND_DESCENDANTS"
 _SCAFFOLD: Final[tuple[str, ...]] = (
     "copy-a",
     "copy-a/events",
@@ -3874,6 +4214,115 @@ _EVENT_FIXED_CONTINUITY_FIELDS: Final[tuple[str, ...]] = (
     "registry_implementation_acceptance_authority_digest",
     "parent_identity_digest",
 )
+
+_NAMESPACE_GUARD_REGISTRY_LOCK: Final = threading.Lock()
+_NAMESPACE_GUARDS: Final[dict[str, threading.RLock]] = {}
+_NAMESPACE_GUARD_STATE: Final = threading.local()
+
+
+@contextmanager
+def _windows_namespace_mutex(identity_digest: str) -> Iterator[None]:
+    import ctypes
+
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        create_mutex = kernel32.CreateMutexW
+        wait_for_single_object = kernel32.WaitForSingleObject
+        release_mutex = kernel32.ReleaseMutex
+        close_handle = kernel32.CloseHandle
+        create_mutex.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p]
+        create_mutex.restype = ctypes.c_void_p
+        wait_for_single_object.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+        wait_for_single_object.restype = ctypes.c_uint32
+        release_mutex.argtypes = [ctypes.c_void_p]
+        release_mutex.restype = ctypes.c_int
+        close_handle.argtypes = [ctypes.c_void_p]
+        close_handle.restype = ctypes.c_int
+        handle = create_mutex(
+            None,
+            0,
+            f"Global\\ProjectMirror-D02R2-Custody-{identity_digest}",
+        )
+    except (AttributeError, OSError, TypeError):
+        raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP") from None
+    if not handle:
+        raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP")
+    acquired = False
+    try:
+        wait_result = wait_for_single_object(handle, 0xFFFFFFFF)
+        if wait_result == 0x00000080:  # WAIT_ABANDONED
+            if not release_mutex(handle):
+                raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP")
+            raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP")
+        if wait_result != 0x00000000:  # WAIT_OBJECT_0
+            raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP")
+        acquired = True
+        yield
+    finally:
+        release_failed = acquired and not release_mutex(handle)
+        close_failed = not close_handle(handle)
+        if release_failed or close_failed:
+            raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP")
+
+
+@contextmanager
+def _posix_namespace_lock(root: Path, identity_digest: str) -> Iterator[None]:
+    class FlockApi(Protocol):
+        LOCK_EX: int
+        LOCK_UN: int
+
+        def flock(self, descriptor: int, operation: int) -> None: ...
+
+    fcntl = cast(FlockApi, importlib.import_module("fcntl"))
+
+    lock_path = root.parent / f".project-mirror-d02-r2-custody-{identity_digest}.lock"
+    flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(lock_path, flags, 0o600)
+    except OSError:
+        raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP") from None
+    acquired = False
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        acquired = True
+        yield
+    except OSError:
+        raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP") from None
+    finally:
+        try:
+            if acquired:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(descriptor)
+
+
+@contextmanager
+def _namespace_scoped_exclusive_guard(root: Path) -> Iterator[None]:
+    """Serialize one namespace across threads/processes without an inner artifact."""
+
+    try:
+        resolved = root.resolve(strict=False)
+        key = os.path.normcase(str(resolved))
+    except OSError:
+        raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP") from None
+    identity_digest = _sha256(key.encode("utf-8"))
+    with _NAMESPACE_GUARD_REGISTRY_LOCK:
+        guard = _NAMESPACE_GUARDS.setdefault(key, threading.RLock())
+    with guard:
+        held_keys = cast(set[str], getattr(_NAMESPACE_GUARD_STATE, "held_keys", set()))
+        if key in held_keys:
+            yield
+            return
+        _NAMESPACE_GUARD_STATE.held_keys = {*held_keys, key}
+        try:
+            if os.name == "nt":
+                with _windows_namespace_mutex(identity_digest):
+                    yield
+            else:
+                with _posix_namespace_lock(resolved, identity_digest):
+                    yield
+        finally:
+            _NAMESPACE_GUARD_STATE.held_keys = held_keys
 
 
 def _ledger_record(
@@ -4156,6 +4605,8 @@ class SyntheticLocatorCustodyLedger:
     """Deterministic two-copy crash-recovery ledger over a synthetic temp root."""
 
     root: Path
+    bootstrap_implementation_acceptance: TrustedAcceptanceBindingSource = field(repr=False)
+    bootstrap_private_home_acceptance: TrustedAcceptanceBindingSource = field(repr=False)
     mutations: list[str] = field(default_factory=list)
 
     def _path(self, name: str) -> Path:
@@ -4164,25 +4615,27 @@ class SyntheticLocatorCustodyLedger:
         return self.root / name
 
     def _write(self, name: str, record: Mapping[str, object]) -> None:
-        path, raw = self._path(name), canonical_json_bytes(_json_object(record))
-        if path.exists():
-            raise LocatorCustodyError("LOCATOR_NAME_RECEIPT_COLLISION_STOP")
-        path.parent.mkdir(parents=False, exist_ok=False) if False else None
+        path = self._path(name)
+        raw = canonical_json_bytes(_json_object(record))
         try:
+            if path.exists():
+                raise LocatorCustodyError("LOCATOR_NAME_RECEIPT_COLLISION_STOP")
             with path.open("xb") as handle:
                 handle.write(raw)
                 handle.flush()
-        except FileExistsError as exc:
-            raise LocatorCustodyError("LOCATOR_NAME_RECEIPT_COLLISION_STOP") from exc
-        if path.read_bytes() != raw:
-            raise LocatorCustodyError("CUSTODY_DURABILITY_BARRIER_FAILED_STOP")
+            if path.read_bytes() != raw:
+                raise LocatorCustodyError("CUSTODY_DURABILITY_BARRIER_FAILED_STOP")
+        except FileExistsError:
+            raise LocatorCustodyError("LOCATOR_NAME_RECEIPT_COLLISION_STOP") from None
+        except OSError:
+            raise LocatorCustodyError("CUSTODY_DURABILITY_BARRIER_FAILED_STOP") from None
         self.mutations.append(f"FILE:{name}")
 
     def _read(self, name: str) -> JsonObject:
         try:
             return canonical_loads(self._path(name).read_bytes())
-        except (FileNotFoundError, IsADirectoryError) as exc:
-            raise LocatorCustodyError("LOCATOR_INTENT_PARTIAL_OR_CORRUPT_STOP") from exc
+        except (FileNotFoundError, IsADirectoryError, OSError):
+            raise LocatorCustodyError("LOCATOR_INTENT_PARTIAL_OR_CORRUPT_STOP") from None
 
     def bootstrap(
         self,
@@ -4192,41 +4645,206 @@ class SyntheticLocatorCustodyLedger:
         copy_b: Mapping[str, object],
         locator: Mapping[str, object],
     ) -> str:
-        validate_namespace_name_receipt(namespace_receipt)
-        common_digest = validate_common_genesis(common)
-        validate_copy_genesis(copy_a)
-        validate_copy_genesis(copy_b)
-        validate_locator_name_receipt(locator)
-        if self.root.exists() and not self.root.is_dir():
-            raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP")
-        if not self.root.exists():
-            self.root.mkdir()
-            self.mutations.append("DIR:namespace")
-        receipt = self._path(_NAMESPACE_FILE)
-        if not receipt.exists():
-            if any(self.root.iterdir()):
-                raise LocatorCustodyError("CUSTODY_NAMESPACE_DIRECTORY_ONLY_STOP")
-            self._write(_NAMESPACE_FILE, namespace_receipt)
-        elif canonical_json_bytes(self._read(_NAMESPACE_FILE)) != canonical_json_bytes(
-            _json_object(namespace_receipt)
+        try:
+            with _namespace_scoped_exclusive_guard(self.root):
+                namespace, common_value, copy_a_value, copy_b_value, locator_value = (
+                    self._validate_bootstrap_records(
+                        namespace_receipt=namespace_receipt,
+                        common=common,
+                        copy_a=copy_a,
+                        copy_b=copy_b,
+                        locator=locator,
+                    )
+                )
+                root_exists = self.root.exists()
+                if root_exists:
+                    if self.root.is_symlink() or not self.root.is_dir():
+                        raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP")
+                    if not self._path(_NAMESPACE_FILE).exists():
+                        raise LocatorCustodyError("CUSTODY_NAMESPACE_DIRECTORY_ONLY_STOP")
+                    self._validate_bootstrap_prefix(
+                        namespace=namespace,
+                        common=common_value,
+                        copy_a=copy_a_value,
+                        copy_b=copy_b_value,
+                        locator=locator_value,
+                    )
+                if not root_exists:
+                    self.root.mkdir()
+                    self.mutations.append("DIR:namespace")
+                    self._write(_NAMESPACE_FILE, namespace)
+                for item in _SCAFFOLD:
+                    path = self._path(item)
+                    if not path.exists():
+                        path.mkdir()
+                        self.mutations.append(f"DIR:{item}")
+                common_digest = validate_common_genesis(common_value)
+                self._bootstrap_genesis("copy-a", copy_a_value, common_digest)
+                self._bootstrap_genesis("copy-b", copy_b_value, common_digest)
+                location = f"allocations/{_ALLOCATION}/{_LOCATOR_FILE}"
+                if not self._path(location).exists():
+                    self._write(location, locator_value)
+                self._validate_fixed_authority(
+                    namespace_receipt=namespace,
+                    locator_receipt=locator_value,
+                    common_genesis=common_value,
+                    copy_a_genesis=copy_a_value,
+                    copy_b_genesis=copy_b_value,
+                )
+                return "LOCATOR_CUSTODY_BOOTSTRAPPED"
+        except LocatorCustodyError:
+            raise
+        except OSError:
+            raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP") from None
+
+    def _validate_bootstrap_records(
+        self,
+        *,
+        namespace_receipt: Mapping[str, object],
+        common: Mapping[str, object],
+        copy_a: Mapping[str, object],
+        copy_b: Mapping[str, object],
+        locator: Mapping[str, object],
+    ) -> tuple[JsonObject, JsonObject, JsonObject, JsonObject, JsonObject]:
+        anchor = load_locator_bootstrap_authority_anchor(
+            implementation_acceptance=self.bootstrap_implementation_acceptance,
+            private_home_acceptance=self.bootstrap_private_home_acceptance,
+        )
+        namespace = validate_namespace_name_receipt(namespace_receipt)
+        common_value = _json_object(common)
+        common_digest = validate_common_genesis(common_value)
+        copy_a_value = validate_copy_genesis(copy_a)
+        copy_b_value = validate_copy_genesis(copy_b)
+        locator_value = validate_locator_name_receipt(locator)
+        namespace_literals: dict[str, Json] = {
+            "project_id": "PROJECT_MIRROR",
+            "private_home_handle_id": _PRIVATE_HOME_HANDLE_ID,
+            "custody_namespace_id": _CUSTODY_NAMESPACE_ID,
+            "purpose": "D02_R2_SINGLE_ROOT_LOCATOR_CUSTODY_ONLY",
+            "change_control_id": "P3_P7_D02_CC_09",
+            "authority_id": _CUSTODY_AUTHORITY_ID,
+            "allowed_subject_root_ids": [_EVIDENCE_ROOT_ID],
+            "host_binding_acceptance_record_digest": anchor.host_binding_acceptance_record_digest,
+            "private_home_binding_acceptance_record_digest": (
+                anchor.private_home_binding_acceptance_record_digest
+            ),
+            "copy_a_id": _COPY_A_ID,
+            "copy_b_id": _COPY_B_ID,
+            "namespace_first_object_logical_name": _NAMESPACE_FILE,
+            "copy_common_genesis_schema_version": COMMON_GENESIS_SCHEMA,
+            "copy_genesis_receipt_schema_version": COPY_GENESIS_SCHEMA,
+            "locator_name_receipt_schema_version": LOCATOR_RECEIPT_SCHEMA,
+            "event_schema_version": EVENT_SCHEMA,
+            "intent_schema_version": INTENT_SCHEMA,
+            "commit_schema_version": COMMIT_SCHEMA,
+            "snapshot_schema_version": SNAPSHOT_SCHEMA,
+            "transaction_id_schema_version": TRANSACTION_ID_SCHEMA,
+            "locator_schema_version": LOCATOR_SCHEMA,
+            "path_identity_schema_version": PATH_IDENTITY_SCHEMA,
+            "worktree_set_schema_version": WORKTREE_SCHEMA,
+            "canonicalization_version": "demo-canonical-json-v1",
+            "relative_control_manifest": [dict(row) for row in RELATIVE_CONTROL_MANIFEST],
+            "locator_custody_implementation_sha": anchor.implementation_sha,
+            "locator_custody_implementation_acceptance_record_digest": (
+                anchor.implementation_acceptance_record_digest
+            ),
+            "retention_policy": _RETAIN,
+            "cleanup_policy": _CLEANUP,
+            "created_at_utc": anchor.authority_created_at_utc,
+        }
+        if any(namespace[key] != expected for key, expected in namespace_literals.items()):
+            raise LocatorCustodyError("CUSTODY_BOOTSTRAP_AUTHORITY_MISMATCH_STOP")
+        common_literals: dict[str, Json] = {
+            "namespace_receipt_digest": namespace["receipt_digest"],
+            "locator_authority_id": _CUSTODY_AUTHORITY_ID,
+            "allocation_id": _ALLOCATION,
+            "evidence_root_id": _EVIDENCE_ROOT_ID,
+            "root_basename": _EVIDENCE_ROOT_BASENAME,
+            "initial_sequence": 0,
+            "initial_authority_state": None,
+        }
+        if any(common_value[key] != expected for key, expected in common_literals.items()):
+            raise LocatorCustodyError("CUSTODY_BOOTSTRAP_AUTHORITY_MISMATCH_STOP")
+        copy_a_literals: dict[str, Json] = {
+            **common_literals,
+            "copy_id": _COPY_A_ID,
+            "peer_copy_id": _COPY_B_ID,
+            "common_genesis_digest": common_digest,
+            "created_at_utc": anchor.authority_created_at_utc,
+        }
+        copy_b_literals: dict[str, Json] = {
+            **common_literals,
+            "copy_id": _COPY_B_ID,
+            "peer_copy_id": _COPY_A_ID,
+            "common_genesis_digest": common_digest,
+            "created_at_utc": anchor.authority_created_at_utc,
+        }
+        for values in (copy_a_literals, copy_b_literals):
+            values.pop("initial_sequence")
+            values.pop("initial_authority_state")
+        if any(copy_a_value[key] != expected for key, expected in copy_a_literals.items()) or any(
+            copy_b_value[key] != expected for key, expected in copy_b_literals.items()
+        ):
+            raise LocatorCustodyError("LOCATOR_COPY_DIVERGENCE_STOP")
+        locator_literals: dict[str, Json] = {
+            "namespace_receipt_digest": namespace["receipt_digest"],
+            "locator_authority_id": _CUSTODY_AUTHORITY_ID,
+            "allocation_id": _ALLOCATION,
+            "evidence_root_id": _EVIDENCE_ROOT_ID,
+            "root_basename": _EVIDENCE_ROOT_BASENAME,
+            "private_home_handle_id": _PRIVATE_HOME_HANDLE_ID,
+            "destination_class": "D02_R2_EVIDENCE_ROOT",
+            "normalized_relative_locator": ("d02-r2-evidence/p3-p7-d02-r2-cc08-e1-evidence"),
+            "accepted_cc08_plan_sha": _CC08_PLAN_SHA,
+            "accepted_cc08_plan_tree": _CC08_PLAN_TREE,
+            "registry_implementation_sha": _R06_SHA,
+            "registry_implementation_tree": _R06_TREE,
+            "registry_implementation_acceptance_record_digest": _R06_ACCEPTANCE_DIGEST,
+            "registry_implementation_acceptance_authority_digest": (
+                _R06_ACCEPTANCE_AUTHORITY_DIGEST
+            ),
+            "retention": _RETAIN,
+            "allocated_at_utc": anchor.authority_created_at_utc,
+        }
+        if any(locator_value[key] != expected for key, expected in locator_literals.items()):
+            raise LocatorCustodyError("CUSTODY_BOOTSTRAP_AUTHORITY_MISMATCH_STOP")
+        return namespace, common_value, copy_a_value, copy_b_value, locator_value
+
+    def _validate_bootstrap_prefix(
+        self,
+        *,
+        namespace: Mapping[str, object],
+        common: Mapping[str, object],
+        copy_a: Mapping[str, object],
+        copy_b: Mapping[str, object],
+        locator: Mapping[str, object],
+    ) -> None:
+        if canonical_json_bytes(self._read(_NAMESPACE_FILE)) != canonical_json_bytes(
+            _json_object(namespace)
         ):
             raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP")
         self._validate_scaffold_prefix()
-        for item in _SCAFFOLD:
-            path = self._path(item)
-            if not path.exists():
-                path.mkdir()
-                self.mutations.append(f"DIR:{item}")
-        self._bootstrap_genesis("copy-a", copy_a, common_digest)
-        self._bootstrap_genesis("copy-b", copy_b, common_digest)
-        location = f"allocations/{_ALLOCATION}/{_LOCATOR_FILE}"
-        if not self._path(location).exists():
-            self._write(location, locator)
-        elif canonical_json_bytes(self._read(location)) != canonical_json_bytes(
-            _json_object(locator)
-        ):
-            raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP")
-        return "LOCATOR_CUSTODY_BOOTSTRAPPED"
+        if not all(self._path(item).exists() for item in _SCAFFOLD):
+            return
+        common_digest = validate_common_genesis(common)
+        artifact_rows = (
+            (f"copy-a/{_GENESIS_FILE}", copy_a, "LOCATOR_COPY_DIVERGENCE_STOP"),
+            (f"copy-b/{_GENESIS_FILE}", copy_b, "LOCATOR_COPY_DIVERGENCE_STOP"),
+            (
+                f"allocations/{_ALLOCATION}/{_LOCATOR_FILE}",
+                locator,
+                "CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP",
+            ),
+        )
+        for relative_name, expected, code in artifact_rows:
+            path = self._path(relative_name)
+            if path.exists() and canonical_json_bytes(
+                self._read(relative_name)
+            ) != canonical_json_bytes(_json_object(expected)):
+                raise LocatorCustodyError(code)
+        for copy_value in (copy_a, copy_b):
+            if copy_value["common_genesis_digest"] != common_digest:
+                raise LocatorCustodyError("LOCATOR_COPY_DIVERGENCE_STOP")
 
     def _validate_scaffold_prefix(self) -> None:
         existing_scaffold: set[str] = set()
@@ -4306,6 +4924,29 @@ class SyntheticLocatorCustodyLedger:
         self._write(path, record)
 
     def replay(
+        self,
+        *,
+        namespace_receipt: Mapping[str, object],
+        locator_receipt: Mapping[str, object],
+        common_genesis: Mapping[str, object],
+        copy_a_genesis: Mapping[str, object],
+        copy_b_genesis: Mapping[str, object],
+    ) -> tuple[JsonObject, JsonObject]:
+        try:
+            with _namespace_scoped_exclusive_guard(self.root):
+                return self._replay_unlocked(
+                    namespace_receipt=namespace_receipt,
+                    locator_receipt=locator_receipt,
+                    common_genesis=common_genesis,
+                    copy_a_genesis=copy_a_genesis,
+                    copy_b_genesis=copy_b_genesis,
+                )
+        except LocatorCustodyError:
+            raise
+        except OSError:
+            raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP") from None
+
+    def _replay_unlocked(
         self,
         *,
         namespace_receipt: Mapping[str, object],
@@ -4414,13 +5055,11 @@ class SyntheticLocatorCustodyLedger:
         physical_locator = validate_locator_name_receipt(
             self._read(f"allocations/{_ALLOCATION}/{_LOCATOR_FILE}")
         )
-        copy_a = validate_copy_genesis(copy_a_genesis)
-        copy_b = validate_copy_genesis(copy_b_genesis)
-        if canonical_json_bytes(self._read(f"copy-a/{_GENESIS_FILE}")) != canonical_json_bytes(
-            copy_a
-        ) or canonical_json_bytes(self._read(f"copy-b/{_GENESIS_FILE}")) != canonical_json_bytes(
-            copy_b
-        ):
+        copy_a = validate_copy_genesis(self._read(f"copy-a/{_GENESIS_FILE}"))
+        copy_b = validate_copy_genesis(self._read(f"copy-b/{_GENESIS_FILE}"))
+        if canonical_json_bytes(copy_a) != canonical_json_bytes(
+            _json_object(copy_a_genesis)
+        ) or canonical_json_bytes(copy_b) != canonical_json_bytes(_json_object(copy_b_genesis)):
             raise LocatorCustodyError("LOCATOR_COPY_DIVERGENCE_STOP")
         if namespace_receipt is not None and canonical_json_bytes(
             physical_namespace
@@ -4430,10 +5069,17 @@ class SyntheticLocatorCustodyLedger:
             physical_locator
         ) != canonical_json_bytes(_json_object(locator_receipt)):
             raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP")
-        common = (
+        common = self._common_genesis_from_copy(copy_a)
+        if common_genesis is not None and canonical_json_bytes(common) != canonical_json_bytes(
             _json_object(common_genesis)
-            if common_genesis is not None
-            else self._common_genesis_from_copy(copy_a)
+        ):
+            raise LocatorCustodyError("LOCATOR_COPY_DIVERGENCE_STOP")
+        self._validate_bootstrap_records(
+            namespace_receipt=physical_namespace,
+            common=common,
+            copy_a=copy_a,
+            copy_b=copy_b,
+            locator=physical_locator,
         )
         common_digest = validate_common_genesis(common)
         if (
@@ -4824,6 +5470,33 @@ class SyntheticLocatorCustodyLedger:
 
 
 def recover_synthetic_transition(
+    ledger: SyntheticLocatorCustodyLedger,
+    *,
+    event: Mapping[str, object],
+    intent: Mapping[str, object],
+    copy_a_genesis: Mapping[str, object],
+    copy_b_genesis: Mapping[str, object],
+    prior_snapshot: Mapping[str, object],
+    stop_after: str | None = None,
+) -> str:
+    try:
+        with _namespace_scoped_exclusive_guard(ledger.root):
+            return _recover_synthetic_transition_unlocked(
+                ledger,
+                event=event,
+                intent=intent,
+                copy_a_genesis=copy_a_genesis,
+                copy_b_genesis=copy_b_genesis,
+                prior_snapshot=prior_snapshot,
+                stop_after=stop_after,
+            )
+    except LocatorCustodyError:
+        raise
+    except (AttributeError, OSError):
+        raise LocatorCustodyError("CUSTODY_BOOTSTRAP_UNKNOWN_STATE_STOP") from None
+
+
+def _recover_synthetic_transition_unlocked(
     ledger: SyntheticLocatorCustodyLedger,
     *,
     event: Mapping[str, object],
