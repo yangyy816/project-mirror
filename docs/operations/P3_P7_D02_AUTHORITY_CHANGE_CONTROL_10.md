@@ -5,12 +5,15 @@
 ```text
 CHANGE_CONTROL_ID: P3_P7_D02_CC_10
 TRACK: DEMO_PROTOTYPE
-STATUS: CANDIDATE_REVISION_2_PENDING_INDEPENDENT_SOL_EXACT_PLAN_REVIEW
+STATUS: CANDIDATE_REVISION_3_PENDING_INDEPENDENT_SOL_EXACT_PLAN_REVIEW
 BASE_SHA: eacec651518ce84b0a94db28b4fefcb867c2ecff
 TASK_ID: P3_P7_D02_CC10_WINDOWS_HOST_PROJECTION_IMPLEMENTATION_01
 REVISION_1_NEGATIVE_REVIEW_SHA: 543fd14ee4d9c87785d713a47f2d8398084cc30b
 REVISION_1_NEGATIVE_REVIEW_TREE: d8cd73a682443865d22cd79115f0f0e998d3cf11
 REVISION_1_DISPOSITION: REPAIR_REQUIRED_P0_0
+REVISION_2_NEGATIVE_REVIEW_SHA: c74978442e4ca38f794d05fdbaae9d1acf2b79c5
+REVISION_2_NEGATIVE_REVIEW_TREE: 8b4062b1a0e15a10d3e6d8ebef4752d65a871ffe
+REVISION_2_DISPOSITION: REPAIR_REQUIRED_P0_0_P1_3_P2_2_P3_0
 PREDECESSOR_CHANGE_CONTROL: P3_P7_D02_CC_09
 PREDECESSOR_IMPLEMENTATION_SHA: dd16624ed5ff679b03fefc61994f4ea9fd85e71e
 PREDECESSOR_IMPLEMENTATION_ACCEPTANCE_DIGEST: 9421b293f88c6015f1f2f42d449d54bf93bd806fedcf73cb7a76ec4c3bef4f2c
@@ -39,9 +42,10 @@ read-only projection seam; repository inspection proved that those bytes contain
 canonical candidate builder, production emitter or native no-write proof harness. Those capabilities exceed the CC09
 implementation acceptance and therefore require this new change control rather than a Repair Task.
 
-Revision 1 is preserved at the SHA above as negative review evidence. Revision 2 is a normal forward commit and does
-not amend, force-rewrite or relabel those bytes. It closes the exact acceptance-schema, isolated-bootstrap, ETW,
-native-proof, PowerShell, PE and observational-network findings from that review; it still authorizes no execution.
+Revisions 1 and 2 are preserved at the SHAs above as negative review evidence. Revision 3 is a normal forward commit
+and does not amend, force-rewrite or relabel those bytes. It retains revision 2's closure and additionally freezes the
+versioned-ETW flag, terminal STOP/drain/loss sequence, complete proof typing/SC equations, omitted tree equations and
+PowerShell-child process contract; it still authorizes no execution.
 
 ## Accepted predecessor Gate
 
@@ -360,11 +364,14 @@ authorities; object key serialization remains canonical-json sorted.
   "change_control_id": "P3_P7_D02_CC_10",
   "equations": [
     "PLAN_ACCEPTED_GOVERNANCE_SHA_EQ_G10",
+    "PLAN_ACCEPTED_GOVERNANCE_TREE_EQ_TREE_G10",
     "PLAN_REVIEWED_GOVERNANCE_SHA_EQ_G10",
     "PLAN_CI_HEAD_SHA_EQ_G10",
     "PLAN_PRINCIPAL_SHA_EQ_G10",
     "IMPLEMENTATION_ACCEPTED_PLAN_SHA_EQ_G10",
+    "IMPLEMENTATION_ACCEPTED_PLAN_TREE_EQ_TREE_G10",
     "IMPLEMENTATION_SHA_EQ_I10",
+    "IMPLEMENTATION_TREE_EQ_TREE_I10",
     "IMPLEMENTATION_REVIEWED_SHA_EQ_I10",
     "IMPLEMENTATION_CI_HEAD_SHA_EQ_I10",
     "IMPLEMENTATION_PRINCIPAL_SHA_EQ_I10",
@@ -558,7 +565,7 @@ authorities; object key serialization remains canonical-json sorted.
 ```
 
 ```text
-FROZEN_ACCEPTANCE_SCHEMA_CONTRACT_DIGEST: 030220d87a985ad312c90c08e774d4eb805be72fcfca933b5a3f57b4f8954461
+FROZEN_ACCEPTANCE_SCHEMA_CONTRACT_DIGEST: e8d9b8c2fcae83b17e01528dde28eb020a76275d48e4b72d3d148cabe378baa0
 ```
 
 Any key, type, array order, domain, literal, equality or preimage drift is
@@ -729,7 +736,19 @@ machine and version values are replayed from the same held bytes before the sole
 PowerShell is the fixed System32 Windows PowerShell executable and uses exactly:
 
 ```text
--NoLogo -NoProfile -NonInteractive -EncodedCommand <fixed UTF-16LE script>
+lpApplicationName = exact validated System32 Windows PowerShell executable path; never NULL
+lpCommandLine =
+  "<powershell>" -NoLogo -NoProfile -NonInteractive -EncodedCommand <fixed UTF-16LE script>
+lpCurrentDirectory = validated Windows-directory path; never NULL or inherited
+dwCreationFlags =
+  CREATE_SUSPENDED(0x00000004) |
+  CREATE_UNICODE_ENVIRONMENT(0x00000400) |
+  EXTENDED_STARTUPINFO_PRESENT(0x00080000) |
+  CREATE_NO_WINDOW(0x08000000)
+bInheritHandles = TRUE only with PROC_THREAD_ATTRIBUTE_HANDLE_LIST
+STARTF_USESTDHANDLES = TRUE
+inherited handles = stdin EOF-read, stdout-write and stderr-write only
+source, measurement-dependency and acceptance handles = MUST_NOT_BE_INHERITED
 ```
 
 `-ExecutionPolicy`, `-File`, arbitrary command/script/path input, shell and cmd launch are forbidden. Its sorted
@@ -750,6 +769,13 @@ script sets `ErrorActionPreference=Stop`, Warning/Information/Verbose/Progress p
 projects exactly the frozen rows. Failure in this environment stops; user profile, cache, temp, PATH or inherited
 environment is never added as fallback. `PSModuleAnalysisCachePath=NUL` is prevention only; any observed persistent
 profile/module/cache write is `POWERSHELL_ENVIRONMENT_OR_CACHE_WRITE_STOP`.
+
+The PowerShell executable is held without write/delete sharing. Before `ResumeThread`, the mapped-image identity is
+replayed through `QueryFullProcessImageNameW` plus a second read-only mapped-path handle while the original lock is
+still held, using the same volume/file identity, size and SHA-256 equality as the Python target. The suspended child
+must already be in the same non-breakaway Job, and `IsProcessInJob` plus Job accounting must prove membership before
+resume. `CREATE_BREAKAWAY_FROM_JOB`, an inherited source/dependency/acceptance handle, an inherited caller handle or
+an unverified mapped image is `CC10_EXECUTED_IMAGE_IDENTITY_UNPROVEN_STOP`.
 
 The collector reproduces the accepted two manifests, three nested members, three cmdlet rows, four script rows,
 four-part PowerShell version and runtime closure. stdout contains one bounded canonical projection; stderr, an extra
@@ -795,7 +821,7 @@ Principal recovery/change control or host restart evidence; it is never silently
 uses `EVENT_TRACE_PROPERTIES_V2` with:
 
 ```text
-Wnode.Flags = WNODE_FLAG_TRACED_GUID
+Wnode.Flags = WNODE_FLAG_TRACED_GUID | WNODE_FLAG_VERSIONED_PROPERTIES
 Wnode.ClientContext = 1
 Wnode.Guid = GUID_NULL
 Wnode.BufferSize = aligned sizeof(EVENT_TRACE_PROPERTIES_V2) plus exact inline session-name bytes
@@ -913,11 +939,21 @@ also increments successful mutation. Any Winsock-AFD or NameResolution event att
 PowerShell child fails. Unknown required version/schema, malformed TDH data, ambiguous PID/process-sequence mapping,
 unresolved status or out-of-order evidence stops; no provider event is silently dropped.
 
-After all target/child handles are signalled and the consumer is drained, `ControlTraceW(...,QUERY)` into the exact
-`EVENT_TRACE_PROPERTIES_V2` must report integer zero for `EventsLost`, `LogBuffersLost` and `RealTimeBuffersLost`.
-Then `CloseTrace` succeeds, `ControlTraceW(owned TRACEHANDLE,exact name,STOP)` succeeds and exact-name QUERY returns
-only `ERROR_WMI_INSTANCE_NOT_FOUND`. The Job has zero active processes; all process/thread/pipe/socket/token/session
-handles are closed; privilege replay passes. Any failure is `ETW_EVENT_LOSS_STOP` or `ETW_CLEANUP_FAILED_STOP`.
+After all target/child handles are signalled, the only terminal sequence is:
+
+```text
+ControlTraceW(owned TRACEHANDLE, exact name, STOP) returns final EVENT_TRACE_PROPERTIES_V2
+-> ProcessTrace completes delivery and the consumer thread joins
+-> final STOP-time EventsLost/LogBuffersLost/RealTimeBuffersLost are each validated as integer zero
+-> CloseTrace closes the consumer handle
+-> exact-name QUERY returns only ERROR_WMI_INSTANCE_NOT_FOUND
+```
+
+A pre-STOP QUERY is not final loss authority, and `CloseTrace` must not precede the owned STOP, complete drain/join or
+final loss validation. The Job then has zero active processes; all process/thread/pipe/socket/token/session handles
+are closed; privilege replay passes. Any missing versioned-properties flag, STOP output, drain/join, final loss value,
+consumer close or absence replay is `NATIVE_NO_WRITE_PROOF_UNAVAILABLE_STOP`, `ETW_EVENT_LOSS_STOP` or
+`ETW_CLEANUP_FAILED_STOP` and cannot produce a proof or candidate.
 
 No `.etl`, AutoLogger, Procmon log, event dump or private trace exists. The combined claim is limited to zero collector
 PID-tree persistent filesystem/registry mutation and zero attributable collector network events under a complete,
@@ -933,7 +969,11 @@ Raw ETW is never retained. After the authorized native Gate, the path-free canon
 ```text
 schema_version, authority_id, change_control_id, proof_task_id, proof_run_id,
 implementation_sha, implementation_tree, implementation_acceptance_record_digest,
+implementation_acceptance_state_sha, implementation_acceptance_state_tree,
+implementation_acceptance_path, implementation_acceptance_git_blob_oid,
+implementation_acceptance_file_sha256,
 plan_acceptance_record_digest, schema_contract_digest, host_projection_contract_digest,
+candidate_sha, candidate_tree, candidate_path, candidate_git_blob_oid,
 candidate_record_digest, candidate_file_sha256, candidate_byte_size,
 os_build, os_architecture, python_version,
 invocation_contract_digest, runtime_dependency_digest, synthetic_ledger_digest, etw_contract_digest,
@@ -949,6 +989,73 @@ result, record_created_at_utc, record_digest
 `candidate_byte_size` is an integer in `[1,65536]`; all other counters below are nonnegative non-boolean integers.
 `os_build` is a dotted decimal Windows build token, and `python_version` is the bounded dotted decimal version returned
 by the verified executable; neither accepts arbitrary host text.
+
+Native-proof bytes use `demo-canonical-json-v1` exactly: UTF-8 without BOM, duplicate keys rejected, no insignificant
+whitespace, lexicographically sorted object keys, preserved array order, only JSON booleans/integers/strings/null and
+no terminal LF. The top-level key set above and every nested key set below are exact; extension keys are forbidden.
+`record_digest = TD(schema_version, record excluding only record_digest)`. The fixed path is
+`docs/operations/P3_P7_D02_R2_WINDOWS_HOST_PROJECTION_NATIVE_PROOF.json`; the fixed candidate path is
+`docs/operations/P3_P7_D02_R2_WINDOWS_HOST_BINDING_CANDIDATE.json`.
+
+The scalar authority is fully typed:
+
+```text
+schema_version = literal mirror.demo/D02R2WindowsHostProjectionNativeProof/v1
+authority_id = literal P3_P7_D02_R2_WINDOWS_HOST_PROJECTION_NATIVE_PROOF_01
+change_control_id = literal P3_P7_D02_CC_10
+proof_task_id = literal P3_P7_D02_CC10_NATIVE_PROOF_01
+proof_run_id = exactly 32 lowercase hex
+all *_sha and *_tree values = exactly 40 lowercase hex
+all *_git_blob_oid values = exactly 40 lowercase hex
+all *_digest and *_sha256 values = exactly 64 lowercase hex
+implementation_acceptance_path = fixed implementation-acceptance path above
+candidate_path = fixed candidate path above
+candidate_byte_size = non-boolean integer [1,65536]
+os_build = four canonical unsigned decimal components, each [0,4294967295]
+os_architecture = literal AMD64
+python_version = three canonical unsigned decimal components, each [0,4294967295]
+private_retention = literal RAW_ETW_NONE_PRIVATE_PREIMAGE_MEMORY_ONLY
+network_claim = literal ZERO_TARGET_ATTRIBUTED_NETWORK_EVENTS_OBSERVED_NOT_EGRESS_ENFORCEMENT
+result = literal PASS
+record_created_at_utc = normalized YYYY-MM-DDTHH:MM:SS.ffffffZ
+record_digest = exactly 64 lowercase hex
+```
+
+Every nested `PASS`, `NOT_PROVIDED_BY_CC10`, boolean and fixed count below is an exact literal. Every variable count is
+a non-boolean integer within its stated range; no float, negative zero, implicit timestamp, path, unordered set or
+extra key is authority. Duplicate, noncanonical, ill-typed or out-of-range proof bytes are
+`CC10_HOST_PROJECTION_CONTRACT_MISMATCH_STOP`.
+
+The final proof is constructed only after SC exists and obeys all of these equations:
+
+```text
+proof.implementation_sha = I10
+proof.implementation_tree = tree(I10)
+proof.implementation_acceptance_state_sha = S10
+proof.implementation_acceptance_state_tree = tree(S10)
+proof.implementation_acceptance_path = fixed implementation-acceptance path
+proof.implementation_acceptance_git_blob_oid = blob(S10:implementation-acceptance path)
+proof.implementation_acceptance_file_sha256 = SHA256(bytes(S10:implementation-acceptance path))
+proof.implementation_acceptance_record_digest = A.record_digest
+proof.plan_acceptance_record_digest = A.accepted_plan_acceptance_record_digest
+proof.schema_contract_digest = A.schema_contract_digest
+proof.host_projection_contract_digest = A.host_projection_contract_digest
+proof.candidate_sha = SC
+proof.candidate_tree = tree(SC)
+proof.candidate_path = fixed candidate path
+proof.candidate_git_blob_oid = blob(SC:candidate path)
+proof.candidate_file_sha256 = SHA256(bytes(SC:candidate path))
+proof.candidate_byte_size = byte_size(SC:candidate path)
+proof.candidate_record_digest = C.record_digest
+C = strict canonical record parsed from exact bytes(SC:candidate path)
+SC:<implementation-acceptance path> byte-equals S10:<implementation-acceptance path>
+```
+
+The native observation necessarily precedes SC. It therefore produces only one path-free, non-authoritative,
+untracked observation draft with no claimed SC SHA/tree/blob and no native-proof `record_digest` authority. After the
+candidate-only SC commit has passed independent review and same-SHA CI, the Principal binds exact S10/A/I10 and SC/C
+bytes to construct the final canonical proof record for SH. A draft may never be renamed, re-signed or cited as the
+final proof, and SC fields may never be predicted before SC exists.
 
 The four subordinate digests are exact:
 
@@ -1044,6 +1151,7 @@ loss_counters = {
 
 lifecycle = {
   session_preexisting: false,
+  versioned_properties_flag_present: true,
   all_providers_enabled: true,
   mapped_python_identity_replayed: true,
   mapped_powershell_identity_replayed: true,
@@ -1053,9 +1161,14 @@ lifecycle = {
 }
 
 cleanup = {
-  close_trace: PASS,
   control_trace_stop: PASS,
+  stop_returned_final_properties: true,
+  process_trace_drain_complete: true,
+  consumer_thread_joined: true,
+  final_loss_counters_validated: true,
+  close_trace: PASS,
   session_absence_replay: PASS,
+  terminal_sequence: CONTROL_TRACE_STOP_THEN_PROCESS_TRACE_DRAIN_JOIN_THEN_FINAL_LOSS_VALIDATION_THEN_CLOSE_TRACE_THEN_ABSENCE_REPLAY,
   job_active_processes: 0,
   job_closed: true,
   process_thread_pipe_socket_handles_closed: true,
@@ -1069,12 +1182,13 @@ registry value or raw preimage. Those values may exist only transiently in contr
 from repr/errors/stdout/stderr and are gone when handles/processes close. CC10 therefore means “not persisted,
 tracked, logged or output”, not “private preimages never existed in memory”.
 
-Immediately after the one native run, the Principal writes the exact path-free canonical proof summary to the fixed
-future tracked path above and records its SHA-256; no raw trace accompanies it. It remains an explicit untracked public
-evidence file while SC stages and commits only the candidate path. After SC review/CI, the Principal constructs host
-acceptance and SH stages exactly the unchanged proof summary plus host acceptance. If that public summary is missing
-or changes, the run is not reconstructed from prose and the proof stops. This Git-evidence write occurs outside the
-observed collector PID tree and does not authorize the collector, PowerShell or worker to write any path.
+Immediately after the one native run, the Principal preserves the exact path-free observation as the explicitly
+non-authoritative untracked draft defined above; no raw trace accompanies it. SC stages and commits only the candidate
+path. After SC review/CI, the Principal reopens exact S10/A and SC/C Git bytes, verifies every frozen equation and
+constructs the final canonical proof at the fixed future tracked path. SH stages that proof plus host acceptance. If
+the observation draft is missing or changes before construction, the run is not reconstructed from prose and the
+proof stops. These Principal Git-evidence writes occur outside the observed collector PID tree and do not authorize
+the collector, PowerShell or worker to write any path.
 
 The proof is committed with later host acceptance, not with SC. The unchanged CC09 host-acceptance schema binds it
 through `independent_review.evidence_digest`, exactly:
@@ -1210,7 +1324,19 @@ implementation must expose the same payload as a pure constant builder; neither 
       "minimum_buffers": 64,
       "name_prefix": "ProjectMirror.CC10.NativeNoWrite.",
       "raw_retention": "NONE",
+      "terminal_sequence": [
+        "CONTROL_TRACE_STOP_OWNED_HANDLE_RETURNS_FINAL_PROPERTIES",
+        "PROCESS_TRACE_COMPLETE_DRAIN",
+        "CONSUMER_THREAD_JOIN",
+        "VALIDATE_FINAL_STOP_TIME_LOSS_COUNTERS",
+        "CLOSE_TRACE_CONSUMER_HANDLE",
+        "EXACT_NAME_ABSENCE_REPLAY"
+      ],
       "version_number": 2,
+      "wnode_flags": [
+        "WNODE_FLAG_TRACED_GUID",
+        "WNODE_FLAG_VERSIONED_PROPERTIES"
+      ],
       "wnode_guid": "GUID_NULL"
     }
   },
@@ -1233,6 +1359,7 @@ implementation must expose the same payload as a pure constant builder; neither 
     "wintrust": "FORBIDDEN"
   },
   "powershell": {
+    "application_name": "EXACT_VALIDATED_SYSTEM32_WINDOWS_POWERSHELL",
     "arguments": [
       "-NoLogo",
       "-NoProfile",
@@ -1240,6 +1367,14 @@ implementation must expose the same payload as a pure constant builder; neither 
       "-EncodedCommand",
       "FIXED_UTF16LE_SCRIPT"
     ],
+    "command_line": "EXACT_QUOTED_APPLICATION_NAME_PLUS_FIXED_ARGUMENTS",
+    "creation_flags": [
+      "CREATE_SUSPENDED",
+      "CREATE_UNICODE_ENVIRONMENT",
+      "EXTENDED_STARTUPINFO_PRESENT",
+      "CREATE_NO_WINDOW"
+    ],
+    "cwd": "VALIDATED_WINDOWS_DIRECTORY",
     "environment_keys": [
       "COMSPEC",
       "PSModuleAnalysisCachePath",
@@ -1247,9 +1382,23 @@ implementation must expose the same payload as a pure constant builder; neither 
       "SystemRoot",
       "windir"
     ],
+    "forbidden_inherited_handle_roles": [
+      "SOURCE_READ",
+      "MEASUREMENT_READ",
+      "ACCEPTANCE_READ"
+    ],
+    "handle_inheritance": "TRUE_WITH_PROC_THREAD_ATTRIBUTE_HANDLE_LIST_ONLY",
+    "inherited_handle_roles": [
+      "STDIN_EOF_READ",
+      "STDOUT_WRITE",
+      "STDERR_WRITE"
+    ],
+    "job_membership": "SAME_NON_BREAKAWAY_JOB_VERIFIED_BEFORE_RESUME",
+    "mapped_image_identity": "HELD_NO_WRITE_DELETE_SHARE_PLUS_QUERY_FULL_PROCESS_IMAGE_NAME_PLUS_FILE_ID_SIZE_SHA_REPLAY_BEFORE_RESUME",
     "module_analysis_cache": "NUL",
     "module_autoloading": "NONE",
-    "persistent_write": "STOP"
+    "persistent_write": "STOP",
+    "startup_stdio": "STARTF_USESTDHANDLES_TRUE"
   },
   "privilege": {
     "name": "SeSystemProfilePrivilege",
@@ -1262,6 +1411,28 @@ implementation must expose the same payload as a pure constant builder; neither 
     "result": "CANONICAL_HOST_CANDIDATE_BYTES_ONLY"
   },
   "proof_schema": {
+    "authority_equations": [
+      "PROOF_IMPLEMENTATION_SHA_EQ_I10",
+      "PROOF_IMPLEMENTATION_TREE_EQ_TREE_I10",
+      "PROOF_IMPLEMENTATION_ACCEPTANCE_STATE_SHA_EQ_S10",
+      "PROOF_IMPLEMENTATION_ACCEPTANCE_STATE_TREE_EQ_TREE_S10",
+      "PROOF_IMPLEMENTATION_ACCEPTANCE_PATH_EQ_FIXED",
+      "PROOF_IMPLEMENTATION_ACCEPTANCE_BLOB_EQ_BLOB_S10_PATH",
+      "PROOF_IMPLEMENTATION_ACCEPTANCE_FILE_SHA_EQ_SHA256_S10_PATH",
+      "PROOF_IMPLEMENTATION_ACCEPTANCE_RECORD_DIGEST_EQ_A_RECORD_DIGEST",
+      "PROOF_PLAN_ACCEPTANCE_RECORD_DIGEST_EQ_A_ACCEPTED_PLAN_RECORD_DIGEST",
+      "PROOF_SCHEMA_CONTRACT_DIGEST_EQ_A_SCHEMA_CONTRACT_DIGEST",
+      "PROOF_HOST_CONTRACT_DIGEST_EQ_A_HOST_CONTRACT_DIGEST",
+      "PROOF_CANDIDATE_SHA_EQ_SC",
+      "PROOF_CANDIDATE_TREE_EQ_TREE_SC",
+      "PROOF_CANDIDATE_PATH_EQ_FIXED",
+      "PROOF_CANDIDATE_BLOB_EQ_BLOB_SC_PATH",
+      "PROOF_CANDIDATE_FILE_SHA_EQ_SHA256_SC_PATH",
+      "PROOF_CANDIDATE_BYTE_SIZE_EQ_SIZE_SC_PATH",
+      "PROOF_CANDIDATE_RECORD_DIGEST_EQ_C_RECORD_DIGEST",
+      "CANDIDATE_STRICT_CANONICAL_BYTES_EQ_SC_C",
+      "SC_IMPLEMENTATION_ACCEPTANCE_BYTES_EQ_S10"
+    ],
     "calibration_keys": [
       "file_event_header_pid_attribution",
       "file_create_disposition_decode",
@@ -1280,15 +1451,68 @@ implementation must expose the same payload as a pure constant builder; neither 
       "persistent_registry_mutation_count",
       "result"
     ],
+    "candidate_path": "docs/operations/P3_P7_D02_R2_WINDOWS_HOST_BINDING_CANDIDATE.json",
+    "canonicalization": "demo-canonical-json-v1",
     "cleanup_keys": [
-      "close_trace",
       "control_trace_stop",
+      "stop_returned_final_properties",
+      "process_trace_drain_complete",
+      "consumer_thread_joined",
+      "final_loss_counters_validated",
+      "close_trace",
       "session_absence_replay",
+      "terminal_sequence",
       "job_active_processes",
       "job_closed",
       "process_thread_pipe_socket_handles_closed",
       "privilege_restored",
       "result"
+    ],
+    "duplicate_keys": "REJECT",
+    "field_type_rules": [
+      "schema_version=LITERAL:mirror.demo/D02R2WindowsHostProjectionNativeProof/v1",
+      "authority_id=LITERAL:P3_P7_D02_R2_WINDOWS_HOST_PROJECTION_NATIVE_PROOF_01",
+      "change_control_id=LITERAL:P3_P7_D02_CC_10",
+      "proof_task_id=LITERAL:P3_P7_D02_CC10_NATIVE_PROOF_01",
+      "proof_run_id=LOWER_HEX_32",
+      "implementation_sha=LOWER_HEX_40",
+      "implementation_tree=LOWER_HEX_40",
+      "implementation_acceptance_record_digest=LOWER_HEX_64",
+      "implementation_acceptance_state_sha=LOWER_HEX_40",
+      "implementation_acceptance_state_tree=LOWER_HEX_40",
+      "implementation_acceptance_path=LITERAL:docs/operations/P3_P7_D02_R2_WINDOWS_HOST_PROJECTION_IMPLEMENTATION_ACCEPTANCE.json",
+      "implementation_acceptance_git_blob_oid=LOWER_HEX_40",
+      "implementation_acceptance_file_sha256=LOWER_HEX_64",
+      "plan_acceptance_record_digest=LOWER_HEX_64",
+      "schema_contract_digest=LOWER_HEX_64",
+      "host_projection_contract_digest=LOWER_HEX_64",
+      "candidate_sha=LOWER_HEX_40",
+      "candidate_tree=LOWER_HEX_40",
+      "candidate_path=LITERAL:docs/operations/P3_P7_D02_R2_WINDOWS_HOST_BINDING_CANDIDATE.json",
+      "candidate_git_blob_oid=LOWER_HEX_40",
+      "candidate_record_digest=LOWER_HEX_64",
+      "candidate_file_sha256=LOWER_HEX_64",
+      "candidate_byte_size=NONBOOLEAN_INTEGER_1_TO_65536",
+      "os_build=CANONICAL_DOTTED_UINT32_X4",
+      "os_architecture=LITERAL:AMD64",
+      "python_version=CANONICAL_DOTTED_UINT32_X3",
+      "invocation_contract_digest=LOWER_HEX_64",
+      "runtime_dependency_digest=LOWER_HEX_64",
+      "synthetic_ledger_digest=LOWER_HEX_64",
+      "etw_contract_digest=LOWER_HEX_64",
+      "process_tree=EXACT_OBJECT:process_tree_keys",
+      "calibration=EXACT_OBJECT:calibration_keys",
+      "filesystem_observation=EXACT_OBJECT:filesystem_observation_keys",
+      "registry_observation=EXACT_OBJECT:registry_observation_keys",
+      "network_observation=EXACT_OBJECT:network_observation_keys",
+      "loss_counters=EXACT_OBJECT:loss_counter_keys",
+      "lifecycle=EXACT_OBJECT:lifecycle_keys",
+      "cleanup=EXACT_OBJECT:cleanup_keys",
+      "private_retention=LITERAL:RAW_ETW_NONE_PRIVATE_PREIMAGE_MEMORY_ONLY",
+      "network_claim=LITERAL:ZERO_TARGET_ATTRIBUTED_NETWORK_EVENTS_OBSERVED_NOT_EGRESS_ENFORCEMENT",
+      "result=LITERAL:PASS",
+      "record_created_at_utc=NORMALIZED_UTC_6_FRACTIONAL_DIGITS",
+      "record_digest=LOWER_HEX_64"
     ],
     "field_keys": [
       "schema_version",
@@ -1299,9 +1523,18 @@ implementation must expose the same payload as a pure constant builder; neither 
       "implementation_sha",
       "implementation_tree",
       "implementation_acceptance_record_digest",
+      "implementation_acceptance_state_sha",
+      "implementation_acceptance_state_tree",
+      "implementation_acceptance_path",
+      "implementation_acceptance_git_blob_oid",
+      "implementation_acceptance_file_sha256",
       "plan_acceptance_record_digest",
       "schema_contract_digest",
       "host_projection_contract_digest",
+      "candidate_sha",
+      "candidate_tree",
+      "candidate_path",
+      "candidate_git_blob_oid",
       "candidate_record_digest",
       "candidate_file_sha256",
       "candidate_byte_size",
@@ -1336,6 +1569,7 @@ implementation must expose the same payload as a pure constant builder; neither 
     ],
     "lifecycle_keys": [
       "session_preexisting",
+      "versioned_properties_flag_present",
       "all_providers_enabled",
       "mapped_python_identity_replayed",
       "mapped_powershell_identity_replayed",
@@ -1355,6 +1589,94 @@ implementation must expose the same payload as a pure constant builder; neither 
       "enforcement",
       "result"
     ],
+    "nested_value_rules": {
+      "calibration": [
+        "file_event_header_pid_attribution=LITERAL:PASS",
+        "file_create_disposition_decode=LITERAL:PASS",
+        "file_irp_operation_end_correlation=LITERAL:PASS",
+        "registry_event_header_pid_attribution=LITERAL:PASS",
+        "afd_target_attribution=LITERAL:PASS",
+        "name_resolution_target_attribution=LITERAL:PASS",
+        "file_read_probe_count=NONBOOLEAN_INTEGER_GTE_1",
+        "registry_query_probe_count=NONBOOLEAN_INTEGER_GTE_1",
+        "file_mutator_intent_count=INTEGER_0",
+        "registry_mutator_intent_count=INTEGER_0",
+        "loopback_afd_event_count=NONBOOLEAN_INTEGER_GTE_1",
+        "localhost_name_resolution_event_count=NONBOOLEAN_INTEGER_GTE_1",
+        "non_loopback_network_event_count=INTEGER_0",
+        "persistent_filesystem_mutation_count=INTEGER_0",
+        "persistent_registry_mutation_count=INTEGER_0",
+        "result=LITERAL:PASS"
+      ],
+      "cleanup": [
+        "control_trace_stop=LITERAL:PASS",
+        "stop_returned_final_properties=BOOLEAN_TRUE",
+        "process_trace_drain_complete=BOOLEAN_TRUE",
+        "consumer_thread_joined=BOOLEAN_TRUE",
+        "final_loss_counters_validated=BOOLEAN_TRUE",
+        "close_trace=LITERAL:PASS",
+        "session_absence_replay=LITERAL:PASS",
+        "terminal_sequence=LITERAL:CONTROL_TRACE_STOP_THEN_PROCESS_TRACE_DRAIN_JOIN_THEN_FINAL_LOSS_VALIDATION_THEN_CLOSE_TRACE_THEN_ABSENCE_REPLAY",
+        "job_active_processes=INTEGER_0",
+        "job_closed=BOOLEAN_TRUE",
+        "process_thread_pipe_socket_handles_closed=BOOLEAN_TRUE",
+        "privilege_restored=BOOLEAN_TRUE",
+        "result=LITERAL:PASS"
+      ],
+      "filesystem_observation": [
+        "open_existing_event_count=NONBOOLEAN_INTEGER_GTE_1",
+        "mutator_intent_count=INTEGER_0",
+        "mutator_success_count=INTEGER_0",
+        "unresolved_irp_count=INTEGER_0",
+        "unsupported_result_event_count=INTEGER_0",
+        "result=LITERAL:PASS"
+      ],
+      "lifecycle": [
+        "session_preexisting=BOOLEAN_FALSE",
+        "versioned_properties_flag_present=BOOLEAN_TRUE",
+        "all_providers_enabled=BOOLEAN_TRUE",
+        "mapped_python_identity_replayed=BOOLEAN_TRUE",
+        "mapped_powershell_identity_replayed=BOOLEAN_TRUE",
+        "output_frame_valid=BOOLEAN_TRUE",
+        "candidate_replay_valid=BOOLEAN_TRUE",
+        "result=LITERAL:PASS"
+      ],
+      "loss_counters": [
+        "events_lost=INTEGER_0",
+        "log_buffers_lost=INTEGER_0",
+        "real_time_buffers_lost=INTEGER_0"
+      ],
+      "network_observation": [
+        "afd_target_event_count=INTEGER_0",
+        "name_resolution_target_event_count=INTEGER_0",
+        "unattributed_provider_event_count=INTEGER_0",
+        "enforcement=LITERAL:NOT_PROVIDED_BY_CC10",
+        "result=LITERAL:PASS"
+      ],
+      "process_tree": [
+        "identity_field=LITERAL:ProcessSequenceNumber",
+        "observer_before_calibration=BOOLEAN_TRUE",
+        "observer_before_target=BOOLEAN_TRUE",
+        "target_created_suspended=BOOLEAN_TRUE",
+        "job_assigned_before_resume=BOOLEAN_TRUE",
+        "job_breakaway_forbidden=BOOLEAN_TRUE",
+        "job_active_process_limit=INTEGER_2",
+        "calibration_process_count=INTEGER_1",
+        "collector_process_count=INTEGER_1",
+        "powershell_child_count=INTEGER_1",
+        "unexpected_process_count=INTEGER_0",
+        "all_processes_terminal=BOOLEAN_TRUE",
+        "result=LITERAL:PASS"
+      ],
+      "registry_observation": [
+        "query_event_count=NONBOOLEAN_INTEGER_GTE_1",
+        "mutator_intent_count=INTEGER_0",
+        "mutator_success_count=INTEGER_0",
+        "unsupported_result_event_count=INTEGER_0",
+        "result=LITERAL:PASS"
+      ]
+    },
+    "observation_draft_authority": "NONE_NONAUTHORITY_UNTRACKED_UNTIL_SC",
     "process_tree_keys": [
       "identity_field",
       "observer_before_calibration",
@@ -1370,6 +1692,8 @@ implementation must expose the same payload as a pure constant builder; neither 
       "all_processes_terminal",
       "result"
     ],
+    "proof_path": "docs/operations/P3_P7_D02_R2_WINDOWS_HOST_PROJECTION_NATIVE_PROOF.json",
+    "record_digest_equation": "TD_SCHEMA_VERSION_RECORD_EXCLUDING_ONLY_RECORD_DIGEST",
     "registry_observation_keys": [
       "query_event_count",
       "mutator_intent_count",
@@ -1426,7 +1750,7 @@ implementation must expose the same payload as a pure constant builder; neither 
 ```
 
 ```text
-FROZEN_HOST_PROJECTION_CONTRACT_DIGEST: 15ddf5dc65135dae9f878ce16e85cfe7c9f552f759e9f33e9299e5caba45fe9d
+FROZEN_HOST_PROJECTION_CONTRACT_DIGEST: 501045318a46444eb9883625abf407d8d0e39c46151e4ab394a00b8d6cd9478b
 ```
 
 The decimal provider keyword values above are exact encodings of `0x1EF0` and `0x5344`. Any implementation constant,
@@ -1466,8 +1790,11 @@ Cross-platform tests must prove:
 - all accepted CC09 tests and candidate keys/literals/digests remain unchanged;
 - exact plan/implementation nested key sets, ordered literal arrays, G10/I10 SHA equations and both contract digest
   preimages replay;
+- all three tree equations are present in the acceptance-schema preimage and fail when any tree differs;
 - the external S10 loader rejects duplicate/noncanonical acceptance, unbound measurement dependency, wrong blob/SHA,
   path-based import and future-acceptance cycles;
+- final native-proof bytes reject duplicate/noncanonical JSON, any wrong top-level or nested type/literal/range,
+  `record_digest` drift, predicted SC fields, S10/A/I10 or SC/C Git-binding drift and observation-draft substitution;
 - production entry has zero parameters and returns bytes only;
 - caller path/backend/timestamp/candidate/environment/output injection is impossible;
 - identical observation/timestamp produces byte-identical candidate bytes;
@@ -1480,8 +1807,9 @@ Cross-platform tests must prove:
 - same text/different identity, changed hash/version/machine and mid-read replacement fail;
 - PE duplicate resource, malformed bounds/UTF-16, missing translation and cross-translation text conflict fail;
 - every PowerShell manifest/member/cmdlet/script/runtime closure equality and ordering is attacked;
-- exact target/PowerShell environment, handle allowlist, output framing, mapped-image identity and privilege replay are
-  attacked;
+- exact target/PowerShell application name, command line, cwd, creation flags, environment, handle allowlist,
+  `STARTF_USESTDHANDLES`, mapped-image identity, same-Job pre-resume membership and privilege replay are attacked;
+- PowerShell is rejected if it inherits source, measurement, acceptance or any caller handle;
 - clock injection, multiple reads, invalid FILETIME, rounding drift and malformed UTC fail;
 - Ruff, strict mypy, targeted pytest and `git diff --check` pass.
 
@@ -1498,6 +1826,8 @@ Native Windows tests must prove:
   mutation;
 - collector attempted-mutator counts, successful mutations, target Winsock/DNS events and all ETW loss counters are
   zero;
+- removing `WNODE_FLAG_VERSIONED_PROPERTIES`, using v1-sized properties, validating pre-STOP QUERY loss, closing the
+  consumer before STOP/drain or skipping consumer join/final STOP-time counters is rejected;
 - ETW session, Job, child, handles and temporary privilege are fully cleaned;
 - candidate/proof contain no absolute path, SID, file ID, volume serial, PID or trace payload;
 - no Provider is called; network conclusion is observational zero-event evidence, not egress enforcement.
@@ -1582,7 +1912,8 @@ Principal reviews actual bytes and decides every acceptance.
 CURRENT:
   CC09_IMPLEMENTATION_ACCEPTED
   CC10_REVISION_1=REPAIR_REQUIRED_PRESERVED
-  CC10_REVISION_2=PENDING_INDEPENDENT_EXACT_PLAN_REVIEW
+  CC10_REVISION_2=REPAIR_REQUIRED_PRESERVED
+  CC10_REVISION_3=PENDING_INDEPENDENT_EXACT_PLAN_REVIEW
   NEXT_READY_NODE=P3_P7_D02_CC_10_GOVERNANCE
 
 AFTER_CC10_PLAN_ACCEPTANCE:
