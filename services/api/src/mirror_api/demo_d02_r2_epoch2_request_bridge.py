@@ -94,6 +94,62 @@ _DISPATCH_KEYS: Final = (
     "dispatch_state",
     "source_producer_dispatch_digest",
 )
+_RESERVE_ACTIVATION_KEYS: Final = (
+    "schema_version",
+    "authority_id",
+    "accepted_capability_digest",
+    "accepted_e2_plan_sha",
+    "accepted_e2_plan_tree",
+    "accepted_e2_plan_file_sha256",
+    "e1_terminal_head_digest",
+    "e1_terminal_event_count",
+    "e1_actual_call_count",
+    "e2_dispatch_epoch",
+    "e2_root_id",
+    "e2_root_name_receipt_digest",
+    "e2_task_id",
+    "e2_producer_task_id",
+    "e2_private_namespace_id",
+    "reserve_calls_authorized",
+    "retry_ceiling",
+    "concurrency",
+    "total_actual_call_ceiling",
+    "allocations",
+    "egress_lease_policy",
+    "activation_state",
+    "reserve_activation_digest",
+)
+_RESERVE_ALLOCATION_KEYS: Final = (
+    "candidate_ordinal",
+    "source_output_id",
+    "source_name_receipt_digest",
+    "provenance_output_id",
+    "provenance_name_receipt_digest",
+    "prompt_material_digest",
+)
+_GENERATION_REQUEST_KEYS: Final = (
+    "schema_version",
+    "reserve_activation_digest",
+    "generation_capability_authority_digest",
+    "generation_preregistration_digest",
+    "e2_root_id",
+    "e2_root_name_receipt_digest",
+    "producer_task_id",
+    "dispatch_epoch",
+    "candidate_ordinal",
+    "source_output_id",
+    "source_name_receipt_digest",
+    "provenance_output_id",
+    "provenance_name_receipt_digest",
+    "prompt_material_digest",
+    "requested_call_count",
+    "retry_ceiling",
+    "concurrency",
+    "source_expected_media_type",
+    "source_maximum_bytes",
+    "request_state",
+    "generation_request_digest",
+)
 
 
 def _fail(message: str) -> NoReturn:
@@ -125,6 +181,31 @@ def _strict_equal(left: object, right: object) -> bool:
             _strict_equal(a, b) for a, b in zip(left, cast(list[object], right), strict=True)
         )
     return left == right
+
+
+def _normalize_reserve_activation(value: object) -> dict[str, object]:
+    """Restore the accepted E2 validator's construction order after canonical JSON parse."""
+    authority = _exact(value, _RESERVE_ACTIVATION_KEYS, "reserve activation")
+    allocations = authority["allocations"]
+    if not isinstance(allocations, list):
+        _fail("reserve activation allocations are invalid")
+    normalized_allocations = [
+        {
+            key: _exact(item, _RESERVE_ALLOCATION_KEYS, "reserve allocation")[key]
+            for key in _RESERVE_ALLOCATION_KEYS
+        }
+        for item in allocations
+    ]
+    return {
+        key: normalized_allocations if key == "allocations" else authority[key]
+        for key in _RESERVE_ACTIVATION_KEYS
+    }
+
+
+def _normalize_generation_request(value: object) -> dict[str, object]:
+    """Restore accepted request key order without weakening exact-key validation."""
+    request = _exact(value, _GENERATION_REQUEST_KEYS, "generation request")
+    return {key: request[key] for key in _GENERATION_REQUEST_KEYS}
 
 
 def _replay(authority: Mapping[str, object], schema: str, digest_key: str, label: str) -> None:
@@ -240,8 +321,11 @@ def build_source_allocation_manifest(
     prereg_digest = _digest(
         prereg["generation_preregistration_digest"], "generation preregistration digest"
     )
+    normalized_activation = _normalize_reserve_activation(reserve_activation)
     requests = [
-        validate_generation_request(dict(item), reserve_activation=reserve_activation)
+        validate_generation_request(
+            _normalize_generation_request(item), reserve_activation=normalized_activation
+        )
         for item in generation_requests
     ]
     if len(requests) != E2_RESERVE_CALLS:
@@ -401,25 +485,29 @@ def validate_generation_receipt_request_binding(
 ) -> None:
     """Bind one receipt to a validated E2 request and its accepted allocation chain."""
     prereg = validate_generation_preregistration_authority(dict(preregistration))
+    normalized_activation = _normalize_reserve_activation(reserve_activation)
     requests = [
-        validate_generation_request(dict(item), reserve_activation=reserve_activation)
+        validate_generation_request(
+            _normalize_generation_request(item), reserve_activation=normalized_activation
+        )
         for item in generation_requests
     ]
     manifest = validate_source_allocation_manifest(
         dict(allocation_manifest),
         preregistration=prereg,
-        reserve_activation=reserve_activation,
+        reserve_activation=normalized_activation,
         generation_requests=requests,
     )
     dispatch = validate_source_producer_dispatch(
         dict(producer_dispatch),
         preregistration=prereg,
         allocation_manifest=manifest,
-        reserve_activation=reserve_activation,
+        reserve_activation=normalized_activation,
         generation_requests=requests,
     )
     request = validate_generation_request(
-        dict(generation_request), reserve_activation=reserve_activation
+        _normalize_generation_request(generation_request),
+        reserve_activation=normalized_activation,
     )
     ordinal = request["candidate_ordinal"]
     if type(ordinal) is not int or ordinal not in {1, 2, 3, 4}:

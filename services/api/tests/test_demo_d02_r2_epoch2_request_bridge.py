@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from copy import deepcopy
 from typing import cast
 
@@ -28,6 +29,10 @@ from mirror_api.demo_measurement_quality import JsonValue, canonical_json_bytes,
 
 def digest(character: str) -> str:
     return character * 64
+
+
+def canonical_round_trip(value: Mapping[str, object]) -> dict[str, object]:
+    return cast(dict[str, object], json.loads(canonical_json_bytes(value)))
 
 
 def prepared() -> tuple[dict[str, object], dict[str, object], list[dict[str, object]]]:
@@ -124,16 +129,37 @@ def test_exact_bridge_happy_path_and_deterministic_replay() -> None:
     entries = cast(list[dict[str, object]], manifest["ordered_allocations"])
     for request, entry in zip(requests, entries, strict=True):
         assert entry["generation_request_policy_digest"] == request["generation_request_digest"]
-    canonical_prereg = cast(dict[str, object], json.loads(canonical_json_bytes(prereg)))
-    canonical_manifest = cast(dict[str, object], json.loads(canonical_json_bytes(manifest)))
-    canonical_dispatch = cast(dict[str, object], json.loads(canonical_json_bytes(dispatch)))
+    canonical_activation = canonical_round_trip(activation)
+    canonical_prereg = canonical_round_trip(prereg)
+    canonical_requests = [canonical_round_trip(request) for request in requests]
+    assert (
+        build_source_allocation_manifest(
+            execution_contract_digest=digest("b"),
+            preregistration=canonical_prereg,
+            reserve_activation=canonical_activation,
+            generation_requests=canonical_requests,
+        )
+        == manifest
+    )
+    canonical_manifest = canonical_round_trip(manifest)
+    assert (
+        build_source_producer_dispatch(
+            execution_contract_digest=digest("b"),
+            preregistration=canonical_prereg,
+            allocation_manifest=canonical_manifest,
+            reserve_activation=canonical_activation,
+            generation_requests=canonical_requests,
+        )
+        == dispatch
+    )
+    canonical_dispatch = canonical_round_trip(dispatch)
     assert validate_generation_preregistration_authority(canonical_prereg) == canonical_prereg
     assert (
         validate_source_allocation_manifest(
             canonical_manifest,
             preregistration=canonical_prereg,
-            reserve_activation=activation,
-            generation_requests=requests,
+            reserve_activation=canonical_activation,
+            generation_requests=canonical_requests,
         )
         == canonical_manifest
     )
@@ -142,10 +168,45 @@ def test_exact_bridge_happy_path_and_deterministic_replay() -> None:
             canonical_dispatch,
             preregistration=canonical_prereg,
             allocation_manifest=canonical_manifest,
-            reserve_activation=activation,
-            generation_requests=requests,
+            reserve_activation=canonical_activation,
+            generation_requests=canonical_requests,
         )
         == canonical_dispatch
+    )
+    request = canonical_requests[0]
+    receipt = canonical_round_trip(
+        {
+            "generation_request_policy_digest": request["generation_request_digest"],
+            "candidate_ordinal": request["candidate_ordinal"],
+            "execution_contract_digest": canonical_manifest["execution_contract_digest"],
+            "evidence_root_id": request["e2_root_id"],
+            "root_name_receipt_digest": canonical_prereg["root_name_receipt_digest"],
+            "generation_capability_authority_digest": request[
+                "generation_capability_authority_digest"
+            ],
+            "generation_preregistration_digest": request["generation_preregistration_digest"],
+            "source_allocation_manifest_digest": canonical_manifest[
+                "source_allocation_manifest_digest"
+            ],
+            "source_producer_dispatch_digest": canonical_dispatch[
+                "source_producer_dispatch_digest"
+            ],
+            "producer_task_id": request["producer_task_id"],
+            "dispatch_epoch": request["dispatch_epoch"],
+            "source_output_id": request["source_output_id"],
+            "output_name_receipt_digest": request["source_name_receipt_digest"],
+            "source_provenance_output_id": request["provenance_output_id"],
+            "source_provenance_name_receipt_digest": request["provenance_name_receipt_digest"],
+        }
+    )
+    validate_generation_receipt_request_binding(
+        receipt,
+        generation_request=request,
+        preregistration=canonical_prereg,
+        reserve_activation=canonical_activation,
+        generation_requests=canonical_requests,
+        allocation_manifest=canonical_manifest,
+        producer_dispatch=canonical_dispatch,
     )
 
 
@@ -182,12 +243,15 @@ def test_fully_resigned_manifest_still_rejects_request_mismatch(field: str) -> N
             },
         ),
     )
+    canonical_activation = canonical_round_trip(activation)
+    canonical_requests = [canonical_round_trip(request) for request in requests]
+    canonical_changed = canonical_round_trip(changed)
     with pytest.raises(ValueError):
         validate_source_allocation_manifest(
-            changed,
+            canonical_changed,
             preregistration=prereg,
-            reserve_activation=activation,
-            generation_requests=requests,
+            reserve_activation=canonical_activation,
+            generation_requests=canonical_requests,
         )
 
 
@@ -233,12 +297,16 @@ def test_fully_resigned_request_and_contract_drift_fail_closed() -> None:
             },
         ),
     )
-    changed_requests = [changed_request, *requests[1:]]
+    canonical_activation = canonical_round_trip(activation)
+    changed_requests = [
+        canonical_round_trip(changed_request),
+        *[canonical_round_trip(request) for request in requests[1:]],
+    ]
     with pytest.raises(ValueError):
         build_source_allocation_manifest(
             execution_contract_digest=digest("b"),
             preregistration=prereg,
-            reserve_activation=activation,
+            reserve_activation=canonical_activation,
             generation_requests=changed_requests,
         )
     with pytest.raises(ValueError):
