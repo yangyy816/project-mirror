@@ -2,7 +2,7 @@
   "schema_version": "mirror.demo/P3P7DemoExecutionState/v1",
   "goal_epoch": "P3_P7_COMPLETE_DEMO_EPOCH_02",
   "integration_branch": "codex/p3-p7-core-demo",
-  "integration_head": "ab08a6e861ec364c62a6ab3dcf46a69483f1b741",
+  "integration_head": "dd16624ed5ff679b03fefc61994f4ea9fd85e71e",
   "migration_head": "demo_0008_d02_r2_source_auth",
   "closed_checkpoints": [
     "D00",
@@ -14,9 +14,10 @@
     "D09",
     "D02_R2_R05",
     "D02_R2_GENERATION_CAPABILITY_AUTHORITY",
-    "D02_R2_REGISTRY_R06_WINDOWS_ROOT_ACL_HARDENING"
+    "D02_R2_REGISTRY_R06_WINDOWS_ROOT_ACL_HARDENING",
+    "D02_R2_LOCATOR_CUSTODY_IMPLEMENTATION"
   ],
-  "active_checkpoint": "D02_R2_EVIDENCE_ROOT_INITIALIZATION",
+  "active_checkpoint": "D02_R2_WINDOWS_HOST_BINDING_CANDIDATE_PROJECTION",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -26,7 +27,8 @@
     "D02_R2_R05_CODE": "63febde91a28b492f550ef047dcb4da6b34f1dba",
     "D02_R2_R05_INTEGRATION": "ed89d7d5b88825b5f01315b11d279ea8d1fd5de6",
     "D02_R2_GENERATION_CAPABILITY_AUTHORITY": "99c1a4f1a31d2fe1f0d2d7e33012ff025ad649aa",
-    "D02_R2_REGISTRY_R06": "ab08a6e861ec364c62a6ab3dcf46a69483f1b741"
+    "D02_R2_REGISTRY_R06": "ab08a6e861ec364c62a6ab3dcf46a69483f1b741",
+    "D02_R2_LOCATOR_CUSTODY_IMPLEMENTATION": "dd16624ed5ff679b03fefc61994f4ea9fd85e71e"
   },
   "accepted_ci_runs": {
     "D09": 32701906246,
@@ -34,7 +36,9 @@
     "D02_R2_R05_ACCEPTANCE_STATE": 33067727602,
     "D02_R2_GENERATION_CAPABILITY_AUTHORITY": 33077381226,
     "D02_R2_GENERATION_CAPABILITY_ACCEPTANCE_STATE": 33082956245,
-    "D02_R2_REGISTRY_R06": 33085380915
+    "D02_R2_REGISTRY_R06": 33085380915,
+    "D02_R2_LOCATOR_CUSTODY_IMPLEMENTATION": 33156860094,
+    "D02_R2_LOCATOR_CUSTODY_ACCEPTANCE_STATE": 33161517249
   },
   "generation_capability_candidate": {
     "authority_id": "P3_P7_D02_R2_GENERATION_CAPABILITY_AUTHORITY_01",
@@ -62,12 +66,12 @@
     "private_locator_tracked": false
   },
   "current_blockers": {
-    "D02_R2": "EVIDENCE_ROOT_AND_TWO_COPY_REGISTRY_NOT_YET_INITIALIZED",
+    "D02_R2": "WINDOWS_HOST_PROJECTION_COLLECTOR_NOT_IMPLEMENTED_CC10_REQUIRED",
     "D03": "BLOCKED_D02_R2_NOT_TASK_ACCEPTED",
     "D04_B": "BLOCKED_D02_R2_AND_D03_NOT_TASK_ACCEPTED",
     "D07_B": "BLOCKED_D02_R2_AND_D03_NOT_TASK_ACCEPTED"
   },
-  "next_ready_nodes": ["D02_R2_EVIDENCE_ROOT_INITIALIZATION"],
+  "next_ready_nodes": ["P3_P7_D02_CC_10_GOVERNANCE"],
   "production_release": "NOT_AUTHORIZED",
   "updated_by_principal": "INTEGRATION_PRINCIPAL"
 }

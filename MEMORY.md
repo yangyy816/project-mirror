@@ -690,3 +690,11 @@
   38 个离线 targeted tests、Ruff、strict mypy、Windows native ACL probe 和 same-SHA run `33085380915`
   三 jobs 均 PASS。该接受只开放 designated evidence-root/name-receipt/two-copy-registry 初始化；root、private
   locator、ImageGen 调用和完整 D02-R2 尚未发生，D03/D04-B/D07-B 继续关闭。
+
+- 2026-08-28：D02-R2 CC09 locator-custody implementation `dd16624ed5ff679b03fefc61994f4ea9fd85e71e`
+  通过独立 Sol exact-SHA review、same-SHA run `33156860094` 与 tracked acceptance checkpoint
+  `889bb6fa2379d3369c1e72d32b4af8cca03387aa` 的 run `33161517249`，三 jobs 与五项 artifacts 均通过。
+  Principal 接受范围仅为 `READ_ONLY_WINDOWS_HOST_BINDING_CANDIDATE_PROJECTION_ONLY`；accepted source 仍只有
+  strict validators 与 injected projection seam，没有真实 Windows collector/candidate emitter，因此下一 ready
+  node 是前向 `P3_P7_D02_CC_10` governance。evidence root、private home、locator namespace、two-copy registry、
+  ImageGen、M3/M4、PostgreSQL admission 与 D03/D04-B/D07-B 均继续保持未启动或 blocked。
