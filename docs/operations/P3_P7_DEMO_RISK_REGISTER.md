@@ -651,63 +651,88 @@ P/D/R/S mean Prevention, Detection, Recovery and Stop Rule.
 
 - **Probability / impact:** Medium / Critical
 - **Description:** implementation source embeds its future acceptance digest/SHA, a candidate or caller mapping mints
-  its own trusted bindings, or plan/implementation/candidate evidence from different commits is combined into a
-  plausible but circular authority chain.
-- **Early signal:** a future acceptance digest appears in I10 source, `expected_bindings` comes from candidate fields,
-  S10 acceptance bytes differ at SC, governed blobs do not match I10/SC, or SC contains any path beyond the fixed
-  candidate.
-- **P:** immutable CC09 predecessor; external `G10 -> P10 -> I10 -> S10 -> SC` order; distinct CC10 plan and
-  implementation acceptances; no future digest in source; existing candidate implementation fields bind I10/A only;
-  exact Git byte equations and candidate-only SC diff.
-- **D:** recompute every typed digest, SHA/tree/blob/file hash and governed-path projection; compare S10/SC acceptance
-  bytes; attack-test fully re-signed candidate/mapping, mixed-SHA records, future-digest cycles and extra SC paths.
+  its own trusted bindings, an unbound runtime dependency is imported, or plan/implementation/candidate evidence from
+  different commits is combined into a plausible but circular authority chain. An underspecified nested acceptance or
+  contract-digest preimage would let a later implementation choose its own authority semantics.
+- **Early signal:** a future acceptance digest appears in I10 source; `expected_bindings` comes from candidate fields;
+  plan CI/Principal SHA differs from G10; implementation CI/Principal SHA differs from I10; nested key/literal order or
+  schema/host-contract preimage drifts; S10 acceptance bytes differ at SC; governed/dependency blobs do not match
+  I10/SC; or SC contains any path beyond the fixed candidate.
+- **P:** immutable CC09 predecessor; preserved revision-1 negative review; external
+  `G10 -> P10 -> I10 -> S10 -> SC -> SH` order; exact plan/implementation nested schemas, ordered literal arrays,
+  review/CI/Principal digest payloads and frozen schema/host-contract preimages; no future digest in source; external
+  S10 launcher binds the two governed files plus measurement dependency; candidate fields bind I10/A only; exact Git
+  equations and candidate-only SC diff.
+- **D:** recompute both contract digests, record/review/Principal typed digests, every SHA/tree/blob/file hash and
+  governed/runtime-dependency projection; assert plan CI/Principal=G10 and implementation CI/Principal=I10; compare
+  S10/SC acceptance bytes; attack-test duplicate/noncanonical acceptance, unbound imports, fully re-signed mappings,
+  mixed-SHA records, future-digest cycles and extra SC paths.
 - **R:** preserve CC09 and all rejected CC10 bytes. Supersede only an unaccepted CC10 governance/candidate through a
   new reviewed forward revision; never rewrite an accepted predecessor or accept a locally re-signed chain.
-- **S:** `CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP`, `CC10_IMPLEMENTATION_BINDING_MISMATCH_STOP` or any Git byte
-  equation failure; no implementation acceptance, native run, candidate or downstream opening.
+- **S:** `CC10_ACCEPTANCE_SCHEMA_CONTRACT_MISMATCH_STOP`, `CC10_HOST_PROJECTION_CONTRACT_MISMATCH_STOP`,
+  `CC10_IMPLEMENTATION_AUTHORITY_CYCLE_STOP`, `CC10_IMPLEMENTATION_BINDING_MISMATCH_STOP`,
+  `CC10_ACCEPTANCE_LOADER_UNTRUSTED_STOP`, `CC10_RUNTIME_DEPENDENCY_UNBOUND_STOP` or any Git byte equation failure;
+  no implementation acceptance, native run, candidate or downstream opening.
 - **Owner / status / blocked:** Principal / `OPEN` / CC10 implementation, host candidate and D02-R2 execution.
 
 ## R-DEMO-40 — Native no-write proof has a blind spot, event loss, mutation or cleanup failure
 
 - **Probability / impact:** Medium / Critical
 - **Description:** the collector or PowerShell child performs a persistent filesystem/registry mutation, escapes the
-  observed Job/process tree, produces Winsock/DNS traffic, loses ETW events, or leaves a trace session/privilege/child
-  behind while a summary incorrectly reports PASS.
-- **Early signal:** unsupported provider version/opcode, ambiguous completion status, missing ProcessStartKey, Job
-  escape, any nonzero mutation/network/loss counter, target created before observer, or failed CloseTrace/STOP/session
-  absence/privilege restore.
-- **P:** three-layer proof: static production call graph/access/disposition allowlist, exact synthetic backend ledger,
-  and real-time ETW around a suspended target joined to a non-breakaway active-process-two Job before resume; memory-
-  only providers, raw retention none and `finally` cleanup.
-- **D:** correlate File/Registry start/end status; stable process-start identity; zero Winsock/NameResolution and loss
-  counters; complete process-tree closure; verify Job, pipes, session and privilege cleanup; path-free canonical proof
-  summary bound to candidate/review evidence.
-- **R:** terminate the Job, stop/close the trace session, restore privilege and emit only a redacted fixed failure code.
-  Create no candidate. If reliable proof is unavailable, require a new forward architecture change control rather than
-  weakening the claim or retaining raw trace outside custody.
+  observed Job/process tree, produces a target-attributed network event, loses ETW events, misattributes PID reuse, or
+  leaves a session/privilege/child behind while an underspecified or path-bearing summary incorrectly reports PASS.
+- **Early signal:** pre-existing session, unsupported provider version/opcode, failed File/Registry/AFD/NameResolution
+  calibration, ambiguous EventHeader PID, non-`FILE_OPEN` create disposition, missing/duplicate/out-of-order Irp
+  completion, any target mutator intent even with failed Status, missing `ProcessSequenceNumber`, Job escape, any
+  nonzero target network/loss counter, target created before observer, or failed CloseTrace/STOP/absence/restore.
+- **P:** static production call graph/access/disposition allowlist, exact synthetic ledger and one frozen real-time ETW
+  session; exact provider keyword/level matrix; Process event ID1 v3/v4 sequence authority; suspended target in a
+  non-breakaway active-process-two Job; proof-only calibration using an existing read-only file, query-only registry
+  handle and loopback sockets; exact File ID12/24 and Registry event/opcode matrices; memory-only raw retention none;
+  only bounded temporary kernel/token/process state is allowed.
+- **D:** count attempted and successful mutations separately; correlate each File Irp to exactly one OperationEnd;
+  require calibrated EventHeader attribution for File/Registry/AFD/NameResolution; require zero target AFD/DNS and all
+  three `EVENT_TRACE_PROPERTIES_V2` loss counters; replay Job/process closure, owned TRACEHANDLE/name, output frame,
+  handles and privilege cleanup; validate the full typed path-free proof schema and review-evidence digest.
+- **R:** terminate the proof-owned Job, close proof-owned sockets/handles, stop only the owned trace session, restore
+  exact privilege state and emit only a fixed redacted failure code. Create no candidate. If reliable calibration,
+  attribution or cleanup is unavailable, preserve state and require forward change control rather than weaken the
+  claim, call observation enforcement, or retain raw trace outside custody.
 - **S:** `NATIVE_NO_WRITE_PROOF_UNAVAILABLE_STOP`, `WINDOWS_HOST_PROJECTION_MUTATION_DETECTED_STOP`,
-  `WINDOWS_HOST_PROJECTION_NETWORK_EVENT_DETECTED_STOP`, `ETW_EVENT_SCHEMA_UNSUPPORTED_STOP`, `ETW_EVENT_LOSS_STOP`,
-  `ETW_PID_TREE_INCOMPLETE_STOP` or `ETW_CLEANUP_FAILED_STOP`; host projection and D02-R2 remain blocked.
+  `WINDOWS_HOST_PROJECTION_NETWORK_EVENT_DETECTED_STOP`, `ETW_SESSION_COLLISION_STOP`,
+  `ETW_FILE_CREATE_SEMANTICS_UNAVAILABLE_STOP`, `ETW_FILE_PID_ATTRIBUTION_UNAVAILABLE_STOP`,
+  `ETW_FILE_OPERATION_UNRESOLVED_STOP`, `ETW_REGISTRY_PID_ATTRIBUTION_UNAVAILABLE_STOP`,
+  `ETW_NETWORK_ATTRIBUTION_UNAVAILABLE_STOP`, `ETW_EVENT_SCHEMA_UNSUPPORTED_STOP`, `ETW_EVENT_LOSS_STOP`,
+  `ETW_PID_TREE_INCOMPLETE_STOP`, `ETW_PRIVILEGE_ENABLE_STOP`, `ETW_PRIVILEGE_RESTORE_STOP` or
+  `ETW_CLEANUP_FAILED_STOP`; host projection and D02-R2 remain blocked.
 - **Owner / status / blocked:** Principal/Windows implementation owner / `OPEN` / CC10 native Gate and host binding.
 
 ## R-DEMO-41 — Git, PowerShell or PE authority is ambiguous or causes an implicit cache write
 
 - **Probability / impact:** Medium / High
 - **Description:** PATH/cwd/per-user/32-bit fallback selects a different Git, path-based PE metadata is read after
-  replacement, PowerShell resolves a second module root or writes profile/module-analysis cache, or executable identity
-  cannot be replayed from one held handle.
+  replacement, isolated Python silently imports an unbound repository dependency, CreateProcess runs a substituted
+  image, PowerShell resolves a second module root or writes profile/module-analysis cache, PE translations conflict, or
+  executable identity cannot be replayed from held bytes to the mapped child image.
 - **Early signal:** missing/wrong-type HKLM 64-bit GitForWindows InstallPath, second resolver use, identity/hash/version/
-  machine drift, extra module/cmdlet/script row, stderr/extra child, or ETW shows a persistent PowerShell write.
+  machine drift, import from cwd/sys.path/site, unexpected inherited handle/environment key, malformed/duplicate PE
+  resource or translation mismatch, mapped-image mismatch, `ERROR_NOT_ALL_ASSIGNED`, extra module/cmdlet/script row,
+  stderr/extra child, invalid frame, or ETW shows a persistent PowerShell write.
 - **P:** one HKLM 64-bit REG_SZ Git resolver plus `cmd\\git.exe`, no fallback; fixed System32 PowerShell with
-  `-NoProfile -NonInteractive -NoLogo` and synthesized environment; same-handle hash/identity/PE-resource parsing;
-  held handles through final replay and timestamp.
-- **D:** PATH/PATHEXT/cwd/HKCU/32-bit decoys; replacement and role-substitution attacks; manifest/member/cmdlet/script/
-  runtime closure replay; static API audit and native ETW zero-write/network proof.
+  fixed encoded script and five-key synthesized environment; Principal S10 loader injects source/dependency/acceptance
+  handles to `-I -S -B`; fixed CreateProcess flags/handle list/output frame; held no-write/delete-share image handles
+  plus pre-resume mapped-image equality; same-handle PE parser evaluates every translation; exact privilege replay.
+- **D:** PATH/PATHEXT/cwd/HKCU/32-bit/import decoys; IFEO/replacement/role-substitution attacks; duplicate/malformed/
+  conflicting VERSIONINFO; extra environment/handle/stdout/stderr; manifest/member/cmdlet/script/runtime closure
+  replay; `ERROR_NOT_ALL_ASSIGNED` and restore-negative controls; static API audit and calibrated native observation.
 - **R:** preserve host state and stop without trying a second executable, installing anything, changing cache/profile
   settings, deleting cache bytes or relaxing metadata checks. A changed resolver requires forward governance.
 - **S:** `WINDOWS_HOST_PROJECTION_GIT_AUTHORITY_UNAVAILABLE_STOP`,
   `WINDOWS_HOST_PROJECTION_GIT_AUTHORITY_AMBIGUOUS_STOP`,
   `WINDOWS_HOST_PROJECTION_EXECUTABLE_IDENTITY_DRIFT_STOP`,
-  `WINDOWS_HOST_PROJECTION_PE_METADATA_MISMATCH_STOP` or
+  `CC10_ISOLATED_BOOTSTRAP_IMPORT_STOP`, `CC10_EXECUTED_IMAGE_IDENTITY_UNPROVEN_STOP`,
+  `CC10_OUTPUT_FRAME_INVALID_STOP`, `PE_VERSION_RESOURCE_AMBIGUOUS_STOP`,
+  `PE_VERSION_TRANSLATION_CONFLICT_STOP`, `PE_SAME_HANDLE_REPLAY_STOP`,
+  `WINDOWS_HOST_PROJECTION_PE_METADATA_MISMATCH_STOP`, `POWERSHELL_ENVIRONMENT_OR_CACHE_WRITE_STOP` or
   `WINDOWS_HOST_PROJECTION_POWERSHELL_CLOSURE_STOP`; no candidate or host acceptance.
 - **Owner / status / blocked:** Windows implementation owner/Principal / `OPEN` / CC10 host projection and binding.
