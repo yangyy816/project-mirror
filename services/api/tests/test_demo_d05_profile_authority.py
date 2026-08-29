@@ -428,6 +428,59 @@ def test_self_transfer_projection_rejects_wrong_measurement_or_verifier(
     session.rollback()
 
 
+def test_self_transfer_projection_rejects_verifier_for_different_result_asset(
+    session: Session,
+) -> None:
+    graph, _ = _valid_self_transfer_evidence(session)
+    unrelated_execution = authority._prepare_followup_execution(session, graph)
+    authority._commit_execution_pair(session, unrelated_execution)
+
+    request = graph["transfer_request"]
+    _, binding = authority._insert_job_binding(
+        session,
+        graph["actor"],
+        endpoint_operation="self_transfer.execute",
+        target_type="SELF_TRANSFER_RUN",
+        target_id=request.id,
+        demo_session=graph["session"],
+    )
+    unrelated_verifier = unrelated_execution["verification"]
+    result = authority._insert_demo_row(
+        session,
+        DemoSelfTransferRun,
+        demo_actor_id=graph["actor"].id,
+        demo_session_id=graph["session"].id,
+        desired_delta_profile_id=graph["desired_delta"].id,
+        record_kind="RESULT",
+        request_run_id=request.id,
+        demo_job_binding_id=binding.id,
+        source_asset_id=graph["source_asset"].id,
+        result_asset_id=graph["image1_asset"].id,
+        requested_delta={"jaw_width_ppm": 10_000},
+        measured_delta={"jaw_width": 10_000},
+        non_target_drift={"max_ppm": 0},
+        verifier_digest=unrelated_verifier.content_digest,
+        user_outcome="ACCEPTED",
+    )
+    evidence = authority._build_demo_row(
+        DemoSelfTransferDimensionEvidence,
+        demo_actor_id=graph["actor"].id,
+        demo_session_id=graph["session"].id,
+        self_transfer_run_id=result.id,
+        dimension_key="jaw_width",
+        desired_delta_ppm=10_000,
+        confidence_ppm=900_000,
+        verifier_outcome="PASS",
+        verifier_digest=unrelated_verifier.content_digest,
+        projection_version="demo-self-transfer-projection-v1",
+        projection_config_digest=authority._digest("mirror.demo/TestD05Projection/v1", {"v": 1}),
+    )
+    session.add(evidence)
+    with pytest.raises((DBAPIError, IntegrityError), match="verifier mismatch"):
+        session.commit()
+    session.rollback()
+
+
 def test_d05_alembic_check_and_populated_downgrade_fail_closed(
     session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:

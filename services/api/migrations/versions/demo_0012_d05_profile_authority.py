@@ -217,6 +217,7 @@ BEGIN
     WHERE content_digest = NEW.verifier_digest;
     IF NOT FOUND OR verifier_row.demo_actor_id <> NEW.demo_actor_id
        OR verifier_row.demo_session_id <> NEW.demo_session_id
+       OR verifier_row.output_asset_id IS DISTINCT FROM transfer_row.result_asset_id
        OR verifier_row.outcome <> NEW.verifier_outcome THEN
         RAISE EXCEPTION 'Self-transfer dimension evidence verifier mismatch';
     END IF;
