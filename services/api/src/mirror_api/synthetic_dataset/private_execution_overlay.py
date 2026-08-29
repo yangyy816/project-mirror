@@ -144,6 +144,20 @@ def _write_json_create_new(path: Path, value: Mapping[str, Any]) -> tuple[str, i
     return _write_create_new(path, canonical_json_bytes(value))
 
 
+def _write_json_create_or_verify_exact(path: Path, value: Mapping[str, Any]) -> tuple[str, int]:
+    payload = canonical_json_bytes(value)
+    try:
+        return _write_create_new(path, payload)
+    except ExecutionOverlayError as error:
+        if str(error) != "CREATE_NEW_TARGET_PREEXISTS":
+            raise
+    _require_plain_file(path)
+    actual = path.read_bytes()
+    if actual != payload:
+        raise ExecutionOverlayError("CREATE_NEW_EXISTING_CONTENT_CONFLICT")
+    return sha256_bytes(actual), len(actual)
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     _require_plain_file(path)
     value = json.loads(path.read_text(encoding="utf-8"))
@@ -269,8 +283,8 @@ def _commit_transition(
     state_path = _safe_child(root, state_name)
     receipt_path = _safe_child(root, receipt_name)
 
-    event_digest, _ = _write_json_create_new(event_path, event)
-    state_digest, _ = _write_json_create_new(state_path, state)
+    event_digest, _ = _write_json_create_or_verify_exact(event_path, event)
+    state_digest, _ = _write_json_create_or_verify_exact(state_path, state)
     receipt: dict[str, Any] = {
         "schema_version": RECEIPT_SCHEMA,
         "overlay_output_id": state["overlay_output_id"],
@@ -294,7 +308,7 @@ def _commit_transition(
             registration_receipt[1] if registration_receipt is not None else None
         ),
     }
-    _write_json_create_new(receipt_path, receipt)
+    _write_json_create_or_verify_exact(receipt_path, receipt)
     verified = verify_overlay(receipt_path, expected_controller_sha256=controller_sha256)
     return OverlayHandle(
         receipt_path=receipt_path,
@@ -354,6 +368,9 @@ def initialize_overlay(
         "next_unused_ordinal": binding.next_unused_ordinal,
         "current_action_id": None,
         "current_ordinal": None,
+        "expected_output_opaque_id": None,
+        "returned_output_binding": None,
+        "output_registration_attempt": None,
         "output_registration": None,
         "decode_authorized": False,
         "hard_stop": False,
@@ -497,9 +514,11 @@ def prepare_dispatch(
     expected_controller_sha256: str,
     ordinal: str,
     action_id: str,
+    expected_output_opaque_id: str,
     timestamp: str,
 ) -> OverlayHandle:
     _validate_opaque_id(action_id, "ACTION_ID")
+    _validate_opaque_id(expected_output_opaque_id, "EXPECTED_OUTPUT_OPAQUE_ID")
     _validate_timestamp(timestamp)
     _validate_ordinal(ordinal)
     root, receipt, _event, state = _transition_context(
@@ -530,6 +549,7 @@ def prepare_dispatch(
         "previous_event_sha256": receipt["event_sha256"],
         "action_id": action_id,
         "request_ordinal": ordinal,
+        "expected_output_opaque_id": expected_output_opaque_id,
         "reason_code": "EXACT_ORDINAL_DURABLY_PREPARED_ZERO_RETRY",
     }
     new_state = dict(state)
@@ -542,6 +562,7 @@ def prepare_dispatch(
             "last_event_sha256": sha256_bytes(canonical_json_bytes(new_event)),
             "current_action_id": action_id,
             "current_ordinal": ordinal,
+            "expected_output_opaque_id": expected_output_opaque_id,
         }
     )
     return _commit_transition(
@@ -677,6 +698,7 @@ def record_output_returned(
     action_id: str,
     timestamp: str,
     returned_output_count: int,
+    exact_generated_artifact_receipt: str,
 ) -> OverlayHandle:
     _validate_timestamp(timestamp)
     root, receipt, _event, state = _transition_context(
@@ -719,13 +741,60 @@ def record_output_returned(
             "decode_authorized": False,
         }
     )
-    return _commit_transition(
+    returned_handle = _commit_transition(
         root=root,
         sequence=sequence,
         controller_sha256=expected_controller_sha256,
         event=new_event,
         state=new_state,
         previous_receipt=_previous_receipt_binding(receipt_path, receipt),
+    )
+    root, receipt, _event, state = _transition_context(
+        returned_handle.receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    expected_output_opaque_id = state.get("expected_output_opaque_id")
+    if not isinstance(expected_output_opaque_id, str):
+        raise ExecutionOverlayError("EXPECTED_OUTPUT_OPAQUE_ID_MISSING")
+    receipt_digest = _registration_binding_digest(exact_generated_artifact_receipt)
+    sequence = cast(int, receipt["sequence"]) + 1
+    binding_event = {
+        "schema_version": EVENT_SCHEMA,
+        "overlay_output_id": state["overlay_output_id"],
+        "sequence": sequence,
+        "event_type": "OUTPUT_RETURNED_RECEIPT_BOUND",
+        "timestamp": timestamp,
+        "previous_event_sha256": receipt["event_sha256"],
+        "action_id": action_id,
+        "request_ordinal": state["current_ordinal"],
+        "reason_code": "EXACT_IMAGEGEN_OUTPUT_HINT_DIGEST_BOUND_AFTER_COUNTER_COMMIT",
+        "output_opaque_id": expected_output_opaque_id,
+        "exact_generated_artifact_receipt_sha256": receipt_digest,
+    }
+    binding_state = dict(state)
+    binding_state.update(
+        {
+            "sequence": sequence,
+            "phase": "OUTPUT_RETURNED_RECEIPT_BOUND",
+            "timestamp": timestamp,
+            "previous_state_sha256": receipt["state_sha256"],
+            "last_event_sha256": sha256_bytes(canonical_json_bytes(binding_event)),
+            "returned_output_binding": {
+                "output_opaque_id": expected_output_opaque_id,
+                "request_ordinal": state["current_ordinal"],
+                "action_id": action_id,
+                "exact_generated_artifact_receipt_sha256": receipt_digest,
+            },
+            "decode_authorized": False,
+        }
+    )
+    return _commit_transition(
+        root=root,
+        sequence=sequence,
+        controller_sha256=expected_controller_sha256,
+        event=binding_event,
+        state=binding_state,
+        previous_receipt=_previous_receipt_binding(returned_handle.receipt_path, receipt),
     )
 
 
@@ -742,7 +811,10 @@ def mark_registration_failed(
         receipt_path,
         expected_controller_sha256=expected_controller_sha256,
     )
-    if state["phase"] != "OUTPUT_RETURNED_UNREGISTERED" or state["current_action_id"] != action_id:
+    if (
+        state["phase"] != "OUTPUT_REGISTRATION_ATTEMPT_BOUND"
+        or state["current_action_id"] != action_id
+    ):
         raise ExecutionOverlayError("OUTPUT_REGISTRATION_FAILURE_STATE_OR_ACTION_INVALID")
     if not reason_code or not reason_code.isupper():
         raise ExecutionOverlayError("OUTPUT_REGISTRATION_FAILURE_REASON_INVALID")
@@ -794,169 +866,69 @@ def _classify_magic(first_bytes: bytes) -> tuple[str, str]:
     return "application/octet-stream", "UNKNOWN"
 
 
-def register_output_before_decode(
+def _registration_binding_digest(value: str) -> str:
+    if not isinstance(value, str):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_RECEIPT_TYPE_INVALID")
+    return sha256_bytes(value.encode("utf-8", errors="surrogatepass"))
+
+
+def _begin_output_registration_attempt(
     *,
     receipt_path: Path,
     expected_controller_sha256: str,
     action_id: str,
-    output_opaque_id: str,
-    generated_artifact_path: Path,
     allowed_generated_artifact_root: Path,
-    exact_generated_artifact_receipt: str,
     timestamp: str,
 ) -> OverlayHandle:
-    _validate_opaque_id(output_opaque_id, "OUTPUT_OPAQUE_ID")
-    _validate_timestamp(timestamp)
     root, receipt, _event, state = _transition_context(
         receipt_path,
         expected_controller_sha256=expected_controller_sha256,
     )
-    if state["phase"] != "OUTPUT_RETURNED_UNREGISTERED" or state["current_action_id"] != action_id:
+    if state["phase"] != "OUTPUT_RETURNED_RECEIPT_BOUND" or state["current_action_id"] != action_id:
         raise ExecutionOverlayError("OUTPUT_REGISTRATION_STATE_OR_ACTION_INVALID")
-    _require_plain_directory(allowed_generated_artifact_root)
-    _require_plain_file(generated_artifact_path)
-    if not generated_artifact_path.resolve().is_relative_to(
-        allowed_generated_artifact_root.resolve()
-    ):
-        raise ExecutionOverlayError("GENERATED_ARTIFACT_OUTSIDE_ALLOWED_ROOT")
-    if generated_artifact_path.resolve().is_relative_to(root.resolve()):
-        raise ExecutionOverlayError("GENERATED_ARTIFACT_INSIDE_OVERLAY_PROHIBITED")
-    source_size = generated_artifact_path.stat().st_size
-    if source_size <= 0 or source_size > MAX_RETURNED_BYTES:
-        raise ExecutionOverlayError("OUTPUT_REGISTRATION_BYTE_BOUND_FAILED")
-    if (
-        not exact_generated_artifact_receipt
-        or len(exact_generated_artifact_receipt) > 4096
-        or "data:" in exact_generated_artifact_receipt.lower()
-        or "://" in exact_generated_artifact_receipt
-    ):
-        raise ExecutionOverlayError("GENERATED_ARTIFACT_RECEIPT_MISSING")
-
-    staging_name = f"{output_opaque_id}.raw"
-    staging_path = _safe_child(root / "staging", staging_name)
-    record_name = f"output-{output_opaque_id}.json"
-    record_path = _safe_child(root / "records", record_name)
-    registration_receipt_name = f"registration-{output_opaque_id}.json"
-    registration_receipt_path = _safe_child(root / "records", registration_receipt_name)
-    if staging_path.exists() or record_path.exists() or registration_receipt_path.exists():
-        raise ExecutionOverlayError("OUTPUT_REGISTRATION_TARGET_PREEXISTS")
-
-    source_digest = hashlib.sha256()
-    first_bytes = b""
-    try:
-        with generated_artifact_path.open("rb") as source, staging_path.open("xb") as target:
-            copied = 0
-            while True:
-                chunk = source.read(1024 * 1024)
-                if not chunk:
-                    break
-                if not first_bytes:
-                    first_bytes = chunk[:16]
-                copied += len(chunk)
-                if copied > MAX_RETURNED_BYTES:
-                    raise ExecutionOverlayError("OUTPUT_REGISTRATION_BYTE_BOUND_FAILED")
-                source_digest.update(chunk)
-                target.write(chunk)
-            target.flush()
-            os.fsync(target.fileno())
-    except FileExistsError as error:
-        raise ExecutionOverlayError("OUTPUT_REGISTRATION_TARGET_PREEXISTS") from error
-    if copied != source_size:
-        raise ExecutionOverlayError("OUTPUT_REGISTRATION_COPY_SIZE_MISMATCH")
-    source_sha256 = source_digest.hexdigest()
-    staging_sha256 = sha256_file(staging_path)
-    if source_sha256 != staging_sha256 or staging_path.stat().st_size != source_size:
-        raise ExecutionOverlayError("OUTPUT_REGISTRATION_COPY_DIGEST_MISMATCH")
-    media_type, magic_class = _classify_magic(first_bytes)
-
-    binding = cast(dict[str, Any], state["binding"])
-    registration_receipt_id = f"{output_opaque_id}-REGISTRATION"
-    output_record = {
-        "schema_version": OUTPUT_RECORD_SCHEMA,
-        "output_opaque_id": output_opaque_id,
-        "request_ordinal": state["current_ordinal"],
-        "source_kind": "CODEX_NATIVE_IMAGEGEN",
-        "source_delivery_class": "EXACT_NATIVE_GENERATED_ARTIFACT_PATH_FROM_OUTPUT_HINT",
-        "exact_generated_artifact_receipt": exact_generated_artifact_receipt,
-        "source_sha256": source_sha256,
-        "staging_sha256": staging_sha256,
-        "byte_size": source_size,
-        "media_type": media_type,
-        "magic_byte_class": magic_class,
-        "generation_specification_version": binding["generation_specification_version"],
-        "generation_specification_digest": binding["generation_specification_sha256"],
-        "assignment_manifest_version": binding["assignment_manifest_version"],
-        "assignment_manifest_digest": binding["assignment_manifest_sha256"],
-        "request_ledger_status": "DISPATCHED_RETURNED_ONE",
-        "output_ledger_status": "RAW_REGISTERED_PRE_DECODE",
-        "custody_status": "PRIVATE_STAGING_CREATE_NEW",
-        "retention_class": "AUTHORIZED_P2_M5_CALIBRATION_RESEARCH_AND_AUDIT_ONLY",
-        "cleanup_policy": "EXACT_REGISTERED_OUTPUT_ID_ONLY",
-        "registration_timestamp": timestamp,
-        "registration_status": "COMMITTED",
-        "registration_commit_receipt": registration_receipt_id,
-        "decode_performed": False,
-        "dimensions_read": False,
-    }
-    record_digest, record_size = _write_json_create_new(record_path, output_record)
-    registration_receipt = {
-        "schema_version": REGISTRATION_RECEIPT_SCHEMA,
-        "registration_receipt_id": registration_receipt_id,
-        "output_opaque_id": output_opaque_id,
-        "request_ordinal": state["current_ordinal"],
-        "output_record_file": record_name,
-        "output_record_sha256": record_digest,
-        "output_record_bytes": record_size,
-        "source_sha256": source_sha256,
-        "staging_sha256": staging_sha256,
-        "registration_status": "COMMITTED",
-        "receipt_status": "VALID",
-        "decode_performed": False,
-        "dimensions_read": False,
-        "timestamp": timestamp,
-    }
-    registration_digest, _ = _write_json_create_new(registration_receipt_path, registration_receipt)
-
-    counters = dict(cast(dict[str, int], state["counters"]))
-    counters["active_calls"] = 0
-    _validate_counters(counters)
+    returned_binding = state.get("returned_output_binding")
+    if not isinstance(returned_binding, dict):
+        raise ExecutionOverlayError("RETURNED_OUTPUT_BINDING_MISSING")
+    expected_output_opaque_id = returned_binding.get("output_opaque_id")
+    receipt_digest = returned_binding.get("exact_generated_artifact_receipt_sha256")
+    if not isinstance(expected_output_opaque_id, str) or not isinstance(receipt_digest, str):
+        raise ExecutionOverlayError("RETURNED_OUTPUT_BINDING_INVALID")
+    _validate_digest(receipt_digest, "GENERATED_ARTIFACT_RECEIPT_SHA256")
+    allowed_root_value = str(allowed_generated_artifact_root)
+    allowed_root_digest = _registration_binding_digest(allowed_root_value)
     sequence = cast(int, receipt["sequence"]) + 1
     new_event = {
         "schema_version": EVENT_SCHEMA,
         "overlay_output_id": state["overlay_output_id"],
         "sequence": sequence,
-        "event_type": "OUTPUT_REGISTRATION_COMMITTED_PRE_DECODE",
+        "event_type": "OUTPUT_REGISTRATION_ATTEMPT_BOUND",
         "timestamp": timestamp,
         "previous_event_sha256": receipt["event_sha256"],
         "action_id": action_id,
         "request_ordinal": state["current_ordinal"],
-        "reason_code": "REGISTER_BEFORE_DECODE_PASS",
-        "output_opaque_id": output_opaque_id,
-        "output_record_file": record_name,
-        "output_record_sha256": record_digest,
-        "registration_receipt_file": registration_receipt_name,
-        "registration_receipt_sha256": registration_digest,
+        "reason_code": "EXACT_PRINCIPAL_IMAGEGEN_OUTPUT_HINT_BOUND_BEFORE_SOURCE_ACCESS",
+        "output_opaque_id": expected_output_opaque_id,
+        "exact_generated_artifact_receipt_sha256": receipt_digest,
+        "allowed_generated_artifact_root_sha256": allowed_root_digest,
     }
     new_state = dict(state)
     new_state.update(
         {
             "sequence": sequence,
-            "phase": "OUTPUT_REGISTERED_PRE_DECODE",
+            "phase": "OUTPUT_REGISTRATION_ATTEMPT_BOUND",
             "timestamp": timestamp,
             "previous_state_sha256": receipt["state_sha256"],
             "last_event_sha256": sha256_bytes(canonical_json_bytes(new_event)),
-            "counters": counters,
-            "output_registration": {
-                "output_opaque_id": output_opaque_id,
-                "record_file": record_name,
-                "record_sha256": record_digest,
-                "registration_receipt_file": registration_receipt_name,
-                "registration_receipt_sha256": registration_digest,
-                "registration_status": "COMMITTED",
-                "receipt_status": "VALID",
+            "output_registration_attempt": {
+                "output_opaque_id": expected_output_opaque_id,
+                "request_ordinal": state["current_ordinal"],
+                "action_id": action_id,
+                "source_kind": "CODEX_NATIVE_IMAGEGEN",
+                "source_delivery_class": ("TRUSTED_PRINCIPAL_EXACT_IMAGEGEN_OUTPUT_HINT_PATH"),
+                "exact_generated_artifact_receipt_sha256": receipt_digest,
+                "allowed_generated_artifact_root_sha256": allowed_root_digest,
             },
-            "decode_authorized": True,
-            "hard_stop": False,
+            "decode_authorized": False,
         }
     )
     return _commit_transition(
@@ -966,8 +938,291 @@ def register_output_before_decode(
         event=new_event,
         state=new_state,
         previous_receipt=_previous_receipt_binding(receipt_path, receipt),
-        registration_receipt=(registration_receipt_name, registration_digest),
     )
+
+
+def _validated_generated_artifact_path(
+    *,
+    state: Mapping[str, Any],
+    exact_generated_artifact_receipt: str,
+    allowed_generated_artifact_root: Path,
+) -> Path:
+    attempt = state.get("output_registration_attempt")
+    if not isinstance(attempt, dict):
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_MISSING")
+    returned_binding = state.get("returned_output_binding")
+    if not isinstance(returned_binding, dict):
+        raise ExecutionOverlayError("RETURNED_OUTPUT_BINDING_MISSING")
+    for field in (
+        "output_opaque_id",
+        "request_ordinal",
+        "action_id",
+        "exact_generated_artifact_receipt_sha256",
+    ):
+        if attempt.get(field) != returned_binding.get(field):
+            raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_BINDING_MISMATCH")
+    receipt_digest = _registration_binding_digest(exact_generated_artifact_receipt)
+    allowed_root_digest = _registration_binding_digest(str(allowed_generated_artifact_root))
+    if attempt.get("exact_generated_artifact_receipt_sha256") != receipt_digest:
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_RECEIPT_BINDING_MISMATCH")
+    if attempt.get("allowed_generated_artifact_root_sha256") != allowed_root_digest:
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_ROOT_BINDING_MISMATCH")
+    if (
+        not exact_generated_artifact_receipt
+        or len(exact_generated_artifact_receipt) > 4096
+        or "\x00" in exact_generated_artifact_receipt
+        or "\n" in exact_generated_artifact_receipt
+        or "\r" in exact_generated_artifact_receipt
+        or "data:" in exact_generated_artifact_receipt.lower()
+        or "://" in exact_generated_artifact_receipt
+    ):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_RECEIPT_INVALID")
+    generated_artifact_path = Path(exact_generated_artifact_receipt)
+    if (
+        not generated_artifact_path.is_absolute()
+        or not allowed_generated_artifact_root.is_absolute()
+    ):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_ABSOLUTE_PATH_REQUIRED")
+    _require_plain_directory(allowed_generated_artifact_root)
+    _require_plain_file(generated_artifact_path)
+    if not generated_artifact_path.resolve().is_relative_to(
+        allowed_generated_artifact_root.resolve()
+    ):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_OUTSIDE_ALLOWED_ROOT")
+    return generated_artifact_path
+
+
+def _copy_or_verify_generated_artifact(
+    *,
+    generated_artifact_path: Path,
+    staging_path: Path,
+) -> tuple[str, int, bytes]:
+    source_digest = hashlib.sha256()
+    first_bytes = b""
+    with generated_artifact_path.open("rb") as source:
+        opened_before = os.fstat(source.fileno())
+        path_stat = generated_artifact_path.stat()
+        if (opened_before.st_dev, opened_before.st_ino) != (path_stat.st_dev, path_stat.st_ino):
+            raise ExecutionOverlayError("GENERATED_ARTIFACT_CHANGED_BEFORE_READ")
+        source_size = opened_before.st_size
+        if source_size <= 0 or source_size > MAX_RETURNED_BYTES:
+            raise ExecutionOverlayError("OUTPUT_REGISTRATION_BYTE_BOUND_FAILED")
+        chunks: list[bytes] = []
+        copied = 0
+        while True:
+            chunk = source.read(1024 * 1024)
+            if not chunk:
+                break
+            if not first_bytes:
+                first_bytes = chunk[:16]
+            copied += len(chunk)
+            if copied > MAX_RETURNED_BYTES:
+                raise ExecutionOverlayError("OUTPUT_REGISTRATION_BYTE_BOUND_FAILED")
+            source_digest.update(chunk)
+            chunks.append(chunk)
+        opened_after = os.fstat(source.fileno())
+    if (
+        copied != source_size
+        or opened_after.st_size != opened_before.st_size
+        or opened_after.st_mtime_ns != opened_before.st_mtime_ns
+    ):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_CHANGED_DURING_READ")
+    source_sha256 = source_digest.hexdigest()
+    if staging_path.exists() or staging_path.is_symlink():
+        _require_plain_file(staging_path)
+        if staging_path.stat().st_size != source_size or sha256_file(staging_path) != source_sha256:
+            raise ExecutionOverlayError("OUTPUT_REGISTRATION_STAGING_CONFLICT")
+        return source_sha256, source_size, first_bytes
+    try:
+        with staging_path.open("xb") as target:
+            for chunk in chunks:
+                written = target.write(chunk)
+                if written != len(chunk):
+                    raise ExecutionOverlayError("OUTPUT_REGISTRATION_COPY_SHORT_WRITE")
+            target.flush()
+            os.fsync(target.fileno())
+    except FileExistsError as error:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_STAGING_RACE") from error
+    if staging_path.stat().st_size != source_size or sha256_file(staging_path) != source_sha256:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_COPY_DIGEST_MISMATCH")
+    return source_sha256, source_size, first_bytes
+
+
+def _registration_failure_reason(error: Exception) -> str:
+    if isinstance(error, ExecutionOverlayError) and re.fullmatch(
+        r"[A-Z][A-Z0-9_]{2,127}", str(error)
+    ):
+        return str(error)
+    return "OUTPUT_REGISTRATION_INTERNAL_IO_FAILURE"
+
+
+def register_output_before_decode(
+    *,
+    receipt_path: Path,
+    expected_controller_sha256: str,
+    action_id: str,
+    allowed_generated_artifact_root: Path,
+    exact_generated_artifact_receipt: str,
+    timestamp: str,
+) -> OverlayHandle:
+    _validate_timestamp(timestamp)
+    attempt_handle = _begin_output_registration_attempt(
+        receipt_path=receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+        action_id=action_id,
+        allowed_generated_artifact_root=allowed_generated_artifact_root,
+        timestamp=timestamp,
+    )
+    try:
+        root, receipt, _event, state = _transition_context(
+            attempt_handle.receipt_path,
+            expected_controller_sha256=expected_controller_sha256,
+        )
+        if state["phase"] != "OUTPUT_REGISTRATION_ATTEMPT_BOUND":
+            raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_STATE_INVALID")
+        attempt = cast(dict[str, Any], state["output_registration_attempt"])
+        output_opaque_id = cast(str, attempt["output_opaque_id"])
+        generated_artifact_path = _validated_generated_artifact_path(
+            state=state,
+            exact_generated_artifact_receipt=exact_generated_artifact_receipt,
+            allowed_generated_artifact_root=allowed_generated_artifact_root,
+        )
+        if generated_artifact_path.resolve().is_relative_to(root.resolve()):
+            raise ExecutionOverlayError("GENERATED_ARTIFACT_INSIDE_OVERLAY_PROHIBITED")
+
+        staging_name = f"{output_opaque_id}.raw"
+        staging_path = _safe_child(root / "staging", staging_name)
+        record_name = f"output-{output_opaque_id}.json"
+        record_path = _safe_child(root / "records", record_name)
+        registration_receipt_name = f"registration-{output_opaque_id}.json"
+        registration_receipt_path = _safe_child(root / "records", registration_receipt_name)
+        source_sha256, source_size, first_bytes = _copy_or_verify_generated_artifact(
+            generated_artifact_path=generated_artifact_path,
+            staging_path=staging_path,
+        )
+        staging_sha256 = sha256_file(staging_path)
+        media_type, magic_class = _classify_magic(first_bytes)
+
+        binding = cast(dict[str, Any], state["binding"])
+        registration_receipt_id = f"{output_opaque_id}-REGISTRATION"
+        output_record = {
+            "schema_version": OUTPUT_RECORD_SCHEMA,
+            "output_opaque_id": output_opaque_id,
+            "request_ordinal": state["current_ordinal"],
+            "source_kind": "CODEX_NATIVE_IMAGEGEN",
+            "source_delivery_class": "TRUSTED_PRINCIPAL_EXACT_IMAGEGEN_OUTPUT_HINT_PATH",
+            "exact_generated_artifact_receipt_sha256": attempt[
+                "exact_generated_artifact_receipt_sha256"
+            ],
+            "source_sha256": source_sha256,
+            "staging_sha256": staging_sha256,
+            "byte_size": source_size,
+            "media_type": media_type,
+            "magic_byte_class": magic_class,
+            "generation_specification_version": binding["generation_specification_version"],
+            "generation_specification_digest": binding["generation_specification_sha256"],
+            "assignment_manifest_version": binding["assignment_manifest_version"],
+            "assignment_manifest_digest": binding["assignment_manifest_sha256"],
+            "request_ledger_status": "DISPATCHED_RETURNED_ONE",
+            "output_ledger_status": "RAW_REGISTERED_PRE_DECODE",
+            "custody_status": "PRIVATE_STAGING_CREATE_NEW",
+            "retention_class": "AUTHORIZED_P2_M5_CALIBRATION_RESEARCH_AND_AUDIT_ONLY",
+            "cleanup_policy": "EXACT_REGISTERED_OUTPUT_ID_ONLY",
+            "registration_timestamp": timestamp,
+            "registration_status": "COMMITTED",
+            "registration_commit_receipt": registration_receipt_id,
+            "decode_performed": False,
+            "dimensions_read": False,
+        }
+        record_digest, record_size = _write_json_create_or_verify_exact(record_path, output_record)
+        registration_receipt = {
+            "schema_version": REGISTRATION_RECEIPT_SCHEMA,
+            "registration_receipt_id": registration_receipt_id,
+            "output_opaque_id": output_opaque_id,
+            "request_ordinal": state["current_ordinal"],
+            "output_record_file": record_name,
+            "output_record_sha256": record_digest,
+            "output_record_bytes": record_size,
+            "exact_generated_artifact_receipt_sha256": attempt[
+                "exact_generated_artifact_receipt_sha256"
+            ],
+            "source_sha256": source_sha256,
+            "staging_sha256": staging_sha256,
+            "registration_status": "COMMITTED",
+            "receipt_status": "VALID",
+            "decode_performed": False,
+            "dimensions_read": False,
+            "timestamp": timestamp,
+        }
+        registration_digest, _ = _write_json_create_or_verify_exact(
+            registration_receipt_path, registration_receipt
+        )
+
+        counters = dict(cast(dict[str, int], state["counters"]))
+        counters["active_calls"] = 0
+        _validate_counters(counters)
+        sequence = cast(int, receipt["sequence"]) + 1
+        new_event = {
+            "schema_version": EVENT_SCHEMA,
+            "overlay_output_id": state["overlay_output_id"],
+            "sequence": sequence,
+            "event_type": "OUTPUT_REGISTRATION_COMMITTED_PRE_DECODE",
+            "timestamp": timestamp,
+            "previous_event_sha256": receipt["event_sha256"],
+            "action_id": action_id,
+            "request_ordinal": state["current_ordinal"],
+            "reason_code": "REGISTER_BEFORE_DECODE_PASS",
+            "output_opaque_id": output_opaque_id,
+            "output_record_file": record_name,
+            "output_record_sha256": record_digest,
+            "registration_receipt_file": registration_receipt_name,
+            "registration_receipt_sha256": registration_digest,
+        }
+        new_state = dict(state)
+        new_state.update(
+            {
+                "sequence": sequence,
+                "phase": "OUTPUT_REGISTERED_PRE_DECODE",
+                "timestamp": timestamp,
+                "previous_state_sha256": receipt["state_sha256"],
+                "last_event_sha256": sha256_bytes(canonical_json_bytes(new_event)),
+                "counters": counters,
+                "output_registration": {
+                    "output_opaque_id": output_opaque_id,
+                    "record_file": record_name,
+                    "record_sha256": record_digest,
+                    "registration_receipt_file": registration_receipt_name,
+                    "registration_receipt_sha256": registration_digest,
+                    "registration_status": "COMMITTED",
+                    "receipt_status": "VALID",
+                },
+                "decode_authorized": True,
+                "hard_stop": False,
+            }
+        )
+        return _commit_transition(
+            root=root,
+            sequence=sequence,
+            controller_sha256=expected_controller_sha256,
+            event=new_event,
+            state=new_state,
+            previous_receipt=_previous_receipt_binding(attempt_handle.receipt_path, receipt),
+            registration_receipt=(registration_receipt_name, registration_digest),
+        )
+    except (ExecutionOverlayError, OSError, UnicodeError) as error:
+        reason_code = _registration_failure_reason(error)
+        try:
+            return mark_registration_failed(
+                receipt_path=attempt_handle.receipt_path,
+                expected_controller_sha256=expected_controller_sha256,
+                action_id=action_id,
+                timestamp=timestamp,
+                reason_code=reason_code,
+            )
+        except ExecutionOverlayError as terminal_error:
+            raise ExecutionOverlayError(
+                "OUTPUT_REGISTRATION_FAILURE_EVIDENCE_UNCOMMITTED_HARD_STOP"
+            ) from terminal_error
 
 
 def verify_registration_before_decode(
@@ -997,11 +1252,18 @@ def verify_registration_before_decode(
         raise ExecutionOverlayError("OUTPUT_RECORD_DIGEST_MISMATCH")
     registration_receipt = _read_json(registration_path)
     output_record = _read_json(record_path)
+    attempt = state.get("output_registration_attempt")
+    if not isinstance(attempt, dict):
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_MISSING")
     if (
         registration_receipt.get("receipt_status") != "VALID"
         or registration_receipt.get("registration_status") != "COMMITTED"
         or output_record.get("registration_status") != "COMMITTED"
         or registration_receipt.get("output_record_sha256") != registration["record_sha256"]
+        or registration_receipt.get("exact_generated_artifact_receipt_sha256")
+        != attempt.get("exact_generated_artifact_receipt_sha256")
+        or output_record.get("exact_generated_artifact_receipt_sha256")
+        != attempt.get("exact_generated_artifact_receipt_sha256")
         or registration_receipt.get("decode_performed") is not False
         or output_record.get("decode_performed") is not False
         or registration_receipt.get("dimensions_read") is not False
@@ -1063,6 +1325,7 @@ def render_private_prompt(
     ):
         raise ExecutionOverlayError("PRIVATE_PROMPT_ASSIGNMENT_INCOMPLETE")
     values = {
+        "REQUEST_ORDINAL": ordinal,
         "DECLARED_AGE_BAND": declared_age_band,
         "MORPHOLOGY_DESCRIPTOR": morphology,
         "STYLE_DESCRIPTOR": style_descriptor,
@@ -1081,7 +1344,10 @@ def render_private_prompt(
                 or not all(isinstance(item, str) for item in group)
             ):
                 raise ExecutionOverlayError("PRIVATE_PROMPT_GROUP_INVALID")
-            rendered.append("; ".join(item.format_map(values) for item in group))
+            try:
+                rendered.append("; ".join(item.format_map(values) for item in group))
+            except (AttributeError, IndexError, KeyError, TypeError, ValueError) as error:
+                raise ExecutionOverlayError("PRIVATE_PROMPT_PLACEHOLDER_RENDER_FAILED") from error
         return rendered
 
     positive_lines = render_groups(positive)

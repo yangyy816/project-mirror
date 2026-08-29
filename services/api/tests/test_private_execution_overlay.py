@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
+from mirror_api.synthetic_dataset import private_execution_overlay as overlay_module
 from mirror_api.synthetic_dataset.private_execution_overlay import (
     ExecutionOverlayError,
     GenesisBinding,
     consume_dispatch,
     initialize_overlay,
     mark_dispatch_failed,
-    mark_registration_failed,
     prepare_dispatch,
     record_output_returned,
     register_output_before_decode,
@@ -65,6 +68,7 @@ def _consumed(tmp_path: Path) -> tuple[Path, Path]:
         expected_controller_sha256=CONTROLLER_SHA256,
         ordinal="CAL-REQ-002",
         action_id="ACTION-CAL-REQ-002",
+        expected_output_opaque_id="OUTPUT-CAL-REQ-002",
         timestamp=TIMESTAMP_1,
     )
     consumed = consume_dispatch(
@@ -102,6 +106,7 @@ def test_overlay_prepare_and_consume_are_append_only_and_recoverable(tmp_path: P
         expected_controller_sha256=CONTROLLER_SHA256,
         ordinal="CAL-REQ-002",
         action_id="ACTION-CAL-REQ-002",
+        expected_output_opaque_id="OUTPUT-CAL-REQ-002",
         timestamp=TIMESTAMP_1,
     )
     prepared_state = cast(
@@ -146,12 +151,16 @@ def test_overlay_prepare_and_consume_are_append_only_and_recoverable(tmp_path: P
 
 def test_output_is_registered_and_receipted_before_any_decode(tmp_path: Path) -> None:
     root, receipt = _consumed(tmp_path)
+    artifact_root = tmp_path / "generated-artifacts"
+    source = artifact_root / "native-generated-artifact.bin"
+    exact_output_hint = str(source.resolve())
     returned = record_output_returned(
         receipt_path=receipt,
         expected_controller_sha256=CONTROLLER_SHA256,
         action_id="ACTION-CAL-REQ-002",
         timestamp=TIMESTAMP_3,
         returned_output_count=1,
+        exact_generated_artifact_receipt=exact_output_hint,
     )
     returned_state = cast(
         dict[str, Any],
@@ -160,26 +169,22 @@ def test_output_is_registered_and_receipted_before_any_decode(tmp_path: Path) ->
             expected_controller_sha256=CONTROLLER_SHA256,
         )["state"],
     )
-    assert returned_state["phase"] == "OUTPUT_RETURNED_UNREGISTERED"
+    assert returned_state["phase"] == "OUTPUT_RETURNED_RECEIPT_BOUND"
     assert returned_state["decode_authorized"] is False
     assert returned_state["counters"]["returned_output_count"] == 2
     assert returned_state["counters"]["raw_output_count"] == 2
     assert returned_state["counters"]["formal_raw_capacity_remaining"] == 30
     assert returned_state["counters"]["active_calls"] == 1
 
-    artifact_root = tmp_path / "generated-artifacts"
     artifact_root.mkdir()
-    source = artifact_root / "native-generated-artifact.bin"
     source.write_bytes(b"\x89PNG\r\n\x1a\n" + b"non-human-synthetic-fixture")
 
     registered = register_output_before_decode(
         receipt_path=returned.receipt_path,
         expected_controller_sha256=CONTROLLER_SHA256,
         action_id="ACTION-CAL-REQ-002",
-        output_opaque_id="OUTPUT-CAL-REQ-002",
-        generated_artifact_path=source,
-        allowed_generated_artifact_root=artifact_root,
-        exact_generated_artifact_receipt="EXACT-TOOL-OUTPUT-HINT-RECEIPT",
+        allowed_generated_artifact_root=artifact_root.resolve(),
+        exact_generated_artifact_receipt=exact_output_hint,
         timestamp="2026-08-29T00:00:04Z",
     )
     result = verify_registration_before_decode(
@@ -189,7 +194,7 @@ def test_output_is_registered_and_receipted_before_any_decode(tmp_path: Path) ->
     assert result == {
         "status": "REGISTER_BEFORE_DECODE_PASS",
         "phase": "OUTPUT_REGISTERED_PRE_DECODE",
-        "sequence": 4,
+        "sequence": 6,
         "output_opaque_id": "OUTPUT-CAL-REQ-002",
         "source_sha256": result["source_sha256"],
         "staging_sha256": result["source_sha256"],
@@ -213,6 +218,9 @@ def test_output_is_registered_and_receipted_before_any_decode(tmp_path: Path) ->
     assert state["counters"]["active_calls"] == 0
 
     registration = cast(dict[str, Any], state["output_registration"])
+    attempt = cast(dict[str, Any], state["output_registration_attempt"])
+    assert attempt["output_opaque_id"] == "OUTPUT-CAL-REQ-002"
+    assert exact_output_hint not in json.dumps(state)
     record = json.loads((root / "records" / registration["record_file"]).read_text())
     assert record["registration_status"] == "COMMITTED"
     assert record["decode_performed"] is False
@@ -229,6 +237,7 @@ def test_duplicate_dispatch_and_wrong_ordinal_fail_closed(tmp_path: Path) -> Non
             expected_controller_sha256=CONTROLLER_SHA256,
             ordinal="CAL-REQ-003",
             action_id="ACTION-CAL-REQ-003",
+            expected_output_opaque_id="OUTPUT-CAL-REQ-003",
             timestamp=TIMESTAMP_1,
         )
     prepared = prepare_dispatch(
@@ -236,6 +245,7 @@ def test_duplicate_dispatch_and_wrong_ordinal_fail_closed(tmp_path: Path) -> Non
         expected_controller_sha256=CONTROLLER_SHA256,
         ordinal="CAL-REQ-002",
         action_id="ACTION-CAL-REQ-002",
+        expected_output_opaque_id="OUTPUT-CAL-REQ-002",
         timestamp=TIMESTAMP_1,
     )
     with pytest.raises(ExecutionOverlayError, match="PREPARE_STATE_INVALID"):
@@ -244,21 +254,23 @@ def test_duplicate_dispatch_and_wrong_ordinal_fail_closed(tmp_path: Path) -> Non
             expected_controller_sha256=CONTROLLER_SHA256,
             ordinal="CAL-REQ-002",
             action_id="ACTION-CAL-REQ-002-B",
+            expected_output_opaque_id="OUTPUT-CAL-REQ-002-B",
             timestamp=TIMESTAMP_2,
         )
-    consume_dispatch(
+    consumed = consume_dispatch(
         receipt_path=prepared.receipt_path,
         expected_controller_sha256=CONTROLLER_SHA256,
         action_id="ACTION-CAL-REQ-002",
         timestamp=TIMESTAMP_2,
     )
-    with pytest.raises(ExecutionOverlayError, match="CREATE_NEW_TARGET_PREEXISTS"):
-        consume_dispatch(
-            receipt_path=prepared.receipt_path,
-            expected_controller_sha256=CONTROLLER_SHA256,
-            action_id="ACTION-CAL-REQ-002",
-            timestamp=TIMESTAMP_2,
-        )
+    replayed = consume_dispatch(
+        receipt_path=prepared.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        timestamp=TIMESTAMP_2,
+    )
+    assert replayed.receipt_path == consumed.receipt_path
+    assert replayed.sequence == consumed.sequence == 2
 
 
 def test_dispatch_failure_is_final_and_preserves_consumed_counters(tmp_path: Path) -> None:
@@ -288,19 +300,24 @@ def test_dispatch_failure_is_final_and_preserves_consumed_counters(tmp_path: Pat
 
 def test_registration_failure_after_return_is_a_no_decode_hard_stop(tmp_path: Path) -> None:
     _root, receipt = _consumed(tmp_path)
+    invalid_output_hint = "data:image/png;base64,ignored"
     returned = record_output_returned(
         receipt_path=receipt,
         expected_controller_sha256=CONTROLLER_SHA256,
         action_id="ACTION-CAL-REQ-002",
         timestamp=TIMESTAMP_3,
         returned_output_count=1,
+        exact_generated_artifact_receipt=invalid_output_hint,
     )
-    failed = mark_registration_failed(
+    allowed_root = tmp_path / "allowed-generated-artifacts"
+    allowed_root.mkdir()
+    failed = register_output_before_decode(
         receipt_path=returned.receipt_path,
         expected_controller_sha256=CONTROLLER_SHA256,
         action_id="ACTION-CAL-REQ-002",
+        allowed_generated_artifact_root=allowed_root.resolve(),
+        exact_generated_artifact_receipt=invalid_output_hint,
         timestamp="2026-08-29T00:00:04Z",
-        reason_code="OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE",
     )
     state = cast(
         dict[str, Any],
@@ -317,43 +334,68 @@ def test_registration_failure_after_return_is_a_no_decode_hard_stop(tmp_path: Pa
     assert state["counters"]["raw_output_count"] == 2
     assert state["counters"]["active_calls"] == 0
 
+    replayed = register_output_before_decode(
+        receipt_path=returned.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        allowed_generated_artifact_root=allowed_root.resolve(),
+        exact_generated_artifact_receipt=invalid_output_hint,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    assert replayed.receipt_path == failed.receipt_path
+    with pytest.raises(ExecutionOverlayError, match="STATE_OR_ACTION_INVALID"):
+        register_output_before_decode(
+            receipt_path=failed.receipt_path,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            action_id="ACTION-CAL-REQ-002",
+            allowed_generated_artifact_root=allowed_root.resolve(),
+            exact_generated_artifact_receipt=invalid_output_hint,
+            timestamp="2026-08-29T00:00:04Z",
+        )
+
 
 def test_registration_rejects_out_of_scope_paths_and_data_urls(tmp_path: Path) -> None:
     _root, receipt = _consumed(tmp_path)
+    allowed_root = tmp_path / "allowed-generated-artifacts"
+    allowed_root.mkdir()
+    outside = tmp_path / "outside.bin"
+    outside.write_bytes(b"\x89PNG\r\n\x1a\nfixture")
+    exact_outside_hint = str(outside.resolve())
     returned = record_output_returned(
         receipt_path=receipt,
         expected_controller_sha256=CONTROLLER_SHA256,
         action_id="ACTION-CAL-REQ-002",
         timestamp=TIMESTAMP_3,
         returned_output_count=1,
+        exact_generated_artifact_receipt=exact_outside_hint,
     )
-    allowed_root = tmp_path / "allowed-generated-artifacts"
-    allowed_root.mkdir()
-    outside = tmp_path / "outside.bin"
-    outside.write_bytes(b"\x89PNG\r\n\x1a\nfixture")
-    with pytest.raises(ExecutionOverlayError, match="OUTSIDE_ALLOWED_ROOT"):
-        register_output_before_decode(
-            receipt_path=returned.receipt_path,
+    failed = register_output_before_decode(
+        receipt_path=returned.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        allowed_generated_artifact_root=allowed_root.resolve(),
+        exact_generated_artifact_receipt=exact_outside_hint,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    failed_state = cast(
+        dict[str, Any],
+        verify_overlay(
+            failed.receipt_path,
             expected_controller_sha256=CONTROLLER_SHA256,
-            action_id="ACTION-CAL-REQ-002",
-            output_opaque_id="OUTPUT-CAL-REQ-002",
-            generated_artifact_path=outside,
-            allowed_generated_artifact_root=allowed_root,
-            exact_generated_artifact_receipt="EXACT-TOOL-OUTPUT-HINT-RECEIPT",
-            timestamp="2026-08-29T00:00:04Z",
-        )
+        )["state"],
+    )
+    assert failed_state["phase"] == "OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE"
+    assert failed_state["decode_authorized"] is False
 
     inside = allowed_root / "inside.bin"
     inside.write_bytes(b"\x89PNG\r\n\x1a\nfixture")
-    with pytest.raises(ExecutionOverlayError, match="RECEIPT_MISSING"):
+    with pytest.raises(ExecutionOverlayError, match="HARD_STOP"):
         register_output_before_decode(
             receipt_path=returned.receipt_path,
             expected_controller_sha256=CONTROLLER_SHA256,
             action_id="ACTION-CAL-REQ-002",
-            output_opaque_id="OUTPUT-CAL-REQ-002",
-            generated_artifact_path=inside,
-            allowed_generated_artifact_root=allowed_root,
-            exact_generated_artifact_receipt="data:image/png;base64,ignored",
+            allowed_generated_artifact_root=allowed_root.resolve(),
+            exact_generated_artifact_receipt=str(inside.resolve()),
             timestamp="2026-08-29T00:00:04Z",
         )
 
@@ -364,6 +406,83 @@ def test_hash_chain_detects_prior_event_tampering(tmp_path: Path) -> None:
     event.write_bytes(event.read_bytes() + b" ")
     with pytest.raises(ExecutionOverlayError, match="EVENT_DIGEST_MISMATCH"):
         verify_overlay(receipt, expected_controller_sha256=CONTROLLER_SHA256)
+
+
+@pytest.mark.parametrize("crash_after_write", [1, 2, 3])
+def test_transition_rolls_forward_from_exact_predecessor_in_fresh_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    crash_after_write: int,
+) -> None:
+    root, receipt = _initialized(tmp_path)
+    original_write = overlay_module._write_json_create_or_verify_exact
+    write_count = 0
+
+    def injected_crash(path: Path, value: dict[str, Any]) -> tuple[str, int]:
+        nonlocal write_count
+        result = original_write(path, value)
+        write_count += 1
+        if write_count == crash_after_write:
+            raise RuntimeError("INJECTED_TRANSITION_CRASH")
+        return result
+
+    monkeypatch.setattr(
+        overlay_module,
+        "_write_json_create_or_verify_exact",
+        injected_crash,
+    )
+    with pytest.raises(RuntimeError, match="INJECTED_TRANSITION_CRASH"):
+        prepare_dispatch(
+            receipt_path=receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            ordinal="CAL-REQ-002",
+            action_id="ACTION-CAL-REQ-002",
+            expected_output_opaque_id="OUTPUT-CAL-REQ-002",
+            timestamp=TIMESTAMP_1,
+        )
+    monkeypatch.setattr(
+        overlay_module,
+        "_write_json_create_or_verify_exact",
+        original_write,
+    )
+
+    api_src = Path(__file__).resolve().parents[1] / "src"
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = os.pathsep.join(
+        value for value in (str(api_src), environment.get("PYTHONPATH", "")) if value
+    )
+    script = """
+import sys
+from pathlib import Path
+from mirror_api.synthetic_dataset.private_execution_overlay import prepare_dispatch
+
+handle = prepare_dispatch(
+    receipt_path=Path(sys.argv[1]),
+    expected_controller_sha256=sys.argv[2],
+    ordinal="CAL-REQ-002",
+    action_id="ACTION-CAL-REQ-002",
+    expected_output_opaque_id="OUTPUT-CAL-REQ-002",
+    timestamp="2026-08-29T00:00:01Z",
+)
+print(handle.receipt_path)
+"""
+    recovered = subprocess.run(  # noqa: S603 - fixed interpreter and inline test probe
+        [sys.executable, "-c", script, str(receipt), CONTROLLER_SHA256],
+        cwd=api_src.parent,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert recovered.returncode == 0, recovered.stderr
+    recovered_receipt = Path(recovered.stdout.strip())
+    verified = verify_overlay(
+        recovered_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )
+    assert verified["state"]["phase"] == "DISPATCH_PREPARED"
+    assert recovered_receipt == root / "receipt-000001.json"
 
 
 def test_private_prompt_rendering_is_deterministic_and_requires_prohibition() -> None:
@@ -378,7 +497,11 @@ def test_private_prompt_rendering_is_deterministic_and_requires_prohibition() ->
             "STYLE_DESCRIPTOR",
         ],
         "positive_segments": [
-            ["synthetic non-real subject", "{DECLARED_AGE_BAND}"],
+            [
+                "synthetic non-real subject",
+                "ordinal {REQUEST_ORDINAL}",
+                "{DECLARED_AGE_BAND}",
+            ],
             ["morphology {MORPHOLOGY_DESCRIPTOR}", "style {STYLE_DESCRIPTOR}"],
         ],
         "negative_segments": [["no real person", "no text"]],
@@ -401,7 +524,7 @@ def test_private_prompt_rendering_is_deterministic_and_requires_prohibition() ->
     assert rendered == (
         "REQUEST_ORDINAL: CAL-REQ-002\n"
         "POSITIVE_CONSTRAINT_GROUPS:\n"
-        "1. synthetic non-real subject; ADULT_20_25\n"
+        "1. synthetic non-real subject; ordinal CAL-REQ-002; ADULT_20_25\n"
         "2. morphology UPPER_HIGH; style GENTLE_SOFT\n"
         "NEGATIVE_CONSTRAINT_GROUPS:\n"
         "1. no real person; no text"
@@ -413,6 +536,21 @@ def test_private_prompt_rendering_is_deterministic_and_requires_prohibition() ->
             ordinal="CAL-REQ-002",
             expected_policy_digest=POLICY_DIGEST,
         )
+
+    for invalid_segment in ("{UNKNOWN_PLACEHOLDER}", "{REQUEST_ORDINAL[invalid]}"):
+        with pytest.raises(
+            ExecutionOverlayError,
+            match="PRIVATE_PROMPT_PLACEHOLDER_RENDER_FAILED",
+        ):
+            render_private_prompt(
+                prompt_template={
+                    **template,
+                    "positive_segments": [[invalid_segment]],
+                },
+                assignment_entry=assignment,
+                ordinal="CAL-REQ-002",
+                expected_policy_digest=POLICY_DIGEST,
+            )
 
 
 def test_controller_uses_no_directory_discovery_primitive() -> None:
