@@ -83,6 +83,17 @@ class ExecutionCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class MaterializationEvidence:
+    sha256: str
+    byte_size: int
+    width: int
+    height: int
+    mime_type: str
+    engine_digest: str
+    config_digest: str
+
+
+@dataclass(frozen=True, slots=True)
 class EditArtifact:
     artifact_id: str
     actor_id: str
@@ -92,7 +103,7 @@ class EditArtifact:
     formal_job_attempt_id: str
     private_object_key: str
     state: ArtifactState
-    materialized: MaterializedObject | None = None
+    materialized: MaterializationEvidence | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +138,8 @@ class PrivateObjectStorage(Protocol):
     async def put_if_absent(self, *, key: str, content: bytes, sha256: str) -> None: ...
 
     async def read(self, *, key: str) -> bytes | None: ...
+
+    async def promote_from_quarantine(self, *, key: str, artifact_id: str, sha256: str) -> str: ...
 
 
 class GeometryDispatcher(Protocol):
@@ -166,6 +179,7 @@ class DemoEditingRepository(Protocol):
         artifact: EditArtifact,
         verification: EffectVerificationResult,
         materialized: MaterializedObject,
+        published_storage_key: str,
     ) -> Promotion: ...
 
     async def create_transition(
@@ -231,7 +245,17 @@ class DemoEditingService:
         if not isinstance(verification, EffectVerificationResult):
             raise DemoEditingServiceError("INVALID_VERIFIER_RESULT", "verifier result is invalid")
         if verification.status is VerificationStatus.PASS:
-            promotion = await self._repository.promote_pass(artifact, verification, materialized)
+            published_storage_key = await self._storage.promote_from_quarantine(
+                key=artifact.private_object_key,
+                artifact_id=artifact.artifact_id,
+                sha256=materialized.sha256,
+            )
+            promotion = await self._repository.promote_pass(
+                artifact,
+                verification,
+                materialized,
+                published_storage_key,
+            )
             return ExecutionResult(
                 artifact.artifact_id, ArtifactState.PROMOTED, verification.status, promotion, False
             )
@@ -300,7 +324,7 @@ class DemoEditingService:
                 raise DemoEditingServiceError(
                     "MATERIALIZATION_EVIDENCE_MISSING", "artifact metadata is unavailable"
                 )
-            _validate_materialized(artifact.materialized, command)
+            _validate_materialization_evidence(artifact.materialized, command)
             if (
                 existing is None
                 or hashlib.sha256(existing).hexdigest() != artifact.materialized.sha256
@@ -308,11 +332,22 @@ class DemoEditingService:
                 raise DemoEditingServiceError(
                     "QUARANTINE_RECOVERY_FAILED", "materialized object does not match authority"
                 )
-            if existing != artifact.materialized.content:
+            recovered_materialization = MaterializedObject(
+                content=existing,
+                sha256=artifact.materialized.sha256,
+                width=artifact.materialized.width,
+                height=artifact.materialized.height,
+                mime_type=artifact.materialized.mime_type,
+                engine_digest=artifact.materialized.engine_digest,
+                config_digest=artifact.materialized.config_digest,
+            )
+            _validate_materialized(recovered_materialization, command)
+            if len(existing) != artifact.materialized.byte_size:
                 raise DemoEditingServiceError(
-                    "QUARANTINE_OBJECT_CONFLICT", "private object conflicts with materialization"
+                    "QUARANTINE_OBJECT_CONFLICT",
+                    "private object size conflicts with materialization",
                 )
-            return artifact.materialized
+            return recovered_materialization
         materialized = await self._dispatch(command)
         _validate_materialized(materialized, command)
         if existing is not None and existing != materialized.content:
@@ -324,12 +359,12 @@ class DemoEditingService:
             content=materialized.content,
             sha256=materialized.sha256,
         )
-        recovered = await self._storage.read(key=artifact.private_object_key)
-        if recovered is None or hashlib.sha256(recovered).hexdigest() != materialized.sha256:
+        stored = await self._storage.read(key=artifact.private_object_key)
+        if stored is None or hashlib.sha256(stored).hexdigest() != materialized.sha256:
             raise DemoEditingServiceError(
                 "QUARANTINE_RECOVERY_FAILED", "private object was not durably written"
             )
-        if recovered != materialized.content:
+        if stored != materialized.content:
             raise DemoEditingServiceError(
                 "QUARANTINE_OBJECT_CONFLICT", "private object conflicts with reservation"
             )
@@ -445,6 +480,31 @@ def _validate_materialized(materialized: MaterializedObject, command: ExecutionC
     if (
         materialized.engine_digest != command.engine_digest
         or materialized.config_digest != command.config_digest
+    ):
+        raise DemoEditingServiceError(
+            "ENGINE_CONFIG_MISMATCH", "materialization must bind reserved engine/config"
+        )
+
+
+def _validate_materialization_evidence(
+    evidence: MaterializationEvidence, command: ExecutionCommand
+) -> None:
+    _require_digest(evidence.sha256, "materialized sha256")
+    if (
+        type(evidence.byte_size) is not int
+        or evidence.byte_size <= 0
+        or type(evidence.width) is not int
+        or evidence.width <= 0
+        or type(evidence.height) is not int
+        or evidence.height <= 0
+        or evidence.mime_type not in {"image/jpeg", "image/png"}
+    ):
+        raise DemoEditingServiceError(
+            "INVALID_MATERIALIZATION", "materialization evidence is invalid"
+        )
+    if (
+        evidence.engine_digest != command.engine_digest
+        or evidence.config_digest != command.config_digest
     ):
         raise DemoEditingServiceError(
             "ENGINE_CONFIG_MISMATCH", "materialization must bind reserved engine/config"

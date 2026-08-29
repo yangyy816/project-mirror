@@ -20,6 +20,7 @@ _KEY_COMPONENT: Final = r"[0-9a-f]{32}"
 _QUARANTINE_KEY: Final = re.compile(
     rf"demo-quarantine/{_KEY_COMPONENT}/{_KEY_COMPONENT}/{_KEY_COMPONENT}/{_KEY_COMPONENT}\Z"
 )
+_PUBLISHED_KEY: Final = re.compile(rf"demo-published/v1/{_KEY_COMPONENT}/[0-9a-f]{{64}}\Z")
 
 
 class DemoEditingStorageError(RuntimeError):
@@ -54,9 +55,30 @@ class DemoLocalPrivateObjectStorage:
             await asyncio.to_thread(self._put_if_absent_sync, key, content, sha256)
 
     async def read(self, *, key: str) -> bytes | None:
-        self._validate_key(key)
+        self._validate_object_key(key)
         async with self._lock:
             return await asyncio.to_thread(self._read_sync, key)
+
+    async def promote_from_quarantine(self, *, key: str, artifact_id: str, sha256: str) -> str:
+        """Create one immutable published object without deleting quarantine bytes."""
+        self._validate_quarantine_key(key)
+        if re.fullmatch(_KEY_COMPONENT, artifact_id) is None:
+            raise DemoEditingStorageError(
+                "STORAGE_ARTIFACT_ID_INVALID", "private artifact identifier is invalid"
+            )
+        if re.fullmatch(r"[0-9a-f]{64}", sha256) is None:
+            raise DemoEditingStorageError(
+                "STORAGE_DIGEST_INVALID", "private content digest is invalid"
+            )
+        published_key = f"demo-published/v1/{artifact_id}/{sha256}"
+        async with self._lock:
+            await asyncio.to_thread(
+                self._promote_sync,
+                key,
+                published_key,
+                sha256,
+            )
+        return published_key
 
     def _put_if_absent_sync(self, key: str, content: bytes, sha256: str) -> None:
         target = self._payload_path(key, create_parent=True)
@@ -88,8 +110,35 @@ class DemoLocalPrivateObjectStorage:
     def _read_sync(self, key: str) -> bytes | None:
         return self._read_payload(self._payload_path(key, create_parent=False), missing_ok=True)
 
+    def _promote_sync(self, source_key: str, published_key: str, sha256: str) -> None:
+        source = self._payload_path(source_key, create_parent=False)
+        content = self._read_payload(source, missing_ok=False)
+        if content is None or not hmac.compare_digest(hashlib.sha256(content).hexdigest(), sha256):
+            raise DemoEditingStorageError(
+                "STORAGE_DIGEST_MISMATCH", "private content digest mismatches"
+            )
+        target = self._payload_path(published_key, create_parent=True)
+        existing = self._read_payload(target, missing_ok=True)
+        if existing is not None:
+            self._ensure_matches(existing, content, sha256)
+            return
+        try:
+            os.link(source, target)
+            self._fsync_directory(target.parent)
+        except FileExistsError:
+            existing = self._read_payload(target, missing_ok=False)
+            if existing is None:
+                raise DemoEditingStorageError(
+                    "STORAGE_OBJECT_MISSING", "private object is unavailable"
+                ) from None
+            self._ensure_matches(existing, content, sha256)
+        except OSError as exc:
+            raise DemoEditingStorageError(
+                "STORAGE_PROMOTION_FAILED", "private object could not be promoted"
+            ) from exc
+
     def _payload_path(self, key: str, *, create_parent: bool) -> Path:
-        self._validate_key(key)
+        self._validate_object_key(key)
         parent = self._root
         for component in key.split("/"):
             parent = parent / component
@@ -138,7 +187,7 @@ class DemoLocalPrivateObjectStorage:
 
     @staticmethod
     def _validate_write(*, key: str, content: bytes, sha256: str) -> None:
-        DemoLocalPrivateObjectStorage._validate_key(key)
+        DemoLocalPrivateObjectStorage._validate_quarantine_key(key)
         if type(content) is not bytes:
             raise DemoEditingStorageError("STORAGE_CONTENT_INVALID", "private content is invalid")
         if not isinstance(sha256, str) or re.fullmatch(r"[0-9a-f]{64}", sha256) is None:
@@ -152,8 +201,17 @@ class DemoLocalPrivateObjectStorage:
             )
 
     @staticmethod
-    def _validate_key(key: str) -> None:
+    def _validate_quarantine_key(key: str) -> None:
         if not isinstance(key, str) or _QUARANTINE_KEY.fullmatch(key) is None:
+            raise DemoEditingStorageError("STORAGE_KEY_INVALID", "private storage key is invalid")
+        if "\\" in key or key.startswith("/") or "//" in key or "/../" in key:
+            raise DemoEditingStorageError("STORAGE_KEY_INVALID", "private storage key is invalid")
+
+    @staticmethod
+    def _validate_object_key(key: str) -> None:
+        if not isinstance(key, str) or (
+            _QUARANTINE_KEY.fullmatch(key) is None and _PUBLISHED_KEY.fullmatch(key) is None
+        ):
             raise DemoEditingStorageError("STORAGE_KEY_INVALID", "private storage key is invalid")
         if "\\" in key or key.startswith("/") or "//" in key or "/../" in key:
             raise DemoEditingStorageError("STORAGE_KEY_INVALID", "private storage key is invalid")

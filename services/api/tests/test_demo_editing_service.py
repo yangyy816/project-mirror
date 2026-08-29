@@ -15,6 +15,7 @@ from mirror_api.demo_editing_service import (
     EditingSessionCommand,
     EditPlanCommand,
     ExecutionCommand,
+    MaterializationEvidence,
     MaterializedObject,
     Promotion,
 )
@@ -91,6 +92,13 @@ class _Storage:
     async def read(self, *, key: str) -> bytes | None:
         return self.objects.get(key)
 
+    async def promote_from_quarantine(self, *, key: str, artifact_id: str, sha256: str) -> str:
+        content = self.objects[key]
+        assert hashlib.sha256(content).hexdigest() == sha256
+        published_key = f"demo-published/v1/{artifact_id}/{sha256}"
+        self.objects.setdefault(published_key, content)
+        return published_key
+
 
 class _Repository:
     def __init__(self) -> None:
@@ -127,7 +135,17 @@ class _Repository:
         self, artifact: EditArtifact, materialized: MaterializedObject
     ) -> EditArtifact:
         self.artifact = replace(
-            artifact, state=ArtifactState.MATERIALIZED, materialized=materialized
+            artifact,
+            state=ArtifactState.MATERIALIZED,
+            materialized=MaterializationEvidence(
+                sha256=materialized.sha256,
+                byte_size=len(materialized.content),
+                width=materialized.width,
+                height=materialized.height,
+                mime_type=materialized.mime_type,
+                engine_digest=materialized.engine_digest,
+                config_digest=materialized.config_digest,
+            ),
         )
         return self.artifact
 
@@ -139,8 +157,13 @@ class _Repository:
         return self.artifact
 
     async def promote_pass(
-        self, artifact: EditArtifact, verification: object, materialized: MaterializedObject
+        self,
+        artifact: EditArtifact,
+        verification: object,
+        materialized: MaterializedObject,
+        published_storage_key: str,
     ) -> Promotion:
+        assert published_storage_key.startswith("demo-published/v1/")
         self.promotions += 1
         self.artifact = replace(artifact, state=ArtifactState.PROMOTED)
         return Promotion(_id("4"), _id("5"), _id("6"), _id("0"))
@@ -212,7 +235,7 @@ async def test_pass_materializes_privately_then_promotes_once() -> None:
     assert result.verification_status is VerificationStatus.PASS
     assert result.promotion is not None
     assert repo.promotions == 1 and repo.rejections == 0
-    assert len(storage.objects) == 1
+    assert len(storage.objects) == 2
 
 
 @pytest.mark.asyncio

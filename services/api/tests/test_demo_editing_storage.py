@@ -105,3 +105,41 @@ async def test_private_quarantine_storage_concurrent_writes_leave_one_complete_p
     )
     assert await storage.read(key=_key()) == content
     assert not list((tmp_path / "demo-quarantine").rglob(".payload-*.part"))
+
+
+@pytest.mark.asyncio
+async def test_private_quarantine_storage_promotes_immutable_private_object(
+    tmp_path: Path,
+) -> None:
+    storage = DemoLocalPrivateObjectStorage(root=tmp_path)
+    content = b"verified-published-fixture"
+    digest = hashlib.sha256(content).hexdigest()
+    artifact_id = "e" * 32
+    await storage.put_if_absent(key=_key(), content=content, sha256=digest)
+
+    published_key = await storage.promote_from_quarantine(
+        key=_key(), artifact_id=artifact_id, sha256=digest
+    )
+    replayed_key = await storage.promote_from_quarantine(
+        key=_key(), artifact_id=artifact_id, sha256=digest
+    )
+
+    assert published_key == f"demo-published/v1/{artifact_id}/{digest}"
+    assert replayed_key == published_key
+    assert await storage.read(key=published_key) == content
+    assert await storage.read(key=_key()) == content
+
+
+@pytest.mark.asyncio
+async def test_private_quarantine_storage_rejects_promotion_digest_mismatch(
+    tmp_path: Path,
+) -> None:
+    storage = DemoLocalPrivateObjectStorage(root=tmp_path)
+    content = b"verified-published-fixture"
+    await storage.put_if_absent(
+        key=_key(), content=content, sha256=hashlib.sha256(content).hexdigest()
+    )
+
+    with pytest.raises(DemoEditingStorageError) as rejected:
+        await storage.promote_from_quarantine(key=_key(), artifact_id="e" * 32, sha256="0" * 64)
+    assert rejected.value.code == "STORAGE_DIGEST_MISMATCH"
