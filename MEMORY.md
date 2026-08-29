@@ -534,3 +534,13 @@
   epoch-3 保持不可变历史且禁止搜索、复制、重建或复用，C0 不创建 private root/Prompt/ledger、不满足恢复
   predicate，也不消费 `CAL-REQ-002`。后续 CC05-C 必须创建全新版本/摘要及可恢复 exact task-scoped receipt，
   资源账本继续为 `31/31/62`，M5 technical Gate、MVR、M6、production 和真人处理继续关闭。
+
+- 2026-08-29：CC05-C0 repair candidate `d50aa8b2fbb39fa4794dd46ecfafa07ef8614d8e` 的 same-SHA run
+  `33252998303` 三 jobs、八个 artifact families/十一项文件、独立 Security 与 Sol High final review 均通过，
+  Principal 接受 C0。其唯一 successor `CC-P2-M5-05-C_PRIVATE_POLICY_MATERIALIZATION` 已在 Git 忽略的
+  Principal 私有 custody 中 create-new 物化一个全新 epoch-4 root、固定 bootstrap、exact task-scoped receipt
+  及全新 policy/Prompt/rubric/assignment/request/output control state；独立 fresh process 恢复通过，epoch-3
+  bytes/digests 读取、复制或复用为零。31 个 prospective ordinals 冻结为 7 个 `ADULT_18_19` 与 24 个
+  `ADULT_20_25`，18–19 只使用 PCN/GSA 非性化 style。当前仅为 tracked Gate candidate：generation、ordinal
+  consumption、image-byte read、decode、QA、screening、admission 均为零，`CAL-REQ-002` 仍未消费，资源账本
+  维持 `31/31/62`；epoch-4 execution overlay、M5 technical Gate、MVR、M6、production 与真人处理继续关闭。
