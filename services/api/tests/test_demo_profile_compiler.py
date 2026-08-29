@@ -121,10 +121,11 @@ def test_accepted_verified_self_transfer_overrides_conflicting_questionnaire() -
     )
 
 
-def test_rejected_or_failed_self_transfer_does_not_strengthen_profile() -> None:
-    transfer = SelfTransferEvidence(
-        "jaw_width", -7000, 900000, False, SelfTransferOutcome.FAIL, _digest("d")
-    )
+@pytest.mark.parametrize("outcome", (SelfTransferOutcome.FAIL, SelfTransferOutcome.HUMAN_REVIEW))
+def test_rejected_or_unverified_self_transfer_does_not_strengthen_profile(
+    outcome: SelfTransferOutcome,
+) -> None:
+    transfer = SelfTransferEvidence("jaw_width", -7000, 900000, False, outcome, _digest("d"))
     result = compile_profile(_input(self_transfer=(transfer,)))
     assert result.desired_deltas[0].desired_delta_ppm == 12000
 

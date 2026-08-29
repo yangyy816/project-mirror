@@ -1303,6 +1303,12 @@ class DemoDesiredDeltaProfile(DemoAuthorityMixin, Base):
             "version",
             name="uq_demo_desired_delta_profiles_actor_version",
         ),
+        Index(
+            "uq_demo_desired_delta_profiles_job_binding",
+            "demo_job_binding_id",
+            unique=True,
+            postgresql_where=text("demo_job_binding_id IS NOT NULL"),
+        ),
         CheckConstraint("version > 0", name="positive_version"),
         CheckConstraint("as_of_event_sequence >= 0", name="nonnegative_event_sequence"),
         CheckConstraint(
@@ -1357,6 +1363,12 @@ class DemoStyleProfile(DemoAuthorityMixin, Base):
             "demo_actor_id",
             "version",
             name="uq_demo_style_profiles_actor_version",
+        ),
+        Index(
+            "uq_demo_style_profiles_job_binding",
+            "demo_job_binding_id",
+            unique=True,
+            postgresql_where=text("demo_job_binding_id IS NOT NULL"),
         ),
         CheckConstraint("version > 0", name="positive_version"),
         CheckConstraint("as_of_event_sequence >= 0", name="nonnegative_event_sequence"),
@@ -1425,6 +1437,105 @@ class DemoIdentityConstraints(DemoAuthorityMixin, Base):
         CheckConstraint(
             "jsonb_typeof(prohibited_operations) = 'array'",
             name="prohibited_operations_array",
+        ),
+    )
+
+
+class DemoProfileCompilationBundle(DemoAuthorityMixin, Base):
+    __tablename__ = "demo_profile_compilation_bundles"
+
+    demo_actor_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_actors.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    demo_session_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    demo_job_binding_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "demo_job_bindings.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        index=True,
+        nullable=False,
+    )
+    self_state_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    desired_delta_profile_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_desired_delta_profiles.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    style_profile_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_style_profiles.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    persistent_constraints_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_identity_constraints.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    session_override_constraints_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_identity_constraints.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    as_of_event_sequence: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    compilation_watermark: Mapped[str] = mapped_column(String(64), nullable=False)
+    compiler_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    compilation_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        ForeignKeyConstraint(
+            ["demo_session_id", "demo_actor_id"],
+            ["demo_sessions.id", "demo_sessions.demo_actor_id"],
+            name="fk_demo_profile_compilation_bundles_session_actor",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "demo_job_binding_id",
+            name="uq_demo_profile_compilation_bundles_job_binding",
+        ),
+        UniqueConstraint(
+            "desired_delta_profile_id",
+            name="uq_demo_profile_compilation_bundles_desired_profile",
+        ),
+        UniqueConstraint(
+            "style_profile_id",
+            name="uq_demo_profile_compilation_bundles_style_profile",
+        ),
+        UniqueConstraint(
+            "persistent_constraints_id",
+            name="uq_demo_profile_compilation_bundles_persistent_constraints",
+        ),
+        UniqueConstraint(
+            "session_override_constraints_id",
+            name="uq_demo_profile_compilation_bundles_session_constraints",
+        ),
+        ForeignKeyConstraint(
+            ["self_state_id", "demo_actor_id", "demo_session_id"],
+            [
+                "demo_self_states.id",
+                "demo_self_states.demo_actor_id",
+                "demo_self_states.demo_session_id",
+            ],
+            name="fk_demo_profile_compilation_bundles_self_state_owner",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("as_of_event_sequence >= 0", name="nonnegative_event_sequence"),
+        CheckConstraint(
+            "compilation_watermark ~ '^[0-9a-f]{64}$'",
+            name="watermark_shape",
+        ),
+        CheckConstraint("input_digest ~ '^[0-9a-f]{64}$'", name="input_digest_shape"),
+        CheckConstraint(
+            "compilation_digest ~ '^[0-9a-f]{64}$'",
+            name="compilation_digest_shape",
+        ),
+        CheckConstraint(
+            "persistent_constraints_id <> session_override_constraints_id",
+            name="distinct_constraint_rows",
         ),
     )
 
@@ -1508,6 +1619,79 @@ class DemoSelfTransferRun(DemoAuthorityMixin, Base):
             "result_asset_id IS NULL OR source_asset_id <> result_asset_id",
             name="distinct_source_result",
         ),
+    )
+
+
+class DemoSelfTransferDimensionEvidence(DemoAuthorityMixin, Base):
+    __tablename__ = "demo_self_transfer_evidence"
+
+    demo_actor_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    demo_session_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    self_transfer_run_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    dimension_key: Mapped[str] = mapped_column(String(48), nullable=False)
+    desired_delta_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
+    confidence_ppm: Mapped[int] = mapped_column(Integer, nullable=False)
+    verifier_outcome: Mapped[str] = mapped_column(String(24), nullable=False)
+    verifier_digest: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    projection_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    projection_config_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        ForeignKeyConstraint(
+            ["self_transfer_run_id", "demo_actor_id", "demo_session_id"],
+            [
+                "demo_self_transfer_runs.id",
+                "demo_self_transfer_runs.demo_actor_id",
+                "demo_self_transfer_runs.demo_session_id",
+            ],
+            name="fk_demo_self_transfer_evidence_run_owner",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "self_transfer_run_id",
+            "dimension_key",
+            name="uq_demo_self_transfer_evidence_run_dimension",
+        ),
+        UniqueConstraint(
+            "id",
+            "demo_actor_id",
+            "demo_session_id",
+            name="uq_demo_self_transfer_evidence_id_actor_session",
+        ),
+        CheckConstraint(
+            "dimension_key ~ '^[a-z][a-z0-9_]{0,47}$'",
+            name="dimension_key_shape",
+        ),
+        CheckConstraint(
+            "desired_delta_ppm BETWEEN -1000000 AND 1000000",
+            name="desired_delta_range",
+        ),
+        CheckConstraint(
+            "confidence_ppm BETWEEN 0 AND 1000000",
+            name="confidence_range",
+        ),
+        CheckConstraint(
+            "verifier_outcome IN ('PASS','FAIL','HUMAN_REVIEW')",
+            name="verifier_outcome",
+        ),
+        ForeignKeyConstraint(
+            ["verifier_digest"],
+            ["demo_verification_results.content_digest"],
+            name="fk_demo_self_transfer_evidence_verifier_digest",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        CheckConstraint(
+            "verifier_digest ~ '^[0-9a-f]{64}$'",
+            name="verifier_digest_shape",
+        ),
+        CheckConstraint(
+            "projection_config_digest ~ '^[0-9a-f]{64}$'",
+            name="projection_config_digest_shape",
+        ),
+        CheckConstraint("projection_version <> ''", name="projection_version_nonempty"),
     )
 
 
@@ -2431,7 +2615,9 @@ DEMO_TABLE_NAMES = frozenset(
         "demo_desired_delta_profiles",
         "demo_style_profiles",
         "demo_identity_constraints",
+        "demo_profile_compilation_bundles",
         "demo_self_transfer_runs",
+        "demo_self_transfer_evidence",
         "demo_reference_profiles",
         "demo_editing_sessions",
         "demo_image_versions",

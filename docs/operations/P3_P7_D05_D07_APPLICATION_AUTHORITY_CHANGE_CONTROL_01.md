@@ -32,6 +32,9 @@ without wall-clock ordering:
 
 Every compiler `AuthorityEvent` binds both its deterministic projection digest and the immutable
 source `DemoPreferenceEvent.content_digest`. The projection digest cannot replace the ledger digest.
+`EXPLICIT_STYLE_SELECTION` and `PERSISTENT` constraint events are actor-longitudinal evidence and
+remain eligible for next-session recall; only `SESSION_OVERRIDE` evidence must match the compilation
+session exactly.
 
 Add branch-local forward migration `demo_0012_d05_profile_authority.py`:
 
@@ -44,17 +47,19 @@ PROTOTYPE_MIGRATION: TRUE
 The migration must:
 
 - add partial uniqueness for `demo_job_binding_id` on desired-delta and style profiles;
-- add nullable `demo_job_binding_id`, `desired_delta_profile_id`,
-  `compilation_watermark`, and `compiler_version` to identity constraints;
-- require those four fields together for compiler materializations and all four to be null for
-  explicit command snapshots;
-- enforce one compiled constraint row per `(job binding, constraint scope)`;
-- add append-only `demo_self_transfer_dimension_evidence` rows containing an owned RESULT run,
-  dimension key, desired delta ppm, confidence ppm, verifier outcome, and canonical digest;
+- add one append-only `demo_profile_compilation_bundles` authority that uniquely binds the
+  profile.compile JobBinding, SelfState anchor, DesiredDeltaProfile, StyleProfile, persistent
+  constraints, session override constraints, watermark, compiler version and compilation digests;
+- leave existing explicit `demo_identity_constraints` row shape unchanged so a forward migration
+  does not rewrite or reinterpret an earlier append-only canonical payload;
+- add append-only physical table `demo_self_transfer_evidence` (ORM authority
+  `DemoSelfTransferDimensionEvidence`) containing an owned RESULT run, dimension key, desired delta
+  ppm, confidence ppm, verifier outcome/digest and versioned projection config;
 - enforce one dimension row per self-transfer RESULT and validate that its parent/result/verifier
   authority is consistent.
 
-One successful compile atomically creates exactly:
+One successful compile atomically creates exactly these four output rows plus one compilation
+bundle:
 
 ```text
 1 DemoDesiredDeltaProfile

@@ -47,6 +47,7 @@ class EventSource(StrEnum):
 class SelfTransferOutcome(StrEnum):
     PASS = "PASS"  # noqa: S105 - verifier outcome, not a credential.
     FAIL = "FAIL"
+    HUMAN_REVIEW = "HUMAN_REVIEW"
 
 
 class DeltaEvidenceKind(StrEnum):

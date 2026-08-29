@@ -83,9 +83,11 @@ _LEGACY_DEMO_GRAPH_TABLE_NAMES = set(DEMO_TABLE_NAMES) - {
     "demo_d02_r2_source_authorities",
     "demo_d02_r2_epoch2_admissions",
     "demo_analysis_runs",
+    "demo_profile_compilation_bundles",
+    "demo_self_transfer_evidence",
 }
 
-DEMO_REVISION = "demo_0011_d03_job_recovery"
+DEMO_REVISION = "demo_0012_d05_profile_auth"
 D02_RECOVERED_QA_DOWN_REVISION = "demo_0006_d02_private_exec"
 D02_PRIVATE_EXEC_DOWN_REVISION = "demo_0005_d02_quality_auth"
 D02_QUALITY_DOWN_REVISION = "demo_0004_d09_episode_prov"
@@ -5301,7 +5303,7 @@ def test_accepted_episode_rejects_isolated_terminal_plan_provenance_drift(
 
 
 def test_demo_metadata_and_database_objects_match(session: Session) -> None:
-    assert len(DEMO_TABLE_NAMES) == 32
+    assert len(DEMO_TABLE_NAMES) == 34
     database_tables = set(
         session.scalars(
             text(
@@ -5318,7 +5320,7 @@ def test_demo_metadata_and_database_objects_match(session: Session) -> None:
                 "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_authority_%'"
             )
         )
-        == 31
+        == 33
     )
     assert (
         session.scalar(
@@ -5392,7 +5394,7 @@ def test_demo_orm_and_database_foreign_keys_match(session: Session) -> None:
         actual_count += len(actual)
         assert actual == expected, table_name
 
-    assert expected_count == actual_count == 99
+    assert expected_count == actual_count == 109
 
 
 def test_canonical_json_digest_and_integer_numeric_authority(session: Session) -> None:
