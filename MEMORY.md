@@ -519,3 +519,10 @@
   可读、未过期且 exact-SHA bound，独立安全与 Sol final review 均 PASS。Principal 接受 contract 并仅将冻结的
   新 diagnostic harness 实现设为 `EXECUTION_READY`；harness 尚未实现或执行，private input、CC02-B–E、Stage
   D/E、T06–T08、MVR、M6 继续关闭，旧 Stage C `FURTHER_RESEARCH` 与 0/4 eligibility 不变。
+
+- 2026-08-29：P2-M5-R46 candidate `31f4ecdb598e0796c1939c6b17f5ce70c07b5793` 的 same-SHA run
+  `33250016931` 三 jobs 全绿，八个 artifact families/十一项文件、冻结回归、Gitleaks、Browser Integration、
+  独立 Security 与 Sol High final review 均通过，Principal 接受 R46。随后对 R43-Q01 所需 CC05-A exact
+  task-scoped receipt/registry handle 的有界恢复得到 `NO_EXACT_TASK_SCOPED_HANDLE`；按 ADR-049 记录
+  `EVIDENCE_LOCATION_LOST`，禁止重复搜索、重建 legacy evidence、创建替代 root 或要求 Owner 重新上传。
+  `CAL-REQ-002` 保持未消费，31/31/62 资源账本不变；恢复只接受新的、显式且可恢复的 task-scoped authority。

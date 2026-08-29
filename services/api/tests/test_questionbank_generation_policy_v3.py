@@ -32,6 +32,9 @@ R43_REPAIR_PATH = ROOT / "docs" / "operations" / "P2_M5_R43_EPOCH3_EXECUTION_TRA
 R44_REPAIR_PATH = ROOT / "docs" / "operations" / "P2_M5_R44_R43_GATE_CLOSURE_REPAIR.md"
 R45_REPAIR_PATH = ROOT / "docs" / "operations" / "P2_M5_R45_R44_GATE_CLOSURE_REPAIR.md"
 R46_REPAIR_PATH = ROOT / "docs" / "operations" / "P2_M5_R46_R45_CI_PLATFORM_TYPING_REPAIR.md"
+CC05_B_CHANGE_CONTROL_PATH = (
+    ROOT / "docs" / "operations" / "P2_M5_CC05_B_EPOCH3_EVIDENCE_LOCATION_LOSS.md"
+)
 ACCEPTANCE_PATH = ROOT / "docs" / "operations" / "P2_M5_ACCEPTANCE.md"
 EXECUTION_PROTOCOL_PATH = ROOT / "docs" / "operations" / "P2_M5_EXECUTION_PROTOCOL.md"
 
@@ -278,6 +281,14 @@ def _last_r46_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-r46-r45-ci-platform-typing-repair-eof/v1",
         sentinel="P2_M5_R46_R45_CI_PLATFORM_TYPING_REPAIR_TRUE_EOF",
+    )
+
+
+def _last_cc05_b_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-cc05-b-epoch3-evidence-location-loss-eof/v1",
+        sentinel="P2_M5_CC05_B_EPOCH3_EVIDENCE_LOCATION_LOSS_TRUE_EOF",
     )
 
 
@@ -1309,8 +1320,6 @@ def test_r46_ci_platform_typing_overlay_is_complete_mirrored_and_true_eof() -> N
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_R46_R45_CI_PLATFORM_TYPING_REPAIR_TRUE_EOF",
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
 
     tracked = "\n".join(
         (
@@ -1325,6 +1334,145 @@ def test_r46_ci_platform_typing_overlay_is_complete_mirrored_and_true_eof() -> N
     assert "private_template_nonce" not in tracked
     assert "positive_segments" not in tracked
     assert "negative_segments" not in tracked
+    assert "provider_raw_payload" not in tracked.lower()
+    assert "C:\\" not in tracked
+    assert "D:\\" not in tracked
+
+
+def test_cc05_b_evidence_location_loss_overlay_is_complete_mirrored_and_true_eof() -> None:
+    canonical = _last_cc05_b_key_block(ACCEPTANCE_PATH)
+    mirror = _last_cc05_b_key_block(EXECUTION_PROTOCOL_PATH)
+    predecessor = _last_r46_key_block(ACCEPTANCE_PATH)
+    values = dict(canonical)
+    predecessor_values = dict(predecessor)
+
+    assert canonical == mirror
+    assert len(canonical) == len(values) == 471
+    assert len(predecessor) == len(predecessor_values) == 441
+    assert set(predecessor_values) <= values.keys()
+
+    expected_overrides = {
+        "CURRENT_STATE_AUTHORITY_VERSION": ("p2-m5-cc05-b-epoch3-evidence-location-loss-eof/v1"),
+        "CURRENT_STATE_AUTHORITY_PRECEDENCE": (
+            "THIS_CONDITIONAL_TRUE_EOF_OVERLAY_SUPERSEDES_ACCEPTED_R46_FOR_THE_COMPLETE_"
+            "LISTED_KEYSET_ONLY_AFTER_CC05_B_SAME_SHA_CI_EIGHT_ARTIFACT_CONTENT_CHECKS_"
+            "SECURITY_PRIVACY_LICENSE_RESEARCH_SOL_AND_PRINCIPAL_ACCEPTANCE"
+        ),
+        "CURRENT_STATE_MIRROR_RULE": (
+            "MUST_MATCH_CANONICAL_ACCEPTANCE_CC05_B_KEY_SET_ORDER_AND_VALUES"
+        ),
+        "EARLIER_STATUS_SECTIONS": (
+            "PRESERVED_HISTORICAL_EVIDENCE_NON_CURRENT_FOR_THE_COMPLETE_LISTED_KEYSET_"
+            "AFTER_CC05_B_ACCEPTANCE"
+        ),
+        "CC04_B_EXECUTION": "SUSPENDED_EVIDENCE_LOCATION_LOST_NO_DISPATCH",
+        "FORMAL_E01_STATUS": "SUSPENDED_EVIDENCE_LOCATION_LOST",
+        "FORMAL_E01_EXECUTION_AUTHORITY": (
+            "NOT_EFFECTIVE_WITHOUT_RECOVERABLE_EXACT_TASK_SCOPED_RECEIPT_HANDLE"
+        ),
+        "CURRENT_STATE_KEY_COVERAGE": (
+            "COMPLETE_R46_PREDECESSOR_KEYSET_PLUS_R46_ACCEPTANCE_AND_CC05_B_"
+            "EVIDENCE_LOCATION_LOSS_KEYS"
+        ),
+        "CURRENT_STATE_PRECONDITION_FALLBACK": (
+            "ACCEPTED_R46_TRUE_EOF_REMAINS_CURRENT_UNTIL_CC05_B_AUTHORITY_CONDITION_IS_SATISFIED"
+        ),
+        "P2_M5_NEXT_ACTION": ("COMPLETE_CC05_B_SAME_SHA_GATES_THEN_HOLD_AT_EVIDENCE_LOCATION_LOST"),
+        "NEXT_READY_TASK": "CC_P2_M5_05_B_SAME_SHA_GATES",
+        "STOP_OUTCOME": "CAL_REQ_002_NOT_DISPATCHED_EVIDENCE_LOCATION_LOST",
+        "P2_M5_R43_STATUS": ("TASK_ACCEPTED_WITH_R46_AT_31F4ECDB598E0796C1939C6B17F5CE70C07B5793"),
+        "P2_M5_R43_AUTHORITY_CONDITION": (
+            "SATISFIED_WITH_R46_AT_31F4ECDB598E0796C1939C6B17F5CE70C07B5793_RUN_33250016931"
+        ),
+        "P2_M5_R43_Q01_STATUS": ("CLOSED_UNAVAILABLE_WITH_CURRENT_TASK_SCOPED_EVIDENCE"),
+        "P2_M5_R46_STATUS": (
+            "TASK_ACCEPTED_AT_31F4ECDB598E0796C1939C6B17F5CE70C07B5793_RUN_33250016931"
+        ),
+        "P2_M5_R46_AUTHORITY_CONDITION": (
+            "SATISFIED_AT_31F4ECDB598E0796C1939C6B17F5CE70C07B5793_RUN_33250016931_"
+            "AFTER_EIGHT_ARTIFACT_INSPECTION_SECURITY_AND_SOL_HIGH_REVIEW"
+        ),
+        "CURRENT_AUTHORITY_TAIL_END": ("P2_M5_CC05_B_EPOCH3_EVIDENCE_LOCATION_LOSS_TRUE_EOF"),
+    }
+    actual_overrides = {
+        key: values[key]
+        for key, predecessor_value in predecessor_values.items()
+        if values[key] != predecessor_value
+    }
+    assert actual_overrides == expected_overrides
+
+    additions = {
+        "P2_M5_R46_CANDIDATE_SHA": "31F4ECDB598E0796C1939C6B17F5CE70C07B5793",
+        "P2_M5_R46_CI_RUN": "33250016931_ATTEMPT_1",
+        "P2_M5_R46_CI_RESULTS": (
+            "QUALITY_AND_INTEGRATION_PASS;SECRET_SCAN_PASS;DOCKER_VALIDATION_PASS"
+        ),
+        "P2_M5_R46_ARTIFACT_INSPECTION": ("PASS_8_FAMILIES_11_FILES_EXACT_SHA_BOUND_UNEXPIRED"),
+        "P2_M5_R46_FROZEN_REGRESSION": ("PHASE1_1_M1_98_M2_52_M3_46_ZERO_FAILURE_ERROR_SKIP"),
+        "P2_M5_R46_GITLEAKS": "PASS_ZERO_RESULTS",
+        "P2_M5_R46_BROWSER_INTEGRATION": "PASS_5_OF_5",
+        "P2_M5_R46_PLAYWRIGHT": (
+            "VERSION_1_62_1_SYSTEM_DEPS_17_SECONDS_CHROMIUM_12_SECONDS_FIRST_ATTEMPT"
+        ),
+        "P2_M5_R46_SECURITY_REVIEW": "PASS",
+        "P2_M5_R46_SOL_HIGH_FINAL_REVIEW": "PASS",
+        "P2_M5_R46_PRINCIPAL_ACCEPTANCE": (
+            "GRANTED_AFTER_ACTUAL_DIFF_ARTIFACT_SECURITY_AND_FINAL_REVIEW"
+        ),
+        "CC_P2_M5_05_B_STATUS": "READY_FOR_TRACKED_EVIDENCE",
+        "CC_P2_M5_05_B_AUTHORITY_CONDITION": (
+            "EFFECTIVE_ONLY_AFTER_CC05_B_COMMIT_SAME_SHA_CI_ALL_EIGHT_ARTIFACT_CONTENT_"
+            "CHECKS_SECURITY_PRIVACY_LICENSE_RESEARCH_SOL_AND_PRINCIPAL_ACCEPTANCE"
+        ),
+        "CC_P2_M5_05_B_POST_ACCEPTANCE_COMMIT_REQUIRED": "NO",
+        "CC_P2_M5_05_B_EVIDENCE_LOCATION_STATUS": "EVIDENCE_LOCATION_LOST",
+        "CC_P2_M5_05_B_HANDLE_SEARCH_STATUS": "CLOSED_NEGATIVE_EVIDENCE",
+        "CC_P2_M5_05_B_RETRY_WITHOUT_NEW_INPUT": "PROHIBITED",
+        "CC_P2_M5_05_B_OWNER_UPLOAD_OBLIGATION": ("NONE_PRINCIPAL_RETAINS_CUSTODY_RESPONSIBILITY"),
+        "CC_P2_M5_05_B_REPLACEMENT_ROOT": "PROHIBITED",
+        "CC_P2_M5_05_B_SINGLE_RESUME_PREDICATE": (
+            "NEW_ACCEPTED_FORWARD_EXECUTION_AUTHORITY_WITH_RECOVERABLE_EXACT_TASK_SCOPED_"
+            "HANDLE_AND_COMPLETE_RESOURCE_LEDGER"
+        ),
+        "CC_P2_M5_05_B_IMAGEGEN_CALLS_EXECUTED": "0",
+        "CC_P2_M5_05_B_ORDINALS_CONSUMED": "0",
+        "CC_P2_M5_05_B_RAW_OUTPUTS_CREATED": "0",
+        "CC_P2_M5_05_B_PRIVATE_ROOTS_CREATED": "0",
+        "CC_P2_M5_05_B_PRIVATE_IMAGE_BYTES_READ_OR_WRITTEN": "0",
+        "CC_P2_M5_05_B_DECODE_QA_SCREENING_ADMISSION": "0",
+        "D02_R2_EXACT_TASK_SCOPED_HANDLE_RESULT": "NO_EXACT_TASK_SCOPED_HANDLE",
+        "D02_R2_HANDLE_SEARCH_STATUS": "CLOSED_NEGATIVE_EVIDENCE",
+        "D02_R2_REPEATED_HANDLE_SEARCH": "NO",
+        "OWNER_ACTION_REQUIRED": "NO",
+    }
+    assert len(additions) == 30
+    assert set(values) - set(predecessor_values) == set(additions)
+    assert {key: values[key] for key in additions} == additions
+
+    assert values["CAL_REQ_002_STATUS"] == "NOT_CONSUMED"
+    assert values["FORMAL_E01_GENERATION_CALLS_EXECUTED"] == "1"
+    assert values["FORMAL_E01_RAW_OUTPUTS_CREATED"] == "1"
+    assert values["FORMAL_CALLS_REMAINING"] == "31"
+    assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "31"
+    assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "62"
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_CC05_B_EPOCH3_EVIDENCE_LOCATION_LOSS_TRUE_EOF",
+    )
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+
+    tracked = "\n".join(
+        (
+            CC05_B_CHANGE_CONTROL_PATH.read_text(encoding="utf-8"),
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-190_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-190_000:],
+        )
+    )
+    assert "EVIDENCE_LOCATION_LOST" in tracked
+    assert ".private-handoff" not in tracked
+    assert ".local-storage" not in tracked
+    assert "data:image/" not in tracked
     assert "provider_raw_payload" not in tracked.lower()
     assert "C:\\" not in tracked
     assert "D:\\" not in tracked
