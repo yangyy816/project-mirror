@@ -275,9 +275,11 @@ jobs:
         if: env.DEMO_PROTOTYPE_TRACK == 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > demo-prototype-migration-head.txt
-          test "$(tr -d '\r\n' < demo-prototype-migration-head.txt)" = "demo_0008_d02_r2_source_auth (head)"
+          test "$(tr -d '\r\n' < demo-prototype-migration-head.txt)" = "demo_0010_d03_analysis_run (head)"
           python -m alembic -c services/api/alembic.ini history > demo-prototype-migration-history.txt
-          grep -Fqx "demo_0007_d02_recovered_qa -> demo_0008_d02_r2_source_auth (head), Add D02-R2 parallel source authority." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0009_d02_r2_e2_adm -> demo_0010_d03_analysis_run (head), Add the Demo-only D03 analysis request and execution authority." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0008_d02_r2_source_auth -> demo_0009_d02_r2_e2_adm, Add D02-R2 Epoch 02 source and atomic bank admission authority." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0007_d02_recovered_qa -> demo_0008_d02_r2_source_auth, Add D02-R2 parallel source authority." demo-prototype-migration-history.txt
           grep -Fqx "demo_0006_d02_private_exec -> demo_0007_d02_recovered_qa, Add recovered legacy QA typed-digest authority." demo-prototype-migration-history.txt
           grep -Fqx "demo_0005_d02_quality_auth -> demo_0006_d02_private_exec, Close Demo D02 private-execution admission authority gaps." demo-prototype-migration-history.txt
           grep -Fqx "demo_0004_d09_episode_prov -> demo_0005_d02_quality_auth, Upgrade Demo D02 measurement-quality persistence authority." demo-prototype-migration-history.txt
@@ -288,7 +290,7 @@ jobs:
           printf '%s\n' \
             "TRACK: DEMO_PROTOTYPE" \
             "COMMIT_SHA: $GITHUB_SHA" \
-            "DEMO_MIGRATION_HEAD: demo_0008_d02_r2_source_auth" \
+            "DEMO_MIGRATION_HEAD: demo_0010_d03_analysis_run" \
             "FORMAL_EVIDENCE_GENERATORS: NOT_RUN_ON_PROTOTYPE_HEAD" \
             "FORMAL_HEAD_AUTHORITY: 0014_m5_eval_authority" \
             "PRODUCTION_RELEASE: NOT_AUTHORIZED" \
