@@ -275,9 +275,10 @@ jobs:
         if: env.DEMO_PROTOTYPE_TRACK == 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > demo-prototype-migration-head.txt
-          test "$(tr -d '\r\n' < demo-prototype-migration-head.txt)" = "demo_0011_d03_job_recovery (head)"
+          test "$(tr -d '\r\n' < demo-prototype-migration-head.txt)" = "demo_0012_d05_profile_auth (head)"
           python -m alembic -c services/api/alembic.ini history > demo-prototype-migration-history.txt
-          grep -Fqx "demo_0010_d03_analysis_run -> demo_0011_d03_job_recovery (head), Add bounded D03 dispatch and expired-lease retry authority." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0011_d03_job_recovery -> demo_0012_d05_profile_auth (head), Add D05 profile compilation and self-transfer projection authority." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0010_d03_analysis_run -> demo_0011_d03_job_recovery, Add bounded D03 dispatch and expired-lease retry authority." demo-prototype-migration-history.txt
           grep -Fqx "demo_0009_d02_r2_e2_adm -> demo_0010_d03_analysis_run, Add the Demo-only D03 analysis request and execution authority." demo-prototype-migration-history.txt
           grep -Fqx "demo_0008_d02_r2_source_auth -> demo_0009_d02_r2_e2_adm, Add D02-R2 Epoch 02 source and atomic bank admission authority." demo-prototype-migration-history.txt
           grep -Fqx "demo_0007_d02_recovered_qa -> demo_0008_d02_r2_source_auth, Add D02-R2 parallel source authority." demo-prototype-migration-history.txt
@@ -291,7 +292,7 @@ jobs:
           printf '%s\n' \
             "TRACK: DEMO_PROTOTYPE" \
             "COMMIT_SHA: $GITHUB_SHA" \
-            "DEMO_MIGRATION_HEAD: demo_0011_d03_job_recovery" \
+            "DEMO_MIGRATION_HEAD: demo_0012_d05_profile_auth" \
             "FORMAL_EVIDENCE_GENERATORS: NOT_RUN_ON_PROTOTYPE_HEAD" \
             "FORMAL_HEAD_AUTHORITY: 0014_m5_eval_authority" \
             "PRODUCTION_RELEASE: NOT_AUTHORIZED" \
