@@ -789,6 +789,20 @@ def validate_r2_admission_packet(value: object) -> None:
     QA payload.  It carries only the typed structural projections needed for
     deterministic equality checks.
     """
+    if isinstance(value, Mapping):
+        generation_receipt = value.get("generation_receipt")
+        if (
+            isinstance(generation_receipt, Mapping)
+            and generation_receipt.get("schema_version")
+            == "mirror.demo/D02R2Epoch2SourceGenerationReceipt/v1"
+        ):
+            from mirror_api.demo_d02_r2_epoch2_admission import (
+                validate_epoch2_admission_packet,
+            )
+
+            validate_epoch2_admission_packet(value)
+            return
+
     packet = _exact(
         value,
         {

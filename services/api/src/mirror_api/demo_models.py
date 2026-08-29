@@ -205,6 +205,16 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
     registry_commit_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     generation_capability_authority_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     generation_request_policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    generation_request_digest: Mapped[str | None] = mapped_column(String(64))
+    execution_epoch: Mapped[str | None] = mapped_column(String(64))
+    producer_task_id: Mapped[str | None] = mapped_column(String(128))
+    dispatch_epoch: Mapped[int | None] = mapped_column(SmallInteger)
+    generation_source_asset_sha256: Mapped[str | None] = mapped_column(String(64))
+    generation_source_asset_byte_size: Mapped[int | None] = mapped_column(BigInteger)
+    generation_source_asset_mime_type: Mapped[str | None] = mapped_column(String(64))
+    generation_source_asset_width: Mapped[int | None] = mapped_column(Integer)
+    generation_source_asset_height: Mapped[int | None] = mapped_column(Integer)
+    source_normalization_receipt_digest: Mapped[str | None] = mapped_column(String(64))
     source_provenance_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     source_provenance_output_id: Mapped[str] = mapped_column(String(128), nullable=False)
     source_provenance_name_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -224,7 +234,8 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
         *_authority_constraints(
             __tablename__,
             schema_version_expression=(
-                "schema_version = 'mirror.demo/D02R2SourceAuthorityRecord/v1'"
+                "schema_version IN ('mirror.demo/D02R2SourceAuthorityRecord/v1',"
+                "'mirror.demo/D02R2Epoch2SourceAuthorityRecord/v1')"
             ),
         ),
         UniqueConstraint("execution_contract_digest", "source_ordinal", name="execution_ordinal"),
@@ -242,12 +253,19 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
         UniqueConstraint("source_authority_digest", name="source_authority_digest"),
         UniqueConstraint("source_authority_key", name="source_authority_key"),
         UniqueConstraint("source_qa_snapshot_digest", name="source_qa_snapshot_digest"),
+        UniqueConstraint("generation_request_digest", name="generation_request_digest"),
+        UniqueConstraint(
+            "source_normalization_receipt_digest", name="source_normalization_receipt_digest"
+        ),
         CheckConstraint("source_ordinal BETWEEN 1 AND 4", name="source_ordinal"),
         CheckConstraint("source_asset_byte_size > 0", name="positive_asset_byte_size"),
         CheckConstraint(
             "source_asset_width > 0 AND source_asset_height > 0", name="positive_dimensions"
         ),
-        CheckConstraint("source_asset_mime_type IN ('image/jpeg')", name="decoded_mime"),
+        CheckConstraint(
+            "source_asset_mime_type = 'image/jpeg'",
+            name="decoded_mime",
+        ),
         CheckConstraint(
             "adult_synthetic_attested IS TRUE AND synthetic_only_attested IS TRUE "
             "AND real_person_reference_used IS FALSE",
@@ -255,7 +273,29 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
         ),
         CheckConstraint("authority_state = 'PRINCIPAL_ACCEPTED'", name="authority_state"),
         CheckConstraint(
-            "evidence_root_id = 'P3_P7_D02_R2_CC08_E1_EVIDENCE_ROOT'", name="evidence_root"
+            "(schema_version = 'mirror.demo/D02R2SourceAuthorityRecord/v1' "
+            "AND evidence_root_id = 'P3_P7_D02_R2_CC08_E1_EVIDENCE_ROOT' "
+            "AND generation_request_digest IS NULL AND execution_epoch IS NULL "
+            "AND producer_task_id IS NULL AND dispatch_epoch IS NULL "
+            "AND generation_source_asset_sha256 IS NULL "
+            "AND generation_source_asset_byte_size IS NULL "
+            "AND generation_source_asset_mime_type IS NULL "
+            "AND generation_source_asset_width IS NULL "
+            "AND generation_source_asset_height IS NULL "
+            "AND source_normalization_receipt_digest IS NULL) OR "
+            "(schema_version = 'mirror.demo/D02R2Epoch2SourceAuthorityRecord/v1' "
+            "AND evidence_root_id = 'P3_P7_D02_R2_CC08_E2_EVIDENCE_ROOT' "
+            "AND generation_request_digest = generation_request_policy_digest "
+            "AND execution_epoch = 'D02_R2_EPOCH_02' "
+            "AND producer_task_id = 'P3_P7_D02_R2_SOURCE_COHORT_02' "
+            "AND dispatch_epoch = 2 "
+            "AND generation_source_asset_sha256 ~ '^[0-9a-f]{64}$' "
+            "AND generation_source_asset_byte_size > 0 "
+            "AND generation_source_asset_mime_type = 'image/png' "
+            "AND generation_source_asset_width > 0 "
+            "AND generation_source_asset_height > 0 "
+            "AND source_normalization_receipt_digest ~ '^[0-9a-f]{64}$')",
+            name="evidence_root",
         ),
         CheckConstraint(
             "source_output_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' "
@@ -275,6 +315,12 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
             "AND registry_commit_receipt_digest ~ '^[0-9a-f]{64}$' "
             "AND generation_capability_authority_digest ~ '^[0-9a-f]{64}$' "
             "AND generation_request_policy_digest ~ '^[0-9a-f]{64}$' "
+            "AND (generation_request_digest IS NULL OR "
+            "generation_request_digest ~ '^[0-9a-f]{64}$') "
+            "AND (generation_source_asset_sha256 IS NULL OR "
+            "generation_source_asset_sha256 ~ '^[0-9a-f]{64}$') "
+            "AND (source_normalization_receipt_digest IS NULL OR "
+            "source_normalization_receipt_digest ~ '^[0-9a-f]{64}$') "
             "AND source_provenance_digest ~ '^[0-9a-f]{64}$' "
             "AND source_provenance_name_receipt_digest ~ '^[0-9a-f]{64}$' "
             "AND source_provenance_seal_receipt_digest ~ '^[0-9a-f]{64}$' "
@@ -845,6 +891,7 @@ class DemoQuestionPair(DemoAuthorityMixin, Base):
     question_bank_id: Mapped[str] = mapped_column(
         ForeignKey("demo_question_banks.id", ondelete="RESTRICT"), index=True, nullable=False
     )
+
     demo_synthetic_identity_id: Mapped[str] = mapped_column(
         ForeignKey("demo_synthetic_identities.id", ondelete="RESTRICT"),
         index=True,
@@ -931,6 +978,77 @@ class DemoQuestionPair(DemoAuthorityMixin, Base):
             "demo_synthetic_identity_id",
             "magnitude_ppm",
         ),
+    )
+
+
+class DemoD02R2Epoch2Admission(DemoAuthorityMixin, Base):
+    """Atomic E2 binding for one complete Report/Bank/Pair authority graph."""
+
+    __tablename__ = "demo_d02_r2_epoch2_admissions"
+
+    idempotency_key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    execution_epoch: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_root_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    screening_report_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "demo_pair_screening_reports.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        nullable=False,
+        index=True,
+    )
+    screening_report_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    question_bank_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "demo_question_banks.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        nullable=False,
+        index=True,
+    )
+    question_bank_content_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    question_bank_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    selected_pair_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_authority_count: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    synthetic_identity_count: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    question_pair_count: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    selected_result_side_count: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    admission_state: Mapped[str] = mapped_column(String(16), nullable=False)
+
+    __table_args__ = (
+        *_authority_constraints(
+            __tablename__,
+            schema_version_expression=("schema_version = 'mirror.demo/D02R2Epoch2Admission/v1'"),
+        ),
+        UniqueConstraint("idempotency_key_hash", name="idempotency_key_hash"),
+        UniqueConstraint("screening_report_id", name="screening_report_id"),
+        UniqueConstraint("question_bank_id", name="question_bank_id"),
+        CheckConstraint(
+            "idempotency_key_hash ~ '^[0-9a-f]{64}$' "
+            "AND request_digest ~ '^[0-9a-f]{64}$' "
+            "AND source_manifest_digest ~ '^[0-9a-f]{64}$' "
+            "AND screening_report_digest ~ '^[0-9a-f]{64}$' "
+            "AND question_bank_content_digest ~ '^[0-9a-f]{64}$' "
+            "AND selected_pair_manifest_digest ~ '^[0-9a-f]{64}$'",
+            name="digest_shapes",
+        ),
+        CheckConstraint(
+            "execution_epoch = 'D02_R2_EPOCH_02' "
+            "AND evidence_root_id = 'P3_P7_D02_R2_CC08_E2_EVIDENCE_ROOT'",
+            name="epoch_root",
+        ),
+        CheckConstraint(
+            "source_authority_count = 4 AND synthetic_identity_count = 4 "
+            "AND question_pair_count = 16 AND selected_result_side_count = 32",
+            name="fixed_cardinality",
+        ),
+        CheckConstraint("admission_state = 'COMPLETED'", name="state"),
     )
 
 
@@ -2206,6 +2324,7 @@ DEMO_TABLE_NAMES = frozenset(
         "demo_actors",
         "demo_sessions",
         "demo_d02_r2_source_authorities",
+        "demo_d02_r2_epoch2_admissions",
         "demo_synthetic_identities",
         "demo_face_observations",
         "demo_face_observation_repeats",
