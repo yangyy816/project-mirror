@@ -36,6 +36,7 @@
 - Phase 0 OpenAPI 暴露 inactive domain schemas 供生成契约使用，但没有新增成功型业务 endpoint；未实施业务仍为 501/401。
 - Project Mirror 使用项目级 `.codex` 定义专属 subagents：规划与最终审查使用 Sol High；安全审查和 `pm_terra_high_worker` 的已冻结困难实现使用 Terra High；普通 backend/data/frontend/infra/test 与未指定 subagent 默认 Terra Medium；规则明确的机械批处理使用 Luna Medium；原子即时微改使用 Spark Medium。并发硬上限为 4，但默认单 Agent。项目配置不设置顶层 `model`、主线程 reasoning 或 plan-mode model，不覆盖对话页面的 Principal 模型选择，也不修改全局 Codex 配置。
 - `pm_fast_worker` 精确使用 `gpt-5.3-codex-spark` + `medium`，仅路由通过 Small/Precise/Atomic/Reversible/Known-validation 全部条件的 micro task；`pm_luna_worker` 使用 `gpt-5.6-luna` + `medium` 处理确定性批量、转换、同步、提取与模板化任务。Spark 不是批处理省成本层，Luna 不处理歧义业务逻辑；两者不确定时回退 Terra Medium。
+- 所有由 Project Mirror 任务创建、下载或派生且不能上传 GitHub 的 receipt、private artifact 和 private file，必须在对应项目工作树的专用 Git-ignored namespace 保留 recoverable canonical copy，并登记到 Principal private-output registry；Temp、Agent memory、对话记录、外部 cache 或工具隐式存储不得成为唯一权威。Tracked docs 与本文件只保留治理决定和脱敏 aggregate，不记录 private locator、Prompt、图片字节或 secret。
 - 执行状态统一为 `PROVISIONAL → COMMITTED → EXECUTION_READY → EXECUTING → PASS → FROZEN`；Phase 0、Phase 1 与 P1-M1–M6 均已 FROZEN；未经新的 rolling-wave planning 和明确授权不得进入 P2。
 - Terra 只能实现 Principal 已批准的架构；新架构决策必须停止并上报。计划外实现缺陷使用 `P1-M1-Rxx` 最小 Repair Task，架构变化不得包装成 Repair Task。
 - OSS 复用原则为“复用通用基础设施，保留个性化智能”：重大第三方组件必须分别审查代码、模型/权重、数据与传递依赖许可证，并通过 Principal change control；Terra 只能报告候选，不得自行安装、下载权重或接受条款。
