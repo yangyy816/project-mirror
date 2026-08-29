@@ -1,0 +1,1097 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any, Final, cast
+
+OVERLAY_SCHEMA: Final = "mirror.p2-m5/Epoch3ExecutionOverlay/v1"
+STATE_SCHEMA: Final = "mirror.p2-m5/Epoch3ExecutionOverlayState/v1"
+EVENT_SCHEMA: Final = "mirror.p2-m5/Epoch3ExecutionEvent/v1"
+RECEIPT_SCHEMA: Final = "mirror.p2-m5/Epoch3ExecutionReceipt/v1"
+OUTPUT_RECORD_SCHEMA: Final = "mirror.p2-m5/PreDecodeOutputRecord/v1"
+REGISTRATION_RECEIPT_SCHEMA: Final = "mirror.p2-m5/RegistrationCommitReceipt/v1"
+MAX_RETURNED_BYTES: Final = 16 * 1024 * 1024
+_OPAQUE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$")
+_ORDINAL = re.compile(r"^CAL-REQ-(\d{3})$")
+_FILE_ATTRIBUTE_REPARSE_POINT: Final = 0x400
+
+
+class ExecutionOverlayError(RuntimeError):
+    """Fail-closed error for the private execution overlay."""
+
+
+@dataclass(frozen=True, slots=True)
+class GenesisBinding:
+    genesis_output_id: str
+    genesis_bootstrap_sha256: str
+    genesis_receipt_sha256: str
+    private_registry_sha256: str
+    generation_specification_version: str
+    generation_specification_sha256: str
+    assignment_manifest_version: str
+    assignment_manifest_sha256: str
+    prompt_template_version: str
+    prompt_template_sha256: str
+    policy_digest: str
+    request_call_count: int = 1
+    requested_output_count: int = 1
+    returned_output_count: int = 1
+    raw_output_count: int = 1
+    failed_call_count: int = 0
+    rejected_output_count: int = 0
+    admitted_identity_count: int = 0
+    formal_calls_remaining: int = 31
+    formal_raw_capacity_remaining: int = 31
+    global_native_output_capacity_remaining: int = 62
+    global_native_output_consumed: int = 2
+    next_unused_ordinal: str = "CAL-REQ-002"
+
+
+@dataclass(frozen=True, slots=True)
+class OverlayHandle:
+    receipt_path: Path
+    sequence: int
+    phase: str
+
+
+def canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
+    return (
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+
+
+def sha256_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _is_reparse(path: Path) -> bool:
+    attributes = getattr(path.lstat(), "st_file_attributes", 0)
+    return bool(attributes & _FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def _require_plain_directory(path: Path) -> None:
+    if not path.is_dir() or path.is_symlink() or _is_reparse(path):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_DIRECTORY_INVALID")
+
+
+def _require_plain_file(path: Path) -> None:
+    if not path.is_file() or path.is_symlink() or _is_reparse(path):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_INVALID")
+
+
+def _validate_digest(value: str, field: str) -> None:
+    if re.fullmatch(r"[0-9a-fA-F]{64}", value) is None:
+        raise ExecutionOverlayError(f"{field}_INVALID")
+
+
+def _validate_opaque_id(value: str, field: str) -> None:
+    if _OPAQUE_ID.fullmatch(value) is None:
+        raise ExecutionOverlayError(f"{field}_INVALID")
+
+
+def _validate_timestamp(value: str) -> None:
+    if not value or "T" not in value or not value.endswith("Z"):
+        raise ExecutionOverlayError("TIMESTAMP_INVALID")
+
+
+def _validate_ordinal(value: str) -> int:
+    match = _ORDINAL.fullmatch(value)
+    if match is None:
+        raise ExecutionOverlayError("REQUEST_ORDINAL_INVALID")
+    number = int(match.group(1))
+    if not 1 <= number <= 32:
+        raise ExecutionOverlayError("REQUEST_ORDINAL_OUT_OF_RANGE")
+    return number
+
+
+def _next_ordinal(value: str) -> str | None:
+    number = _validate_ordinal(value)
+    if number == 32:
+        return None
+    return f"CAL-REQ-{number + 1:03d}"
+
+
+def _write_create_new(path: Path, payload: bytes) -> tuple[str, int]:
+    try:
+        with path.open("xb") as handle:
+            written = handle.write(payload)
+            if written != len(payload):
+                raise ExecutionOverlayError("CREATE_NEW_SHORT_WRITE")
+            handle.flush()
+            os.fsync(handle.fileno())
+    except FileExistsError as error:
+        raise ExecutionOverlayError("CREATE_NEW_TARGET_PREEXISTS") from error
+    actual = path.read_bytes()
+    if actual != payload:
+        raise ExecutionOverlayError("CREATE_NEW_REREAD_MISMATCH")
+    return sha256_bytes(actual), len(actual)
+
+
+def _write_json_create_new(path: Path, value: Mapping[str, Any]) -> tuple[str, int]:
+    return _write_create_new(path, canonical_json_bytes(value))
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    _require_plain_file(path)
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ExecutionOverlayError("JSON_OBJECT_REQUIRED")
+    return cast(dict[str, Any], value)
+
+
+def _event_name(sequence: int) -> str:
+    return f"event-{sequence:06d}.json"
+
+
+def _state_name(sequence: int) -> str:
+    return f"state-{sequence:06d}.json"
+
+
+def _receipt_name(sequence: int) -> str:
+    return f"receipt-{sequence:06d}.json"
+
+
+def _safe_child(root: Path, file_name: str) -> Path:
+    if Path(file_name).name != file_name or file_name in {"", ".", ".."}:
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_CHILD_NAME_INVALID")
+    candidate = root / file_name
+    if candidate.parent.resolve() != root.resolve():
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_CHILD_ESCAPES_ROOT")
+    return candidate
+
+
+def _initial_counters(binding: GenesisBinding) -> dict[str, int]:
+    counters = {
+        "request_call_count": binding.request_call_count,
+        "requested_output_count": binding.requested_output_count,
+        "returned_output_count": binding.returned_output_count,
+        "raw_output_count": binding.raw_output_count,
+        "failed_call_count": binding.failed_call_count,
+        "rejected_output_count": binding.rejected_output_count,
+        "admitted_identity_count": binding.admitted_identity_count,
+        "formal_calls_remaining": binding.formal_calls_remaining,
+        "formal_raw_capacity_remaining": binding.formal_raw_capacity_remaining,
+        "global_native_output_capacity_remaining": (
+            binding.global_native_output_capacity_remaining
+        ),
+        "global_native_output_consumed": binding.global_native_output_consumed,
+        "active_calls": 0,
+    }
+    _validate_counters(counters)
+    return counters
+
+
+def _validate_counters(counters: Mapping[str, Any]) -> None:
+    required = {
+        "request_call_count",
+        "requested_output_count",
+        "returned_output_count",
+        "raw_output_count",
+        "failed_call_count",
+        "rejected_output_count",
+        "admitted_identity_count",
+        "formal_calls_remaining",
+        "formal_raw_capacity_remaining",
+        "global_native_output_capacity_remaining",
+        "global_native_output_consumed",
+        "active_calls",
+    }
+    if set(counters) != required:
+        raise ExecutionOverlayError("COUNTER_KEYSET_MISMATCH")
+    if any(not isinstance(counters[key], int) or counters[key] < 0 for key in required):
+        raise ExecutionOverlayError("COUNTER_VALUE_INVALID")
+    if counters["requested_output_count"] != counters["request_call_count"]:
+        raise ExecutionOverlayError("REQUESTED_OUTPUT_COUNTER_MISMATCH")
+    if counters["raw_output_count"] != counters["returned_output_count"]:
+        raise ExecutionOverlayError("RAW_OUTPUT_COUNTER_MISMATCH")
+    if counters["returned_output_count"] > counters["requested_output_count"]:
+        raise ExecutionOverlayError("RETURNED_OUTPUT_COUNTER_OVERFLOW")
+    if counters["active_calls"] not in {0, 1}:
+        raise ExecutionOverlayError("ACTIVE_CALL_COUNTER_INVALID")
+    if counters["request_call_count"] + counters["formal_calls_remaining"] != 32:
+        raise ExecutionOverlayError("FORMAL_REQUEST_CAPACITY_MISMATCH")
+    if counters["raw_output_count"] + counters["formal_raw_capacity_remaining"] != 32:
+        raise ExecutionOverlayError("FORMAL_RAW_CAPACITY_MISMATCH")
+    if (
+        counters["global_native_output_consumed"]
+        + counters["global_native_output_capacity_remaining"]
+        != 64
+    ):
+        raise ExecutionOverlayError("GLOBAL_NATIVE_OUTPUT_CAPACITY_MISMATCH")
+
+
+def _binding_dict(binding: GenesisBinding) -> dict[str, Any]:
+    value = asdict(binding)
+    for field in (
+        "genesis_bootstrap_sha256",
+        "genesis_receipt_sha256",
+        "private_registry_sha256",
+        "generation_specification_sha256",
+        "assignment_manifest_sha256",
+        "prompt_template_sha256",
+        "policy_digest",
+    ):
+        _validate_digest(cast(str, value[field]), field.upper())
+    _validate_opaque_id(binding.genesis_output_id, "GENESIS_OUTPUT_ID")
+    _validate_ordinal(binding.next_unused_ordinal)
+    return value
+
+
+def _commit_transition(
+    *,
+    root: Path,
+    sequence: int,
+    controller_sha256: str,
+    event: dict[str, Any],
+    state: dict[str, Any],
+    previous_receipt: dict[str, Any] | None,
+    registration_receipt: tuple[str, str] | None = None,
+) -> OverlayHandle:
+    _require_plain_directory(root)
+    _validate_digest(controller_sha256, "CONTROLLER_SHA256")
+    event_name = _event_name(sequence)
+    state_name = _state_name(sequence)
+    receipt_name = _receipt_name(sequence)
+    event_path = _safe_child(root, event_name)
+    state_path = _safe_child(root, state_name)
+    receipt_path = _safe_child(root, receipt_name)
+
+    event_digest, _ = _write_json_create_new(event_path, event)
+    state_digest, _ = _write_json_create_new(state_path, state)
+    receipt: dict[str, Any] = {
+        "schema_version": RECEIPT_SCHEMA,
+        "overlay_output_id": state["overlay_output_id"],
+        "sequence": sequence,
+        "phase": state["phase"],
+        "event_file": event_name,
+        "event_sha256": event_digest,
+        "state_file": state_name,
+        "state_sha256": state_digest,
+        "controller_sha256": controller_sha256,
+        "previous_receipt_file": (
+            previous_receipt["receipt_file"] if previous_receipt is not None else None
+        ),
+        "previous_receipt_sha256": (
+            previous_receipt["receipt_sha256"] if previous_receipt is not None else None
+        ),
+        "registration_receipt_file": (
+            registration_receipt[0] if registration_receipt is not None else None
+        ),
+        "registration_receipt_sha256": (
+            registration_receipt[1] if registration_receipt is not None else None
+        ),
+    }
+    _write_json_create_new(receipt_path, receipt)
+    verified = verify_overlay(receipt_path, expected_controller_sha256=controller_sha256)
+    return OverlayHandle(
+        receipt_path=receipt_path,
+        sequence=sequence,
+        phase=cast(str, verified["state"]["phase"]),
+    )
+
+
+def initialize_overlay(
+    *,
+    allowed_parent: Path,
+    root: Path,
+    overlay_output_id: str,
+    controller_sha256: str,
+    binding: GenesisBinding,
+    timestamp: str,
+) -> OverlayHandle:
+    _require_plain_directory(allowed_parent)
+    if root.parent.resolve() != allowed_parent.resolve():
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_ROOT_OUTSIDE_ALLOWED_PARENT")
+    if root.exists() or root.is_symlink():
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_ROOT_PREEXISTS")
+    _validate_opaque_id(overlay_output_id, "OVERLAY_OUTPUT_ID")
+    _validate_timestamp(timestamp)
+    _validate_digest(controller_sha256, "CONTROLLER_SHA256")
+    binding_value = _binding_dict(binding)
+
+    root.mkdir()
+    _require_plain_directory(root)
+    (root / "staging").mkdir()
+    (root / "records").mkdir()
+    _require_plain_directory(root / "staging")
+    _require_plain_directory(root / "records")
+
+    event = {
+        "schema_version": EVENT_SCHEMA,
+        "overlay_output_id": overlay_output_id,
+        "sequence": 0,
+        "event_type": "OVERLAY_MATERIALIZED",
+        "timestamp": timestamp,
+        "previous_event_sha256": None,
+        "action_id": None,
+        "request_ordinal": None,
+        "reason_code": "FORWARD_EXECUTION_OVERLAY_CREATED_NO_GENERATION",
+    }
+    state = {
+        "schema_version": STATE_SCHEMA,
+        "overlay_schema_version": OVERLAY_SCHEMA,
+        "overlay_output_id": overlay_output_id,
+        "sequence": 0,
+        "phase": "READY",
+        "timestamp": timestamp,
+        "previous_state_sha256": None,
+        "last_event_sha256": sha256_bytes(canonical_json_bytes(event)),
+        "binding": binding_value,
+        "counters": _initial_counters(binding),
+        "next_unused_ordinal": binding.next_unused_ordinal,
+        "current_action_id": None,
+        "current_ordinal": None,
+        "output_registration": None,
+        "decode_authorized": False,
+        "hard_stop": False,
+    }
+    return _commit_transition(
+        root=root,
+        sequence=0,
+        controller_sha256=controller_sha256,
+        event=event,
+        state=state,
+        previous_receipt=None,
+    )
+
+
+def _verify_receipt(
+    receipt_path: Path,
+    *,
+    expected_controller_sha256: str | None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    _require_plain_file(receipt_path)
+    root = receipt_path.parent
+    _require_plain_directory(root)
+    receipt = _read_json(receipt_path)
+    if receipt.get("schema_version") != RECEIPT_SCHEMA:
+        raise ExecutionOverlayError("OVERLAY_RECEIPT_SCHEMA_MISMATCH")
+    sequence = receipt.get("sequence")
+    if not isinstance(sequence, int) or sequence < 0:
+        raise ExecutionOverlayError("OVERLAY_RECEIPT_SEQUENCE_INVALID")
+    if receipt_path.name != _receipt_name(sequence):
+        raise ExecutionOverlayError("OVERLAY_RECEIPT_FILENAME_MISMATCH")
+    controller_sha256 = receipt.get("controller_sha256")
+    if not isinstance(controller_sha256, str):
+        raise ExecutionOverlayError("OVERLAY_CONTROLLER_DIGEST_MISSING")
+    _validate_digest(controller_sha256, "CONTROLLER_SHA256")
+    if expected_controller_sha256 is not None and controller_sha256 != expected_controller_sha256:
+        raise ExecutionOverlayError("OVERLAY_CONTROLLER_DIGEST_MISMATCH")
+
+    event_name = receipt.get("event_file")
+    state_name = receipt.get("state_file")
+    if not isinstance(event_name, str) or not isinstance(state_name, str):
+        raise ExecutionOverlayError("OVERLAY_RECEIPT_FILE_BINDING_INVALID")
+    event_path = _safe_child(root, event_name)
+    state_path = _safe_child(root, state_name)
+    if event_name != _event_name(sequence) or state_name != _state_name(sequence):
+        raise ExecutionOverlayError("OVERLAY_RECEIPT_SEQUENCE_BINDING_MISMATCH")
+    if sha256_file(event_path) != receipt.get("event_sha256"):
+        raise ExecutionOverlayError("OVERLAY_EVENT_DIGEST_MISMATCH")
+    if sha256_file(state_path) != receipt.get("state_sha256"):
+        raise ExecutionOverlayError("OVERLAY_STATE_DIGEST_MISMATCH")
+    event = _read_json(event_path)
+    state = _read_json(state_path)
+    if event.get("schema_version") != EVENT_SCHEMA or state.get("schema_version") != STATE_SCHEMA:
+        raise ExecutionOverlayError("OVERLAY_STATE_OR_EVENT_SCHEMA_MISMATCH")
+    if event.get("sequence") != sequence or state.get("sequence") != sequence:
+        raise ExecutionOverlayError("OVERLAY_STATE_OR_EVENT_SEQUENCE_MISMATCH")
+    if state.get("last_event_sha256") != receipt.get("event_sha256"):
+        raise ExecutionOverlayError("OVERLAY_STATE_EVENT_BINDING_MISMATCH")
+    if state.get("overlay_output_id") != receipt.get("overlay_output_id"):
+        raise ExecutionOverlayError("OVERLAY_OUTPUT_ID_MISMATCH")
+    counters = state.get("counters")
+    if not isinstance(counters, dict):
+        raise ExecutionOverlayError("OVERLAY_COUNTERS_MISSING")
+    _validate_counters(counters)
+    return receipt, event, state
+
+
+def verify_overlay(
+    receipt_path: Path,
+    *,
+    expected_controller_sha256: str | None = None,
+) -> dict[str, Any]:
+    receipt, event, state = _verify_receipt(
+        receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    root = receipt_path.parent
+    current_receipt = receipt
+    current_event = event
+    current_state = state
+    sequence = cast(int, receipt["sequence"])
+    while sequence > 0:
+        previous_name = current_receipt.get("previous_receipt_file")
+        previous_digest = current_receipt.get("previous_receipt_sha256")
+        if previous_name != _receipt_name(sequence - 1) or not isinstance(previous_digest, str):
+            raise ExecutionOverlayError("OVERLAY_PREVIOUS_RECEIPT_BINDING_INVALID")
+        previous_path = _safe_child(root, previous_name)
+        if sha256_file(previous_path) != previous_digest:
+            raise ExecutionOverlayError("OVERLAY_PREVIOUS_RECEIPT_DIGEST_MISMATCH")
+        previous_receipt, previous_event, previous_state = _verify_receipt(
+            previous_path,
+            expected_controller_sha256=expected_controller_sha256,
+        )
+        if current_event.get("previous_event_sha256") != previous_receipt.get("event_sha256"):
+            raise ExecutionOverlayError("OVERLAY_PREVIOUS_EVENT_DIGEST_MISMATCH")
+        if current_state.get("previous_state_sha256") != previous_receipt.get("state_sha256"):
+            raise ExecutionOverlayError("OVERLAY_PREVIOUS_STATE_DIGEST_MISMATCH")
+        current_receipt = previous_receipt
+        current_event = previous_event
+        current_state = previous_state
+        sequence -= 1
+    if (
+        current_receipt.get("previous_receipt_file") is not None
+        or current_receipt.get("previous_receipt_sha256") is not None
+    ):
+        raise ExecutionOverlayError("OVERLAY_GENESIS_RECEIPT_PREDECESSOR_INVALID")
+    if (
+        current_event.get("previous_event_sha256") is not None
+        or current_state.get("previous_state_sha256") is not None
+    ):
+        raise ExecutionOverlayError("OVERLAY_GENESIS_CHAIN_INVALID")
+    return {"receipt": receipt, "event": event, "state": state}
+
+
+def _transition_context(
+    receipt_path: Path,
+    *,
+    expected_controller_sha256: str,
+) -> tuple[Path, dict[str, Any], dict[str, Any], dict[str, Any]]:
+    verified = verify_overlay(
+        receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    return (
+        receipt_path.parent,
+        cast(dict[str, Any], verified["receipt"]),
+        cast(dict[str, Any], verified["event"]),
+        cast(dict[str, Any], verified["state"]),
+    )
+
+
+def _previous_receipt_binding(receipt_path: Path, receipt: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "receipt_file": receipt_path.name,
+        "receipt_sha256": sha256_file(receipt_path),
+    }
+
+
+def prepare_dispatch(
+    *,
+    receipt_path: Path,
+    expected_controller_sha256: str,
+    ordinal: str,
+    action_id: str,
+    timestamp: str,
+) -> OverlayHandle:
+    _validate_opaque_id(action_id, "ACTION_ID")
+    _validate_timestamp(timestamp)
+    _validate_ordinal(ordinal)
+    root, receipt, _event, state = _transition_context(
+        receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    if state["phase"] != "READY" or state["hard_stop"] is not False:
+        raise ExecutionOverlayError("DISPATCH_PREPARE_STATE_INVALID")
+    if state["next_unused_ordinal"] != ordinal:
+        raise ExecutionOverlayError("DISPATCH_PREPARE_ORDINAL_MISMATCH")
+    counters = cast(dict[str, int], state["counters"])
+    if counters["active_calls"] != 0:
+        raise ExecutionOverlayError("DISPATCH_PREPARE_ACTIVE_CALL_EXISTS")
+    if (
+        counters["formal_calls_remaining"] < 1
+        or counters["formal_raw_capacity_remaining"] < 1
+        or counters["global_native_output_capacity_remaining"] < 1
+    ):
+        raise ExecutionOverlayError("DISPATCH_PREPARE_RESOURCE_EXHAUSTED")
+
+    sequence = cast(int, receipt["sequence"]) + 1
+    new_event = {
+        "schema_version": EVENT_SCHEMA,
+        "overlay_output_id": state["overlay_output_id"],
+        "sequence": sequence,
+        "event_type": "DISPATCH_PREPARED",
+        "timestamp": timestamp,
+        "previous_event_sha256": receipt["event_sha256"],
+        "action_id": action_id,
+        "request_ordinal": ordinal,
+        "reason_code": "EXACT_ORDINAL_DURABLY_PREPARED_ZERO_RETRY",
+    }
+    new_state = dict(state)
+    new_state.update(
+        {
+            "sequence": sequence,
+            "phase": "DISPATCH_PREPARED",
+            "timestamp": timestamp,
+            "previous_state_sha256": receipt["state_sha256"],
+            "last_event_sha256": sha256_bytes(canonical_json_bytes(new_event)),
+            "current_action_id": action_id,
+            "current_ordinal": ordinal,
+        }
+    )
+    return _commit_transition(
+        root=root,
+        sequence=sequence,
+        controller_sha256=expected_controller_sha256,
+        event=new_event,
+        state=new_state,
+        previous_receipt=_previous_receipt_binding(receipt_path, receipt),
+    )
+
+
+def consume_dispatch(
+    *,
+    receipt_path: Path,
+    expected_controller_sha256: str,
+    action_id: str,
+    timestamp: str,
+) -> OverlayHandle:
+    _validate_timestamp(timestamp)
+    root, receipt, _event, state = _transition_context(
+        receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    if state["phase"] != "DISPATCH_PREPARED" or state["current_action_id"] != action_id:
+        raise ExecutionOverlayError("DISPATCH_CONSUME_STATE_OR_ACTION_INVALID")
+    ordinal = cast(str, state["current_ordinal"])
+    counters = dict(cast(dict[str, int], state["counters"]))
+    if counters["active_calls"] != 0:
+        raise ExecutionOverlayError("DISPATCH_CONSUME_ACTIVE_CALL_EXISTS")
+    counters["request_call_count"] += 1
+    counters["requested_output_count"] += 1
+    counters["formal_calls_remaining"] -= 1
+    counters["global_native_output_capacity_remaining"] -= 1
+    counters["global_native_output_consumed"] += 1
+    counters["active_calls"] = 1
+    _validate_counters(counters)
+
+    sequence = cast(int, receipt["sequence"]) + 1
+    new_event = {
+        "schema_version": EVENT_SCHEMA,
+        "overlay_output_id": state["overlay_output_id"],
+        "sequence": sequence,
+        "event_type": "DISPATCH_STARTED_CONSUMED",
+        "timestamp": timestamp,
+        "previous_event_sha256": receipt["event_sha256"],
+        "action_id": action_id,
+        "request_ordinal": ordinal,
+        "reason_code": "NATIVE_DISPATCH_IRREVERSIBLY_CONSUMED",
+    }
+    new_state = dict(state)
+    new_state.update(
+        {
+            "sequence": sequence,
+            "phase": "DISPATCH_STARTED_CONSUMED",
+            "timestamp": timestamp,
+            "previous_state_sha256": receipt["state_sha256"],
+            "last_event_sha256": sha256_bytes(canonical_json_bytes(new_event)),
+            "counters": counters,
+            "next_unused_ordinal": _next_ordinal(ordinal),
+        }
+    )
+    return _commit_transition(
+        root=root,
+        sequence=sequence,
+        controller_sha256=expected_controller_sha256,
+        event=new_event,
+        state=new_state,
+        previous_receipt=_previous_receipt_binding(receipt_path, receipt),
+    )
+
+
+def mark_dispatch_failed(
+    *,
+    receipt_path: Path,
+    expected_controller_sha256: str,
+    action_id: str,
+    timestamp: str,
+    reason_code: str,
+) -> OverlayHandle:
+    _validate_timestamp(timestamp)
+    root, receipt, _event, state = _transition_context(
+        receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    if state["phase"] != "DISPATCH_STARTED_CONSUMED" or state["current_action_id"] != action_id:
+        raise ExecutionOverlayError("DISPATCH_FAILURE_STATE_OR_ACTION_INVALID")
+    if not reason_code or not reason_code.isupper():
+        raise ExecutionOverlayError("DISPATCH_FAILURE_REASON_INVALID")
+    counters = dict(cast(dict[str, int], state["counters"]))
+    counters["failed_call_count"] += 1
+    counters["active_calls"] = 0
+    _validate_counters(counters)
+    sequence = cast(int, receipt["sequence"]) + 1
+    new_event = {
+        "schema_version": EVENT_SCHEMA,
+        "overlay_output_id": state["overlay_output_id"],
+        "sequence": sequence,
+        "event_type": "DISPATCH_FAILED_FINAL",
+        "timestamp": timestamp,
+        "previous_event_sha256": receipt["event_sha256"],
+        "action_id": action_id,
+        "request_ordinal": state["current_ordinal"],
+        "reason_code": reason_code,
+    }
+    new_state = dict(state)
+    new_state.update(
+        {
+            "sequence": sequence,
+            "phase": "DISPATCH_FAILED_FINAL",
+            "timestamp": timestamp,
+            "previous_state_sha256": receipt["state_sha256"],
+            "last_event_sha256": sha256_bytes(canonical_json_bytes(new_event)),
+            "counters": counters,
+            "hard_stop": True,
+            "decode_authorized": False,
+        }
+    )
+    return _commit_transition(
+        root=root,
+        sequence=sequence,
+        controller_sha256=expected_controller_sha256,
+        event=new_event,
+        state=new_state,
+        previous_receipt=_previous_receipt_binding(receipt_path, receipt),
+    )
+
+
+def record_output_returned(
+    *,
+    receipt_path: Path,
+    expected_controller_sha256: str,
+    action_id: str,
+    timestamp: str,
+    returned_output_count: int,
+) -> OverlayHandle:
+    _validate_timestamp(timestamp)
+    root, receipt, _event, state = _transition_context(
+        receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    if state["phase"] != "DISPATCH_STARTED_CONSUMED" or state["current_action_id"] != action_id:
+        raise ExecutionOverlayError("OUTPUT_RETURN_STATE_OR_ACTION_INVALID")
+    if returned_output_count != 1:
+        raise ExecutionOverlayError("OUTPUT_CARDINALITY_MISMATCH_HARD_STOP")
+    counters = dict(cast(dict[str, int], state["counters"]))
+    if counters["formal_raw_capacity_remaining"] < 1:
+        raise ExecutionOverlayError("FORMAL_RAW_CAPACITY_EXHAUSTED")
+    counters["returned_output_count"] += 1
+    counters["raw_output_count"] += 1
+    counters["formal_raw_capacity_remaining"] -= 1
+    _validate_counters(counters)
+    sequence = cast(int, receipt["sequence"]) + 1
+    new_event = {
+        "schema_version": EVENT_SCHEMA,
+        "overlay_output_id": state["overlay_output_id"],
+        "sequence": sequence,
+        "event_type": "OUTPUT_RETURNED_UNREGISTERED",
+        "timestamp": timestamp,
+        "previous_event_sha256": receipt["event_sha256"],
+        "action_id": action_id,
+        "request_ordinal": state["current_ordinal"],
+        "reason_code": "ONE_RETURNED_OUTPUT_COUNTED_BEFORE_BYTE_INSPECTION",
+        "returned_output_count_for_action": returned_output_count,
+    }
+    new_state = dict(state)
+    new_state.update(
+        {
+            "sequence": sequence,
+            "phase": "OUTPUT_RETURNED_UNREGISTERED",
+            "timestamp": timestamp,
+            "previous_state_sha256": receipt["state_sha256"],
+            "last_event_sha256": sha256_bytes(canonical_json_bytes(new_event)),
+            "counters": counters,
+            "decode_authorized": False,
+        }
+    )
+    return _commit_transition(
+        root=root,
+        sequence=sequence,
+        controller_sha256=expected_controller_sha256,
+        event=new_event,
+        state=new_state,
+        previous_receipt=_previous_receipt_binding(receipt_path, receipt),
+    )
+
+
+def mark_registration_failed(
+    *,
+    receipt_path: Path,
+    expected_controller_sha256: str,
+    action_id: str,
+    timestamp: str,
+    reason_code: str,
+) -> OverlayHandle:
+    _validate_timestamp(timestamp)
+    root, receipt, _event, state = _transition_context(
+        receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    if state["phase"] != "OUTPUT_RETURNED_UNREGISTERED" or state["current_action_id"] != action_id:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_FAILURE_STATE_OR_ACTION_INVALID")
+    if not reason_code or not reason_code.isupper():
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_FAILURE_REASON_INVALID")
+    counters = dict(cast(dict[str, int], state["counters"]))
+    counters["active_calls"] = 0
+    _validate_counters(counters)
+    sequence = cast(int, receipt["sequence"]) + 1
+    new_event = {
+        "schema_version": EVENT_SCHEMA,
+        "overlay_output_id": state["overlay_output_id"],
+        "sequence": sequence,
+        "event_type": "OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE",
+        "timestamp": timestamp,
+        "previous_event_sha256": receipt["event_sha256"],
+        "action_id": action_id,
+        "request_ordinal": state["current_ordinal"],
+        "reason_code": reason_code,
+    }
+    new_state = dict(state)
+    new_state.update(
+        {
+            "sequence": sequence,
+            "phase": "OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE",
+            "timestamp": timestamp,
+            "previous_state_sha256": receipt["state_sha256"],
+            "last_event_sha256": sha256_bytes(canonical_json_bytes(new_event)),
+            "counters": counters,
+            "decode_authorized": False,
+            "hard_stop": True,
+        }
+    )
+    return _commit_transition(
+        root=root,
+        sequence=sequence,
+        controller_sha256=expected_controller_sha256,
+        event=new_event,
+        state=new_state,
+        previous_receipt=_previous_receipt_binding(receipt_path, receipt),
+    )
+
+
+def _classify_magic(first_bytes: bytes) -> tuple[str, str]:
+    if first_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png", "PNG_89504E470D0A1A0A"
+    if first_bytes.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg", "JPEG_FFD8FF"
+    if len(first_bytes) >= 12 and first_bytes[:4] == b"RIFF" and first_bytes[8:12] == b"WEBP":
+        return "image/webp", "WEBP_RIFF"
+    return "application/octet-stream", "UNKNOWN"
+
+
+def register_output_before_decode(
+    *,
+    receipt_path: Path,
+    expected_controller_sha256: str,
+    action_id: str,
+    output_opaque_id: str,
+    generated_artifact_path: Path,
+    allowed_generated_artifact_root: Path,
+    exact_generated_artifact_receipt: str,
+    timestamp: str,
+) -> OverlayHandle:
+    _validate_opaque_id(output_opaque_id, "OUTPUT_OPAQUE_ID")
+    _validate_timestamp(timestamp)
+    root, receipt, _event, state = _transition_context(
+        receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    if state["phase"] != "OUTPUT_RETURNED_UNREGISTERED" or state["current_action_id"] != action_id:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_STATE_OR_ACTION_INVALID")
+    _require_plain_directory(allowed_generated_artifact_root)
+    _require_plain_file(generated_artifact_path)
+    if not generated_artifact_path.resolve().is_relative_to(
+        allowed_generated_artifact_root.resolve()
+    ):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_OUTSIDE_ALLOWED_ROOT")
+    if generated_artifact_path.resolve().is_relative_to(root.resolve()):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_INSIDE_OVERLAY_PROHIBITED")
+    source_size = generated_artifact_path.stat().st_size
+    if source_size <= 0 or source_size > MAX_RETURNED_BYTES:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_BYTE_BOUND_FAILED")
+    if (
+        not exact_generated_artifact_receipt
+        or len(exact_generated_artifact_receipt) > 4096
+        or "data:" in exact_generated_artifact_receipt.lower()
+        or "://" in exact_generated_artifact_receipt
+    ):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_RECEIPT_MISSING")
+
+    staging_name = f"{output_opaque_id}.raw"
+    staging_path = _safe_child(root / "staging", staging_name)
+    record_name = f"output-{output_opaque_id}.json"
+    record_path = _safe_child(root / "records", record_name)
+    registration_receipt_name = f"registration-{output_opaque_id}.json"
+    registration_receipt_path = _safe_child(root / "records", registration_receipt_name)
+    if staging_path.exists() or record_path.exists() or registration_receipt_path.exists():
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_TARGET_PREEXISTS")
+
+    source_digest = hashlib.sha256()
+    first_bytes = b""
+    try:
+        with generated_artifact_path.open("rb") as source, staging_path.open("xb") as target:
+            copied = 0
+            while True:
+                chunk = source.read(1024 * 1024)
+                if not chunk:
+                    break
+                if not first_bytes:
+                    first_bytes = chunk[:16]
+                copied += len(chunk)
+                if copied > MAX_RETURNED_BYTES:
+                    raise ExecutionOverlayError("OUTPUT_REGISTRATION_BYTE_BOUND_FAILED")
+                source_digest.update(chunk)
+                target.write(chunk)
+            target.flush()
+            os.fsync(target.fileno())
+    except FileExistsError as error:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_TARGET_PREEXISTS") from error
+    if copied != source_size:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_COPY_SIZE_MISMATCH")
+    source_sha256 = source_digest.hexdigest()
+    staging_sha256 = sha256_file(staging_path)
+    if source_sha256 != staging_sha256 or staging_path.stat().st_size != source_size:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_COPY_DIGEST_MISMATCH")
+    media_type, magic_class = _classify_magic(first_bytes)
+
+    binding = cast(dict[str, Any], state["binding"])
+    registration_receipt_id = f"{output_opaque_id}-REGISTRATION"
+    output_record = {
+        "schema_version": OUTPUT_RECORD_SCHEMA,
+        "output_opaque_id": output_opaque_id,
+        "request_ordinal": state["current_ordinal"],
+        "source_kind": "CODEX_NATIVE_IMAGEGEN",
+        "source_delivery_class": "EXACT_NATIVE_GENERATED_ARTIFACT_PATH_FROM_OUTPUT_HINT",
+        "exact_generated_artifact_receipt": exact_generated_artifact_receipt,
+        "source_sha256": source_sha256,
+        "staging_sha256": staging_sha256,
+        "byte_size": source_size,
+        "media_type": media_type,
+        "magic_byte_class": magic_class,
+        "generation_specification_version": binding["generation_specification_version"],
+        "generation_specification_digest": binding["generation_specification_sha256"],
+        "assignment_manifest_version": binding["assignment_manifest_version"],
+        "assignment_manifest_digest": binding["assignment_manifest_sha256"],
+        "request_ledger_status": "DISPATCHED_RETURNED_ONE",
+        "output_ledger_status": "RAW_REGISTERED_PRE_DECODE",
+        "custody_status": "PRIVATE_STAGING_CREATE_NEW",
+        "retention_class": "AUTHORIZED_P2_M5_CALIBRATION_RESEARCH_AND_AUDIT_ONLY",
+        "cleanup_policy": "EXACT_REGISTERED_OUTPUT_ID_ONLY",
+        "registration_timestamp": timestamp,
+        "registration_status": "COMMITTED",
+        "registration_commit_receipt": registration_receipt_id,
+        "decode_performed": False,
+        "dimensions_read": False,
+    }
+    record_digest, record_size = _write_json_create_new(record_path, output_record)
+    registration_receipt = {
+        "schema_version": REGISTRATION_RECEIPT_SCHEMA,
+        "registration_receipt_id": registration_receipt_id,
+        "output_opaque_id": output_opaque_id,
+        "request_ordinal": state["current_ordinal"],
+        "output_record_file": record_name,
+        "output_record_sha256": record_digest,
+        "output_record_bytes": record_size,
+        "source_sha256": source_sha256,
+        "staging_sha256": staging_sha256,
+        "registration_status": "COMMITTED",
+        "receipt_status": "VALID",
+        "decode_performed": False,
+        "dimensions_read": False,
+        "timestamp": timestamp,
+    }
+    registration_digest, _ = _write_json_create_new(registration_receipt_path, registration_receipt)
+
+    counters = dict(cast(dict[str, int], state["counters"]))
+    counters["active_calls"] = 0
+    _validate_counters(counters)
+    sequence = cast(int, receipt["sequence"]) + 1
+    new_event = {
+        "schema_version": EVENT_SCHEMA,
+        "overlay_output_id": state["overlay_output_id"],
+        "sequence": sequence,
+        "event_type": "OUTPUT_REGISTRATION_COMMITTED_PRE_DECODE",
+        "timestamp": timestamp,
+        "previous_event_sha256": receipt["event_sha256"],
+        "action_id": action_id,
+        "request_ordinal": state["current_ordinal"],
+        "reason_code": "REGISTER_BEFORE_DECODE_PASS",
+        "output_opaque_id": output_opaque_id,
+        "output_record_file": record_name,
+        "output_record_sha256": record_digest,
+        "registration_receipt_file": registration_receipt_name,
+        "registration_receipt_sha256": registration_digest,
+    }
+    new_state = dict(state)
+    new_state.update(
+        {
+            "sequence": sequence,
+            "phase": "OUTPUT_REGISTERED_PRE_DECODE",
+            "timestamp": timestamp,
+            "previous_state_sha256": receipt["state_sha256"],
+            "last_event_sha256": sha256_bytes(canonical_json_bytes(new_event)),
+            "counters": counters,
+            "output_registration": {
+                "output_opaque_id": output_opaque_id,
+                "record_file": record_name,
+                "record_sha256": record_digest,
+                "registration_receipt_file": registration_receipt_name,
+                "registration_receipt_sha256": registration_digest,
+                "registration_status": "COMMITTED",
+                "receipt_status": "VALID",
+            },
+            "decode_authorized": True,
+            "hard_stop": False,
+        }
+    )
+    return _commit_transition(
+        root=root,
+        sequence=sequence,
+        controller_sha256=expected_controller_sha256,
+        event=new_event,
+        state=new_state,
+        previous_receipt=_previous_receipt_binding(receipt_path, receipt),
+        registration_receipt=(registration_receipt_name, registration_digest),
+    )
+
+
+def verify_registration_before_decode(
+    receipt_path: Path,
+    *,
+    expected_controller_sha256: str,
+) -> dict[str, Any]:
+    verified = verify_overlay(
+        receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    receipt = cast(dict[str, Any], verified["receipt"])
+    state = cast(dict[str, Any], verified["state"])
+    if state["phase"] != "OUTPUT_REGISTERED_PRE_DECODE" or state["decode_authorized"] is not True:
+        raise ExecutionOverlayError("DECODE_GATE_NOT_OPEN")
+    registration = state.get("output_registration")
+    if not isinstance(registration, dict):
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_STATE_MISSING")
+    root = receipt_path.parent
+    registration_path = _safe_child(
+        root / "records", cast(str, registration["registration_receipt_file"])
+    )
+    record_path = _safe_child(root / "records", cast(str, registration["record_file"]))
+    if sha256_file(registration_path) != registration["registration_receipt_sha256"]:
+        raise ExecutionOverlayError("REGISTRATION_RECEIPT_DIGEST_MISMATCH")
+    if sha256_file(record_path) != registration["record_sha256"]:
+        raise ExecutionOverlayError("OUTPUT_RECORD_DIGEST_MISMATCH")
+    registration_receipt = _read_json(registration_path)
+    output_record = _read_json(record_path)
+    if (
+        registration_receipt.get("receipt_status") != "VALID"
+        or registration_receipt.get("registration_status") != "COMMITTED"
+        or output_record.get("registration_status") != "COMMITTED"
+        or registration_receipt.get("output_record_sha256") != registration["record_sha256"]
+        or registration_receipt.get("decode_performed") is not False
+        or output_record.get("decode_performed") is not False
+        or registration_receipt.get("dimensions_read") is not False
+        or output_record.get("dimensions_read") is not False
+    ):
+        raise ExecutionOverlayError("REGISTRATION_RECEIPT_NOT_VALID_PRE_DECODE")
+    if receipt.get("registration_receipt_sha256") != registration["registration_receipt_sha256"]:
+        raise ExecutionOverlayError("OVERLAY_RECEIPT_REGISTRATION_BINDING_MISMATCH")
+    return {
+        "status": "REGISTER_BEFORE_DECODE_PASS",
+        "phase": state["phase"],
+        "sequence": state["sequence"],
+        "output_opaque_id": registration["output_opaque_id"],
+        "source_sha256": output_record["source_sha256"],
+        "staging_sha256": output_record["staging_sha256"],
+        "byte_size": output_record["byte_size"],
+        "media_type": output_record["media_type"],
+        "magic_byte_class": output_record["magic_byte_class"],
+        "decode_performed": False,
+        "dimensions_read": False,
+    }
+
+
+def render_private_prompt(
+    *,
+    prompt_template: Mapping[str, Any],
+    assignment_entry: Mapping[str, Any],
+    ordinal: str,
+    expected_policy_digest: str,
+) -> str:
+    _validate_digest(expected_policy_digest, "EXPECTED_POLICY_DIGEST")
+    if prompt_template.get("plaintext_export") != "PROHIBITED":
+        raise ExecutionOverlayError("PRIVATE_PROMPT_EXPORT_POLICY_INVALID")
+    if prompt_template.get("status") != "MATERIALIZED_NOT_RENDERED_NOT_DISPATCHED":
+        raise ExecutionOverlayError("PRIVATE_PROMPT_TEMPLATE_STATUS_INVALID")
+    if prompt_template.get("policy_digest") != expected_policy_digest:
+        raise ExecutionOverlayError("PRIVATE_PROMPT_POLICY_DIGEST_MISMATCH")
+    if prompt_template.get("render_placeholders") != [
+        "REQUEST_ORDINAL",
+        "DECLARED_AGE_BAND",
+        "MORPHOLOGY_DESCRIPTOR",
+        "STYLE_DESCRIPTOR",
+    ]:
+        raise ExecutionOverlayError("PRIVATE_PROMPT_PLACEHOLDER_CONTRACT_MISMATCH")
+    if assignment_entry.get("ordinal") != ordinal:
+        raise ExecutionOverlayError("PRIVATE_PROMPT_ASSIGNMENT_ORDINAL_MISMATCH")
+    if (
+        assignment_entry.get("status") != "NOT_CONSUMED"
+        or assignment_entry.get("retryable") is not False
+        or assignment_entry.get("policy_binding") != expected_policy_digest
+    ):
+        raise ExecutionOverlayError("PRIVATE_PROMPT_ASSIGNMENT_AUTHORITY_INVALID")
+    declared_age_band = assignment_entry.get("declared_age_band")
+    morphology = assignment_entry.get("morphology")
+    style_descriptor = assignment_entry.get("style_family")
+    if not all(
+        isinstance(value, str) and value
+        for value in (declared_age_band, morphology, style_descriptor)
+    ):
+        raise ExecutionOverlayError("PRIVATE_PROMPT_ASSIGNMENT_INCOMPLETE")
+    values = {
+        "DECLARED_AGE_BAND": declared_age_band,
+        "MORPHOLOGY_DESCRIPTOR": morphology,
+        "STYLE_DESCRIPTOR": style_descriptor,
+    }
+    positive = prompt_template.get("positive_segments")
+    negative = prompt_template.get("negative_segments")
+    if not isinstance(positive, list) or not isinstance(negative, list):
+        raise ExecutionOverlayError("PRIVATE_PROMPT_SEGMENTS_INVALID")
+
+    def render_groups(groups: list[Any]) -> list[str]:
+        rendered: list[str] = []
+        for group in groups:
+            if (
+                not isinstance(group, list)
+                or not group
+                or not all(isinstance(item, str) for item in group)
+            ):
+                raise ExecutionOverlayError("PRIVATE_PROMPT_GROUP_INVALID")
+            rendered.append("; ".join(item.format_map(values) for item in group))
+        return rendered
+
+    positive_lines = render_groups(positive)
+    negative_lines = render_groups(negative)
+    return "\n".join(
+        [
+            f"REQUEST_ORDINAL: {ordinal}",
+            "POSITIVE_CONSTRAINT_GROUPS:",
+            *(f"{index}. {value}" for index, value in enumerate(positive_lines, start=1)),
+            "NEGATIVE_CONSTRAINT_GROUPS:",
+            *(f"{index}. {value}" for index, value in enumerate(negative_lines, start=1)),
+        ]
+    )

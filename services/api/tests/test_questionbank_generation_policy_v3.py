@@ -28,6 +28,7 @@ CC05_A_EVIDENCE_PATH = (
 CC05_A_EVIDENCE_DOC_PATH = (
     ROOT / "docs" / "operations" / "P2_M5_CC05_A_E01_PRIVATE_POLICY_MATERIALIZATION_EVIDENCE.md"
 )
+R43_REPAIR_PATH = ROOT / "docs" / "operations" / "P2_M5_R43_EPOCH3_EXECUTION_TRANSITION_REPAIR.md"
 ACCEPTANCE_PATH = ROOT / "docs" / "operations" / "P2_M5_ACCEPTANCE.md"
 EXECUTION_PROTOCOL_PATH = ROOT / "docs" / "operations" / "P2_M5_EXECUTION_PROTOCOL.md"
 
@@ -250,6 +251,14 @@ def _last_cc05_a_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-cc05-a-e01-epoch3-private-materialization-eof/v1",
         sentinel="P2_M5_CC05_A_E01_EPOCH3_PRIVATE_POLICY_MATERIALIZATION_TRUE_EOF",
+    )
+
+
+def _last_r43_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-r43-epoch3-execution-transition-repair-eof/v1",
+        sentinel="P2_M5_R43_EPOCH3_EXECUTION_TRANSITION_REPAIR_TRUE_EOF",
     )
 
 
@@ -928,5 +937,144 @@ def test_cc05_a_true_eof_overlay_is_complete_mirrored_and_binds_redacted_evidenc
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_CC05_A_E01_EPOCH3_PRIVATE_POLICY_MATERIALIZATION_TRUE_EOF",
     )
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_CC05_A_E01_EPOCH3_PRIVATE_POLICY_MATERIALIZATION_TRUE_EOF",
+    )
+
+
+def test_r43_execution_transition_overlay_is_complete_mirrored_and_fail_closed() -> None:
+    canonical = _last_r43_key_block(ACCEPTANCE_PATH)
+    mirror = _last_r43_key_block(EXECUTION_PROTOCOL_PATH)
+    predecessor = _last_cc05_a_key_block(ACCEPTANCE_PATH)
+    values = dict(canonical)
+    predecessor_values = dict(predecessor)
+
+    assert canonical == mirror
+    assert len(canonical) == 345
+    assert len(values) == len(canonical)
+    assert len(predecessor) == 317
+    assert set(predecessor_values) <= values.keys()
+
+    expected_overrides = {
+        "CC04_B_EXECUTION": "SUSPENDED_PENDING_R43_AND_R43_Q01_EXECUTION_OVERLAY_ACCEPTANCE",
+        "CURRENT_AUTHORITY_TAIL_END": "P2_M5_R43_EPOCH3_EXECUTION_TRANSITION_REPAIR_TRUE_EOF",
+        "CURRENT_STATE_AUTHORITY_PRECEDENCE": (
+            "THIS_CONDITIONAL_TRUE_EOF_OVERLAY_SUPERSEDES_ACCEPTED_CC05_A_FOR_THE_COMPLETE_"
+            "LISTED_KEYSET_ONLY_AFTER_R43_SAME_SHA_CI_EIGHT_ARTIFACT_CONTENT_CHECKS_"
+            "SECURITY_PRIVACY_LICENSE_RESEARCH_SOL_AND_PRINCIPAL_ACCEPTANCE"
+        ),
+        "CURRENT_STATE_AUTHORITY_VERSION": ("p2-m5-r43-epoch3-execution-transition-repair-eof/v1"),
+        "CURRENT_STATE_KEY_COVERAGE": (
+            "COMPLETE_CC05_A_PREDECESSOR_KEYSET_PLUS_R43_EXECUTION_TRANSITION_REPAIR_KEYS"
+        ),
+        "CURRENT_STATE_MIRROR_RULE": (
+            "MUST_MATCH_CANONICAL_ACCEPTANCE_R43_KEY_SET_ORDER_AND_VALUES"
+        ),
+        "CURRENT_STATE_PRECONDITION_FALLBACK": (
+            "ACCEPTED_CC05_A_TRUE_EOF_REMAINS_CURRENT_UNTIL_R43_AUTHORITY_CONDITION_IS_SATISFIED"
+        ),
+        "EARLIER_STATUS_SECTIONS": (
+            "PRESERVED_HISTORICAL_EVIDENCE_NON_CURRENT_FOR_THE_COMPLETE_LISTED_KEYSET_"
+            "AFTER_R43_ACCEPTANCE"
+        ),
+        "FORMAL_E01_EXECUTION_AUTHORITY": (
+            "NOT_EFFECTIVE_UNTIL_R43_AND_R43_Q01_REDACTED_EVIDENCE_ALL_GATES_AND_"
+            "PRINCIPAL_ACCEPTANCE"
+        ),
+        "FORMAL_E01_STATUS": (
+            "SUSPENDED_PENDING_R43_ACCEPTANCE_AND_PRIVATE_OVERLAY_MATERIALIZATION"
+        ),
+        "NEXT_READY_TASK": "P2_M5_R43_SAME_SHA_GATES",
+        "P2_M5_NEXT_ACTION": (
+            "COMPLETE_R43_SAME_SHA_GATES_THEN_R43_Q01_PRIVATE_EXECUTION_OVERLAY_MATERIALIZATION"
+        ),
+        "STOP_OUTCOME": (
+            "CAL_REQ_002_NOT_DISPATCHED_PENDING_ACCEPTED_R43_EXECUTION_OVERLAY_AUTHORITY"
+        ),
+    }
+    actual_overrides = {
+        key: values[key]
+        for key, predecessor_value in predecessor_values.items()
+        if values[key] != predecessor_value
+    }
+    assert actual_overrides == expected_overrides
+    assert {key: values[key] for key in predecessor_values.keys() - expected_overrides.keys()} == {
+        key: predecessor_values[key]
+        for key in predecessor_values.keys() - expected_overrides.keys()
+    }
+
+    additions = {
+        "P2_M5_R43_AUTHORITY_CONDITION": (
+            "EFFECTIVE_ONLY_AFTER_THIS_COMMIT_SAME_SHA_CI_ALL_EIGHT_ARTIFACT_CONTENT_"
+            "CHECKS_SECURITY_PRIVACY_LICENSE_RESEARCH_SOL_AND_PRINCIPAL_ACCEPTANCE"
+        ),
+        "P2_M5_R43_CONCURRENCY": "1",
+        "P2_M5_R43_CONTROLLER_MODULE": (
+            "services/api/src/mirror_api/synthetic_dataset/private_execution_overlay.py"
+        ),
+        "P2_M5_R43_CONTROLLER_SHA256_BINDING": ("COMPUTE_FROM_ACCEPTED_CANDIDATE_BYTES_AT_R43_Q01"),
+        "P2_M5_R43_DECODE_QA_SCREENING_ADMISSION": "0",
+        "P2_M5_R43_DEPENDENCY_MODEL_OR_WORKFLOW_CHANGE": "NONE",
+        "P2_M5_R43_FAILURE_STATES": (
+            "DISPATCH_FAILED_FINAL;OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE"
+        ),
+        "P2_M5_R43_GENESIS_MUTATION": "0",
+        "P2_M5_R43_IMAGEGEN_CALLS_EXECUTED": "0",
+        "P2_M5_R43_NEXT_PRIVATE_TASK": ("P2-M5-R43-Q01_PRIVATE_EXECUTION_OVERLAY_MATERIALIZATION"),
+        "P2_M5_R43_ORDINALS_CONSUMED": "0",
+        "P2_M5_R43_OUTPUT_COUNT_ORDER": (
+            "RETURNED_AND_RAW_COUNTERS_DURABLE_BEFORE_ANY_SOURCE_BYTE_INSPECTION"
+        ),
+        "P2_M5_R43_OVERLAY_MODEL": (
+            "IMMUTABLE_CC05_A_GENESIS_PLUS_CREATE_NEW_HASH_CHAINED_EXECUTION_OVERLAY"
+        ),
+        "P2_M5_R43_PARENT_SHA": "40A239831985B76DD55788A4EDE6D98D60438F3D",
+        "P2_M5_R43_POST_ACCEPTANCE_COMMIT_REQUIRED": "NO",
+        "P2_M5_R43_PRIVATE_IMAGE_BYTES_READ_OR_WRITTEN": "0",
+        "P2_M5_R43_PRIVATE_ROOTS_CREATED": "0",
+        "P2_M5_R43_PUBLIC_API_CHANGE": "NONE",
+        "P2_M5_R43_Q01_IMAGEGEN_CALLS": "0",
+        "P2_M5_R43_Q01_ORDINALS_CONSUMED": "0",
+        "P2_M5_R43_Q01_REDACTED_EVIDENCE_REQUIRED": ("YES_BEFORE_CAL_REQ_002_DISPATCH"),
+        "P2_M5_R43_RAW_OUTPUTS_CREATED": "0",
+        "P2_M5_R43_RECOVERY_MODEL": ("EXACT_RECEIPT_HANDLE_NO_LIST_GLOB_SEARCH_OR_LATEST_POINTER"),
+        "P2_M5_R43_REGISTER_BEFORE_DECODE": "REQUIRED_AND_TESTED",
+        "P2_M5_R43_RETRY": "0",
+        "P2_M5_R43_SCHEMA_OR_MIGRATION_CHANGE": "NONE",
+        "P2_M5_R43_STATE_MACHINE": (
+            "READY_TO_DISPATCH_PREPARED_TO_DISPATCH_STARTED_CONSUMED_TO_OUTPUT_RETURNED_"
+            "UNREGISTERED_TO_OUTPUT_REGISTERED_PRE_DECODE"
+        ),
+        "P2_M5_R43_STATUS": "PASS_AFTER_THIS_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE",
+    }
+    assert set(values) - set(predecessor_values) == set(additions)
+    assert {key: values[key] for key in additions} == additions
+    assert values["CAL_REQ_002_STATUS"] == "NOT_CONSUMED"
+    assert values["FORMAL_E01_GENERATION_CALLS_EXECUTED"] == "1"
+    assert values["FORMAL_E01_RAW_OUTPUTS_CREATED"] == "1"
+    assert values["FORMAL_CALLS_REMAINING"] == "31"
+    assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "31"
+    assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "62"
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_R43_EPOCH3_EXECUTION_TRANSITION_REPAIR_TRUE_EOF",
+    )
     assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
     assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+
+    tracked = "\n".join(
+        (
+            R43_REPAIR_PATH.read_text(encoding="utf-8"),
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-100_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-100_000:],
+        )
+    )
+    assert ".local-storage" not in tracked
+    assert "data:image/" not in tracked
+    assert "private_template_nonce" not in tracked
+    assert "positive_segments" not in tracked
+    assert "negative_segments" not in tracked
+    assert "provider_raw_payload" not in tracked.lower()
+    assert "C:\\" not in tracked
+    assert "D:\\" not in tracked
