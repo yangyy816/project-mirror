@@ -2,7 +2,7 @@
   "schema_version": "mirror.demo/P3P7DemoExecutionState/v1",
   "goal_epoch": "P3_P7_COMPLETE_DEMO_EPOCH_02",
   "integration_branch": "codex/p3-p7-core-demo",
-  "integration_head": "39de27f2bf69a3b0e01acbce866c3d98507bfd09",
+  "integration_head": "5176eef8dd6287dda513847fa3bb36a9aed97ec7",
   "migration_head": "demo_0011_d03_job_recovery",
   "delivery_policy": "PRODUCT_AND_ALGORITHM_FIRST_RISK_TIERED",
   "evidence_custody_host_binding": "FROZEN_DEFERRED",
@@ -49,7 +49,8 @@
     "D03_DOMAIN_READY_ROUTE_PENDING": "df2426fb143e4e87c018bb3eb6897aff3cd81829",
     "D02_RUNTIME_FORWARD_BRIDGE": "d7053932965cf1a829fb55d05ef44b6c5ca9cedf",
     "D07_B_DETERMINISTIC_RASTER_SLICE": "cbb04eb600ebe2da9b8019bc07e9ab8d3885f1df",
-    "D04_B_ADMITTED_BANK_PROJECTION_SLICE": "87dc168e130096b61c63bc1f2627844265fecac1"
+    "D04_B_ADMITTED_BANK_PROJECTION_SLICE": "87dc168e130096b61c63bc1f2627844265fecac1",
+    "D03_D04_B_D07_B_APPLICATION_INTEGRATION_CANDIDATE": "5176eef8dd6287dda513847fa3bb36a9aed97ec7"
   },
   "accepted_ci_runs": {
     "D09": 32701906246,
@@ -164,13 +165,35 @@
     "d02_final_gate": "PENDING_RUNTIME_EVIDENCE"
   },
   "implementation_wave": {
-    "status": "LOCAL_CANDIDATE_READY_PENDING_SAME_SHA_CI",
-    "D03": "ROUTE_DISPATCH_RECOVERY_CANDIDATE_PENDING_SAME_SHA_CI_AND_FRESH_RUNTIME_GATE",
-    "D04_B": "APPLICATION_ROUTES_POSTGRESQL_CANDIDATE_PENDING_SAME_SHA_CI_AND_RUNTIME_EVIDENCE",
+    "status": "CANDIDATE_REPAIR_REQUIRED_AFTER_SAME_SHA_CI",
+    "D03": "ROUTE_DISPATCH_RECOVERY_CANDIDATE_PENDING_CI_REPAIR_AND_FRESH_RUNTIME_GATE",
+    "D04_B": "APPLICATION_ROUTES_POSTGRESQL_CANDIDATE_PENDING_CI_REPAIR_AND_RUNTIME_EVIDENCE",
     "D07_B": "RASTER_GEOMETRY_EXECUTION_BOUNDARY_READY_VERIFIER_IMAGE_VERSION_PENDING",
     "offline_targeted_validation": "PASS_D04_POSTERIOR_ROUTING_BANK_SERVICE_POSTGRESQL_ROUTES_D03_JOB_30_WORKER_17_D07_65_SCHEMA_POSTGRESQL_MIGRATION_LIFECYCLE_RUFF_MYPY_TYPESCRIPT_BUILD",
     "risk_focused_review": "PASS_NO_BLOCKING_FINDINGS_THREE_DEFERRED_NON_BLOCKING_FINDINGS",
     "task_acceptance_claimed": false
+  },
+  "nonaccepted_ci_runs": {
+    "D03_D04_B_D07_B_APPLICATION_INTEGRATION_01": {
+      "run_id": 33266023349,
+      "head_sha": "5176eef8dd6287dda513847fa3bb36a9aed97ec7",
+      "outcome": "FAIL_TEST_ALEMBIC_CONFIG_PATH",
+      "python_summary": "2238_PASSED_1_SKIPPED_1_FAILED",
+      "product_or_persistence_failure": false,
+      "repair_status": "LOCAL_CANDIDATE_VALIDATED_PENDING_SAME_SHA_CI"
+    }
+  },
+  "local_product_candidates": {
+    "D05_PROFILE_COMPILER": {
+      "source_sha256": "978b3928c11db0086c685b8f24b144c9d91cc4e7ef0b1a678af6f9be66f4df96",
+      "source_event_provenance": "BINDS_D09_LEDGER_CONTENT_DIGEST",
+      "validation": "PASS_PROFILE_POSTERIOR_AND_VERIFIER_87_TESTS_RUFF_MYPY"
+    },
+    "D07_EFFECT_VERIFIER": {
+      "source_sha256": "854677e83e0a06994bcb76078f9cbdee19046059d6180cce4d2ab5076a7137a9",
+      "publication_boundary": "PURE_VERIFIER_ONLY_IMAGE_VERSION_PUBLISHER_PENDING",
+      "validation": "PASS_PROFILE_POSTERIOR_AND_VERIFIER_87_TESTS_RUFF_MYPY"
+    }
   },
   "current_blockers": {
     "D02_RUNTIME_REPLAY": "DEFERRED_UNTIL_ACTUALLY_REQUIRED",

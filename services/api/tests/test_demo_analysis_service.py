@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from importlib import import_module
+from pathlib import Path
 from typing import Any, Protocol, cast
 
 import pytest
@@ -362,7 +363,8 @@ async def test_expired_leases_create_bounded_attempts_and_then_fail_terminal() -
             "D03_LEASE_RETRY_EXHAUSTED",
         ]
         with pytest.raises(DBAPIError, match="cannot downgrade populated multi-attempt"):
-            alembic_command.downgrade(Config("alembic.ini"), "demo_0010_d03_analysis_run")
+            config_path = Path(__file__).resolve().parents[1] / "alembic.ini"
+            alembic_command.downgrade(Config(str(config_path)), "demo_0010_d03_analysis_run")
 
 
 @pytest.mark.asyncio
