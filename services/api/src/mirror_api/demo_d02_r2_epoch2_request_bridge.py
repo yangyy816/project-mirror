@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Final, NoReturn, cast
 
+from mirror_api import demo_d02_r2_private_registry_e2 as private_registry
 from mirror_api.demo_d02_r2_generation_capability import build_generation_capability_authority
 from mirror_api.demo_d02_r2_generation_epoch2 import (
     ACCEPTED_CAPABILITY_DIGEST,
@@ -33,6 +35,24 @@ type JsonObject = dict[str, JsonValue]
 PREREGISTRATION_SCHEMA: Final = "mirror.demo/D02R2SourceGenerationPreregistrationAuthority/v1"
 ALLOCATION_MANIFEST_SCHEMA: Final = "mirror.demo/D02R2SourceAllocationManifest/v1"
 PRODUCER_DISPATCH_SCHEMA: Final = "mirror.demo/D02R2SourceProducerDispatchReceipt/v1"
+PREFLIGHT_JSON_MEDIA_TYPE: Final = "application/json"
+PREFLIGHT_JSON_MAXIMUM_BYTES: Final = 262_144
+PREFLIGHT_SOURCE_MEDIA_TYPE: Final = "image/png"
+PREFLIGHT_SOURCE_MAXIMUM_BYTES: Final = 20_971_520
+PREFLIGHT_SEMANTIC_ROLES_BY_SEQUENCE: Final = (
+    "SOURCE_GENERATION_PREREGISTRATION",
+    "SOURCE_ALLOCATION_MANIFEST",
+    "SOURCE_PRODUCER_DISPATCH_RECEIPT",
+    "SOURCE_CANDIDATE",
+    "SOURCE_PROVENANCE",
+    "SOURCE_CANDIDATE",
+    "SOURCE_PROVENANCE",
+    "SOURCE_CANDIDATE",
+    "SOURCE_PROVENANCE",
+    "SOURCE_CANDIDATE",
+    "SOURCE_PROVENANCE",
+    "NEGATIVE_RECEIPT",
+)
 _DIGEST_RE: Final = re.compile(r"[0-9a-f]{64}\Z")
 
 _PREREGISTRATION_KEYS: Final = (
@@ -150,6 +170,160 @@ _GENERATION_REQUEST_KEYS: Final = (
     "request_state",
     "generation_request_digest",
 )
+
+
+@dataclass(frozen=True)
+class PreflightOutputNameBinding:
+    """Frozen parent, producer and media envelope for one E2 preflight role."""
+
+    producer_task_id: str
+    expected_parent_authority: str
+    expected_media_type: str
+    maximum_bytes: int
+
+
+def _preflight_role_envelope(semantic_role: str) -> tuple[str, str, int]:
+    if semantic_role == "SOURCE_CANDIDATE":
+        return (
+            private_registry.SOURCE_PRODUCER_TASK_ID,
+            PREFLIGHT_SOURCE_MEDIA_TYPE,
+            PREFLIGHT_SOURCE_MAXIMUM_BYTES,
+        )
+    if semantic_role not in PREFLIGHT_SEMANTIC_ROLES_BY_SEQUENCE:
+        _fail("semantic role is not part of the E2 preflight allocation envelope")
+    producer_task_id = (
+        private_registry.SOURCE_PRODUCER_TASK_ID
+        if semantic_role == "SOURCE_PROVENANCE"
+        else private_registry.TASK_ID
+    )
+    return producer_task_id, PREFLIGHT_JSON_MEDIA_TYPE, PREFLIGHT_JSON_MAXIMUM_BYTES
+
+
+def resolve_preflight_output_name_binding(
+    semantic_role: str,
+    *,
+    generation_capability_authority_digest: str | None = None,
+    generation_preregistration_digest: str | None = None,
+    source_allocation_manifest_digest: str | None = None,
+    source_producer_dispatch_digest: str | None = None,
+) -> PreflightOutputNameBinding:
+    """Resolve the only accepted parent/media binding for E2 allocations 1..12."""
+
+    if semantic_role == "SOURCE_GENERATION_PREREGISTRATION":
+        parent = _digest(
+            generation_capability_authority_digest,
+            "generation capability authority digest",
+        )
+    elif semantic_role in {
+        "SOURCE_ALLOCATION_MANIFEST",
+        "SOURCE_CANDIDATE",
+        "SOURCE_PROVENANCE",
+    }:
+        parent = _digest(
+            generation_preregistration_digest,
+            "generation preregistration digest",
+        )
+    elif semantic_role == "SOURCE_PRODUCER_DISPATCH_RECEIPT":
+        parent = _digest(
+            source_allocation_manifest_digest,
+            "source allocation manifest digest",
+        )
+    elif semantic_role == "NEGATIVE_RECEIPT":
+        parent = _digest(
+            source_producer_dispatch_digest,
+            "source producer dispatch digest",
+        )
+    else:
+        _fail("semantic role is not part of the E2 preflight allocation envelope")
+
+    producer, media_type, maximum_bytes = _preflight_role_envelope(semantic_role)
+    return PreflightOutputNameBinding(
+        producer_task_id=producer,
+        expected_parent_authority=parent,
+        expected_media_type=media_type,
+        maximum_bytes=maximum_bytes,
+    )
+
+
+def project_preflight_output_name_receipt(
+    *,
+    root_receipt: Mapping[str, object],
+    output_id: str,
+    allocation_sequence: int,
+    semantic_role: str,
+    logical_name: str,
+    binding: PreflightOutputNameBinding,
+    allocated_at_utc: str,
+) -> JsonObject:
+    """Purely project the exact registry payload before any create-new write."""
+
+    if (
+        root_receipt.get("evidence_root_id") != private_registry.EVIDENCE_ROOT_ID
+        or root_receipt.get("dispatch_epoch") != private_registry.DISPATCH_EPOCH
+    ):
+        _fail("root receipt is not bound to E2")
+    root_receipt_digest = _digest(root_receipt.get("receipt_digest"), "root receipt digest")
+    execution_contract_digest = _digest(
+        root_receipt.get("contract_digest"), "execution contract digest"
+    )
+    private_registry._require_output_id(output_id)
+    if (
+        allocation_sequence < 1
+        or allocation_sequence > len(PREFLIGHT_SEMANTIC_ROLES_BY_SEQUENCE)
+        or PREFLIGHT_SEMANTIC_ROLES_BY_SEQUENCE[allocation_sequence - 1] != semantic_role
+    ):
+        _fail("allocation sequence and semantic role do not match the E2 preflight matrix")
+    destination = private_registry._role_destination(semantic_role)
+    private_registry._require_logical_name(logical_name)
+    private_registry._require_digest(binding.expected_parent_authority, "expected parent authority")
+    private_registry._require_media_type(binding.expected_media_type)
+    private_registry._require_timestamp(allocated_at_utc)
+    if binding.maximum_bytes < 1 or binding.maximum_bytes > private_registry.MAXIMUM_ROOT_BYTES:
+        _fail("maximum bytes are outside the root envelope")
+    expected_envelope = _preflight_role_envelope(semantic_role)
+    if (
+        binding.producer_task_id,
+        binding.expected_media_type,
+        binding.maximum_bytes,
+    ) != expected_envelope:
+        _fail("binding differs from the E2 preflight role envelope")
+    allowed_tasks: list[JsonValue] = (
+        [
+            private_registry.TASK_ID,
+            private_registry.SOURCE_PRODUCER_TASK_ID,
+            private_registry.REVIEW_TASK_ID,
+        ]
+        if semantic_role in {"SOURCE_CANDIDATE", "SOURCE_PROVENANCE"}
+        else [private_registry.TASK_ID, private_registry.REVIEW_TASK_ID]
+    )
+    if (
+        binding.producer_task_id not in allowed_tasks
+        or binding.producer_task_id == private_registry.REVIEW_TASK_ID
+    ):
+        _fail("producer task is not authorized for the semantic role")
+    payload: JsonObject = {
+        "schema_version": private_registry.OUTPUT_NAME_RECEIPT_SCHEMA,
+        "evidence_root_id": private_registry.EVIDENCE_ROOT_ID,
+        "root_name_receipt_digest": root_receipt_digest,
+        "execution_contract_digest": execution_contract_digest,
+        "output_id": output_id,
+        "allocation_sequence": allocation_sequence,
+        "semantic_role": semantic_role,
+        "logical_name": logical_name,
+        "producer_task_id": binding.producer_task_id,
+        "dispatch_epoch": private_registry.DISPATCH_EPOCH,
+        "allowed_tasks": allowed_tasks,
+        "expected_parent_authority": binding.expected_parent_authority,
+        "expected_media_type": binding.expected_media_type,
+        "maximum_bytes": binding.maximum_bytes,
+        "relative_destination_class": destination[0],
+        "allocated_at_utc": allocated_at_utc,
+    }
+    payload["name_receipt_digest"] = mirror_demo_digest(
+        private_registry.OUTPUT_NAME_RECEIPT_SCHEMA,
+        payload,
+    )
+    return payload
 
 
 def _fail(message: str) -> NoReturn:

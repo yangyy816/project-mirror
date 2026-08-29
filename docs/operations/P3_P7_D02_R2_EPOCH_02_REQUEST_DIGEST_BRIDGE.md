@@ -22,11 +22,11 @@ defect before any singleton authority bytes or ImageGen call were created.
 The CC08 allocation schema retains the field
 `generation_request_policy_digest`, while the accepted E2 invocation authority
 uses `mirror.demo/D02R2Epoch2GenerationRequestPolicy/v1` and calls its digest
-field `generation_request_digest`.  The E1 request-policy validator is
+field `generation_request_digest`. The E1 request-policy validator is
 intentionally bound to the failed-closed E1 root, producer and dispatch epoch;
 it cannot be re-signed for E2 under the same semantics.
 
-This repair freezes the missing bridge.  It does not reopen CC09 or CC10, add
+This repair freezes the missing bridge. It does not reopen CC09 or CC10, add
 an evidence layer, mutate E1, alter the E2 root receipt, or weaken any call,
 network, retry, concurrency, source, provenance or registry boundary.
 
@@ -54,8 +54,8 @@ BRIDGE_SEMANTIC_VERSION:
 ```
 
 The legacy field name is retained because the private allocation and source
-authority schemas already use it.  It does not invoke, inherit or impersonate
-`mirror.demo/D02R2GenerationRequestPolicy/v1`.  E2 must never validate an E2
+authority schemas already use it. It does not invoke, inherit or impersonate
+`mirror.demo/D02R2GenerationRequestPolicy/v1`. E2 must never validate an E2
 request through the E1 builder or validator.
 
 ## Exact non-cyclic construction order
@@ -93,14 +93,14 @@ The actual name-receipt order remains:
 12. preallocated cohort-failure `NEGATIVE_RECEIPT`
 
 The singleton and negative name receipts are produced by
-`P3_P7_D02_R2_EXECUTION_02`.  Source and provenance name receipts are produced
-by `P3_P7_D02_R2_SOURCE_COHORT_02`.  The singleton authority payloads continue
+`P3_P7_D02_R2_EXECUTION_02`. Source and provenance name receipts are produced
+by `P3_P7_D02_R2_SOURCE_COHORT_02`. The singleton authority payloads continue
 to name the source producer where required by the frozen CC08 schemas.
 
 ## Mandatory bridge validation
 
 The bridge implementation must be pure and must not resolve a root, path,
-Prompt, image, registry, network client, database or Provider.  It must prove:
+Prompt, image, registry, network client, database or Provider. It must prove:
 
 - exact CC08 key sets and domain-separated digest replay for preregistration,
   allocation manifest and producer dispatch;
@@ -123,11 +123,35 @@ changed-code exact-SHA CI passes, and an independent exact-SHA review returns
 no blocking finding.
 
 The existing `demo_d02_r2_authority` and `demo_0008` admission boundary remain
-hard-bound to E1.  Successful E2 source generation does not bypass that fact.
+hard-bound to E1. Successful E2 source generation does not bypass that fact.
 Before M3/M4-derived E2 source authority can enter PostgreSQL, a separate
 product-forward schema/authority task must version the E2 root/epoch binding
-and prove single-transaction admission.  That later work is not an evidence,
+and prove single-transaction admission. That later work is not an evidence,
 custody or host-binding change control and cannot reinterpret E1.
+
+## Private preflight output-name closure
+
+The product execution preflight uses one pure projector before any create-new
+name-receipt write. The projector and the registry writer must produce equal
+payloads and equal `name_receipt_digest`; any mismatch stops before ImageGen.
+Actual allocation remains ordered `1..12`.
+
+The exact binding matrix is:
+
+| Sequence | Semantic role                       | Parent authority                      | Producer           | Media type         | Maximum bytes |
+| -------: | ----------------------------------- | ------------------------------------- | ------------------ | ------------------ | ------------: |
+|        1 | `SOURCE_GENERATION_PREREGISTRATION` | accepted generation-capability digest | E2 execution task  | `application/json` |        262144 |
+|        2 | `SOURCE_ALLOCATION_MANIFEST`        | preregistration digest                | E2 execution task  | `application/json` |        262144 |
+|        3 | `SOURCE_PRODUCER_DISPATCH_RECEIPT`  | allocation-manifest digest            | E2 execution task  | `application/json` |        262144 |
+| 4/6/8/10 | `SOURCE_CANDIDATE`                  | preregistration digest                | E2 source producer | `image/png`        |      20971520 |
+| 5/7/9/11 | `SOURCE_PROVENANCE`                 | preregistration digest                | E2 source producer | `application/json` |        262144 |
+|       12 | `NEGATIVE_RECEIPT`                  | producer-dispatch digest              | E2 execution task  | `application/json` |        262144 |
+
+The unused sequence-12 receipt is allocation evidence only. It is not sealed
+or registered unless the cohort actually fails. This narrow repair does not
+reopen CC09/CC10, add a custody layer, change public API, migration, ORM or
+Provider invocation, or authorize an ImageGen call before the three singleton
+events replay equally in both registry copies.
 
 ```text
 D02_R2_TASK_ACCEPTED: NO
