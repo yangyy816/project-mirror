@@ -35,6 +35,12 @@ R46_REPAIR_PATH = ROOT / "docs" / "operations" / "P2_M5_R46_R45_CI_PLATFORM_TYPI
 CC05_B_CHANGE_CONTROL_PATH = (
     ROOT / "docs" / "operations" / "P2_M5_CC05_B_EPOCH3_EVIDENCE_LOCATION_LOSS.md"
 )
+CC05_C0_CHANGE_CONTROL_PATH = (
+    ROOT
+    / "docs"
+    / "operations"
+    / "P2_M5_CC05_C0_E01_PRIVATE_STATE_EPOCH_4_ROLLOVER_CHANGE_CONTROL.md"
+)
 ACCEPTANCE_PATH = ROOT / "docs" / "operations" / "P2_M5_ACCEPTANCE.md"
 EXECUTION_PROTOCOL_PATH = ROOT / "docs" / "operations" / "P2_M5_EXECUTION_PROTOCOL.md"
 
@@ -289,6 +295,14 @@ def _last_cc05_b_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-cc05-b-epoch3-evidence-location-loss-eof/v1",
         sentinel="P2_M5_CC05_B_EPOCH3_EVIDENCE_LOCATION_LOSS_TRUE_EOF",
+    )
+
+
+def _last_cc05_c0_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-cc05-c0-e01-private-state-epoch4-rollover-eof/v1",
+        sentinel="P2_M5_CC05_C0_E01_PRIVATE_STATE_EPOCH4_ROLLOVER_TRUE_EOF",
     )
 
 
@@ -1164,6 +1178,193 @@ def test_r44_execution_transition_overlay_is_complete_mirrored_and_fail_closed()
     assert "D:\\" not in tracked
 
 
+def test_cc05_c0_epoch4_rollover_is_complete_mirrored_zero_generation_and_fail_closed() -> None:
+    canonical = _last_cc05_c0_key_block(ACCEPTANCE_PATH)
+    mirror = _last_cc05_c0_key_block(EXECUTION_PROTOCOL_PATH)
+    predecessor = _last_cc05_b_key_block(ACCEPTANCE_PATH)
+    values = dict(canonical)
+    predecessor_values = dict(predecessor)
+
+    assert canonical == mirror
+    assert len(canonical) == len(values) == 532
+    assert len(predecessor) == len(predecessor_values) == 471
+    assert set(predecessor_values) <= values.keys()
+    changed_keys = {
+        "CURRENT_STATE_AUTHORITY_VERSION",
+        "CURRENT_STATE_AUTHORITY_PRECEDENCE",
+        "CURRENT_STATE_MIRROR_RULE",
+        "EARLIER_STATUS_SECTIONS",
+        "CC04_B_E01",
+        "CC04_B_EXECUTION",
+        "E01_PRIVATE_STATE_EPOCH",
+        "DURABLE_BOOTSTRAP",
+        "PRIVATE_REGISTRY_VERSION",
+        "GENERATION_SPECIFICATION_VERSION",
+        "ASSIGNMENT_LEDGER_VERSION",
+        "REQUEST_LEDGER_VERSION",
+        "OUTPUT_LEDGER_VERSION",
+        "GENERATION_SPECIFICATION_EFFECTIVE_RANGE",
+        "EFFECTIVE_ORDINAL_RANGE",
+        "FORMAL_E01_STATUS",
+        "FORMAL_E01_EXECUTION_AUTHORITY",
+        "CURRENT_STATE_PRECONDITION_FALLBACK",
+        "E01_ACTIVE_EXECUTION_CUSTODY",
+        "E01_PROSPECTIVE_PRIVATE_STATE_EPOCH",
+        "E01_EPOCH_3_STATUS",
+        "P2_M5_NEXT_ACTION",
+        "NEXT_READY_TASK",
+        "CURRENT_STATE_KEY_COVERAGE",
+        "STOP_OUTCOME",
+        "CC_P2_M5_05_B_STATUS",
+        "CC_P2_M5_05_B_AUTHORITY_CONDITION",
+        "CURRENT_AUTHORITY_TAIL_END",
+    }
+    assert changed_keys == {
+        key
+        for key, predecessor_value in predecessor_values.items()
+        if values[key] != predecessor_value
+    }
+    added_keys = {
+        "CC_P2_M5_05_B_CANDIDATE_SHA",
+        "CC_P2_M5_05_B_CI_RUN",
+        "CC_P2_M5_05_B_CI_RESULTS",
+        "CC_P2_M5_05_B_ARTIFACT_INSPECTION",
+        "CC_P2_M5_05_B_FULL_PYTHON",
+        "CC_P2_M5_05_B_FROZEN_REGRESSION",
+        "CC_P2_M5_05_B_GITLEAKS",
+        "CC_P2_M5_05_B_BROWSER_INTEGRATION",
+        "CC_P2_M5_05_B_SECURITY_REVIEW",
+        "CC_P2_M5_05_B_SOL_HIGH_FINAL_REVIEW",
+        "CC_P2_M5_05_B_PRINCIPAL_ACCEPTANCE",
+        "CC_P2_M5_05_B_RESUME_PREDICATE_STATUS",
+        "CC_P2_M5_05_C0_STATUS",
+        "CC_P2_M5_05_C0_AUTHORITY_CONDITION",
+        "CC_P2_M5_05_C0_POST_ACCEPTANCE_COMMIT_REQUIRED",
+        "CC_P2_M5_05_C0_OWNER_AUTHORITY",
+        "CC_P2_M5_05_C0_PREDECESSOR",
+        "CC_P2_M5_05_C0_CHANGE_CLASS",
+        "CC_P2_M5_05_C0_CC05_B_RESUME_PREDICATE",
+        "CC_P2_M5_05_C0_SINGLE_SUCCESSOR",
+        "CC_P2_M5_05_C0_IMAGEGEN_CALLS_EXECUTED",
+        "CC_P2_M5_05_C0_ORDINALS_CONSUMED",
+        "CC_P2_M5_05_C0_RAW_OUTPUTS_CREATED",
+        "CC_P2_M5_05_C0_PRIVATE_ROOTS_CREATED",
+        "CC_P2_M5_05_C0_PRIVATE_BYTES_CREATED_READ_OR_COPIED",
+        "CC_P2_M5_05_C0_PROMPT_POLICY_RUBRIC_MATERIALIZATION",
+        "CC_P2_M5_05_C0_DECODE_QA_SCREENING_ADMISSION",
+        "E01_EPOCH_3_EXECUTION_CUSTODY",
+        "E01_EPOCH_3_HISTORICAL_EVIDENCE",
+        "E01_EPOCH_3_RECOVERY",
+        "E01_EPOCH_3_REUSE",
+        "E01_EPOCH_3_PRIVATE_LOCATOR",
+        "E01_EPOCH_3_PRIVATE_REGISTRY_LOCATOR",
+        "E01_EPOCH_3_GENERATION_SPECIFICATION_LOCATOR",
+        "E01_EPOCH_3_ASSIGNMENT_LEDGER_LOCATOR",
+        "E01_EPOCH_3_CLEANUP_STATUS",
+        "E01_EPOCH_3_BYTES_ABSENCE_CLAIM",
+        "E01_EPOCH_3_PRIVATE_DIGEST_REUSE",
+        "E01_EPOCH_3_PRIVATE_BYTES_READ_OR_COPIED_IN_C0",
+        "E01_EPOCH_4_STATUS",
+        "E01_EPOCH_4_CREATE_MODE",
+        "E01_EPOCH_4_AUTHORIZED_ROOT_COUNT",
+        "E01_EPOCH_4_PRIVATE_STATE_CREATED_IN_C0",
+        "E01_EPOCH_4_PRIVATE_ROOTS_CREATED_IN_C0",
+        "E01_EPOCH_4_PROMPT_POLICY_RUBRIC_MATERIALIZED_IN_C0",
+        "E01_EPOCH_4_IMAGEGEN_CALLS_EXECUTED_IN_C0",
+        "E01_EPOCH_4_ORDINALS_CONSUMED_IN_C0",
+        "E01_EPOCH_4_RAW_OUTPUTS_CREATED_IN_C0",
+        "E01_EPOCH_4_IMAGE_BYTES_READ_IN_C0",
+        "E01_EPOCH_4_DECODE_QA_SCREENING_ADMISSION_IN_C0",
+        "E01_EPOCH_4_REQUIRED_PRIVATE_VERSION_SET",
+        "E01_EPOCH_4_PRIVATE_DIGEST_INHERITANCE",
+        "E01_EPOCH_4_MATERIALIZATION_TASK",
+        "E01_EPOCH_4_MATERIALIZATION_PRECONDITION",
+        "E01_EPOCH_4_MATERIALIZATION_OUTPUT_REQUIRED",
+        "E01_EPOCH_4_RESOURCE_LEDGER",
+        "E01_EPOCH_4_CAL_REQ_001_STATUS",
+        "E01_EPOCH_4_CAL_REQ_002_STATUS",
+        "E01_EPOCH_4_FORMAL_CALLS_REMAINING",
+        "E01_EPOCH_4_FORMAL_RAW_CAPACITY_REMAINING",
+        "E01_EPOCH_4_GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING",
+    }
+    assert len(added_keys) == 61
+    assert set(values) - set(predecessor_values) == added_keys
+
+    assert values["CC_P2_M5_05_B_STATUS"] == (
+        "TASK_ACCEPTED_AT_40F7C6BEE88196E8730F8DF1A521C46775B77F5C_RUN_33251230684"
+    )
+    assert values["CC_P2_M5_05_B_CI_RESULTS"] == (
+        "QUALITY_AND_INTEGRATION_PASS;SECRET_SCAN_PASS;DOCKER_VALIDATION_PASS"
+    )
+    assert values["CC_P2_M5_05_B_ARTIFACT_INSPECTION"] == (
+        "PASS_8_FAMILIES_11_FILES_EXACT_SHA_BOUND_UNEXPIRED"
+    )
+    assert values["CC_P2_M5_05_C0_STATUS"] == (
+        "PASS_AFTER_THIS_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert values["CC_P2_M5_05_C0_CC05_B_RESUME_PREDICATE"] == (
+        "NOT_SATISFIED_C0_CREATES_NO_RECOVERABLE_HANDLE"
+    )
+    assert values["E01_EPOCH_3_EXECUTION_CUSTODY"] == (
+        "RETIRED_EVIDENCE_LOCATION_LOST_AFTER_CC05_B_ACCEPTANCE"
+    )
+    assert values["E01_EPOCH_3_RECOVERY"] == (
+        "ABANDONED_NO_SCAN_NO_GUESS_NO_COPY_NO_RECONSTRUCTION"
+    )
+    assert values["E01_EPOCH_4_STATUS"] == (
+        "PROSPECTIVE_AUTHORIZED_NOT_CREATED_AFTER_CC05_C0_ACCEPTANCE"
+    )
+    assert values["E01_ACTIVE_EXECUTION_CUSTODY"] == ("NONE_EPOCH3_RETIRED_EPOCH4_NOT_CREATED")
+    assert values["CC_P2_M5_05_C0_IMAGEGEN_CALLS_EXECUTED"] == "0"
+    assert values["CC_P2_M5_05_C0_ORDINALS_CONSUMED"] == "0"
+    assert values["CC_P2_M5_05_C0_RAW_OUTPUTS_CREATED"] == "0"
+    assert values["CC_P2_M5_05_C0_PRIVATE_ROOTS_CREATED"] == "0"
+    assert values["CC_P2_M5_05_C0_PRIVATE_BYTES_CREATED_READ_OR_COPIED"] == "0"
+    assert values["CC_P2_M5_05_C0_PROMPT_POLICY_RUBRIC_MATERIALIZATION"] == "0"
+    assert values["CC_P2_M5_05_C0_DECODE_QA_SCREENING_ADMISSION"] == "0"
+    assert values["E01_EPOCH_4_PRIVATE_STATE_CREATED_IN_C0"] == "0"
+    assert values["E01_EPOCH_4_PRIVATE_ROOTS_CREATED_IN_C0"] == "0"
+    assert values["E01_EPOCH_4_PROMPT_POLICY_RUBRIC_MATERIALIZED_IN_C0"] == "0"
+    assert values["E01_EPOCH_4_IMAGEGEN_CALLS_EXECUTED_IN_C0"] == "0"
+    assert values["E01_EPOCH_4_ORDINALS_CONSUMED_IN_C0"] == "0"
+    assert values["E01_EPOCH_4_RAW_OUTPUTS_CREATED_IN_C0"] == "0"
+    assert values["E01_EPOCH_4_IMAGE_BYTES_READ_IN_C0"] == "0"
+    assert values["E01_EPOCH_4_DECODE_QA_SCREENING_ADMISSION_IN_C0"] == "0"
+    assert values["CAL_REQ_001_STATUS"] == "CONSUMED_FAILED_NO_RETRY"
+    assert values["CAL_REQ_002_STATUS"] == "NOT_CONSUMED"
+    assert values["FORMAL_E01_GENERATION_CALLS_EXECUTED"] == "1"
+    assert values["FORMAL_E01_RAW_OUTPUTS_CREATED"] == "1"
+    assert values["FORMAL_CALLS_REMAINING"] == "31"
+    assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "31"
+    assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "62"
+    assert values["NEXT_READY_TASK"] == ("CC-P2-M5-05-C_PRIVATE_POLICY_MATERIALIZATION")
+    assert values["P2_M5_TECHNICAL_GATE"] == "NOT_EVALUATED"
+    assert values["P2_MVR_V1_RESULT"] == "NOT_EVALUATED"
+    assert values["P2_M6_ENTRY"] == "CLOSED_PENDING_TECHNICAL_AND_MVR_PASS"
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_CC05_C0_E01_PRIVATE_STATE_EPOCH4_ROLLOVER_TRUE_EOF",
+    )
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+
+    tracked = "\n".join(
+        (
+            CC05_C0_CHANGE_CONTROL_PATH.read_text(encoding="utf-8"),
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-225_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-225_000:],
+        )
+    )
+    assert "EVIDENCE_LOCATION_LOST" in tracked
+    assert "CAL-REQ-002: NOT_CONSUMED" in tracked
+    assert ".private-handoff" not in tracked
+    assert ".local-storage" not in tracked
+    assert "data:image/" not in tracked
+    assert "provider_raw_payload" not in tracked.lower()
+    assert "C:\\" not in tracked
+    assert "D:\\" not in tracked
+
+
 def test_r46_ci_platform_typing_overlay_is_complete_mirrored_and_true_eof() -> None:
     canonical = _last_r46_key_block(ACCEPTANCE_PATH)
     mirror = _last_r46_key_block(EXECUTION_PROTOCOL_PATH)
@@ -1459,8 +1660,8 @@ def test_cc05_b_evidence_location_loss_overlay_is_complete_mirrored_and_true_eof
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_CC05_B_EPOCH3_EVIDENCE_LOCATION_LOSS_TRUE_EOF",
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").count(canonical[-1][1]) == 1
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").count(mirror[-1][1]) == 1
 
     tracked = "\n".join(
         (

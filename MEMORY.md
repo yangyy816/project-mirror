@@ -526,3 +526,11 @@
   task-scoped receipt/registry handle 的有界恢复得到 `NO_EXACT_TASK_SCOPED_HANDLE`；按 ADR-049 记录
   `EVIDENCE_LOCATION_LOST`，禁止重复搜索、重建 legacy evidence、创建替代 root 或要求 Owner 重新上传。
   `CAL-REQ-002` 保持未消费，31/31/62 资源账本不变；恢复只接受新的、显式且可恢复的 task-scoped authority。
+
+- 2026-08-29：CC05-B candidate `40f7c6bee88196e8730f8df1a521c46775b77f5c` 的 same-SHA run
+  `33251230684` 三 jobs、八个 artifact families/十一项文件、冻结回归、Gitleaks、Browser Integration、
+  独立 Security 与 Sol High final review 均通过，Principal 接受其 `EVIDENCE_LOCATION_LOST` closure。
+  `CC-P2-M5-05-C0` 以前向零生成 authority 授权仅在其自身全部 Gate 被接受后建立新的 epoch-4 私有状态；
+  epoch-3 保持不可变历史且禁止搜索、复制、重建或复用，C0 不创建 private root/Prompt/ledger、不满足恢复
+  predicate，也不消费 `CAL-REQ-002`。后续 CC05-C 必须创建全新版本/摘要及可恢复 exact task-scoped receipt，
+  资源账本继续为 `31/31/62`，M5 technical Gate、MVR、M6、production 和真人处理继续关闭。
