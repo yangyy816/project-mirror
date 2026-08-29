@@ -7,8 +7,10 @@ TASK_ID: P3_P7_D02_R2_R09_EPOCH_02_REQUEST_DIGEST_BRIDGE
 CHANGE_CLASS: FROZEN_ARCHITECTURE_CONTRACT_REPAIR
 PARENT_AUTHORITY: P3_P7_D02_R2_EXECUTION_EPOCH_02
 TRACK: DEMO_PROTOTYPE
-STATUS: PRINCIPAL_ACCEPTED_PLAN_IMPLEMENTATION_PENDING
+STATUS: REPAIR_ITERATION_02_IMPLEMENTED_REVIEW_PENDING
 BASE_IMPLEMENTATION_SHA: 911f0fc97df76c66f5e456dbda43cc4865fb7a2c
+REPAIR_ITERATION_01_SHA: 3447b847f52ff77fc7cf83745b14bea519f9a73b
+REPAIR_ITERATION_01_DISPOSITION: BLOCKED_P1_3_PRESERVED
 E2_REGISTRY_EVENT_COUNT_AT_REPAIR_ENTRY: 0
 CC11_OR_CC12: FALSE
 EVIDENCE_CUSTODY_HOST_BINDING_CHANGE: NONE
@@ -237,6 +239,35 @@ The no-cycle order is source durable write and source commit, provenance
 payload and provenance commit, generation-receipt name allocation, then
 generation-receipt durable write/seal/commit. Neither provenance nor the
 generation receipt refers to its own seal or commit.
+
+## Complete registry and receiver projection repair
+
+The independent exact-SHA review of repair iteration 1 is preserved as a
+blocking result. It proved that a self-signed commit mapping could substitute
+for a replayed registry transaction, that a non-committed provenance mapping
+could unlock allocation 13, and that four independent Asset fact scalars were
+not inseparable from the receiver result.
+
+Repair iteration 2 closes those product-authority gaps without adding root,
+locator, host-binding, migration, public API or Provider scope:
+
+- a committed output projection is issued only after the exact name and seal
+  receipts, transaction intent, canonical event, final prefix snapshots from
+  both registry copies and immutable commit receipt replay as one graph;
+- the canonical event must be the final event in both equal snapshots, and the
+  commit receipt must rebuild exactly from that intent, event and snapshot;
+- source and provenance builders consume immutable validated projections, not
+  caller-supplied commit mappings;
+- allocation 13 through 16 consumes a `ValidatedSourceGenerationReceipt`
+  token that can only be issued after both the source and provenance committed
+  projections replay completely; and
+- source checksum, byte size, width and height come from one receiver-issued
+  `ReceivedPng`; its constructor is not a public scalar authority surface.
+
+Fully re-signed canonical-event, intent, snapshot, commit-state and decoded
+dimension changes are mandatory negative tests. ImageGen remains forbidden
+until this repair has targeted validation, independent exact-SHA review and
+changed-code same-SHA CI.
 
 ```text
 D02_R2_TASK_ACCEPTED: NO

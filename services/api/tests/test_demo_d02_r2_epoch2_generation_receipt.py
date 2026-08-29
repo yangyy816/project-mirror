@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
-from typing import TypedDict, cast
+from io import BytesIO
+from typing import Any, TypedDict, cast
 
 import pytest
+from PIL import Image
 
+from mirror_api import demo_d02_r2_generation_receiver as generation_receiver
 from mirror_api import demo_d02_r2_private_registry_e2 as private_registry
 from mirror_api.demo_d02_r2_epoch2_generation_receipt import (
     CONTROL_PLANE_LEASE_STATE,
@@ -15,9 +19,12 @@ from mirror_api.demo_d02_r2_epoch2_generation_receipt import (
     PROVENANCE_SCHEMA,
     PUBLIC_EGRESS_AFTER_CALL,
     PUBLIC_EGRESS_DURING_CALL,
+    CommittedRegistryOutputProjection,
+    ValidatedSourceGenerationReceipt,
     build_generation_result_provenance,
     build_source_generation_receipt,
     project_generation_receipt_name_receipt,
+    validate_committed_registry_output_projection,
     validate_generation_receipt_name_receipt,
     validate_generation_result_provenance,
     validate_source_generation_receipt,
@@ -36,6 +43,7 @@ from mirror_api.demo_d02_r2_generation_epoch2 import (
     build_reserve_activation_authority,
     expected_e1_terminal_binding,
 )
+from mirror_api.demo_d02_r2_generation_receiver import ReceivedPng
 from mirror_api.demo_measurement_quality import (
     JsonValue,
     canonical_json_bytes,
@@ -50,16 +58,22 @@ class ProvenanceKwargs(TypedDict):
     generation_requests: Sequence[Mapping[str, object]]
     allocation_manifest: Mapping[str, object]
     producer_dispatch: Mapping[str, object]
-    source_name_receipt: Mapping[str, object]
-    source_seal_receipt: Mapping[str, object]
-    source_commit_receipt: Mapping[str, object]
+    source_commit_projection: CommittedRegistryOutputProjection
     provenance_name_receipt: Mapping[str, object]
+    received_png: ReceivedPng
 
 
-class ReceiptKwargs(ProvenanceKwargs):
+class ReceiptKwargs(TypedDict):
+    generation_request: Mapping[str, object]
+    preregistration: Mapping[str, object]
+    reserve_activation: Mapping[str, object]
+    generation_requests: Sequence[Mapping[str, object]]
+    allocation_manifest: Mapping[str, object]
+    producer_dispatch: Mapping[str, object]
+    source_commit_projection: CommittedRegistryOutputProjection
     provenance: Mapping[str, object]
-    provenance_seal_receipt: Mapping[str, object]
-    provenance_commit_receipt: Mapping[str, object]
+    provenance_commit_projection: CommittedRegistryOutputProjection
+    received_png: ReceivedPng
 
 
 def digest(character: str) -> str:
@@ -141,12 +155,12 @@ def _seal_receipt(
     return cast(dict[str, object], payload)
 
 
-def _commit_receipt(
+def _committed_projection(
     *,
     name_receipt: Mapping[str, object],
     seal_receipt: Mapping[str, object],
     event_count: int,
-) -> dict[str, object]:
+) -> tuple[CommittedRegistryOutputProjection, dict[str, object]]:
     transaction_id = mirror_demo_digest(
         private_registry.REGISTRY_TRANSACTION_ID_SCHEMA,
         {
@@ -158,30 +172,135 @@ def _commit_receipt(
             "seal_receipt_digest": cast(JsonValue, seal_receipt["seal_digest"]),
         },
     )
-    head = hashlib.sha256(f"head-{event_count}".encode()).hexdigest()
-    snapshot = hashlib.sha256(f"snapshot-{event_count}".encode()).hexdigest()
-    payload: dict[str, JsonValue] = {
+    prior_events: list[dict[str, JsonValue]] = []
+    for sequence in range(1, event_count):
+        prior_events.append(
+            {
+                "sequence": sequence,
+                "transaction_id": hashlib.sha256(f"prior-tx-{sequence}".encode()).hexdigest(),
+                "output_id": f"prior-output-{sequence}",
+                "semantic_role": "SOURCE_GENERATION_PREREGISTRATION",
+                "authority_digest": hashlib.sha256(
+                    f"prior-authority-{sequence}".encode()
+                ).hexdigest(),
+                "event_digest": hashlib.sha256(f"prior-event-{sequence}".encode()).hexdigest(),
+            }
+        )
+    previous_head = cast(str, prior_events[-1]["event_digest"])
+    role_path = private_registry.ROLE_DESTINATIONS[cast(str, name_receipt["semantic_role"])][1]
+    relative = f"{role_path}/{name_receipt['logical_name']}"
+    event: dict[str, JsonValue] = {
+        "SCHEMA_VERSION": private_registry.REGISTRY_EVENT_SCHEMA,
+        "EVIDENCE_ROOT_ID": private_registry.EVIDENCE_ROOT_ID,
+        "ROOT_NAME_RECEIPT_DIGEST": cast(str, name_receipt["root_name_receipt_digest"]),
+        "EXECUTION_CONTRACT_DIGEST": cast(str, name_receipt["execution_contract_digest"]),
+        "OUTPUT_ID": cast(str, name_receipt["output_id"]),
+        "SEMANTIC_ROLE": cast(str, name_receipt["semantic_role"]),
+        "CREATING_TASK": cast(str, name_receipt["producer_task_id"]),
+        "OPAQUE_LOCATOR": "r2rel1:"
+        + base64.urlsafe_b64encode(relative.encode()).decode().rstrip("="),
+        "EXPECTED_DIGEST": cast(str, seal_receipt["actual_sha256"]),
+        "ACTUAL_DIGEST": cast(str, seal_receipt["actual_sha256"]),
+        "BYTE_SIZE": cast(int, seal_receipt["byte_size"]),
+        "MEDIA_TYPE": cast(str, seal_receipt["media_type"]),
+        "AUTHORITY": cast(str, seal_receipt["authority_digest"]),
+        "ALLOWED_TASKS": cast(list[JsonValue], name_receipt["allowed_tasks"]),
+        "RETENTION": cast(str, seal_receipt["retention"]),
+        "CUSTODY": cast(str, seal_receipt["custody"]),
+        "RECOVERY_STATUS": "NOT_REQUIRED",
+        "BACKUP_STATUS": "TWO_LOGICAL_COPIES_SAME_ROOT_REQUIRED",
+        "CLEANUP_STATUS": "RETAINED",
+        "NAME_RECEIPT_DIGEST": cast(str, name_receipt["name_receipt_digest"]),
+        "SEAL_RECEIPT_DIGEST": cast(str, seal_receipt["seal_digest"]),
+        "TRANSACTION_ID": transaction_id,
+        "SEQUENCE": event_count,
+        "PREVIOUS_EVENT_DIGEST": previous_head,
+    }
+    event["EVENT_DIGEST"] = mirror_demo_digest(private_registry.REGISTRY_EVENT_SCHEMA, event)
+    event_projection: dict[str, JsonValue] = {
+        "sequence": event_count,
+        "transaction_id": transaction_id,
+        "output_id": cast(str, name_receipt["output_id"]),
+        "semantic_role": cast(str, name_receipt["semantic_role"]),
+        "authority_digest": cast(str, seal_receipt["authority_digest"]),
+        "event_digest": cast(str, event["EVENT_DIGEST"]),
+    }
+    ordered_events = [*prior_events, event_projection]
+    snapshot_digest = hashlib.sha256(canonical_json_bytes({"events": ordered_events})).hexdigest()
+    snapshot_a = private_registry.RegistrySnapshot(
+        event_count=event_count,
+        head_event_digest=cast(str, event["EVENT_DIGEST"]),
+        semantic_snapshot_digest=snapshot_digest,
+        ordered_events=tuple(ordered_events),
+    )
+    snapshot_b = private_registry.RegistrySnapshot(
+        event_count=snapshot_a.event_count,
+        head_event_digest=snapshot_a.head_event_digest,
+        semantic_snapshot_digest=snapshot_a.semantic_snapshot_digest,
+        ordered_events=snapshot_a.ordered_events,
+    )
+    created_at = "2026-08-29T01:02:00.000000Z"
+    intent: dict[str, JsonValue] = {
+        "schema_version": private_registry.REGISTRY_INTENT_SCHEMA,
+        "evidence_root_id": private_registry.EVIDENCE_ROOT_ID,
+        "root_name_receipt_digest": cast(str, name_receipt["root_name_receipt_digest"]),
+        "execution_contract_digest": cast(str, name_receipt["execution_contract_digest"]),
+        "transaction_id": transaction_id,
+        "output_id": cast(str, name_receipt["output_id"]),
+        "semantic_role": cast(str, name_receipt["semantic_role"]),
+        "authority_digest": cast(str, seal_receipt["authority_digest"]),
+        "name_receipt_digest": cast(str, name_receipt["name_receipt_digest"]),
+        "seal_receipt_digest": cast(str, seal_receipt["seal_digest"]),
+        "canonical_event_digest": cast(str, event["EVENT_DIGEST"]),
+        "canonical_event_json_b64": base64.b64encode(canonical_json_bytes(event)).decode(),
+        "expected_copy_a_previous_head": previous_head,
+        "expected_copy_b_previous_head": previous_head,
+        "expected_sequence": event_count,
+        "commit_receipt_logical_name": (f"D02_R2_REGISTRY_COMMIT_RECEIPT__{transaction_id}.json"),
+        "commit_receipt_created_at_utc": created_at,
+        "intent_created_at_utc": created_at,
+    }
+    intent["intent_digest"] = mirror_demo_digest(private_registry.REGISTRY_INTENT_SCHEMA, intent)
+    commit: dict[str, JsonValue] = {
         "schema_version": private_registry.REGISTRY_COMMIT_SCHEMA,
         "evidence_root_id": private_registry.EVIDENCE_ROOT_ID,
         "root_name_receipt_digest": cast(str, name_receipt["root_name_receipt_digest"]),
         "execution_contract_digest": cast(str, name_receipt["execution_contract_digest"]),
         "transaction_id": transaction_id,
-        "intent_digest": hashlib.sha256(f"intent-{event_count}".encode()).hexdigest(),
+        "intent_digest": cast(str, intent["intent_digest"]),
         "output_id": cast(str, name_receipt["output_id"]),
-        "canonical_event_digest": hashlib.sha256(f"event-{event_count}".encode()).hexdigest(),
+        "canonical_event_digest": cast(str, event["EVENT_DIGEST"]),
         "copy_a_event_count": event_count,
-        "copy_a_head_event_digest": head,
-        "copy_a_semantic_snapshot_digest": snapshot,
+        "copy_a_head_event_digest": snapshot_a.head_event_digest,
+        "copy_a_semantic_snapshot_digest": snapshot_a.semantic_snapshot_digest,
         "copy_b_event_count": event_count,
-        "copy_b_head_event_digest": head,
-        "copy_b_semantic_snapshot_digest": snapshot,
+        "copy_b_head_event_digest": snapshot_b.head_event_digest,
+        "copy_b_semantic_snapshot_digest": snapshot_b.semantic_snapshot_digest,
         "commit_state": "COMMITTED_BOTH_COPIES",
-        "created_at_utc": "2026-08-29T01:02:00.000000Z",
+        "created_at_utc": created_at,
     }
-    payload["commit_receipt_digest"] = mirror_demo_digest(
-        private_registry.REGISTRY_COMMIT_SCHEMA, payload
+    commit["commit_receipt_digest"] = mirror_demo_digest(
+        private_registry.REGISTRY_COMMIT_SCHEMA, commit
     )
-    return cast(dict[str, object], payload)
+    projection = validate_committed_registry_output_projection(
+        name_receipt=name_receipt,
+        seal_receipt=seal_receipt,
+        intent=cast(dict[str, object], intent),
+        canonical_event=cast(dict[str, object], event),
+        snapshot_a=snapshot_a,
+        snapshot_b=snapshot_b,
+        commit_receipt=cast(dict[str, object], commit),
+    )
+    parts: dict[str, object] = {
+        "name_receipt": name_receipt,
+        "seal_receipt": seal_receipt,
+        "intent": intent,
+        "canonical_event": event,
+        "snapshot_a": snapshot_a,
+        "snapshot_b": snapshot_b,
+        "commit_receipt": commit,
+    }
+    return projection, parts
 
 
 def _resign(value: dict[str, object], schema: str, digest_key: str) -> None:
@@ -269,8 +388,16 @@ def prepared(ordinal: int = 1) -> dict[str, object]:
     request = cast(dict[str, object], requests[ordinal - 1])
     source_name = source_names[ordinal - 1]
     provenance_name = provenance_names[ordinal - 1]
-    source_sha = hashlib.sha256(f"source-bytes-{ordinal}".encode()).hexdigest()
-    source_size = 10_000 + ordinal
+    source_buffer = BytesIO()
+    Image.new("RGB", (64, 64), color=(ordinal, ordinal * 2, ordinal * 3)).save(
+        source_buffer,
+        format="PNG",
+        optimize=False,
+        compress_level=9,
+    )
+    received_png = generation_receiver._validate_png_bytes(source_buffer.getvalue())
+    source_sha = received_png.sha256
+    source_size = received_png.byte_size
     source_binary_authority = mirror_demo_digest(
         private_registry.SEALED_BINARY_AUTHORITY_SCHEMA,
         {
@@ -288,7 +415,7 @@ def prepared(ordinal: int = 1) -> dict[str, object]:
         media_type="image/png",
         authority_digest=source_binary_authority,
     )
-    source_commit = _commit_receipt(
+    source_projection, source_projection_parts = _committed_projection(
         name_receipt=source_name,
         seal_receipt=source_seal,
         event_count=3 * ordinal + 1,
@@ -300,14 +427,9 @@ def prepared(ordinal: int = 1) -> dict[str, object]:
         generation_requests=requests,
         allocation_manifest=manifest,
         producer_dispatch=dispatch,
-        source_name_receipt=source_name,
-        source_seal_receipt=source_seal,
-        source_commit_receipt=source_commit,
+        source_commit_projection=source_projection,
         provenance_name_receipt=provenance_name,
-        source_asset_sha256=source_sha,
-        source_asset_byte_size=source_size,
-        source_asset_width=1024,
-        source_asset_height=1024,
+        received_png=received_png,
     )
     provenance_bytes = canonical_json_bytes(provenance)
     provenance_seal = _seal_receipt(
@@ -317,7 +439,7 @@ def prepared(ordinal: int = 1) -> dict[str, object]:
         media_type="application/json",
         authority_digest=cast(str, provenance["provenance_digest"]),
     )
-    provenance_commit = _commit_receipt(
+    provenance_projection, provenance_projection_parts = _committed_projection(
         name_receipt=provenance_name,
         seal_receipt=provenance_seal,
         event_count=3 * ordinal + 2,
@@ -329,13 +451,23 @@ def prepared(ordinal: int = 1) -> dict[str, object]:
         generation_requests=requests,
         allocation_manifest=manifest,
         producer_dispatch=dispatch,
-        source_name_receipt=source_name,
-        source_seal_receipt=source_seal,
-        source_commit_receipt=source_commit,
+        source_commit_projection=source_projection,
         provenance=provenance,
-        provenance_name_receipt=provenance_name,
-        provenance_seal_receipt=provenance_seal,
-        provenance_commit_receipt=provenance_commit,
+        provenance_commit_projection=provenance_projection,
+        received_png=received_png,
+    )
+    validated_receipt = validate_source_generation_receipt(
+        receipt,
+        generation_request=request,
+        preregistration=preregistration,
+        reserve_activation=activation,
+        generation_requests=requests,
+        allocation_manifest=manifest,
+        producer_dispatch=dispatch,
+        source_commit_projection=source_projection,
+        provenance=provenance,
+        provenance_commit_projection=provenance_projection,
+        received_png=received_png,
     )
     return {
         "activation": activation,
@@ -346,12 +478,16 @@ def prepared(ordinal: int = 1) -> dict[str, object]:
         "request": request,
         "source_name": source_name,
         "source_seal": source_seal,
-        "source_commit": source_commit,
+        "source_projection": source_projection,
+        "source_projection_parts": source_projection_parts,
         "provenance_name": provenance_name,
         "provenance": provenance,
         "provenance_seal": provenance_seal,
-        "provenance_commit": provenance_commit,
+        "provenance_projection": provenance_projection,
+        "provenance_projection_parts": provenance_projection_parts,
+        "received_png": received_png,
         "receipt": receipt,
+        "validated_receipt": validated_receipt,
     }
 
 
@@ -363,19 +499,30 @@ def _provenance_kwargs(bundle: Mapping[str, object]) -> ProvenanceKwargs:
         "generation_requests": cast(Sequence[Mapping[str, object]], bundle["requests"]),
         "allocation_manifest": cast(Mapping[str, object], bundle["manifest"]),
         "producer_dispatch": cast(Mapping[str, object], bundle["dispatch"]),
-        "source_name_receipt": cast(Mapping[str, object], bundle["source_name"]),
-        "source_seal_receipt": cast(Mapping[str, object], bundle["source_seal"]),
-        "source_commit_receipt": cast(Mapping[str, object], bundle["source_commit"]),
+        "source_commit_projection": cast(
+            CommittedRegistryOutputProjection, bundle["source_projection"]
+        ),
         "provenance_name_receipt": cast(Mapping[str, object], bundle["provenance_name"]),
+        "received_png": cast(ReceivedPng, bundle["received_png"]),
     }
 
 
 def _receipt_kwargs(bundle: Mapping[str, object]) -> ReceiptKwargs:
     return {
-        **_provenance_kwargs(bundle),
+        "generation_request": cast(Mapping[str, object], bundle["request"]),
+        "preregistration": cast(Mapping[str, object], bundle["preregistration"]),
+        "reserve_activation": cast(Mapping[str, object], bundle["activation"]),
+        "generation_requests": cast(Sequence[Mapping[str, object]], bundle["requests"]),
+        "allocation_manifest": cast(Mapping[str, object], bundle["manifest"]),
+        "producer_dispatch": cast(Mapping[str, object], bundle["dispatch"]),
+        "source_commit_projection": cast(
+            CommittedRegistryOutputProjection, bundle["source_projection"]
+        ),
         "provenance": cast(Mapping[str, object], bundle["provenance"]),
-        "provenance_seal_receipt": cast(Mapping[str, object], bundle["provenance_seal"]),
-        "provenance_commit_receipt": cast(Mapping[str, object], bundle["provenance_commit"]),
+        "provenance_commit_projection": cast(
+            CommittedRegistryOutputProjection, bundle["provenance_projection"]
+        ),
+        "received_png": cast(ReceivedPng, bundle["received_png"]),
     }
 
 
@@ -393,7 +540,7 @@ def test_exact_provenance_and_receipt_replay_for_all_ordinals(ordinal: int) -> N
     assert (
         validate_source_generation_receipt(
             json.loads(canonical_json_bytes(receipt)), **_receipt_kwargs(bundle)
-        )
+        ).payload()
         == receipt
     )
     assert receipt["producer_task_id"] == private_registry.TASK_ID
@@ -414,6 +561,12 @@ def test_provenance_freezes_offline_post_call_and_unknown_provider_metadata() ->
         for key in provenance
         for forbidden in ("prompt", "locator", "image_bytes", "output_hint")
     )
+
+
+def test_received_png_facts_cannot_be_freely_reconstructed() -> None:
+    constructor = cast(Any, ReceivedPng)
+    with pytest.raises(TypeError):
+        constructor(byte_size=1, sha256=digest("a"), width=64, height=64)
 
 
 @pytest.mark.parametrize(
@@ -446,6 +599,8 @@ def test_fully_resigned_generation_receipt_semantic_splices_fail(
         ("provider_id", "guessed-provider"),
         ("retry_count", 1),
         ("reference_image_count", 1),
+        ("source_asset_width", 65),
+        ("source_asset_height", 65),
     ],
 )
 def test_fully_resigned_provenance_policy_splices_fail(field: str, replacement: object) -> None:
@@ -470,47 +625,73 @@ def test_extra_keys_and_digest_tampering_fail_closed() -> None:
 
 
 @pytest.mark.parametrize(
-    ("component", "field", "replacement"),
+    ("projection_name", "component", "field", "replacement"),
     [
-        ("source_name", "expected_parent_authority", digest("f")),
-        ("source_seal", "actual_sha256", digest("f")),
-        ("source_commit", "copy_b_event_count", 99),
-        ("provenance_seal", "authority_digest", digest("f")),
-        ("provenance_commit", "copy_b_head_event_digest", digest("f")),
+        ("source", "name_receipt", "expected_parent_authority", digest("f")),
+        ("source", "seal_receipt", "actual_sha256", digest("f")),
+        ("source", "commit_receipt", "canonical_event_digest", digest("f")),
+        ("source", "intent", "canonical_event_digest", digest("f")),
+        ("source", "canonical_event", "ACTUAL_DIGEST", digest("f")),
+        ("provenance", "commit_receipt", "commit_state", "NOT_COMMITTED"),
+        ("provenance", "snapshot_b", "head_event_digest", digest("f")),
     ],
 )
-def test_registry_chain_splices_fail_closed(
-    component: str, field: str, replacement: object
+def test_complete_registry_projection_splices_fail_closed(
+    projection_name: str, component: str, field: str, replacement: object
 ) -> None:
     bundle = prepared()
-    changed = deepcopy(cast(dict[str, object], bundle[component]))
-    changed[field] = replacement
-    digest_key, schema = (
-        ("name_receipt_digest", private_registry.OUTPUT_NAME_RECEIPT_SCHEMA)
-        if component.endswith("name")
-        else (
-            ("seal_digest", private_registry.OUTPUT_SEAL_RECEIPT_SCHEMA)
-            if component.endswith("seal")
-            else ("commit_receipt_digest", private_registry.REGISTRY_COMMIT_SCHEMA)
+    parts = deepcopy(cast(dict[str, object], bundle[f"{projection_name}_projection_parts"]))
+    if component.startswith("snapshot_"):
+        snapshot = cast(private_registry.RegistrySnapshot, parts[component])
+        parts[component] = private_registry.RegistrySnapshot(
+            event_count=(
+                cast(int, replacement) if field == "event_count" else snapshot.event_count
+            ),
+            head_event_digest=(
+                cast(str, replacement)
+                if field == "head_event_digest"
+                else snapshot.head_event_digest
+            ),
+            semantic_snapshot_digest=snapshot.semantic_snapshot_digest,
+            ordered_events=snapshot.ordered_events,
         )
-    )
-    _resign(changed, schema, digest_key)
-    bundle[component] = changed
+    else:
+        changed = deepcopy(cast(dict[str, object], parts[component]))
+        changed[field] = replacement
+        digest_key, schema = {
+            "name_receipt": (
+                "name_receipt_digest",
+                private_registry.OUTPUT_NAME_RECEIPT_SCHEMA,
+            ),
+            "seal_receipt": ("seal_digest", private_registry.OUTPUT_SEAL_RECEIPT_SCHEMA),
+            "intent": ("intent_digest", private_registry.REGISTRY_INTENT_SCHEMA),
+            "canonical_event": ("EVENT_DIGEST", private_registry.REGISTRY_EVENT_SCHEMA),
+            "commit_receipt": (
+                "commit_receipt_digest",
+                private_registry.REGISTRY_COMMIT_SCHEMA,
+            ),
+        }[component]
+        _resign(changed, schema, digest_key)
+        parts[component] = changed
     with pytest.raises(ValueError):
-        if component.startswith("source"):
-            validate_generation_result_provenance(
-                bundle["provenance"], **_provenance_kwargs(bundle)
-            )
-        else:
-            validate_source_generation_receipt(bundle["receipt"], **_receipt_kwargs(bundle))
+        validate_committed_registry_output_projection(
+            name_receipt=cast(Mapping[str, object], parts["name_receipt"]),
+            seal_receipt=cast(Mapping[str, object], parts["seal_receipt"]),
+            intent=cast(Mapping[str, object], parts["intent"]),
+            canonical_event=cast(Mapping[str, object], parts["canonical_event"]),
+            snapshot_a=cast(private_registry.RegistrySnapshot, parts["snapshot_a"]),
+            snapshot_b=cast(private_registry.RegistrySnapshot, parts["snapshot_b"]),
+            commit_receipt=cast(Mapping[str, object], parts["commit_receipt"]),
+        )
 
 
 def test_receipt_name_allocation_is_13_through_16_and_execution_owned() -> None:
     for ordinal in range(1, 5):
         bundle = prepared(ordinal)
         projected = project_generation_receipt_name_receipt(
-            generation_receipt=cast(Mapping[str, object], bundle["receipt"]),
-            provenance_commit_receipt=cast(Mapping[str, object], bundle["provenance_commit"]),
+            validated_generation_receipt=cast(
+                ValidatedSourceGenerationReceipt, bundle["validated_receipt"]
+            ),
             output_id=f"generation-receipt-{ordinal}",
             logical_name=f"generation-receipt-{ordinal}.json",
             allocated_at_utc="2026-08-29T01:03:00.000000Z",
@@ -529,20 +710,19 @@ def test_receipt_name_allocation_is_13_through_16_and_execution_owned() -> None:
         assert (
             validate_generation_receipt_name_receipt(
                 json.loads(canonical_json_bytes(projected)),
-                generation_receipt=cast(Mapping[str, object], bundle["receipt"]),
-                provenance_commit_receipt=cast(Mapping[str, object], bundle["provenance_commit"]),
+                validated_generation_receipt=cast(
+                    ValidatedSourceGenerationReceipt, bundle["validated_receipt"]
+                ),
             )
             == projected
         )
 
 
-def test_receipt_name_allocation_rejects_unrelated_provenance_commit() -> None:
-    first = prepared(1)
-    second = prepared(2)
-    with pytest.raises(ValueError, match="committed provenance"):
+def test_receipt_name_allocation_rejects_raw_self_signed_receipt() -> None:
+    bundle = prepared(1)
+    with pytest.raises(ValueError, match="completely validated receipt"):
         project_generation_receipt_name_receipt(
-            generation_receipt=cast(Mapping[str, object], first["receipt"]),
-            provenance_commit_receipt=cast(Mapping[str, object], second["provenance_commit"]),
+            validated_generation_receipt=cast(ValidatedSourceGenerationReceipt, bundle["receipt"]),
             output_id="generation-receipt-1",
             logical_name="generation-receipt-1.json",
             allocated_at_utc="2026-08-29T01:03:00.000000Z",

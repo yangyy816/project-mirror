@@ -43,7 +43,10 @@ class D02R2PngReceiverError(Exception):
         self.code = code
 
 
-@dataclass(frozen=True, slots=True)
+_RECEIVED_PNG_FACTORY_TOKEN = object()
+
+
+@dataclass(frozen=True, slots=True, init=False)
 class ReceivedPng:
     """Non-sensitive validation facts; it intentionally exposes no URL or path."""
 
@@ -51,6 +54,22 @@ class ReceivedPng:
     sha256: str
     width: int
     height: int
+
+    def __init__(
+        self,
+        *,
+        byte_size: int,
+        sha256: str,
+        width: int,
+        height: int,
+        _factory_token: object,
+    ) -> None:
+        if _factory_token is not _RECEIVED_PNG_FACTORY_TOKEN:
+            raise TypeError("ReceivedPng facts must be issued by the PNG receiver")
+        object.__setattr__(self, "byte_size", byte_size)
+        object.__setattr__(self, "sha256", sha256)
+        object.__setattr__(self, "width", width)
+        object.__setattr__(self, "height", height)
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -247,6 +266,7 @@ def _validate_png_bytes(data: bytes) -> ReceivedPng:
         sha256=hashlib.sha256(data).hexdigest(),
         width=width,
         height=height,
+        _factory_token=_RECEIVED_PNG_FACTORY_TOKEN,
     )
 
 

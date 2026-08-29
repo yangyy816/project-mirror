@@ -7,9 +7,12 @@ an evidence root, opens a file, invokes a provider, or mutates a registry.
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import json
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Final, NoReturn, cast
 
 from mirror_api import demo_d02_r2_private_registry_e2 as private_registry
@@ -26,6 +29,7 @@ from mirror_api.demo_d02_r2_generation_epoch2 import (
     E2_PRODUCER_TASK_ID,
     E2_ROOT_ID,
 )
+from mirror_api.demo_d02_r2_generation_receiver import ReceivedPng
 from mirror_api.demo_measurement_quality import canonical_json_bytes, mirror_demo_digest
 
 type JsonScalar = bool | int | str | None
@@ -102,6 +106,54 @@ _COMMIT_RECEIPT_KEYS: Final = (
     "created_at_utc",
     "commit_receipt_digest",
 )
+_INTENT_KEYS: Final = (
+    "schema_version",
+    "evidence_root_id",
+    "root_name_receipt_digest",
+    "execution_contract_digest",
+    "transaction_id",
+    "output_id",
+    "semantic_role",
+    "authority_digest",
+    "name_receipt_digest",
+    "seal_receipt_digest",
+    "canonical_event_digest",
+    "canonical_event_json_b64",
+    "expected_copy_a_previous_head",
+    "expected_copy_b_previous_head",
+    "expected_sequence",
+    "commit_receipt_logical_name",
+    "commit_receipt_created_at_utc",
+    "intent_created_at_utc",
+    "intent_digest",
+)
+_EVENT_KEYS: Final = (
+    "SCHEMA_VERSION",
+    "EVIDENCE_ROOT_ID",
+    "ROOT_NAME_RECEIPT_DIGEST",
+    "EXECUTION_CONTRACT_DIGEST",
+    "OUTPUT_ID",
+    "SEMANTIC_ROLE",
+    "CREATING_TASK",
+    "OPAQUE_LOCATOR",
+    "EXPECTED_DIGEST",
+    "ACTUAL_DIGEST",
+    "BYTE_SIZE",
+    "MEDIA_TYPE",
+    "AUTHORITY",
+    "ALLOWED_TASKS",
+    "RETENTION",
+    "CUSTODY",
+    "RECOVERY_STATUS",
+    "BACKUP_STATUS",
+    "CLEANUP_STATUS",
+    "NAME_RECEIPT_DIGEST",
+    "SEAL_RECEIPT_DIGEST",
+    "TRANSACTION_ID",
+    "SEQUENCE",
+    "PREVIOUS_EVENT_DIGEST",
+    "EVENT_DIGEST",
+)
 _PROVENANCE_KEYS: Final = (
     "schema_version",
     "candidate_ordinal",
@@ -176,6 +228,58 @@ _GENERATION_RECEIPT_KEYS: Final = (
     "receipt_digest",
 )
 
+_COMMITTED_PROJECTION_TOKEN: Final = object()
+_VALIDATED_GENERATION_RECEIPT_TOKEN: Final = object()
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class CommittedRegistryOutputProjection:
+    """Pure, immutable projection of one fully replayed A/B registry commit."""
+
+    _name_receipt_bytes: bytes
+    _seal_receipt_bytes: bytes
+    _commit_receipt_bytes: bytes
+
+    def __init__(
+        self,
+        *,
+        name_receipt: Mapping[str, object],
+        seal_receipt: Mapping[str, object],
+        commit_receipt: Mapping[str, object],
+        _factory_token: object,
+    ) -> None:
+        if _factory_token is not _COMMITTED_PROJECTION_TOKEN:
+            raise TypeError(
+                "registry projection must be created by the complete projection validator"
+            )
+        object.__setattr__(self, "_name_receipt_bytes", canonical_json_bytes(name_receipt))
+        object.__setattr__(self, "_seal_receipt_bytes", canonical_json_bytes(seal_receipt))
+        object.__setattr__(self, "_commit_receipt_bytes", canonical_json_bytes(commit_receipt))
+
+    def name_receipt(self) -> JsonObject:
+        return _canonical_object(self._name_receipt_bytes, "projected output name receipt")
+
+    def seal_receipt(self) -> JsonObject:
+        return _canonical_object(self._seal_receipt_bytes, "projected output seal receipt")
+
+    def commit_receipt(self) -> JsonObject:
+        return _canonical_object(self._commit_receipt_bytes, "projected registry commit receipt")
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class ValidatedSourceGenerationReceipt:
+    """Receipt authority that has replayed both source and provenance commits."""
+
+    _payload_bytes: bytes
+
+    def __init__(self, *, payload: Mapping[str, object], _factory_token: object) -> None:
+        if _factory_token is not _VALIDATED_GENERATION_RECEIPT_TOKEN:
+            raise TypeError("generation receipt must be created by its complete validator")
+        object.__setattr__(self, "_payload_bytes", canonical_json_bytes(payload))
+
+    def payload(self) -> JsonObject:
+        return _canonical_object(self._payload_bytes, "validated source generation receipt")
+
 
 def _fail(message: str) -> NoReturn:
     raise ValueError(message)
@@ -200,6 +304,16 @@ def _strict_equal(left: object, right: object) -> bool:
             _strict_equal(a, b) for a, b in zip(left, cast(list[object], right), strict=True)
         )
     return left == right
+
+
+def _canonical_object(data: bytes, label: str) -> JsonObject:
+    try:
+        value = json.loads(data)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"{label} is not canonical JSON") from error
+    if not isinstance(value, dict) or canonical_json_bytes(value) != data:
+        _fail(f"{label} is not an exact canonical object")
+    return cast(JsonObject, value)
 
 
 def _digest(value: object, label: str) -> str:
@@ -237,6 +351,222 @@ def _replay(authority: Mapping[str, object], *, schema: str, digest_key: str, la
         raise ValueError(f"{label} is not canonical") from error
     if observed != claimed:
         _fail(f"{label} digest does not replay")
+
+
+def validate_committed_registry_output_projection(
+    *,
+    name_receipt: Mapping[str, object],
+    seal_receipt: Mapping[str, object],
+    intent: Mapping[str, object],
+    canonical_event: Mapping[str, object],
+    snapshot_a: private_registry.RegistrySnapshot,
+    snapshot_b: private_registry.RegistrySnapshot,
+    commit_receipt: Mapping[str, object],
+) -> CommittedRegistryOutputProjection:
+    """Bind a commit receipt to its replayed intent, event, and exact A/B snapshots.
+
+    The accepted registry process performs all filesystem and SQLite replay and
+    passes those values here.  This function remains pure and rejects a
+    self-signed commit mapping that is not the final event of both snapshots.
+    """
+
+    name = _exact(name_receipt, _NAME_RECEIPT_KEYS, "projected output name receipt")
+    seal = _exact(seal_receipt, _SEAL_RECEIPT_KEYS, "projected output seal receipt")
+    transaction_intent = _exact(intent, _INTENT_KEYS, "projected registry intent")
+    event = _exact(canonical_event, _EVENT_KEYS, "projected canonical registry event")
+    commit = _exact(commit_receipt, _COMMIT_RECEIPT_KEYS, "projected registry commit receipt")
+
+    if name["schema_version"] != private_registry.OUTPUT_NAME_RECEIPT_SCHEMA:
+        _fail("projected output name receipt schema is invalid")
+    _replay(
+        name,
+        schema=private_registry.OUTPUT_NAME_RECEIPT_SCHEMA,
+        digest_key="name_receipt_digest",
+        label="projected output name receipt",
+    )
+    if seal["schema_version"] != private_registry.OUTPUT_SEAL_RECEIPT_SCHEMA:
+        _fail("projected output seal receipt schema is invalid")
+    _replay(
+        seal,
+        schema=private_registry.OUTPUT_SEAL_RECEIPT_SCHEMA,
+        digest_key="seal_digest",
+        label="projected output seal receipt",
+    )
+
+    transaction_id = mirror_demo_digest(
+        private_registry.REGISTRY_TRANSACTION_ID_SCHEMA,
+        {
+            "evidence_root_id": cast(JsonValue, name["evidence_root_id"]),
+            "root_name_receipt_digest": cast(JsonValue, name["root_name_receipt_digest"]),
+            "execution_contract_digest": cast(JsonValue, name["execution_contract_digest"]),
+            "output_id": cast(JsonValue, name["output_id"]),
+            "name_receipt_digest": cast(JsonValue, name["name_receipt_digest"]),
+            "seal_receipt_digest": cast(JsonValue, seal["seal_digest"]),
+        },
+    )
+    fixed_seal = {
+        "evidence_root_id": name["evidence_root_id"],
+        "root_name_receipt_digest": name["root_name_receipt_digest"],
+        "execution_contract_digest": name["execution_contract_digest"],
+        "output_id": name["output_id"],
+        "name_receipt_digest": name["name_receipt_digest"],
+        "semantic_role": name["semantic_role"],
+        "producer_task_id": name["producer_task_id"],
+        "media_type": name["expected_media_type"],
+    }
+    if any(seal[key] != expected for key, expected in fixed_seal.items()):
+        _fail("projected seal does not bind the projected name receipt")
+    for digest_key in ("actual_sha256", "authority_digest"):
+        _digest(seal[digest_key], f"projected seal {digest_key}")
+    byte_size = seal["byte_size"]
+    maximum_bytes = name["maximum_bytes"]
+    if (
+        type(byte_size) is not int
+        or type(maximum_bytes) is not int
+        or not 0 <= byte_size <= maximum_bytes
+    ):
+        _fail("projected seal byte size is outside the name receipt envelope")
+
+    expected_sequence = _positive_int(
+        transaction_intent["expected_sequence"], "registry intent sequence", 99_999_999
+    )
+    previous_head = _digest(
+        transaction_intent["expected_copy_a_previous_head"], "registry previous head"
+    )
+    if transaction_intent["expected_copy_b_previous_head"] != previous_head:
+        _fail("registry intent previous heads disagree")
+    created_at = _timestamp(transaction_intent["intent_created_at_utc"], "registry intent time")
+    if transaction_intent["commit_receipt_created_at_utc"] != created_at:
+        _fail("registry intent timestamps disagree")
+
+    semantic_role = name["semantic_role"]
+    role_destination = private_registry.ROLE_DESTINATIONS.get(cast(str, semantic_role))
+    if role_destination is None or name["relative_destination_class"] != role_destination[0]:
+        _fail("projected registry role destination is invalid")
+    logical_name = name["logical_name"]
+    if not isinstance(logical_name, str):
+        _fail("projected registry logical name is invalid")
+    relative = f"{role_destination[1]}/{logical_name}"
+    opaque_locator = "r2rel1:" + base64.urlsafe_b64encode(relative.encode("utf-8")).decode(
+        "ascii"
+    ).rstrip("=")
+    expected_event: JsonObject = {
+        "SCHEMA_VERSION": private_registry.REGISTRY_EVENT_SCHEMA,
+        "EVIDENCE_ROOT_ID": cast(JsonScalar, name["evidence_root_id"]),
+        "ROOT_NAME_RECEIPT_DIGEST": cast(JsonScalar, name["root_name_receipt_digest"]),
+        "EXECUTION_CONTRACT_DIGEST": cast(JsonScalar, name["execution_contract_digest"]),
+        "OUTPUT_ID": cast(JsonScalar, name["output_id"]),
+        "SEMANTIC_ROLE": cast(JsonScalar, name["semantic_role"]),
+        "CREATING_TASK": cast(JsonScalar, name["producer_task_id"]),
+        "OPAQUE_LOCATOR": opaque_locator,
+        "EXPECTED_DIGEST": cast(JsonScalar, seal["actual_sha256"]),
+        "ACTUAL_DIGEST": cast(JsonScalar, seal["actual_sha256"]),
+        "BYTE_SIZE": cast(JsonScalar, seal["byte_size"]),
+        "MEDIA_TYPE": cast(JsonScalar, seal["media_type"]),
+        "AUTHORITY": cast(JsonScalar, seal["authority_digest"]),
+        "ALLOWED_TASKS": cast(JsonValue, name["allowed_tasks"]),
+        "RETENTION": cast(JsonScalar, seal["retention"]),
+        "CUSTODY": cast(JsonScalar, seal["custody"]),
+        "RECOVERY_STATUS": "NOT_REQUIRED",
+        "BACKUP_STATUS": "TWO_LOGICAL_COPIES_SAME_ROOT_REQUIRED",
+        "CLEANUP_STATUS": "RETAINED",
+        "NAME_RECEIPT_DIGEST": cast(JsonScalar, name["name_receipt_digest"]),
+        "SEAL_RECEIPT_DIGEST": cast(JsonScalar, seal["seal_digest"]),
+        "TRANSACTION_ID": transaction_id,
+        "SEQUENCE": expected_sequence,
+        "PREVIOUS_EVENT_DIGEST": previous_head,
+    }
+    expected_event["EVENT_DIGEST"] = mirror_demo_digest(
+        private_registry.REGISTRY_EVENT_SCHEMA, expected_event
+    )
+    if not _strict_equal(dict(event), expected_event):
+        _fail("projected canonical registry event does not replay from name and seal")
+
+    event_bytes = canonical_json_bytes(expected_event)
+    expected_intent: JsonObject = {
+        "schema_version": private_registry.REGISTRY_INTENT_SCHEMA,
+        "evidence_root_id": cast(JsonScalar, name["evidence_root_id"]),
+        "root_name_receipt_digest": cast(JsonScalar, name["root_name_receipt_digest"]),
+        "execution_contract_digest": cast(JsonScalar, name["execution_contract_digest"]),
+        "transaction_id": transaction_id,
+        "output_id": cast(JsonScalar, name["output_id"]),
+        "semantic_role": cast(JsonScalar, name["semantic_role"]),
+        "authority_digest": cast(JsonScalar, seal["authority_digest"]),
+        "name_receipt_digest": cast(JsonScalar, name["name_receipt_digest"]),
+        "seal_receipt_digest": cast(JsonScalar, seal["seal_digest"]),
+        "canonical_event_digest": cast(JsonScalar, expected_event["EVENT_DIGEST"]),
+        "canonical_event_json_b64": base64.b64encode(event_bytes).decode("ascii"),
+        "expected_copy_a_previous_head": previous_head,
+        "expected_copy_b_previous_head": previous_head,
+        "expected_sequence": expected_sequence,
+        "commit_receipt_logical_name": (f"D02_R2_REGISTRY_COMMIT_RECEIPT__{transaction_id}.json"),
+        "commit_receipt_created_at_utc": created_at,
+        "intent_created_at_utc": created_at,
+    }
+    expected_intent["intent_digest"] = mirror_demo_digest(
+        private_registry.REGISTRY_INTENT_SCHEMA, expected_intent
+    )
+    if not _strict_equal(dict(transaction_intent), expected_intent):
+        _fail("projected registry intent does not replay from the canonical event")
+
+    if (
+        type(snapshot_a) is not private_registry.RegistrySnapshot
+        or type(snapshot_b) is not private_registry.RegistrySnapshot
+        or snapshot_a != snapshot_b
+        or snapshot_a.event_count != expected_sequence
+        or len(snapshot_a.ordered_events) != expected_sequence
+        or snapshot_a.head_event_digest != expected_event["EVENT_DIGEST"]
+    ):
+        _fail("projected registry snapshots do not prove the committed event")
+    event_projection: JsonObject = {
+        "sequence": expected_sequence,
+        "transaction_id": transaction_id,
+        "output_id": cast(JsonScalar, name["output_id"]),
+        "semantic_role": cast(JsonScalar, name["semantic_role"]),
+        "authority_digest": cast(JsonScalar, seal["authority_digest"]),
+        "event_digest": cast(JsonScalar, expected_event["EVENT_DIGEST"]),
+    }
+    if not _strict_equal(snapshot_a.ordered_events[-1], event_projection):
+        _fail("projected registry snapshots end at a different event")
+    if expected_sequence > 1:
+        prior = snapshot_a.ordered_events[-2]
+        if prior.get("event_digest") != previous_head:
+            _fail("projected registry snapshot previous head is discontinuous")
+    for snapshot_digest, label in (
+        (snapshot_a.head_event_digest, "registry snapshot head"),
+        (snapshot_a.semantic_snapshot_digest, "registry semantic snapshot"),
+    ):
+        _digest(snapshot_digest, label)
+
+    expected_commit: JsonObject = {
+        "schema_version": private_registry.REGISTRY_COMMIT_SCHEMA,
+        "evidence_root_id": cast(JsonScalar, name["evidence_root_id"]),
+        "root_name_receipt_digest": cast(JsonScalar, name["root_name_receipt_digest"]),
+        "execution_contract_digest": cast(JsonScalar, name["execution_contract_digest"]),
+        "transaction_id": transaction_id,
+        "intent_digest": cast(JsonScalar, expected_intent["intent_digest"]),
+        "output_id": cast(JsonScalar, name["output_id"]),
+        "canonical_event_digest": cast(JsonScalar, expected_event["EVENT_DIGEST"]),
+        "copy_a_event_count": snapshot_a.event_count,
+        "copy_a_head_event_digest": snapshot_a.head_event_digest,
+        "copy_a_semantic_snapshot_digest": snapshot_a.semantic_snapshot_digest,
+        "copy_b_event_count": snapshot_b.event_count,
+        "copy_b_head_event_digest": snapshot_b.head_event_digest,
+        "copy_b_semantic_snapshot_digest": snapshot_b.semantic_snapshot_digest,
+        "commit_state": "COMMITTED_BOTH_COPIES",
+        "created_at_utc": created_at,
+    }
+    expected_commit["commit_receipt_digest"] = mirror_demo_digest(
+        private_registry.REGISTRY_COMMIT_SCHEMA, expected_commit
+    )
+    if not _strict_equal(dict(commit), expected_commit):
+        _fail("projected registry commit does not replay from intent, event, and snapshots")
+    return CommittedRegistryOutputProjection(
+        name_receipt=name,
+        seal_receipt=seal,
+        commit_receipt=commit,
+        _factory_token=_COMMITTED_PROJECTION_TOKEN,
+    )
 
 
 def _request_graph(
@@ -440,8 +770,9 @@ def _validate_commit_receipt(
     if (
         receipt["copy_a_head_event_digest"] != receipt["copy_b_head_event_digest"]
         or receipt["copy_a_semantic_snapshot_digest"] != receipt["copy_b_semantic_snapshot_digest"]
+        or receipt["canonical_event_digest"] != receipt["copy_a_head_event_digest"]
     ):
-        _fail("registry commit receipt copies disagree")
+        _fail("registry commit receipt does not end both copies at its canonical event")
     _timestamp(receipt["created_at_utc"], "registry commit timestamp")
     return receipt
 
@@ -503,14 +834,9 @@ def build_generation_result_provenance(
     generation_requests: Sequence[Mapping[str, object]],
     allocation_manifest: Mapping[str, object],
     producer_dispatch: Mapping[str, object],
-    source_name_receipt: Mapping[str, object],
-    source_seal_receipt: Mapping[str, object],
-    source_commit_receipt: Mapping[str, object],
+    source_commit_projection: CommittedRegistryOutputProjection,
     provenance_name_receipt: Mapping[str, object],
-    source_asset_sha256: str,
-    source_asset_byte_size: int,
-    source_asset_width: int,
-    source_asset_height: int,
+    received_png: ReceivedPng,
 ) -> JsonObject:
     """Build the E2 provenance after the source output is durably registered."""
 
@@ -522,18 +848,25 @@ def build_generation_result_provenance(
         allocation_manifest=allocation_manifest,
         producer_dispatch=producer_dispatch,
     )
+    if type(source_commit_projection) is not CommittedRegistryOutputProjection:
+        _fail("source commit must be a completely validated registry projection")
+    if type(received_png) is not ReceivedPng:
+        _fail("source Asset facts must come from the PNG receiver")
+    source_name_receipt = source_commit_projection.name_receipt()
+    source_seal_receipt = source_commit_projection.seal_receipt()
+    source_commit_receipt = source_commit_projection.commit_receipt()
     ordinal, source_name, _ = _source_and_provenance_names(
         request=request,
         preregistration=preregistration,
         source_name_receipt=source_name_receipt,
         provenance_name_receipt=provenance_name_receipt,
     )
-    source_sha = _digest(source_asset_sha256, "source Asset checksum")
+    source_sha = _digest(received_png.sha256, "source Asset checksum")
     source_size = _positive_int(
-        source_asset_byte_size, "source Asset byte size", PREFLIGHT_SOURCE_MAXIMUM_BYTES
+        received_png.byte_size, "source Asset byte size", PREFLIGHT_SOURCE_MAXIMUM_BYTES
     )
-    width = _positive_int(source_asset_width, "source Asset width", 8_192)
-    height = _positive_int(source_asset_height, "source Asset height", 8_192)
+    width = _positive_int(received_png.width, "source Asset width", 8_192)
+    height = _positive_int(received_png.height, "source Asset height", 8_192)
     if width < 64 or height < 64 or width * height > 40_000_000:
         _fail("source Asset dimensions are outside the receiver envelope")
     binary_authority_digest = mirror_demo_digest(
@@ -623,10 +956,9 @@ def validate_generation_result_provenance(
     generation_requests: Sequence[Mapping[str, object]],
     allocation_manifest: Mapping[str, object],
     producer_dispatch: Mapping[str, object],
-    source_name_receipt: Mapping[str, object],
-    source_seal_receipt: Mapping[str, object],
-    source_commit_receipt: Mapping[str, object],
+    source_commit_projection: CommittedRegistryOutputProjection,
     provenance_name_receipt: Mapping[str, object],
+    received_png: ReceivedPng,
 ) -> Mapping[str, object]:
     provenance = _exact(value, _PROVENANCE_KEYS, "E2 generation provenance")
     if provenance["schema_version"] != PROVENANCE_SCHEMA:
@@ -644,22 +976,9 @@ def validate_generation_result_provenance(
         generation_requests=generation_requests,
         allocation_manifest=allocation_manifest,
         producer_dispatch=producer_dispatch,
-        source_name_receipt=source_name_receipt,
-        source_seal_receipt=source_seal_receipt,
-        source_commit_receipt=source_commit_receipt,
+        source_commit_projection=source_commit_projection,
         provenance_name_receipt=provenance_name_receipt,
-        source_asset_sha256=_digest(provenance["source_asset_sha256"], "source Asset checksum"),
-        source_asset_byte_size=_positive_int(
-            provenance["source_asset_byte_size"],
-            "source Asset byte size",
-            PREFLIGHT_SOURCE_MAXIMUM_BYTES,
-        ),
-        source_asset_width=_positive_int(
-            provenance["source_asset_width"], "source Asset width", 8_192
-        ),
-        source_asset_height=_positive_int(
-            provenance["source_asset_height"], "source Asset height", 8_192
-        ),
+        received_png=received_png,
     )
     if not _strict_equal(dict(provenance), rebuilt):
         _fail("E2 generation provenance binding drifted")
@@ -674,13 +993,10 @@ def build_source_generation_receipt(
     generation_requests: Sequence[Mapping[str, object]],
     allocation_manifest: Mapping[str, object],
     producer_dispatch: Mapping[str, object],
-    source_name_receipt: Mapping[str, object],
-    source_seal_receipt: Mapping[str, object],
-    source_commit_receipt: Mapping[str, object],
+    source_commit_projection: CommittedRegistryOutputProjection,
     provenance: Mapping[str, object],
-    provenance_name_receipt: Mapping[str, object],
-    provenance_seal_receipt: Mapping[str, object],
-    provenance_commit_receipt: Mapping[str, object],
+    provenance_commit_projection: CommittedRegistryOutputProjection,
+    received_png: ReceivedPng,
 ) -> JsonObject:
     """Build the receipt after source and provenance commits are durable."""
 
@@ -692,6 +1008,17 @@ def build_source_generation_receipt(
         allocation_manifest=allocation_manifest,
         producer_dispatch=producer_dispatch,
     )
+    if (
+        type(source_commit_projection) is not CommittedRegistryOutputProjection
+        or type(provenance_commit_projection) is not CommittedRegistryOutputProjection
+    ):
+        _fail("source and provenance must be completely validated registry projections")
+    source_name_receipt = source_commit_projection.name_receipt()
+    source_seal_receipt = source_commit_projection.seal_receipt()
+    source_commit_receipt = source_commit_projection.commit_receipt()
+    provenance_name_receipt = provenance_commit_projection.name_receipt()
+    provenance_seal_receipt = provenance_commit_projection.seal_receipt()
+    provenance_commit_receipt = provenance_commit_projection.commit_receipt()
     ordinal, source_name, provenance_name = _source_and_provenance_names(
         request=request,
         preregistration=preregistration,
@@ -706,10 +1033,9 @@ def build_source_generation_receipt(
         generation_requests=generation_requests,
         allocation_manifest=allocation_manifest,
         producer_dispatch=producer_dispatch,
-        source_name_receipt=source_name_receipt,
-        source_seal_receipt=source_seal_receipt,
-        source_commit_receipt=source_commit_receipt,
+        source_commit_projection=source_commit_projection,
         provenance_name_receipt=provenance_name_receipt,
+        received_png=received_png,
     )
     provenance_bytes = canonical_json_bytes(verified_provenance)
     provenance_digest = _digest(
@@ -789,14 +1115,11 @@ def validate_source_generation_receipt(
     generation_requests: Sequence[Mapping[str, object]],
     allocation_manifest: Mapping[str, object],
     producer_dispatch: Mapping[str, object],
-    source_name_receipt: Mapping[str, object],
-    source_seal_receipt: Mapping[str, object],
-    source_commit_receipt: Mapping[str, object],
+    source_commit_projection: CommittedRegistryOutputProjection,
     provenance: Mapping[str, object],
-    provenance_name_receipt: Mapping[str, object],
-    provenance_seal_receipt: Mapping[str, object],
-    provenance_commit_receipt: Mapping[str, object],
-) -> Mapping[str, object]:
+    provenance_commit_projection: CommittedRegistryOutputProjection,
+    received_png: ReceivedPng,
+) -> ValidatedSourceGenerationReceipt:
     receipt = _exact(value, _GENERATION_RECEIPT_KEYS, "E2 source generation receipt")
     if receipt["schema_version"] != GENERATION_RECEIPT_SCHEMA:
         _fail("E2 source generation receipt schema is invalid")
@@ -813,52 +1136,31 @@ def validate_source_generation_receipt(
         generation_requests=generation_requests,
         allocation_manifest=allocation_manifest,
         producer_dispatch=producer_dispatch,
-        source_name_receipt=source_name_receipt,
-        source_seal_receipt=source_seal_receipt,
-        source_commit_receipt=source_commit_receipt,
+        source_commit_projection=source_commit_projection,
         provenance=provenance,
-        provenance_name_receipt=provenance_name_receipt,
-        provenance_seal_receipt=provenance_seal_receipt,
-        provenance_commit_receipt=provenance_commit_receipt,
+        provenance_commit_projection=provenance_commit_projection,
+        received_png=received_png,
     )
     if not _strict_equal(dict(receipt), rebuilt):
         _fail("E2 source generation receipt binding drifted")
-    return receipt
+    return ValidatedSourceGenerationReceipt(
+        payload=receipt,
+        _factory_token=_VALIDATED_GENERATION_RECEIPT_TOKEN,
+    )
 
 
 def project_generation_receipt_name_receipt(
     *,
-    generation_receipt: Mapping[str, object],
-    provenance_commit_receipt: Mapping[str, object],
+    validated_generation_receipt: ValidatedSourceGenerationReceipt,
     output_id: str,
     logical_name: str,
     allocated_at_utc: str,
 ) -> JsonObject:
     """Project allocation 13..16 only after the provenance commit is present."""
 
-    receipt = _exact(generation_receipt, _GENERATION_RECEIPT_KEYS, "E2 source generation receipt")
-    if receipt["schema_version"] != GENERATION_RECEIPT_SCHEMA:
-        _fail("E2 source generation receipt schema is invalid")
-    _replay(
-        receipt,
-        schema=GENERATION_RECEIPT_SCHEMA,
-        digest_key="receipt_digest",
-        label="E2 source generation receipt",
-    )
-    provenance_commit = _exact(
-        provenance_commit_receipt, _COMMIT_RECEIPT_KEYS, "provenance commit receipt"
-    )
-    _replay(
-        provenance_commit,
-        schema=private_registry.REGISTRY_COMMIT_SCHEMA,
-        digest_key="commit_receipt_digest",
-        label="provenance commit receipt",
-    )
-    if (
-        provenance_commit["commit_receipt_digest"]
-        != receipt["source_provenance_registry_commit_receipt_digest"]
-    ):
-        _fail("generation receipt allocation requires its committed provenance")
+    if type(validated_generation_receipt) is not ValidatedSourceGenerationReceipt:
+        _fail("generation receipt allocation requires a completely validated receipt")
+    receipt = validated_generation_receipt.payload()
     ordinal = _positive_int(receipt["candidate_ordinal"], "candidate ordinal", 4)
     receipt_output_id = _output_id(output_id, "generation receipt output ID")
     if (
@@ -900,13 +1202,11 @@ def project_generation_receipt_name_receipt(
 def validate_generation_receipt_name_receipt(
     value: object,
     *,
-    generation_receipt: Mapping[str, object],
-    provenance_commit_receipt: Mapping[str, object],
+    validated_generation_receipt: ValidatedSourceGenerationReceipt,
 ) -> Mapping[str, object]:
     name_receipt = _exact(value, _NAME_RECEIPT_KEYS, "generation receipt name receipt")
     rebuilt = project_generation_receipt_name_receipt(
-        generation_receipt=generation_receipt,
-        provenance_commit_receipt=provenance_commit_receipt,
+        validated_generation_receipt=validated_generation_receipt,
         output_id=_output_id(name_receipt["output_id"], "generation receipt output ID"),
         logical_name=cast(str, name_receipt["logical_name"]),
         allocated_at_utc=_timestamp(
