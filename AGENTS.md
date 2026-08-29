@@ -82,6 +82,9 @@
   `PRIVATE_BYTES_STAY_OUT_OF_GIT`；sub-agent 结束前必须把可恢复 locator/authority 交回 Principal。恢复只能从
   task receipt/registry/已证明 task-owned root 开始，不得广搜磁盘；丢失时报告 `EVIDENCE_LOCATION_LOST` 并走
   forward change control，不得要求 Owner 重建 Principal 自己产生的 legacy output。
+- 所有由 Project Mirror 任务创建、下载或派生且不能上传 GitHub 的 receipt、private artifact 和 private file，
+  必须在对应项目工作树的专用 Git-ignored 目录保留 recoverable canonical copy；Temp、Agent memory、对话记录、
+  外部 cache 或工具隐式存储只能作临时传输，不能成为唯一权威。该规则前向适用，不授权搜索或迁移历史未知位置。
 
 ## B. 架构决策的执行规则
 

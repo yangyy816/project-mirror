@@ -62,6 +62,13 @@ R43_Q01_EVIDENCE_DOC_PATH = (
     / "operations"
     / "P2_M5_R43_Q01_PRIVATE_EXECUTION_OVERLAY_MATERIALIZATION_EVIDENCE.md"
 )
+D0_ADR_PATH = (
+    ROOT / "docs" / "adr" / "ADR-053-project-local-private-custody-and-imagegen-output-bridge.md"
+)
+D0_CHANGE_CONTROL_PATH = (
+    ROOT / "docs" / "operations" / "P2_M5_CC05_D0_IMAGEGEN_OUTPUT_BRIDGE_CHANGE_CONTROL.md"
+)
+R50_CONTRACT_PATH = ROOT / "docs" / "operations" / "P2_M5_R50_IMAGEGEN_OUTPUT_BRIDGE_CONTRACT.md"
 ACCEPTANCE_PATH = ROOT / "docs" / "operations" / "P2_M5_ACCEPTANCE.md"
 EXECUTION_PROTOCOL_PATH = ROOT / "docs" / "operations" / "P2_M5_EXECUTION_PROTOCOL.md"
 
@@ -340,6 +347,14 @@ def _last_r49_q01_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-r49-q01-post-acceptance-next-ready-task-repair-eof/v1",
         sentinel="P2_M5_R49_Q01_POST_ACCEPTANCE_NEXT_READY_TASK_AUTHORITY_REPAIR_TRUE_EOF",
+    )
+
+
+def _last_cc05_d0_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-cc05-d0-built-in-output-contract-recovery-eof/v1",
+        sentinel="P2_M5_CC05_D0_BUILT_IN_OUTPUT_CONTRACT_RECOVERY_TRUE_EOF",
     )
 
 
@@ -2569,10 +2584,16 @@ def test_r49_q01_true_eof_is_complete_mirrored_and_binds_redacted_evidence() -> 
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_R49_Q01_POST_ACCEPTANCE_NEXT_READY_TASK_AUTHORITY_REPAIR_TRUE_EOF",
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").count(canonical[-1][1]) == 1
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").count(mirror[-1][1]) == 1
+    acceptance_text = ACCEPTANCE_PATH.read_text(encoding="utf-8")
+    protocol_text = EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")
+    assert acceptance_text.count(canonical[-1][1]) == 1
+    assert protocol_text.count(mirror[-1][1]) == 1
+    assert acceptance_text.index(canonical[-1][1]) < acceptance_text.index(
+        "p2-m5-cc05-d0-built-in-output-contract-recovery-eof/v1"
+    )
+    assert protocol_text.index(mirror[-1][1]) < protocol_text.index(
+        "p2-m5-cc05-d0-built-in-output-contract-recovery-eof/v1"
+    )
 
     tracked = "\n".join(
         (
@@ -2589,6 +2610,82 @@ def test_r49_q01_true_eof_is_complete_mirrored_and_binds_redacted_evidence() -> 
         "overlay_receipt_relative",
         "positive_segments",
         "negative_segments",
+        "provider_raw_payload",
+        "data:image/",
+        "C:\\",
+        "D:\\",
+    ):
+        assert forbidden not in tracked
+
+
+def test_cc05_d0_true_eof_is_mirrored_and_freezes_consumed_failure() -> None:
+    canonical = _last_cc05_d0_key_block(ACCEPTANCE_PATH)
+    mirror = _last_cc05_d0_key_block(EXECUTION_PROTOCOL_PATH)
+    values = dict(canonical)
+
+    assert canonical == mirror
+    assert len(canonical) == len(values) == 32
+    assert values == {
+        "CURRENT_STATE_AUTHORITY_VERSION": (
+            "p2-m5-cc05-d0-built-in-output-contract-recovery-eof/v1"
+        ),
+        "CURRENT_STATE_CANONICAL_SOURCE": ("docs/operations/P2_M5_ACCEPTANCE.md_TRUE_EOF"),
+        "CURRENT_STATE_MIRROR_SOURCE": ("docs/operations/P2_M5_EXECUTION_PROTOCOL.md_TRUE_EOF"),
+        "CURRENT_STATE_AUTHORITY_PRECEDENCE": (
+            "THIS_CONDITIONAL_TRUE_EOF_OVERLAY_SUPERSEDES_ACCEPTED_R49_ONLY_FOR_THE_"
+            "COMPLETE_LISTED_KEYSET_AFTER_D0_SAME_SHA_CI_EIGHT_ARTIFACT_CONTENT_"
+            "CHECKS_SECURITY_PRIVACY_LICENSE_RESEARCH_SOL_AND_PRINCIPAL_ACCEPTANCE"
+        ),
+        "CURRENT_STATE_MIRROR_RULE": "MUST_MATCH_CANONICAL_D0_KEY_SET_ORDER_AND_VALUES",
+        "CURRENT_STATE_PRECONDITION_FALLBACK": (
+            "ACCEPTED_R49_REMAINS_TRACKED_CURRENT_UNTIL_D0_GATES_BUT_EXECUTION_IS_"
+            "HARD_STOPPED_BY_VERIFIED_CONSUMED_FAILURE"
+        ),
+        "P2_M5_STATE": "EXECUTING",
+        "CAL_REQ_002_STATUS": "CONSUMED_FAILED_NO_RETRY",
+        "CAL_REQ_002_FINAL_DISPOSITION": "FAILED_NON_ADMISSIBLE_NO_RETRY",
+        "CAL_REQ_002_FAILURE_PHASE": "OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE",
+        "CAL_REQ_002_FAILURE_REASON": "GENERATED_ARTIFACT_RECEIPT_INVALID",
+        "CAL_REQ_002_ATTEMPT_FAILURE_EVIDENCE": ("RECOVERABLE_PROJECT_LOCAL_PRIVATE_CUSTODY"),
+        "CAL_REQ_002_RAW_OUTPUT_CUSTODY": "EVIDENCE_LOCATION_LOST",
+        "CAL_REQ_002_RETRY": "PROHIBITED",
+        "NEXT_UNUSED_FORMAL_ORDINAL": "CAL-REQ-003",
+        "FORMAL_CALLS_REMAINING": "30",
+        "FORMAL_RAW_CAPACITY_REMAINING": "30",
+        "GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING": "61",
+        "GLOBAL_NATIVE_OUTPUT_CONSUMED": "3",
+        "P2_M5_R49_STATUS": (
+            "HISTORICAL_ACCEPTED_SUPERSEDED_FOR_D0_LISTED_KEYS_ONLY_AFTER_D0_ACCEPTANCE"
+        ),
+        "D0_GENERATION_CALLS": "0",
+        "D0_RAW_OUTPUTS_CREATED": "0",
+        "D0_IMAGE_BYTES_READ": "0",
+        "D0_DECODE_QA_SCREENING_ADMISSION": "0",
+        "D0_PRIVATE_ROOTS_CREATED": "0",
+        "D0_PRIVATE_CUSTODY_RULE": ("PROJECT_LOCAL_GIT_IGNORED_RECOVERABLE_COPY_REQUIRED"),
+        "D0_IMPLEMENTATION_TASK": "P2-M5-R50_AFTER_D0_ACCEPTANCE",
+        "D0_NEXT_TASK": "CC_P2_M5_05_D0_SAME_SHA_GATES",
+        "P2_M5_TECHNICAL_GATE": "NOT_EVALUATED",
+        "P2_MVR_V1_RESULT": "NOT_EVALUATED",
+        "P2_M6_ENTRY": "CLOSED_PENDING_TECHNICAL_AND_MVR_PASS",
+        "CURRENT_AUTHORITY_TAIL_END": ("P2_M5_CC05_D0_BUILT_IN_OUTPUT_CONTRACT_RECOVERY_TRUE_EOF"),
+    }
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    assert D0_ADR_PATH.is_file()
+    assert D0_CHANGE_CONTROL_PATH.is_file()
+    assert R50_CONTRACT_PATH.is_file()
+
+    tracked = "\n".join(
+        (
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-20_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-20_000:],
+        )
+    )
+    for forbidden in (
+        ".private-handoff",
+        "receipt_locator",
+        "prompt_plaintext",
         "provider_raw_payload",
         "data:image/",
         "C:\\",
