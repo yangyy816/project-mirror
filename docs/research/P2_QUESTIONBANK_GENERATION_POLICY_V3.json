@@ -1,7 +1,7 @@
 {
   "schema_version": "mirror.synthetic-questionbank/GenerationAdmissionPolicy/v3",
   "policy_version": "cn-formal-questionbank-adult-18-25-v3",
-  "content_sha256": "2a52489b847276c65a61f0635d1ff674dba433754f8154fa85b0d0534d79b70a",
+  "content_sha256": "984bd78a39a002d179afcb3a17ba6eb8004e2588363ea9cbbc943e4f80d3fe19",
   "status": "APPROVED_FORWARD_ONLY",
   "authority": ["ADR-052", "ADR-024", "ADR-029"],
   "historical_evidence_mutated": false,
@@ -321,7 +321,7 @@
   },
   "m5_transition": {
     "baseline_commit": "5eda4cf19ca2c8f3f5b66dd4e7e2f5cbd0d51950",
-    "baseline_openapi_canonical_sha256": "71942e2bdd3ff8896f6c74e7ee2f562167cb635528d9d802b7d66c460b0f13cf",
+    "baseline_contract_canonical_sha256": "71942e2bdd3ff8896f6c74e7ee2f562167cb635528d9d802b7d66c460b0f13cf",
     "migration_head": "0014_m5_eval_authority",
     "dependency_changes": 0,
     "model_artifacts_added": 0,

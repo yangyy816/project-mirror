@@ -385,7 +385,7 @@ def test_policy_v3_demo_and_active_m5_transition_remain_fail_closed() -> None:
         separators=(",", ":"),
     ).encode()
     assert (
-        transition["baseline_openapi_canonical_sha256"]
+        transition["baseline_contract_canonical_sha256"]
         == hashlib.sha256(canonical_openapi).hexdigest()
     )
     assert transition["migration_head"] == "0014_m5_eval_authority"
