@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import os
@@ -18,9 +20,20 @@ EVENT_SCHEMA: Final = "mirror.p2-m5/Epoch3ExecutionEvent/v1"
 RECEIPT_SCHEMA: Final = "mirror.p2-m5/Epoch3ExecutionReceipt/v1"
 OUTPUT_RECORD_SCHEMA: Final = "mirror.p2-m5/PreDecodeOutputRecord/v1"
 REGISTRATION_RECEIPT_SCHEMA: Final = "mirror.p2-m5/RegistrationCommitReceipt/v1"
+IMAGEGEN_CAPTURE_SIDECAR_SCHEMA: Final = "mirror.p2-m5/ImageGenDataUrlCapture/v1"
+ROLLOVER_INTENT_SCHEMA: Final = "mirror.p2-m5/TerminalOverlayRolloverIntent/v1"
 MAX_RETURNED_BYTES: Final = 16 * 1024 * 1024
+MAX_DATA_URL_ENCODED_BYTES: Final = ((MAX_RETURNED_BYTES + 2) // 3) * 4
+MAX_PRIVATE_OVERLAY_FILE_BYTES: Final = MAX_RETURNED_BYTES + (1024 * 1024)
+PROJECT_PRIVATE_NAMESPACE: Final = ".private-handoff"
 _OPAQUE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$")
 _ORDINAL = re.compile(r"^CAL-REQ-(\d{3})$")
+_STRICT_BASE64_PAYLOAD = re.compile(r"^[A-Za-z0-9+/]+={0,2}$")
+_IMAGEGEN_DATA_URL_PREFIXES: Final = {
+    "data:image/png;base64,": "image/png",
+    "data:image/jpeg;base64,": "image/jpeg",
+    "data:image/webp;base64,": "image/webp",
+}
 _FILE_ATTRIBUTE_REPARSE_POINT: Final = 0x400
 _FILE_ATTRIBUTE_DIRECTORY: Final = 0x10
 _ALLOWED_PRIVATE_PROMPT_FIELDS: Final = frozenset(
@@ -82,11 +95,7 @@ def sha256_bytes(value: bytes) -> str:
 
 
 def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    return sha256_bytes(_read_plain_file_bytes(path))
 
 
 def _is_reparse(path: Path) -> bool:
@@ -137,16 +146,13 @@ def _next_ordinal(value: str) -> str | None:
 
 
 def _write_create_new(path: Path, payload: bytes) -> tuple[str, int]:
-    try:
-        with path.open("xb") as handle:
-            written = handle.write(payload)
-            if written != len(payload):
-                raise ExecutionOverlayError("CREATE_NEW_SHORT_WRITE")
-            handle.flush()
-            os.fsync(handle.fileno())
-    except FileExistsError as error:
-        raise ExecutionOverlayError("CREATE_NEW_TARGET_PREEXISTS") from error
-    actual = path.read_bytes()
+    if len(payload) > MAX_PRIVATE_OVERLAY_FILE_BYTES:
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_BYTE_BOUND_FAILED")
+    actual = (
+        _write_create_new_windows(path, payload)
+        if os.name == "nt"
+        else _write_create_new_posix(path, payload)
+    )
     if actual != payload:
         raise ExecutionOverlayError("CREATE_NEW_REREAD_MISMATCH")
     return sha256_bytes(actual), len(actual)
@@ -163,16 +169,40 @@ def _write_json_create_or_verify_exact(path: Path, value: Mapping[str, Any]) -> 
     except ExecutionOverlayError as error:
         if str(error) != "CREATE_NEW_TARGET_PREEXISTS":
             raise
-    _require_plain_file(path)
-    actual = path.read_bytes()
+    actual = _read_plain_file_bytes(path)
     if actual != payload:
         raise ExecutionOverlayError("CREATE_NEW_EXISTING_CONTENT_CONFLICT")
     return sha256_bytes(actual), len(actual)
 
 
+def _write_bytes_create_or_verify_exact(path: Path, payload: bytes) -> tuple[str, int]:
+    try:
+        return _write_create_new(path, payload)
+    except ExecutionOverlayError as error:
+        if str(error) != "CREATE_NEW_TARGET_PREEXISTS":
+            raise
+    actual = _read_plain_file_bytes(path)
+    if actual != payload:
+        raise ExecutionOverlayError("CREATE_NEW_EXISTING_CONTENT_CONFLICT")
+    return sha256_bytes(actual), len(actual)
+
+
+def _create_new_plain_directory(path: Path) -> None:
+    if os.name == "nt":
+        _create_plain_directory_windows(path, create_new=True)
+    else:
+        _create_plain_directory_posix(path, create_new=True)
+
+
+def _create_or_verify_plain_directory(path: Path) -> None:
+    if os.name == "nt":
+        _create_plain_directory_windows(path, create_new=False)
+    else:
+        _create_plain_directory_posix(path, create_new=False)
+
+
 def _read_json(path: Path) -> dict[str, Any]:
-    _require_plain_file(path)
-    value = json.loads(path.read_text(encoding="utf-8"))
+    value = json.loads(_read_plain_file_bytes(path).decode("utf-8"))
     if not isinstance(value, dict):
         raise ExecutionOverlayError("JSON_OBJECT_REQUIRED")
     return cast(dict[str, Any], value)
@@ -197,6 +227,39 @@ def _safe_child(root: Path, file_name: str) -> Path:
     if candidate.parent.resolve() != root.resolve():
         raise ExecutionOverlayError("PRIVATE_OVERLAY_CHILD_ESCAPES_ROOT")
     return candidate
+
+
+def _normalized_path_value(path: Path) -> str:
+    if not path.is_absolute():
+        raise ExecutionOverlayError("PROJECT_WORKTREE_ABSOLUTE_PATH_REQUIRED")
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
+def _validate_project_local_private_parent(
+    *, project_worktree_root: Path, allowed_parent: Path
+) -> str:
+    project_value = _normalized_path_value(project_worktree_root)
+    allowed_value = _normalized_path_value(allowed_parent)
+    expected_parent = project_worktree_root / PROJECT_PRIVATE_NAMESPACE
+    if allowed_value != _normalized_path_value(expected_parent):
+        raise ExecutionOverlayError("PROJECT_PRIVATE_PARENT_AUTHORITY_MISMATCH")
+    _require_plain_directory(project_worktree_root)
+    _require_plain_directory(allowed_parent)
+    git_marker = project_worktree_root / ".git"
+    if git_marker.is_dir():
+        _require_plain_directory(git_marker)
+    elif git_marker.is_file():
+        _require_plain_file(git_marker)
+    else:
+        raise ExecutionOverlayError("PROJECT_WORKTREE_GIT_MARKER_MISSING")
+    gitignore_path = project_worktree_root / ".gitignore"
+    try:
+        ignore_lines = _read_plain_file_bytes(gitignore_path).decode("utf-8").splitlines()
+    except (OSError, UnicodeError, ExecutionOverlayError) as error:
+        raise ExecutionOverlayError("PROJECT_PRIVATE_GITIGNORE_AUTHORITY_INVALID") from error
+    if PROJECT_PRIVATE_NAMESPACE + "/" not in {line.strip() for line in ignore_lines}:
+        raise ExecutionOverlayError("PROJECT_PRIVATE_NAMESPACE_NOT_GIT_IGNORED")
+    return _registration_binding_digest(project_value + "\n" + allowed_value)
 
 
 def _initial_counters(binding: GenesisBinding) -> dict[str, int]:
@@ -884,6 +947,128 @@ def _registration_binding_digest(value: str) -> str:
     return sha256_bytes(value.encode("utf-8", errors="surrogatepass"))
 
 
+def _parse_imagegen_data_url(value: str) -> tuple[bytes, str, str, str, int]:
+    if not isinstance(value, str):
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_TYPE_INVALID")
+    declared_media_type: str | None = None
+    encoded_payload = ""
+    for prefix, media_type in _IMAGEGEN_DATA_URL_PREFIXES.items():
+        if value.startswith(prefix):
+            declared_media_type = media_type
+            encoded_payload = value[len(prefix) :]
+            break
+    if declared_media_type is None:
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_HEADER_INVALID")
+    if not encoded_payload:
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_PAYLOAD_EMPTY")
+    if len(encoded_payload) > MAX_DATA_URL_ENCODED_BYTES:
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_ENCODED_BYTE_BOUND_FAILED")
+    if (
+        not encoded_payload.isascii()
+        or len(encoded_payload) % 4 != 0
+        or _STRICT_BASE64_PAYLOAD.fullmatch(encoded_payload) is None
+    ):
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_BASE64_INVALID")
+    try:
+        decoded = base64.b64decode(encoded_payload, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_BASE64_INVALID") from error
+    if base64.b64encode(decoded).decode("ascii") != encoded_payload:
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_BASE64_INVALID")
+    if not decoded or len(decoded) > MAX_RETURNED_BYTES:
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_DECODED_BYTE_BOUND_FAILED")
+    actual_media_type, magic_class = _classify_magic(decoded[:16])
+    if actual_media_type == "application/octet-stream":
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_MAGIC_UNSUPPORTED")
+    if actual_media_type != declared_media_type:
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_MIME_MAGIC_MISMATCH")
+    return (
+        decoded,
+        declared_media_type,
+        magic_class,
+        sha256_bytes(value.encode("ascii")),
+        len(encoded_payload),
+    )
+
+
+def _begin_imagegen_data_url_registration_attempt(
+    *,
+    receipt_path: Path,
+    expected_controller_sha256: str,
+    action_id: str,
+    project_worktree_root: Path,
+    imagegen_data_url: str,
+    timestamp: str,
+) -> OverlayHandle:
+    root, receipt, _event, state = _transition_context(
+        receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    private_parent_sha256 = _validate_project_local_private_parent(
+        project_worktree_root=project_worktree_root,
+        allowed_parent=root.parent,
+    )
+    if state["phase"] != "OUTPUT_RETURNED_RECEIPT_BOUND" or state["current_action_id"] != action_id:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_STATE_OR_ACTION_INVALID")
+    returned_binding = state.get("returned_output_binding")
+    if not isinstance(returned_binding, dict):
+        raise ExecutionOverlayError("RETURNED_OUTPUT_BINDING_MISSING")
+    output_opaque_id = returned_binding.get("output_opaque_id")
+    bound_digest = returned_binding.get("exact_generated_artifact_receipt_sha256")
+    if not isinstance(output_opaque_id, str) or not isinstance(bound_digest, str):
+        raise ExecutionOverlayError("RETURNED_OUTPUT_BINDING_INVALID")
+    _validate_opaque_id(output_opaque_id, "OUTPUT_OPAQUE_ID")
+    _validate_digest(bound_digest, "GENERATED_ARTIFACT_RECEIPT_SHA256")
+    actual_digest = _registration_binding_digest(imagegen_data_url)
+    if actual_digest != bound_digest:
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_BINDING_MISMATCH")
+
+    sequence = cast(int, receipt["sequence"]) + 1
+    new_event = {
+        "schema_version": EVENT_SCHEMA,
+        "overlay_output_id": state["overlay_output_id"],
+        "sequence": sequence,
+        "event_type": "OUTPUT_REGISTRATION_ATTEMPT_BOUND",
+        "timestamp": timestamp,
+        "previous_event_sha256": receipt["event_sha256"],
+        "action_id": action_id,
+        "request_ordinal": state["current_ordinal"],
+        "reason_code": "EXACT_IMAGEGEN_DATA_URL_DIGEST_BOUND_BEFORE_BASE64_PARSE",
+        "output_opaque_id": output_opaque_id,
+        "exact_generated_artifact_receipt_sha256": bound_digest,
+        "source_delivery_class": "CODEX_NATIVE_IMAGEGEN_DATA_URL",
+        "project_private_parent_sha256": private_parent_sha256,
+    }
+    new_state = dict(state)
+    new_state.update(
+        {
+            "sequence": sequence,
+            "phase": "OUTPUT_REGISTRATION_ATTEMPT_BOUND",
+            "timestamp": timestamp,
+            "previous_state_sha256": receipt["state_sha256"],
+            "last_event_sha256": sha256_bytes(canonical_json_bytes(new_event)),
+            "output_registration_attempt": {
+                "output_opaque_id": output_opaque_id,
+                "request_ordinal": state["current_ordinal"],
+                "action_id": action_id,
+                "source_kind": "CODEX_NATIVE_IMAGEGEN",
+                "source_delivery_class": "CODEX_NATIVE_IMAGEGEN_DATA_URL",
+                "exact_generated_artifact_receipt_sha256": bound_digest,
+                "project_private_parent_sha256": private_parent_sha256,
+            },
+            "decode_authorized": False,
+        }
+    )
+    return _commit_transition(
+        root=root,
+        sequence=sequence,
+        controller_sha256=expected_controller_sha256,
+        event=new_event,
+        state=new_state,
+        previous_receipt=_previous_receipt_binding(receipt_path, receipt),
+    )
+
+
 def _begin_output_registration_attempt(
     *,
     receipt_path: Path,
@@ -1058,6 +1243,147 @@ def _assert_posix_root_identity(path: Path, descriptor: int) -> None:
         raise ExecutionOverlayError("GENERATED_ARTIFACT_ROOT_CHANGED_BEFORE_READ")
 
 
+def _assert_posix_named_file_identity(
+    file_descriptor: int, parent_descriptor: int, name: str
+) -> None:
+    opened_stat = os.fstat(file_descriptor)
+    named_stat = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+    if not stat.S_ISREG(opened_stat.st_mode) or not stat.S_ISREG(named_stat.st_mode):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_INVALID")
+    if (opened_stat.st_dev, opened_stat.st_ino) != (named_stat.st_dev, named_stat.st_ino):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_BINDING_CHANGED")
+
+
+def _read_plain_file_bytes_posix(path: Path) -> bytes:
+    if not path.is_absolute():
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_ABSOLUTE_PATH_REQUIRED")
+    _directory_flag, no_follow_flag = _posix_safe_open_flags()
+    descriptors = _open_posix_directory_chain(path.parent)
+    file_descriptor: int | None = None
+    try:
+        _assert_posix_root_identity(path.parent, descriptors[-1])
+        file_descriptor = os.open(
+            path.name,
+            os.O_RDONLY | no_follow_flag | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=descriptors[-1],
+        )
+        opened_stat = os.fstat(file_descriptor)
+        if (
+            not stat.S_ISREG(opened_stat.st_mode)
+            or opened_stat.st_size < 0
+            or opened_stat.st_size > MAX_PRIVATE_OVERLAY_FILE_BYTES
+        ):
+            raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_INVALID")
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = os.read(
+                file_descriptor, min(1024 * 1024, MAX_PRIVATE_OVERLAY_FILE_BYTES + 1 - total)
+            )
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_PRIVATE_OVERLAY_FILE_BYTES:
+                raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_BYTE_BOUND_FAILED")
+            chunks.append(chunk)
+        _assert_posix_named_file_identity(file_descriptor, descriptors[-1], path.name)
+        _assert_posix_root_identity(path.parent, descriptors[-1])
+        return b"".join(chunks)
+    finally:
+        if file_descriptor is not None:
+            os.close(file_descriptor)
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
+def _write_create_new_posix(path: Path, payload: bytes) -> bytes:
+    if not path.is_absolute():
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_ABSOLUTE_PATH_REQUIRED")
+    _directory_flag, no_follow_flag = _posix_safe_open_flags()
+    descriptors = _open_posix_directory_chain(path.parent)
+    file_descriptor: int | None = None
+    try:
+        _assert_posix_root_identity(path.parent, descriptors[-1])
+        try:
+            file_descriptor = os.open(
+                path.name,
+                os.O_RDWR | os.O_CREAT | os.O_EXCL | no_follow_flag | getattr(os, "O_CLOEXEC", 0),
+                0o600,
+                dir_fd=descriptors[-1],
+            )
+        except FileExistsError as error:
+            raise ExecutionOverlayError("CREATE_NEW_TARGET_PREEXISTS") from error
+        if not stat.S_ISREG(os.fstat(file_descriptor).st_mode):
+            raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_INVALID")
+        offset = 0
+        while offset < len(payload):
+            written = os.write(file_descriptor, payload[offset:])
+            if written <= 0:
+                raise ExecutionOverlayError("CREATE_NEW_SHORT_WRITE")
+            offset += written
+        os.fsync(file_descriptor)
+        os.lseek(file_descriptor, 0, os.SEEK_SET)
+        chunks: list[bytes] = []
+        remaining = len(payload)
+        while remaining:
+            chunk = os.read(file_descriptor, min(1024 * 1024, remaining))
+            if not chunk:
+                raise ExecutionOverlayError("CREATE_NEW_SHORT_READBACK")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        if os.read(file_descriptor, 1):
+            raise ExecutionOverlayError("CREATE_NEW_READBACK_OVERFLOW")
+        _assert_posix_named_file_identity(file_descriptor, descriptors[-1], path.name)
+        _assert_posix_root_identity(path.parent, descriptors[-1])
+        return b"".join(chunks)
+    finally:
+        if file_descriptor is not None:
+            os.close(file_descriptor)
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
+def _assert_posix_plain_directory_identity(path: Path, descriptor: int) -> None:
+    path_stat = os.lstat(path)
+    opened_stat = os.fstat(descriptor)
+    if not stat.S_ISDIR(path_stat.st_mode) or not stat.S_ISDIR(opened_stat.st_mode):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_DIRECTORY_INVALID")
+    if (path_stat.st_dev, path_stat.st_ino) != (opened_stat.st_dev, opened_stat.st_ino):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_DIRECTORY_BINDING_CHANGED")
+
+
+def _create_plain_directory_posix(path: Path, *, create_new: bool) -> None:
+    if not path.is_absolute() or Path(path.name).name != path.name or path.name in {"", ".", ".."}:
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_DIRECTORY_PATH_INVALID")
+    directory_flag, no_follow_flag = _posix_safe_open_flags()
+    try:
+        descriptors = _open_posix_directory_chain(path.parent)
+    except OSError as error:
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_DIRECTORY_INVALID") from error
+    child_descriptor: int | None = None
+    try:
+        _assert_posix_plain_directory_identity(path.parent, descriptors[-1])
+        try:
+            os.mkdir(path.name, 0o700, dir_fd=descriptors[-1])
+        except FileExistsError as error:
+            if create_new:
+                raise ExecutionOverlayError("CREATE_NEW_TARGET_PREEXISTS") from error
+        child_descriptor = os.open(
+            path.name,
+            os.O_RDONLY | directory_flag | no_follow_flag | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=descriptors[-1],
+        )
+        _assert_posix_plain_directory_identity(path.parent, descriptors[-1])
+        _assert_posix_plain_directory_identity(path, child_descriptor)
+    except OSError as error:
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_DIRECTORY_INVALID") from error
+    finally:
+        if child_descriptor is not None:
+            os.close(child_descriptor)
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
 def _open_posix_generated_artifact(
     *,
     generated_artifact_path: Path,
@@ -1207,6 +1533,447 @@ def _close_windows_handles(handles: list[int]) -> None:
         close_handle(handle)
 
 
+def _open_windows_directory_chain(path: Path) -> list[int]:
+    if not path.is_absolute():
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_ABSOLUTE_PATH_REQUIRED")
+    current_path = Path(path.anchor)
+    handles = [_windows_open_path(current_path, expect_directory=True)]
+    expected_paths = [current_path]
+    try:
+        for part in path.parts[1:]:
+            current_path /= part
+            handles.append(_windows_open_path(current_path, expect_directory=True))
+            expected_paths.append(current_path)
+        if any(
+            _windows_final_path(handle) != os.path.normcase(os.path.normpath(str(expected)))
+            for handle, expected in zip(handles, expected_paths, strict=True)
+        ):
+            raise ExecutionOverlayError("PRIVATE_OVERLAY_DIRECTORY_BINDING_CHANGED")
+        return handles
+    except Exception:
+        _close_windows_handles(handles)
+        raise
+
+
+def _assert_windows_plain_file_handle(handle: int, expected_path: Path) -> None:
+    import ctypes
+
+    win_dll = getattr(ctypes, "WinDLL", None)
+    if not callable(win_dll):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_UNAVAILABLE")
+    kernel32 = win_dll("kernel32", use_last_error=True)
+    get_file_information = kernel32.GetFileInformationByHandle
+    get_file_information.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    get_file_information.restype = ctypes.c_int
+
+    class ByHandleFileInformation(ctypes.Structure):
+        _fields_ = [
+            ("dwFileAttributes", ctypes.c_uint32),
+            ("ftCreationTimeLow", ctypes.c_uint32),
+            ("ftCreationTimeHigh", ctypes.c_uint32),
+            ("ftLastAccessTimeLow", ctypes.c_uint32),
+            ("ftLastAccessTimeHigh", ctypes.c_uint32),
+            ("ftLastWriteTimeLow", ctypes.c_uint32),
+            ("ftLastWriteTimeHigh", ctypes.c_uint32),
+            ("dwVolumeSerialNumber", ctypes.c_uint32),
+            ("nFileSizeHigh", ctypes.c_uint32),
+            ("nFileSizeLow", ctypes.c_uint32),
+            ("nNumberOfLinks", ctypes.c_uint32),
+            ("nFileIndexHigh", ctypes.c_uint32),
+            ("nFileIndexLow", ctypes.c_uint32),
+        ]
+
+    information = ByHandleFileInformation()
+    if not get_file_information(handle, ctypes.byref(information)):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_HANDLE_INFO_UNAVAILABLE")
+    if (
+        information.dwFileAttributes & _FILE_ATTRIBUTE_REPARSE_POINT
+        or information.dwFileAttributes & _FILE_ATTRIBUTE_DIRECTORY
+        or _windows_final_path(handle) != os.path.normcase(os.path.normpath(str(expected_path)))
+    ):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_HANDLE_BINDING_INVALID")
+
+
+def _assert_windows_plain_directory_handle(handle: int, expected_path: Path) -> None:
+    import ctypes
+
+    win_dll = getattr(ctypes, "WinDLL", None)
+    if not callable(win_dll):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_UNAVAILABLE")
+    kernel32 = win_dll("kernel32", use_last_error=True)
+    get_file_information = kernel32.GetFileInformationByHandle
+    get_file_information.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    get_file_information.restype = ctypes.c_int
+
+    class ByHandleFileInformation(ctypes.Structure):
+        _fields_ = [
+            ("dwFileAttributes", ctypes.c_uint32),
+            ("ftCreationTimeLow", ctypes.c_uint32),
+            ("ftCreationTimeHigh", ctypes.c_uint32),
+            ("ftLastAccessTimeLow", ctypes.c_uint32),
+            ("ftLastAccessTimeHigh", ctypes.c_uint32),
+            ("ftLastWriteTimeLow", ctypes.c_uint32),
+            ("ftLastWriteTimeHigh", ctypes.c_uint32),
+            ("dwVolumeSerialNumber", ctypes.c_uint32),
+            ("nFileSizeHigh", ctypes.c_uint32),
+            ("nFileSizeLow", ctypes.c_uint32),
+            ("nNumberOfLinks", ctypes.c_uint32),
+            ("nFileIndexHigh", ctypes.c_uint32),
+            ("nFileIndexLow", ctypes.c_uint32),
+        ]
+
+    information = ByHandleFileInformation()
+    if not get_file_information(handle, ctypes.byref(information)):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_HANDLE_INFO_UNAVAILABLE")
+    if (
+        information.dwFileAttributes & _FILE_ATTRIBUTE_REPARSE_POINT
+        or not information.dwFileAttributes & _FILE_ATTRIBUTE_DIRECTORY
+        or _windows_final_path(handle) != os.path.normcase(os.path.normpath(str(expected_path)))
+    ):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_DIRECTORY_BINDING_CHANGED")
+
+
+def _open_windows_relative_plain_file(
+    *, parent_handle: int, file_name: str, expected_path: Path, create_new: bool
+) -> int:
+    import ctypes
+
+    if Path(file_name).name != file_name or file_name in {"", ".", ".."}:
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_CHILD_NAME_INVALID")
+    win_dll = getattr(ctypes, "WinDLL", None)
+    if not callable(win_dll):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_UNAVAILABLE")
+    ntdll = win_dll("ntdll", use_last_error=True)
+
+    class UnicodeString(ctypes.Structure):
+        _fields_ = [
+            ("Length", ctypes.c_ushort),
+            ("MaximumLength", ctypes.c_ushort),
+            ("Buffer", ctypes.c_wchar_p),
+        ]
+
+    class ObjectAttributes(ctypes.Structure):
+        _fields_ = [
+            ("Length", ctypes.c_ulong),
+            ("RootDirectory", ctypes.c_void_p),
+            ("ObjectName", ctypes.POINTER(UnicodeString)),
+            ("Attributes", ctypes.c_ulong),
+            ("SecurityDescriptor", ctypes.c_void_p),
+            ("SecurityQualityOfService", ctypes.c_void_p),
+        ]
+
+    class IoStatusValue(ctypes.Union):
+        _fields_ = (("Status", ctypes.c_long), ("Pointer", ctypes.c_void_p))
+
+    class IoStatusBlock(ctypes.Structure):
+        _fields_ = (("Value", IoStatusValue), ("Information", ctypes.c_size_t))
+
+    relative_buffer = ctypes.create_unicode_buffer(file_name)
+    encoded_name = file_name.encode("utf-16-le")
+    unicode_name = UnicodeString(
+        len(encoded_name),
+        len(encoded_name) + 2,
+        ctypes.cast(relative_buffer, ctypes.c_wchar_p),
+    )
+    object_attributes = ObjectAttributes(
+        ctypes.sizeof(ObjectAttributes),
+        ctypes.c_void_p(parent_handle),
+        ctypes.pointer(unicode_name),
+        0x00000040,
+        None,
+        None,
+    )
+    io_status = IoStatusBlock()
+    output_handle = ctypes.c_void_p()
+    nt_create_file = ntdll.NtCreateFile
+    nt_create_file.argtypes = [
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_ulong,
+        ctypes.POINTER(ObjectAttributes),
+        ctypes.POINTER(IoStatusBlock),
+        ctypes.c_void_p,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_void_p,
+        ctypes.c_ulong,
+    ]
+    nt_create_file.restype = ctypes.c_long
+    desired_access = (0xC0000000 if create_new else 0x80000000) | 0x00100000
+    status = nt_create_file(
+        ctypes.byref(output_handle),
+        desired_access,
+        ctypes.byref(object_attributes),
+        ctypes.byref(io_status),
+        None,
+        0x00000080,
+        0x00000001,
+        2 if create_new else 1,
+        0x00200000 | 0x00000040 | 0x00000020,
+        None,
+        0,
+    )
+    status_code = ctypes.c_uint32(status).value
+    if status < 0 or output_handle.value is None:
+        if create_new and status_code == 0xC0000035:
+            raise ExecutionOverlayError("CREATE_NEW_TARGET_PREEXISTS")
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_FAILED")
+    handle = output_handle.value
+    try:
+        _assert_windows_plain_file_handle(handle, expected_path)
+        return handle
+    except Exception:
+        _close_windows_handles([handle])
+        raise
+
+
+def _open_windows_relative_plain_directory(
+    *, parent_handle: int, directory_name: str, expected_path: Path, create_new: bool
+) -> int:
+    import ctypes
+
+    if Path(directory_name).name != directory_name or directory_name in {"", ".", ".."}:
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_DIRECTORY_PATH_INVALID")
+    win_dll = getattr(ctypes, "WinDLL", None)
+    if not callable(win_dll):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_UNAVAILABLE")
+    ntdll = win_dll("ntdll", use_last_error=True)
+
+    class UnicodeString(ctypes.Structure):
+        _fields_ = [
+            ("Length", ctypes.c_ushort),
+            ("MaximumLength", ctypes.c_ushort),
+            ("Buffer", ctypes.c_wchar_p),
+        ]
+
+    class ObjectAttributes(ctypes.Structure):
+        _fields_ = [
+            ("Length", ctypes.c_ulong),
+            ("RootDirectory", ctypes.c_void_p),
+            ("ObjectName", ctypes.POINTER(UnicodeString)),
+            ("Attributes", ctypes.c_ulong),
+            ("SecurityDescriptor", ctypes.c_void_p),
+            ("SecurityQualityOfService", ctypes.c_void_p),
+        ]
+
+    class IoStatusValue(ctypes.Union):
+        _fields_ = (("Status", ctypes.c_long), ("Pointer", ctypes.c_void_p))
+
+    class IoStatusBlock(ctypes.Structure):
+        _fields_ = (("Value", IoStatusValue), ("Information", ctypes.c_size_t))
+
+    relative_buffer = ctypes.create_unicode_buffer(directory_name)
+    encoded_name = directory_name.encode("utf-16-le")
+    unicode_name = UnicodeString(
+        len(encoded_name),
+        len(encoded_name) + 2,
+        ctypes.cast(relative_buffer, ctypes.c_wchar_p),
+    )
+    object_attributes = ObjectAttributes(
+        ctypes.sizeof(ObjectAttributes),
+        ctypes.c_void_p(parent_handle),
+        ctypes.pointer(unicode_name),
+        0x00000040,
+        None,
+        None,
+    )
+    io_status = IoStatusBlock()
+    output_handle = ctypes.c_void_p()
+    nt_create_file = ntdll.NtCreateFile
+    nt_create_file.argtypes = [
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_ulong,
+        ctypes.POINTER(ObjectAttributes),
+        ctypes.POINTER(IoStatusBlock),
+        ctypes.c_void_p,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_void_p,
+        ctypes.c_ulong,
+    ]
+    nt_create_file.restype = ctypes.c_long
+    status = nt_create_file(
+        ctypes.byref(output_handle),
+        0x00100081,
+        ctypes.byref(object_attributes),
+        ctypes.byref(io_status),
+        None,
+        _FILE_ATTRIBUTE_DIRECTORY,
+        0x00000007,
+        2 if create_new else 3,
+        0x00200000 | 0x00000020 | 0x00000001,
+        None,
+        0,
+    )
+    status_code = ctypes.c_uint32(status).value
+    if status < 0 or output_handle.value is None:
+        if create_new and status_code == 0xC0000035:
+            raise ExecutionOverlayError("CREATE_NEW_TARGET_PREEXISTS")
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_DIRECTORY_INVALID")
+    handle = output_handle.value
+    try:
+        _assert_windows_plain_directory_handle(handle, expected_path)
+        return handle
+    except Exception:
+        _close_windows_handles([handle])
+        raise
+
+
+def _create_plain_directory_windows(path: Path, *, create_new: bool) -> None:
+    if not path.is_absolute() or Path(path.name).name != path.name or path.name in {"", ".", ".."}:
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_DIRECTORY_PATH_INVALID")
+    handles = _open_windows_directory_chain(path.parent)
+    directory_handle: int | None = None
+    try:
+        _assert_windows_plain_directory_handle(handles[-1], path.parent)
+        directory_handle = _open_windows_relative_plain_directory(
+            parent_handle=handles[-1],
+            directory_name=path.name,
+            expected_path=path,
+            create_new=create_new,
+        )
+        _assert_windows_plain_directory_handle(handles[-1], path.parent)
+        _assert_windows_plain_directory_handle(directory_handle, path)
+    finally:
+        if directory_handle is not None:
+            _close_windows_handles([directory_handle])
+        _close_windows_handles(handles)
+
+
+def _read_windows_file_handle(handle: int) -> bytes:
+    import ctypes
+
+    win_dll = getattr(ctypes, "WinDLL", None)
+    if not callable(win_dll):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_UNAVAILABLE")
+    kernel32 = win_dll("kernel32", use_last_error=True)
+    get_file_size = kernel32.GetFileSizeEx
+    get_file_size.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_longlong)]
+    get_file_size.restype = ctypes.c_int
+    set_pointer = kernel32.SetFilePointerEx
+    set_pointer.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_longlong,
+        ctypes.POINTER(ctypes.c_longlong),
+        ctypes.c_uint32,
+    ]
+    set_pointer.restype = ctypes.c_int
+    read_file = kernel32.ReadFile
+    read_file.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_uint32),
+        ctypes.c_void_p,
+    ]
+    read_file.restype = ctypes.c_int
+    size = ctypes.c_longlong()
+    if not get_file_size(handle, ctypes.byref(size)):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_SIZE_UNAVAILABLE")
+    if size.value < 0 or size.value > MAX_PRIVATE_OVERLAY_FILE_BYTES:
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_BYTE_BOUND_FAILED")
+    if not set_pointer(handle, 0, None, 0):
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_SEEK_FAILED")
+    chunks: list[bytes] = []
+    remaining = size.value
+    while remaining:
+        chunk_size = min(1024 * 1024, remaining)
+        buffer = ctypes.create_string_buffer(chunk_size)
+        bytes_read = ctypes.c_uint32()
+        if not read_file(handle, buffer, chunk_size, ctypes.byref(bytes_read), None):
+            raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_READ_FAILED")
+        if bytes_read.value == 0:
+            raise ExecutionOverlayError("CREATE_NEW_SHORT_READBACK")
+        chunks.append(buffer.raw[: bytes_read.value])
+        remaining -= bytes_read.value
+    return b"".join(chunks)
+
+
+def _read_plain_file_bytes_windows(path: Path) -> bytes:
+    handles = _open_windows_directory_chain(path.parent)
+    file_handle: int | None = None
+    try:
+        file_handle = _open_windows_relative_plain_file(
+            parent_handle=handles[-1],
+            file_name=path.name,
+            expected_path=path,
+            create_new=False,
+        )
+        result = _read_windows_file_handle(file_handle)
+        _assert_windows_plain_file_handle(file_handle, path)
+        return result
+    finally:
+        if file_handle is not None:
+            _close_windows_handles([file_handle])
+        _close_windows_handles(handles)
+
+
+def _write_create_new_windows(path: Path, payload: bytes) -> bytes:
+    import ctypes
+
+    handles = _open_windows_directory_chain(path.parent)
+    file_handle: int | None = None
+    try:
+        file_handle = _open_windows_relative_plain_file(
+            parent_handle=handles[-1],
+            file_name=path.name,
+            expected_path=path,
+            create_new=True,
+        )
+        win_dll = getattr(ctypes, "WinDLL", None)
+        if not callable(win_dll):
+            raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_UNAVAILABLE")
+        kernel32 = win_dll("kernel32", use_last_error=True)
+        write_file = kernel32.WriteFile
+        write_file.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.POINTER(ctypes.c_uint32),
+            ctypes.c_void_p,
+        ]
+        write_file.restype = ctypes.c_int
+        flush_file = kernel32.FlushFileBuffers
+        flush_file.argtypes = [ctypes.c_void_p]
+        flush_file.restype = ctypes.c_int
+        offset = 0
+        while offset < len(payload):
+            chunk = payload[offset : offset + (1024 * 1024)]
+            buffer = ctypes.create_string_buffer(chunk)
+            written = ctypes.c_uint32()
+            if not write_file(
+                file_handle,
+                buffer,
+                len(chunk),
+                ctypes.byref(written),
+                None,
+            ):
+                raise ExecutionOverlayError("CREATE_NEW_WRITE_FAILED")
+            if written.value == 0:
+                raise ExecutionOverlayError("CREATE_NEW_SHORT_WRITE")
+            offset += written.value
+        if not flush_file(file_handle):
+            raise ExecutionOverlayError("CREATE_NEW_FLUSH_FAILED")
+        actual = _read_windows_file_handle(file_handle)
+        _assert_windows_plain_file_handle(file_handle, path)
+        return actual
+    finally:
+        if file_handle is not None:
+            _close_windows_handles([file_handle])
+        _close_windows_handles(handles)
+
+
+def _read_plain_file_bytes(path: Path) -> bytes:
+    return (
+        _read_plain_file_bytes_windows(path)
+        if os.name == "nt"
+        else _read_plain_file_bytes_posix(path)
+    )
+
+
 def _open_windows_generated_artifact(
     *,
     generated_artifact_path: Path,
@@ -1344,22 +2111,14 @@ def _copy_or_verify_generated_artifact(
     ):
         raise ExecutionOverlayError("GENERATED_ARTIFACT_CHANGED_DURING_READ")
     source_sha256 = source_digest.hexdigest()
-    if staging_path.exists() or staging_path.is_symlink():
-        _require_plain_file(staging_path)
-        if staging_path.stat().st_size != source_size or sha256_file(staging_path) != source_sha256:
-            raise ExecutionOverlayError("OUTPUT_REGISTRATION_STAGING_CONFLICT")
-        return source_sha256, source_size, first_bytes
+    payload = b"".join(chunks)
     try:
-        with staging_path.open("xb") as target:
-            for chunk in chunks:
-                written = target.write(chunk)
-                if written != len(chunk):
-                    raise ExecutionOverlayError("OUTPUT_REGISTRATION_COPY_SHORT_WRITE")
-            target.flush()
-            os.fsync(target.fileno())
-    except FileExistsError as error:
-        raise ExecutionOverlayError("OUTPUT_REGISTRATION_STAGING_RACE") from error
-    if staging_path.stat().st_size != source_size or sha256_file(staging_path) != source_sha256:
+        staging_sha256, staging_size = _write_bytes_create_or_verify_exact(staging_path, payload)
+    except ExecutionOverlayError as error:
+        if str(error) == "CREATE_NEW_EXISTING_CONTENT_CONFLICT":
+            raise ExecutionOverlayError("OUTPUT_REGISTRATION_STAGING_CONFLICT") from error
+        raise
+    if staging_size != source_size or staging_sha256 != source_sha256:
         raise ExecutionOverlayError("OUTPUT_REGISTRATION_COPY_DIGEST_MISMATCH")
     return source_sha256, source_size, first_bytes
 
@@ -1370,6 +2129,411 @@ def _registration_failure_reason(error: Exception) -> str:
     ):
         return str(error)
     return "OUTPUT_REGISTRATION_INTERNAL_IO_FAILURE"
+
+
+def _registration_file_bindings(
+    *, root: Path, output_opaque_id: str
+) -> tuple[Path, str, Path, str, Path, str]:
+    staging_root = root / "staging"
+    records_root = root / "records"
+    _require_plain_directory(staging_root)
+    _require_plain_directory(records_root)
+    staging_name = f"{output_opaque_id}.raw"
+    record_name = f"output-{output_opaque_id}.json"
+    registration_receipt_name = f"registration-{output_opaque_id}.json"
+    return (
+        _safe_child(staging_root, staging_name),
+        record_name,
+        _safe_child(records_root, record_name),
+        registration_receipt_name,
+        _safe_child(records_root, registration_receipt_name),
+        staging_name,
+    )
+
+
+def _capture_imagegen_data_url(
+    *,
+    attempt_handle: OverlayHandle,
+    expected_controller_sha256: str,
+    action_id: str,
+    project_worktree_root: Path,
+    imagegen_data_url: str,
+    timestamp: str,
+) -> dict[str, Any]:
+    root, _receipt, _event, state = _transition_context(
+        attempt_handle.receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    if (
+        state["phase"] != "OUTPUT_REGISTRATION_ATTEMPT_BOUND"
+        or state["current_action_id"] != action_id
+    ):
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_STATE_INVALID")
+    attempt = state.get("output_registration_attempt")
+    if not isinstance(attempt, dict):
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_MISSING")
+    if attempt.get("source_delivery_class") != "CODEX_NATIVE_IMAGEGEN_DATA_URL":
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_ATTEMPT_CLASS_MISMATCH")
+    private_parent_sha256 = _validate_project_local_private_parent(
+        project_worktree_root=project_worktree_root,
+        allowed_parent=root.parent,
+    )
+    if attempt.get("project_private_parent_sha256") != private_parent_sha256:
+        raise ExecutionOverlayError("PROJECT_PRIVATE_PARENT_BINDING_MISMATCH")
+    output_opaque_id = attempt.get("output_opaque_id")
+    if not isinstance(output_opaque_id, str):
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_OUTPUT_ID_INVALID")
+    _validate_opaque_id(output_opaque_id, "OUTPUT_OPAQUE_ID")
+
+    decoded, media_type, magic_class, data_url_sha256, encoded_payload_bytes = (
+        _parse_imagegen_data_url(imagegen_data_url)
+    )
+    if data_url_sha256 != attempt.get("exact_generated_artifact_receipt_sha256"):
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_BINDING_MISMATCH")
+    (
+        staging_path,
+        _record_name,
+        _record_path,
+        _registration_receipt_name,
+        _registration_receipt_path,
+        staging_name,
+    ) = _registration_file_bindings(root=root, output_opaque_id=output_opaque_id)
+    staging_sha256, byte_size = _write_bytes_create_or_verify_exact(staging_path, decoded)
+    source_sha256 = sha256_bytes(decoded)
+    if staging_sha256 != source_sha256 or byte_size != len(decoded):
+        raise ExecutionOverlayError("IMAGEGEN_DATA_URL_STAGING_VERIFICATION_FAILED")
+
+    capture_sidecar_name = f"capture-{output_opaque_id}.json"
+    capture_sidecar_path = _safe_child(root / "records", capture_sidecar_name)
+    capture_sidecar = {
+        "schema_version": IMAGEGEN_CAPTURE_SIDECAR_SCHEMA,
+        "capture_sidecar_id": f"{output_opaque_id}-IMAGEGEN-CAPTURE",
+        "output_opaque_id": output_opaque_id,
+        "request_ordinal": state["current_ordinal"],
+        "action_id": action_id,
+        "source_kind": "CODEX_NATIVE_IMAGEGEN",
+        "source_delivery_class": "CODEX_NATIVE_IMAGEGEN_DATA_URL",
+        "project_private_parent_sha256": private_parent_sha256,
+        "data_url_sha256": data_url_sha256,
+        "encoded_payload_byte_length": encoded_payload_bytes,
+        "staging_file": staging_name,
+        "source_sha256": source_sha256,
+        "staging_sha256": staging_sha256,
+        "byte_size": byte_size,
+        "media_type": media_type,
+        "magic_byte_class": magic_class,
+        "capture_status": "COMMITTED_PRE_DECODE",
+        "decode_performed": False,
+        "dimensions_read": False,
+        "timestamp": timestamp,
+    }
+    capture_sidecar_sha256, capture_sidecar_bytes = _write_json_create_or_verify_exact(
+        capture_sidecar_path, capture_sidecar
+    )
+    return {
+        "source_sha256": source_sha256,
+        "staging_sha256": staging_sha256,
+        "byte_size": byte_size,
+        "media_type": media_type,
+        "magic_byte_class": magic_class,
+        "capture_sidecar_file": capture_sidecar_name,
+        "capture_sidecar_sha256": capture_sidecar_sha256,
+        "capture_sidecar_bytes": capture_sidecar_bytes,
+        "data_url_sha256": data_url_sha256,
+        "encoded_payload_byte_length": encoded_payload_bytes,
+        "project_private_parent_sha256": private_parent_sha256,
+    }
+
+
+def _verify_imagegen_capture_binding(
+    *,
+    root: Path,
+    state: Mapping[str, Any],
+    action_id: str,
+    capture_binding: Mapping[str, Any],
+) -> None:
+    attempt = state.get("output_registration_attempt")
+    if not isinstance(attempt, dict):
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_MISSING")
+    output_opaque_id = attempt.get("output_opaque_id")
+    if not isinstance(output_opaque_id, str):
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_OUTPUT_ID_INVALID")
+    capture_name = f"capture-{output_opaque_id}.json"
+    staging_name = f"{output_opaque_id}.raw"
+    if capture_binding.get("capture_sidecar_file") != capture_name:
+        raise ExecutionOverlayError("IMAGEGEN_CAPTURE_SIDECAR_BINDING_MISSING")
+    capture_path = _safe_child(root / "records", capture_name)
+    staging_path = _safe_child(root / "staging", staging_name)
+    try:
+        capture_bytes = _read_plain_file_bytes(capture_path)
+        staging_bytes = _read_plain_file_bytes(staging_path)
+    except (ExecutionOverlayError, OSError) as error:
+        raise ExecutionOverlayError("IMAGEGEN_CAPTURE_SIDECAR_NOT_VALID_PRE_DECODE") from error
+    try:
+        capture = json.loads(capture_bytes.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ExecutionOverlayError("IMAGEGEN_CAPTURE_SIDECAR_JSON_INVALID") from error
+    if not isinstance(capture, dict):
+        raise ExecutionOverlayError("IMAGEGEN_CAPTURE_SIDECAR_JSON_INVALID")
+    staging_digest = sha256_bytes(staging_bytes)
+    media_type, magic_class = _classify_magic(staging_bytes[:16])
+    expected_capture_digest = capture_binding.get("capture_sidecar_sha256")
+    expected_project_parent = attempt.get("project_private_parent_sha256")
+    if (
+        not isinstance(expected_capture_digest, str)
+        or sha256_bytes(capture_bytes) != expected_capture_digest
+        or capture_binding.get("capture_sidecar_bytes") != len(capture_bytes)
+        or capture_binding.get("source_sha256") != staging_digest
+        or capture_binding.get("staging_sha256") != staging_digest
+        or capture_binding.get("byte_size") != len(staging_bytes)
+        or capture_binding.get("media_type") != media_type
+        or capture_binding.get("magic_byte_class") != magic_class
+        or capture_binding.get("data_url_sha256")
+        != attempt.get("exact_generated_artifact_receipt_sha256")
+        or capture_binding.get("project_private_parent_sha256") != expected_project_parent
+        or not isinstance(capture_binding.get("encoded_payload_byte_length"), int)
+        or not 1
+        <= cast(int, capture_binding.get("encoded_payload_byte_length"))
+        <= MAX_DATA_URL_ENCODED_BYTES
+        or capture.get("schema_version") != IMAGEGEN_CAPTURE_SIDECAR_SCHEMA
+        or capture.get("capture_sidecar_id") != f"{output_opaque_id}-IMAGEGEN-CAPTURE"
+        or capture.get("output_opaque_id") != output_opaque_id
+        or capture.get("request_ordinal") != state.get("current_ordinal")
+        or capture.get("action_id") != action_id
+        or capture.get("source_kind") != "CODEX_NATIVE_IMAGEGEN"
+        or capture.get("source_delivery_class") != "CODEX_NATIVE_IMAGEGEN_DATA_URL"
+        or capture.get("project_private_parent_sha256") != expected_project_parent
+        or capture.get("data_url_sha256") != attempt.get("exact_generated_artifact_receipt_sha256")
+        or capture.get("encoded_payload_byte_length")
+        != capture_binding.get("encoded_payload_byte_length")
+        or capture.get("staging_file") != staging_name
+        or capture.get("source_sha256") != staging_digest
+        or capture.get("staging_sha256") != staging_digest
+        or capture.get("byte_size") != len(staging_bytes)
+        or capture.get("media_type") != media_type
+        or capture.get("magic_byte_class") != magic_class
+        or capture.get("capture_status") != "COMMITTED_PRE_DECODE"
+        or capture.get("decode_performed") is not False
+        or capture.get("dimensions_read") is not False
+    ):
+        raise ExecutionOverlayError("IMAGEGEN_CAPTURE_SIDECAR_NOT_VALID_PRE_DECODE")
+
+
+def _commit_output_registration(
+    *,
+    attempt_handle: OverlayHandle,
+    expected_controller_sha256: str,
+    action_id: str,
+    timestamp: str,
+    source_sha256: str,
+    staging_sha256: str,
+    byte_size: int,
+    media_type: str,
+    magic_class: str,
+    capture_binding: Mapping[str, Any] | None = None,
+) -> OverlayHandle:
+    _validate_digest(source_sha256, "SOURCE_SHA256")
+    _validate_digest(staging_sha256, "STAGING_SHA256")
+    if source_sha256 != staging_sha256:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_SOURCE_STAGING_DIGEST_MISMATCH")
+    if not isinstance(byte_size, int) or not 1 <= byte_size <= MAX_RETURNED_BYTES:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_BYTE_BOUND_FAILED")
+    if media_type not in {"image/png", "image/jpeg", "image/webp", "application/octet-stream"}:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_MEDIA_TYPE_INVALID")
+    if not isinstance(magic_class, str) or not magic_class:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_MAGIC_CLASS_INVALID")
+
+    root, receipt, _event, state = _transition_context(
+        attempt_handle.receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    if (
+        state["phase"] != "OUTPUT_REGISTRATION_ATTEMPT_BOUND"
+        or state["current_action_id"] != action_id
+    ):
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_STATE_INVALID")
+    attempt = state.get("output_registration_attempt")
+    if not isinstance(attempt, dict):
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_MISSING")
+    output_opaque_id = attempt.get("output_opaque_id")
+    if not isinstance(output_opaque_id, str):
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_OUTPUT_ID_INVALID")
+    _validate_opaque_id(output_opaque_id, "OUTPUT_OPAQUE_ID")
+    source_delivery_class = attempt.get("source_delivery_class")
+    if source_delivery_class not in {
+        "TRUSTED_PRINCIPAL_EXACT_IMAGEGEN_OUTPUT_HINT_PATH",
+        "CODEX_NATIVE_IMAGEGEN_DATA_URL",
+    }:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_DELIVERY_CLASS_INVALID")
+    if (source_delivery_class == "CODEX_NATIVE_IMAGEGEN_DATA_URL") != (capture_binding is not None):
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_CAPTURE_BINDING_MISMATCH")
+    if capture_binding is not None:
+        _verify_imagegen_capture_binding(
+            root=root,
+            state=state,
+            action_id=action_id,
+            capture_binding=capture_binding,
+        )
+
+    (
+        _staging_path,
+        record_name,
+        record_path,
+        registration_receipt_name,
+        registration_receipt_path,
+        _staging_name,
+    ) = _registration_file_bindings(root=root, output_opaque_id=output_opaque_id)
+    binding = cast(dict[str, Any], state["binding"])
+    registration_receipt_id = f"{output_opaque_id}-REGISTRATION"
+    output_record: dict[str, Any] = {
+        "schema_version": OUTPUT_RECORD_SCHEMA,
+        "output_opaque_id": output_opaque_id,
+        "request_ordinal": state["current_ordinal"],
+        "source_kind": "CODEX_NATIVE_IMAGEGEN",
+        "source_delivery_class": source_delivery_class,
+        "exact_generated_artifact_receipt_sha256": attempt[
+            "exact_generated_artifact_receipt_sha256"
+        ],
+        "source_sha256": source_sha256,
+        "staging_sha256": staging_sha256,
+        "byte_size": byte_size,
+        "media_type": media_type,
+        "magic_byte_class": magic_class,
+        "generation_specification_version": binding["generation_specification_version"],
+        "generation_specification_digest": binding["generation_specification_sha256"],
+        "assignment_manifest_version": binding["assignment_manifest_version"],
+        "assignment_manifest_digest": binding["assignment_manifest_sha256"],
+        "request_ledger_status": "DISPATCHED_RETURNED_ONE",
+        "output_ledger_status": "RAW_REGISTERED_PRE_DECODE",
+        "custody_status": "PRIVATE_STAGING_CREATE_NEW",
+        "retention_class": "AUTHORIZED_P2_M5_CALIBRATION_RESEARCH_AND_AUDIT_ONLY",
+        "cleanup_policy": "EXACT_REGISTERED_OUTPUT_ID_ONLY",
+        "registration_timestamp": timestamp,
+        "registration_status": "COMMITTED",
+        "registration_commit_receipt": registration_receipt_id,
+        "decode_performed": False,
+        "dimensions_read": False,
+    }
+    if capture_binding is not None:
+        output_record.update(
+            {
+                "capture_sidecar_file": capture_binding["capture_sidecar_file"],
+                "capture_sidecar_sha256": capture_binding["capture_sidecar_sha256"],
+                "data_url_sha256": capture_binding["data_url_sha256"],
+                "encoded_payload_byte_length": capture_binding["encoded_payload_byte_length"],
+            }
+        )
+    record_digest, record_size = _write_json_create_or_verify_exact(record_path, output_record)
+    registration_receipt: dict[str, Any] = {
+        "schema_version": REGISTRATION_RECEIPT_SCHEMA,
+        "registration_receipt_id": registration_receipt_id,
+        "output_opaque_id": output_opaque_id,
+        "request_ordinal": state["current_ordinal"],
+        "output_record_file": record_name,
+        "output_record_sha256": record_digest,
+        "output_record_bytes": record_size,
+        "exact_generated_artifact_receipt_sha256": attempt[
+            "exact_generated_artifact_receipt_sha256"
+        ],
+        "source_sha256": source_sha256,
+        "staging_sha256": staging_sha256,
+        "registration_status": "COMMITTED",
+        "receipt_status": "VALID",
+        "decode_performed": False,
+        "dimensions_read": False,
+        "timestamp": timestamp,
+    }
+    if capture_binding is not None:
+        registration_receipt.update(
+            {
+                "byte_size": byte_size,
+                "media_type": media_type,
+                "magic_byte_class": magic_class,
+                "capture_sidecar_file": capture_binding["capture_sidecar_file"],
+                "capture_sidecar_sha256": capture_binding["capture_sidecar_sha256"],
+                "capture_sidecar_bytes": capture_binding["capture_sidecar_bytes"],
+                "data_url_sha256": capture_binding["data_url_sha256"],
+                "encoded_payload_byte_length": capture_binding["encoded_payload_byte_length"],
+            }
+        )
+    registration_digest, _ = _write_json_create_or_verify_exact(
+        registration_receipt_path, registration_receipt
+    )
+    if capture_binding is not None:
+        _verify_imagegen_capture_binding(
+            root=root,
+            state=state,
+            action_id=action_id,
+            capture_binding=capture_binding,
+        )
+
+    counters = dict(cast(dict[str, int], state["counters"]))
+    counters["active_calls"] = 0
+    _validate_counters(counters)
+    sequence = cast(int, receipt["sequence"]) + 1
+    new_event: dict[str, Any] = {
+        "schema_version": EVENT_SCHEMA,
+        "overlay_output_id": state["overlay_output_id"],
+        "sequence": sequence,
+        "event_type": "OUTPUT_REGISTRATION_COMMITTED_PRE_DECODE",
+        "timestamp": timestamp,
+        "previous_event_sha256": receipt["event_sha256"],
+        "action_id": action_id,
+        "request_ordinal": state["current_ordinal"],
+        "reason_code": "REGISTER_BEFORE_DECODE_PASS",
+        "output_opaque_id": output_opaque_id,
+        "output_record_file": record_name,
+        "output_record_sha256": record_digest,
+        "registration_receipt_file": registration_receipt_name,
+        "registration_receipt_sha256": registration_digest,
+    }
+    if capture_binding is not None:
+        new_event.update(
+            {
+                "capture_sidecar_file": capture_binding["capture_sidecar_file"],
+                "capture_sidecar_sha256": capture_binding["capture_sidecar_sha256"],
+            }
+        )
+    output_registration: dict[str, Any] = {
+        "output_opaque_id": output_opaque_id,
+        "record_file": record_name,
+        "record_sha256": record_digest,
+        "registration_receipt_file": registration_receipt_name,
+        "registration_receipt_sha256": registration_digest,
+        "registration_status": "COMMITTED",
+        "receipt_status": "VALID",
+    }
+    if capture_binding is not None:
+        output_registration.update(
+            {
+                "source_delivery_class": source_delivery_class,
+                "capture_sidecar_file": capture_binding["capture_sidecar_file"],
+                "capture_sidecar_sha256": capture_binding["capture_sidecar_sha256"],
+            }
+        )
+    new_state = dict(state)
+    new_state.update(
+        {
+            "sequence": sequence,
+            "phase": "OUTPUT_REGISTERED_PRE_DECODE",
+            "timestamp": timestamp,
+            "previous_state_sha256": receipt["state_sha256"],
+            "last_event_sha256": sha256_bytes(canonical_json_bytes(new_event)),
+            "counters": counters,
+            "output_registration": output_registration,
+            "decode_authorized": capture_binding is None,
+            "hard_stop": False,
+        }
+    )
+    return _commit_transition(
+        root=root,
+        sequence=sequence,
+        controller_sha256=expected_controller_sha256,
+        event=new_event,
+        state=new_state,
+        previous_receipt=_previous_receipt_binding(attempt_handle.receipt_path, receipt),
+        registration_receipt=(registration_receipt_name, registration_digest),
+    )
 
 
 def register_output_before_decode(
@@ -1390,7 +2554,7 @@ def register_output_before_decode(
         timestamp=timestamp,
     )
     try:
-        root, receipt, _event, state = _transition_context(
+        root, _receipt, _event, state = _transition_context(
             attempt_handle.receipt_path,
             expected_controller_sha256=expected_controller_sha256,
         )
@@ -1406,12 +2570,9 @@ def register_output_before_decode(
         if generated_artifact_path.resolve().is_relative_to(root.resolve()):
             raise ExecutionOverlayError("GENERATED_ARTIFACT_INSIDE_OVERLAY_PROHIBITED")
 
-        staging_name = f"{output_opaque_id}.raw"
-        staging_path = _safe_child(root / "staging", staging_name)
-        record_name = f"output-{output_opaque_id}.json"
-        record_path = _safe_child(root / "records", record_name)
-        registration_receipt_name = f"registration-{output_opaque_id}.json"
-        registration_receipt_path = _safe_child(root / "records", registration_receipt_name)
+        staging_path, _record_name, _record_path, _registration_name, _registration_path, _ = (
+            _registration_file_bindings(root=root, output_opaque_id=output_opaque_id)
+        )
         source_sha256, source_size, first_bytes = _copy_or_verify_generated_artifact(
             generated_artifact_path=generated_artifact_path,
             allowed_generated_artifact_root=allowed_generated_artifact_root,
@@ -1419,112 +2580,71 @@ def register_output_before_decode(
         )
         staging_sha256 = sha256_file(staging_path)
         media_type, magic_class = _classify_magic(first_bytes)
-
-        binding = cast(dict[str, Any], state["binding"])
-        registration_receipt_id = f"{output_opaque_id}-REGISTRATION"
-        output_record = {
-            "schema_version": OUTPUT_RECORD_SCHEMA,
-            "output_opaque_id": output_opaque_id,
-            "request_ordinal": state["current_ordinal"],
-            "source_kind": "CODEX_NATIVE_IMAGEGEN",
-            "source_delivery_class": "TRUSTED_PRINCIPAL_EXACT_IMAGEGEN_OUTPUT_HINT_PATH",
-            "exact_generated_artifact_receipt_sha256": attempt[
-                "exact_generated_artifact_receipt_sha256"
-            ],
-            "source_sha256": source_sha256,
-            "staging_sha256": staging_sha256,
-            "byte_size": source_size,
-            "media_type": media_type,
-            "magic_byte_class": magic_class,
-            "generation_specification_version": binding["generation_specification_version"],
-            "generation_specification_digest": binding["generation_specification_sha256"],
-            "assignment_manifest_version": binding["assignment_manifest_version"],
-            "assignment_manifest_digest": binding["assignment_manifest_sha256"],
-            "request_ledger_status": "DISPATCHED_RETURNED_ONE",
-            "output_ledger_status": "RAW_REGISTERED_PRE_DECODE",
-            "custody_status": "PRIVATE_STAGING_CREATE_NEW",
-            "retention_class": "AUTHORIZED_P2_M5_CALIBRATION_RESEARCH_AND_AUDIT_ONLY",
-            "cleanup_policy": "EXACT_REGISTERED_OUTPUT_ID_ONLY",
-            "registration_timestamp": timestamp,
-            "registration_status": "COMMITTED",
-            "registration_commit_receipt": registration_receipt_id,
-            "decode_performed": False,
-            "dimensions_read": False,
-        }
-        record_digest, record_size = _write_json_create_or_verify_exact(record_path, output_record)
-        registration_receipt = {
-            "schema_version": REGISTRATION_RECEIPT_SCHEMA,
-            "registration_receipt_id": registration_receipt_id,
-            "output_opaque_id": output_opaque_id,
-            "request_ordinal": state["current_ordinal"],
-            "output_record_file": record_name,
-            "output_record_sha256": record_digest,
-            "output_record_bytes": record_size,
-            "exact_generated_artifact_receipt_sha256": attempt[
-                "exact_generated_artifact_receipt_sha256"
-            ],
-            "source_sha256": source_sha256,
-            "staging_sha256": staging_sha256,
-            "registration_status": "COMMITTED",
-            "receipt_status": "VALID",
-            "decode_performed": False,
-            "dimensions_read": False,
-            "timestamp": timestamp,
-        }
-        registration_digest, _ = _write_json_create_or_verify_exact(
-            registration_receipt_path, registration_receipt
+        return _commit_output_registration(
+            attempt_handle=attempt_handle,
+            expected_controller_sha256=expected_controller_sha256,
+            action_id=action_id,
+            timestamp=timestamp,
+            source_sha256=source_sha256,
+            staging_sha256=staging_sha256,
+            byte_size=source_size,
+            media_type=media_type,
+            magic_class=magic_class,
         )
+    except (ExecutionOverlayError, OSError, UnicodeError) as error:
+        reason_code = _registration_failure_reason(error)
+        try:
+            return mark_registration_failed(
+                receipt_path=attempt_handle.receipt_path,
+                expected_controller_sha256=expected_controller_sha256,
+                action_id=action_id,
+                timestamp=timestamp,
+                reason_code=reason_code,
+            )
+        except ExecutionOverlayError as terminal_error:
+            raise ExecutionOverlayError(
+                "OUTPUT_REGISTRATION_FAILURE_EVIDENCE_UNCOMMITTED_HARD_STOP"
+            ) from terminal_error
 
-        counters = dict(cast(dict[str, int], state["counters"]))
-        counters["active_calls"] = 0
-        _validate_counters(counters)
-        sequence = cast(int, receipt["sequence"]) + 1
-        new_event = {
-            "schema_version": EVENT_SCHEMA,
-            "overlay_output_id": state["overlay_output_id"],
-            "sequence": sequence,
-            "event_type": "OUTPUT_REGISTRATION_COMMITTED_PRE_DECODE",
-            "timestamp": timestamp,
-            "previous_event_sha256": receipt["event_sha256"],
-            "action_id": action_id,
-            "request_ordinal": state["current_ordinal"],
-            "reason_code": "REGISTER_BEFORE_DECODE_PASS",
-            "output_opaque_id": output_opaque_id,
-            "output_record_file": record_name,
-            "output_record_sha256": record_digest,
-            "registration_receipt_file": registration_receipt_name,
-            "registration_receipt_sha256": registration_digest,
-        }
-        new_state = dict(state)
-        new_state.update(
-            {
-                "sequence": sequence,
-                "phase": "OUTPUT_REGISTERED_PRE_DECODE",
-                "timestamp": timestamp,
-                "previous_state_sha256": receipt["state_sha256"],
-                "last_event_sha256": sha256_bytes(canonical_json_bytes(new_event)),
-                "counters": counters,
-                "output_registration": {
-                    "output_opaque_id": output_opaque_id,
-                    "record_file": record_name,
-                    "record_sha256": record_digest,
-                    "registration_receipt_file": registration_receipt_name,
-                    "registration_receipt_sha256": registration_digest,
-                    "registration_status": "COMMITTED",
-                    "receipt_status": "VALID",
-                },
-                "decode_authorized": True,
-                "hard_stop": False,
-            }
+
+def register_imagegen_data_url_before_decode(
+    *,
+    receipt_path: Path,
+    expected_controller_sha256: str,
+    action_id: str,
+    project_worktree_root: Path,
+    imagegen_data_url: str,
+    timestamp: str,
+) -> OverlayHandle:
+    _validate_timestamp(timestamp)
+    attempt_handle = _begin_imagegen_data_url_registration_attempt(
+        receipt_path=receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+        action_id=action_id,
+        project_worktree_root=project_worktree_root,
+        imagegen_data_url=imagegen_data_url,
+        timestamp=timestamp,
+    )
+    try:
+        capture_binding = _capture_imagegen_data_url(
+            attempt_handle=attempt_handle,
+            expected_controller_sha256=expected_controller_sha256,
+            action_id=action_id,
+            project_worktree_root=project_worktree_root,
+            imagegen_data_url=imagegen_data_url,
+            timestamp=timestamp,
         )
-        return _commit_transition(
-            root=root,
-            sequence=sequence,
-            controller_sha256=expected_controller_sha256,
-            event=new_event,
-            state=new_state,
-            previous_receipt=_previous_receipt_binding(attempt_handle.receipt_path, receipt),
-            registration_receipt=(registration_receipt_name, registration_digest),
+        return _commit_output_registration(
+            attempt_handle=attempt_handle,
+            expected_controller_sha256=expected_controller_sha256,
+            action_id=action_id,
+            timestamp=timestamp,
+            source_sha256=cast(str, capture_binding["source_sha256"]),
+            staging_sha256=cast(str, capture_binding["staging_sha256"]),
+            byte_size=cast(int, capture_binding["byte_size"]),
+            media_type=cast(str, capture_binding["media_type"]),
+            magic_class=cast(str, capture_binding["magic_byte_class"]),
+            capture_binding=capture_binding,
         )
     except (ExecutionOverlayError, OSError, UnicodeError) as error:
         reason_code = _registration_failure_reason(error)
@@ -1546,6 +2666,7 @@ def verify_registration_before_decode(
     receipt_path: Path,
     *,
     expected_controller_sha256: str,
+    project_worktree_root: Path | None = None,
 ) -> dict[str, Any]:
     verified = verify_overlay(
         receipt_path,
@@ -1553,25 +2674,42 @@ def verify_registration_before_decode(
     )
     receipt = cast(dict[str, Any], verified["receipt"])
     state = cast(dict[str, Any], verified["state"])
-    if state["phase"] != "OUTPUT_REGISTERED_PRE_DECODE" or state["decode_authorized"] is not True:
+    if state["phase"] != "OUTPUT_REGISTERED_PRE_DECODE":
         raise ExecutionOverlayError("DECODE_GATE_NOT_OPEN")
+    attempt = state.get("output_registration_attempt")
+    if not isinstance(attempt, dict):
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_MISSING")
+    source_delivery_class = attempt.get("source_delivery_class")
+    if source_delivery_class == "TRUSTED_PRINCIPAL_EXACT_IMAGEGEN_OUTPUT_HINT_PATH":
+        if state.get("decode_authorized") is not True:
+            raise ExecutionOverlayError("DECODE_GATE_NOT_OPEN")
+    elif source_delivery_class == "CODEX_NATIVE_IMAGEGEN_DATA_URL":
+        if state.get("decode_authorized") is not False or project_worktree_root is None:
+            raise ExecutionOverlayError("IMAGEGEN_CAPTURE_VERIFIER_AUTHORITY_REQUIRED")
+    else:
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_DELIVERY_CLASS_INVALID")
     registration = state.get("output_registration")
     if not isinstance(registration, dict):
         raise ExecutionOverlayError("OUTPUT_REGISTRATION_STATE_MISSING")
     root = receipt_path.parent
+    _require_plain_directory(root / "records")
     registration_path = _safe_child(
         root / "records", cast(str, registration["registration_receipt_file"])
     )
     record_path = _safe_child(root / "records", cast(str, registration["record_file"]))
-    if sha256_file(registration_path) != registration["registration_receipt_sha256"]:
+    registration_bytes = _read_plain_file_bytes(registration_path)
+    record_bytes = _read_plain_file_bytes(record_path)
+    if sha256_bytes(registration_bytes) != registration["registration_receipt_sha256"]:
         raise ExecutionOverlayError("REGISTRATION_RECEIPT_DIGEST_MISMATCH")
-    if sha256_file(record_path) != registration["record_sha256"]:
+    if sha256_bytes(record_bytes) != registration["record_sha256"]:
         raise ExecutionOverlayError("OUTPUT_RECORD_DIGEST_MISMATCH")
-    registration_receipt = _read_json(registration_path)
-    output_record = _read_json(record_path)
-    attempt = state.get("output_registration_attempt")
-    if not isinstance(attempt, dict):
-        raise ExecutionOverlayError("OUTPUT_REGISTRATION_ATTEMPT_MISSING")
+    try:
+        registration_receipt = json.loads(registration_bytes.decode("utf-8"))
+        output_record = json.loads(record_bytes.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ExecutionOverlayError("REGISTRATION_JSON_INVALID") from error
+    if not isinstance(registration_receipt, dict) or not isinstance(output_record, dict):
+        raise ExecutionOverlayError("REGISTRATION_JSON_INVALID")
     if (
         registration_receipt.get("receipt_status") != "VALID"
         or registration_receipt.get("registration_status") != "COMMITTED"
@@ -1589,7 +2727,7 @@ def verify_registration_before_decode(
         raise ExecutionOverlayError("REGISTRATION_RECEIPT_NOT_VALID_PRE_DECODE")
     if receipt.get("registration_receipt_sha256") != registration["registration_receipt_sha256"]:
         raise ExecutionOverlayError("OVERLAY_RECEIPT_REGISTRATION_BINDING_MISMATCH")
-    return {
+    result = {
         "status": "REGISTER_BEFORE_DECODE_PASS",
         "phase": state["phase"],
         "sequence": state["sequence"],
@@ -1601,6 +2739,392 @@ def verify_registration_before_decode(
         "magic_byte_class": output_record["magic_byte_class"],
         "decode_performed": False,
         "dimensions_read": False,
+    }
+    if source_delivery_class == "CODEX_NATIVE_IMAGEGEN_DATA_URL":
+        capture_sidecar_file = registration.get("capture_sidecar_file")
+        capture_sidecar_sha256 = registration.get("capture_sidecar_sha256")
+        output_opaque_id = registration.get("output_opaque_id")
+        if (
+            not isinstance(capture_sidecar_file, str)
+            or not isinstance(capture_sidecar_sha256, str)
+            or not isinstance(output_opaque_id, str)
+            or capture_sidecar_file != f"capture-{output_opaque_id}.json"
+        ):
+            raise ExecutionOverlayError("IMAGEGEN_CAPTURE_SIDECAR_BINDING_MISSING")
+        _validate_digest(capture_sidecar_sha256, "CAPTURE_SIDECAR_SHA256")
+        private_parent_sha256 = _validate_project_local_private_parent(
+            project_worktree_root=cast(Path, project_worktree_root),
+            allowed_parent=root.parent,
+        )
+        encoded_payload_bytes = registration_receipt.get("encoded_payload_byte_length")
+        if (
+            attempt.get("project_private_parent_sha256") != private_parent_sha256
+            or output_record.get("source_delivery_class") != "CODEX_NATIVE_IMAGEGEN_DATA_URL"
+            or output_record.get("capture_sidecar_file") != capture_sidecar_file
+            or output_record.get("capture_sidecar_sha256") != capture_sidecar_sha256
+            or output_record.get("data_url_sha256")
+            != attempt.get("exact_generated_artifact_receipt_sha256")
+            or output_record.get("encoded_payload_byte_length") != encoded_payload_bytes
+            or registration_receipt.get("capture_sidecar_file") != capture_sidecar_file
+            or registration_receipt.get("capture_sidecar_sha256") != capture_sidecar_sha256
+            or registration_receipt.get("data_url_sha256")
+            != attempt.get("exact_generated_artifact_receipt_sha256")
+            or registration_receipt.get("source_sha256") != output_record.get("source_sha256")
+            or registration_receipt.get("staging_sha256") != output_record.get("staging_sha256")
+            or registration_receipt.get("byte_size") != output_record.get("byte_size")
+            or registration_receipt.get("media_type") != output_record.get("media_type")
+            or registration_receipt.get("magic_byte_class") != output_record.get("magic_byte_class")
+        ):
+            raise ExecutionOverlayError("IMAGEGEN_CAPTURE_SIDECAR_NOT_VALID_PRE_DECODE")
+        capture_binding = {
+            "source_sha256": output_record.get("source_sha256"),
+            "staging_sha256": output_record.get("staging_sha256"),
+            "byte_size": output_record.get("byte_size"),
+            "media_type": output_record.get("media_type"),
+            "magic_byte_class": output_record.get("magic_byte_class"),
+            "capture_sidecar_file": capture_sidecar_file,
+            "capture_sidecar_sha256": capture_sidecar_sha256,
+            "capture_sidecar_bytes": registration_receipt.get("capture_sidecar_bytes"),
+            "data_url_sha256": attempt.get("exact_generated_artifact_receipt_sha256"),
+            "encoded_payload_byte_length": encoded_payload_bytes,
+            "project_private_parent_sha256": private_parent_sha256,
+        }
+        _verify_imagegen_capture_binding(
+            root=root,
+            state=state,
+            action_id=cast(str, state["current_action_id"]),
+            capture_binding=capture_binding,
+        )
+        result.update(
+            {
+                "source_delivery_class": source_delivery_class,
+                "capture_sidecar_sha256": capture_sidecar_sha256,
+                "decode_authorized": True,
+            }
+        )
+    elif source_delivery_class != "TRUSTED_PRINCIPAL_EXACT_IMAGEGEN_OUTPUT_HINT_PATH":
+        raise ExecutionOverlayError("OUTPUT_REGISTRATION_DELIVERY_CLASS_INVALID")
+    return result
+
+
+def _verified_terminal_rollover_predecessor(
+    receipt_path: Path,
+    *,
+    expected_controller_sha256: str,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    verified = verify_overlay(
+        receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    receipt = cast(dict[str, Any], verified["receipt"])
+    event = cast(dict[str, Any], verified["event"])
+    state = cast(dict[str, Any], verified["state"])
+    expected_counters = {
+        "request_call_count": 2,
+        "requested_output_count": 2,
+        "returned_output_count": 2,
+        "raw_output_count": 2,
+        "failed_call_count": 0,
+        "rejected_output_count": 0,
+        "admitted_identity_count": 0,
+        "formal_calls_remaining": 30,
+        "formal_raw_capacity_remaining": 30,
+        "global_native_output_capacity_remaining": 61,
+        "global_native_output_consumed": 3,
+        "active_calls": 0,
+    }
+    attempt = state.get("output_registration_attempt")
+    returned_binding = state.get("returned_output_binding")
+    if (
+        state.get("phase") != "OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE"
+        or event.get("event_type") != "OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE"
+        or event.get("reason_code") != "GENERATED_ARTIFACT_RECEIPT_INVALID"
+        or state.get("hard_stop") is not True
+        or state.get("decode_authorized") is not False
+        or state.get("current_ordinal") != "CAL-REQ-002"
+        or state.get("next_unused_ordinal") != "CAL-REQ-003"
+        or state.get("counters") != expected_counters
+        or state.get("output_registration") is not None
+        or not isinstance(attempt, dict)
+        or not isinstance(returned_binding, dict)
+        or attempt.get("request_ordinal") != "CAL-REQ-002"
+        or returned_binding.get("request_ordinal") != "CAL-REQ-002"
+        or attempt.get("action_id") != state.get("current_action_id")
+        or returned_binding.get("action_id") != state.get("current_action_id")
+        or event.get("action_id") != state.get("current_action_id")
+        or event.get("request_ordinal") != "CAL-REQ-002"
+    ):
+        raise ExecutionOverlayError("ROLLOVER_TERMINAL_PREDECESSOR_INVALID")
+    predecessor_binding = {
+        "predecessor_overlay_output_id": state["overlay_output_id"],
+        "predecessor_terminal_receipt_sha256": sha256_file(receipt_path),
+        "predecessor_terminal_state_sha256": receipt["state_sha256"],
+        "predecessor_terminal_event_sha256": receipt["event_sha256"],
+        "predecessor_terminal_sequence": receipt["sequence"],
+        "predecessor_terminal_phase": state["phase"],
+        "predecessor_terminal_reason_code": event["reason_code"],
+    }
+    return receipt, event, state, predecessor_binding
+
+
+def _rollover_derived_ledger(state: Mapping[str, Any]) -> dict[str, Any]:
+    counters = state.get("counters")
+    if not isinstance(counters, dict):
+        raise ExecutionOverlayError("ROLLOVER_PREDECESSOR_COUNTERS_MISSING")
+    _validate_counters(counters)
+    return {
+        "next_unused_ordinal": state["next_unused_ordinal"],
+        "counters": dict(cast(dict[str, int], counters)),
+        "cal_req_002_status": "CONSUMED_FAILED_NO_RETRY",
+    }
+
+
+def rollover_terminal_overlay(
+    *,
+    predecessor_receipt_path: Path,
+    expected_controller_sha256: str,
+    project_worktree_root: Path,
+    allowed_parent: Path,
+    successor_root: Path,
+    successor_overlay_output_id: str,
+    timestamp: str,
+) -> OverlayHandle:
+    _validate_timestamp(timestamp)
+    _validate_opaque_id(successor_overlay_output_id, "SUCCESSOR_OVERLAY_OUTPUT_ID")
+    project_private_parent_sha256 = _validate_project_local_private_parent(
+        project_worktree_root=project_worktree_root,
+        allowed_parent=allowed_parent,
+    )
+    if not allowed_parent.is_absolute() or not successor_root.is_absolute():
+        raise ExecutionOverlayError("ROLLOVER_ABSOLUTE_PATH_REQUIRED")
+    if successor_root.parent.resolve() != allowed_parent.resolve():
+        raise ExecutionOverlayError("ROLLOVER_SUCCESSOR_ROOT_OUTSIDE_ALLOWED_PARENT")
+    if predecessor_receipt_path.parent.parent.resolve() != allowed_parent.resolve():
+        raise ExecutionOverlayError("ROLLOVER_PREDECESSOR_ROOT_OUTSIDE_ALLOWED_PARENT")
+    if predecessor_receipt_path.parent.resolve() == successor_root.resolve():
+        raise ExecutionOverlayError("ROLLOVER_SUCCESSOR_MUST_BE_NEW_ROOT")
+    _validate_opaque_id(successor_root.name, "ROLLOVER_SUCCESSOR_ROOT_NAME")
+
+    _receipt, _event, predecessor_state, predecessor_binding = (
+        _verified_terminal_rollover_predecessor(
+            predecessor_receipt_path,
+            expected_controller_sha256=expected_controller_sha256,
+        )
+    )
+    if successor_overlay_output_id == predecessor_state["overlay_output_id"]:
+        raise ExecutionOverlayError("ROLLOVER_SUCCESSOR_OVERLAY_ID_MUST_BE_NEW")
+    derived_ledger = _rollover_derived_ledger(predecessor_state)
+    rollover_intent_id = (
+        "ROLLOVER-" + cast(str, predecessor_binding["predecessor_terminal_receipt_sha256"]).upper()
+    )
+    _validate_opaque_id(rollover_intent_id, "ROLLOVER_INTENT_ID")
+    intent_name = f"rollover-intent-{rollover_intent_id}.json"
+    intent_path = _safe_child(allowed_parent, intent_name)
+    intent = {
+        "schema_version": ROLLOVER_INTENT_SCHEMA,
+        "rollover_intent_id": rollover_intent_id,
+        "controller_sha256": expected_controller_sha256,
+        "successor_overlay_output_id": successor_overlay_output_id,
+        "successor_root_name": successor_root.name,
+        "predecessor": predecessor_binding,
+        "derived_ledger": derived_ledger,
+        "project_private_parent_sha256": project_private_parent_sha256,
+        "create_mode": "CREATE_NEW_OR_RECOVER_EXACT_PARTIAL_ROOT",
+        "generation_calls": 0,
+        "decode_performed": False,
+        "timestamp": timestamp,
+    }
+    intent_preexisted = intent_path.exists() or intent_path.is_symlink()
+    if not intent_preexisted and (successor_root.exists() or successor_root.is_symlink()):
+        raise ExecutionOverlayError("ROLLOVER_SUCCESSOR_ROOT_PREEXISTS_WITHOUT_INTENT")
+    intent_sha256, _ = _write_json_create_or_verify_exact(intent_path, intent)
+
+    if intent_preexisted:
+        _create_or_verify_plain_directory(successor_root)
+    else:
+        try:
+            _create_new_plain_directory(successor_root)
+        except ExecutionOverlayError as error:
+            if str(error) == "CREATE_NEW_TARGET_PREEXISTS":
+                raise ExecutionOverlayError("ROLLOVER_SUCCESSOR_ROOT_CREATE_RACE") from error
+            raise
+    _create_or_verify_plain_directory(successor_root / "staging")
+    _create_or_verify_plain_directory(successor_root / "records")
+    if (
+        _validate_project_local_private_parent(
+            project_worktree_root=project_worktree_root,
+            allowed_parent=allowed_parent,
+        )
+        != project_private_parent_sha256
+        or sha256_file(intent_path) != intent_sha256
+    ):
+        raise ExecutionOverlayError("ROLLOVER_INTENT_PARENT_BINDING_CHANGED")
+
+    cross_root_binding = {
+        **predecessor_binding,
+        "rollover_intent_id": rollover_intent_id,
+        "rollover_intent_file": intent_name,
+        "rollover_intent_sha256": intent_sha256,
+        "project_private_parent_sha256": project_private_parent_sha256,
+    }
+    event = {
+        "schema_version": EVENT_SCHEMA,
+        "overlay_output_id": successor_overlay_output_id,
+        "sequence": 0,
+        "event_type": "TERMINAL_OVERLAY_ROLLED_FORWARD",
+        "timestamp": timestamp,
+        "previous_event_sha256": None,
+        "action_id": None,
+        "request_ordinal": None,
+        "reason_code": "TERMINAL_OVERLAY_ROLLED_FORWARD_NO_GENERATION",
+        "rollover_predecessor": cross_root_binding,
+    }
+    state = {
+        "schema_version": STATE_SCHEMA,
+        "overlay_schema_version": OVERLAY_SCHEMA,
+        "overlay_output_id": successor_overlay_output_id,
+        "sequence": 0,
+        "phase": "READY",
+        "timestamp": timestamp,
+        "previous_state_sha256": None,
+        "last_event_sha256": sha256_bytes(canonical_json_bytes(event)),
+        "binding": dict(cast(dict[str, Any], predecessor_state["binding"])),
+        "rollover_predecessor": cross_root_binding,
+        "counters": dict(cast(dict[str, int], predecessor_state["counters"])),
+        "next_unused_ordinal": predecessor_state["next_unused_ordinal"],
+        "current_action_id": None,
+        "current_ordinal": None,
+        "expected_output_opaque_id": None,
+        "returned_output_binding": None,
+        "output_registration_attempt": None,
+        "output_registration": None,
+        "decode_authorized": False,
+        "hard_stop": False,
+    }
+    handle = _commit_transition(
+        root=successor_root,
+        sequence=0,
+        controller_sha256=expected_controller_sha256,
+        event=event,
+        state=state,
+        previous_receipt=None,
+    )
+    verify_rollover_successor(
+        handle.receipt_path,
+        predecessor_receipt_path=predecessor_receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+        project_worktree_root=project_worktree_root,
+    )
+    return handle
+
+
+def verify_rollover_successor(
+    successor_receipt_path: Path,
+    *,
+    predecessor_receipt_path: Path,
+    expected_controller_sha256: str,
+    project_worktree_root: Path,
+) -> dict[str, Any]:
+    _predecessor_receipt, _predecessor_event, predecessor_state, predecessor_binding = (
+        _verified_terminal_rollover_predecessor(
+            predecessor_receipt_path,
+            expected_controller_sha256=expected_controller_sha256,
+        )
+    )
+    successor_verified = verify_overlay(
+        successor_receipt_path,
+        expected_controller_sha256=expected_controller_sha256,
+    )
+    successor_receipt = cast(dict[str, Any], successor_verified["receipt"])
+    successor_event = cast(dict[str, Any], successor_verified["event"])
+    successor_state = cast(dict[str, Any], successor_verified["state"])
+    if (
+        successor_receipt_path.parent.parent.resolve()
+        != predecessor_receipt_path.parent.parent.resolve()
+    ):
+        raise ExecutionOverlayError("ROLLOVER_ROOT_PARENT_MISMATCH")
+    if successor_receipt_path.parent.resolve() == predecessor_receipt_path.parent.resolve():
+        raise ExecutionOverlayError("ROLLOVER_SUCCESSOR_MUST_BE_NEW_ROOT")
+    cross_root_binding = successor_state.get("rollover_predecessor")
+    event_binding = successor_event.get("rollover_predecessor")
+    if not isinstance(cross_root_binding, dict) or event_binding != cross_root_binding:
+        raise ExecutionOverlayError("ROLLOVER_CROSS_ROOT_BINDING_MISSING")
+    intent_id = cross_root_binding.get("rollover_intent_id")
+    intent_name = cross_root_binding.get("rollover_intent_file")
+    intent_sha256 = cross_root_binding.get("rollover_intent_sha256")
+    if (
+        not isinstance(intent_id, str)
+        or not isinstance(intent_name, str)
+        or not isinstance(intent_sha256, str)
+        or intent_name != f"rollover-intent-{intent_id}.json"
+    ):
+        raise ExecutionOverlayError("ROLLOVER_INTENT_BINDING_INVALID")
+    _validate_opaque_id(intent_id, "ROLLOVER_INTENT_ID")
+    _validate_digest(intent_sha256, "ROLLOVER_INTENT_SHA256")
+    allowed_parent = successor_receipt_path.parent.parent
+    project_private_parent_sha256 = _validate_project_local_private_parent(
+        project_worktree_root=project_worktree_root,
+        allowed_parent=allowed_parent,
+    )
+    _require_plain_directory(successor_receipt_path.parent / "staging")
+    _require_plain_directory(successor_receipt_path.parent / "records")
+    intent_path = _safe_child(allowed_parent, intent_name)
+    if sha256_file(intent_path) != intent_sha256:
+        raise ExecutionOverlayError("ROLLOVER_INTENT_DIGEST_MISMATCH")
+    intent = _read_json(intent_path)
+    expected_cross_root_binding = {
+        **predecessor_binding,
+        "rollover_intent_id": intent_id,
+        "rollover_intent_file": intent_name,
+        "rollover_intent_sha256": intent_sha256,
+        "project_private_parent_sha256": project_private_parent_sha256,
+    }
+    derived_ledger = _rollover_derived_ledger(predecessor_state)
+    if (
+        cross_root_binding != expected_cross_root_binding
+        or intent.get("schema_version") != ROLLOVER_INTENT_SCHEMA
+        or intent.get("rollover_intent_id") != intent_id
+        or intent.get("controller_sha256") != expected_controller_sha256
+        or intent.get("successor_overlay_output_id") != successor_state.get("overlay_output_id")
+        or intent.get("successor_root_name") != successor_receipt_path.parent.name
+        or intent.get("predecessor") != predecessor_binding
+        or intent.get("derived_ledger") != derived_ledger
+        or intent.get("project_private_parent_sha256") != project_private_parent_sha256
+        or intent.get("create_mode") != "CREATE_NEW_OR_RECOVER_EXACT_PARTIAL_ROOT"
+        or intent.get("generation_calls") != 0
+        or intent.get("decode_performed") is not False
+        or intent.get("timestamp") != successor_state.get("timestamp")
+        or successor_event.get("timestamp") != successor_state.get("timestamp")
+        or successor_receipt.get("sequence") != 0
+        or successor_state.get("phase") != "READY"
+        or successor_event.get("event_type") != "TERMINAL_OVERLAY_ROLLED_FORWARD"
+        or successor_event.get("reason_code") != "TERMINAL_OVERLAY_ROLLED_FORWARD_NO_GENERATION"
+        or successor_state.get("binding") != predecessor_state.get("binding")
+        or successor_state.get("counters") != predecessor_state.get("counters")
+        or successor_state.get("next_unused_ordinal") != "CAL-REQ-003"
+        or successor_state.get("current_action_id") is not None
+        or successor_state.get("current_ordinal") is not None
+        or successor_state.get("expected_output_opaque_id") is not None
+        or successor_state.get("returned_output_binding") is not None
+        or successor_state.get("output_registration_attempt") is not None
+        or successor_state.get("output_registration") is not None
+        or successor_state.get("decode_authorized") is not False
+        or successor_state.get("hard_stop") is not False
+    ):
+        raise ExecutionOverlayError("ROLLOVER_SUCCESSOR_BINDING_INVALID")
+    counters = cast(dict[str, int], successor_state["counters"])
+    return {
+        "status": "TERMINAL_OVERLAY_ROLLOVER_PASS",
+        "successor_overlay_output_id": successor_state["overlay_output_id"],
+        "predecessor_overlay_output_id": predecessor_binding["predecessor_overlay_output_id"],
+        "next_unused_ordinal": successor_state["next_unused_ordinal"],
+        "formal_calls_remaining": counters["formal_calls_remaining"],
+        "formal_raw_capacity_remaining": counters["formal_raw_capacity_remaining"],
+        "global_native_output_capacity_remaining": counters[
+            "global_native_output_capacity_remaining"
+        ],
+        "global_native_output_consumed": counters["global_native_output_consumed"],
+        "decode_authorized": False,
     }
 
 

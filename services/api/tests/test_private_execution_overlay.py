@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import inspect
 import json
 import os
 import subprocess
@@ -18,10 +20,13 @@ from mirror_api.synthetic_dataset.private_execution_overlay import (
     mark_dispatch_failed,
     prepare_dispatch,
     record_output_returned,
+    register_imagegen_data_url_before_decode,
     register_output_before_decode,
     render_private_prompt,
+    rollover_terminal_overlay,
     verify_overlay,
     verify_registration_before_decode,
+    verify_rollover_successor,
 )
 
 CONTROLLER_SHA256 = "a" * 64
@@ -48,10 +53,23 @@ def _binding() -> GenesisBinding:
     )
 
 
+def _project_private_parent(project_root: Path) -> Path:
+    git_marker = project_root / ".git"
+    if not git_marker.exists():
+        git_marker.write_text("gitdir: synthetic-test-worktree\n", encoding="utf-8")
+    gitignore = project_root / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text(".private-handoff/\n", encoding="utf-8")
+    private_parent = project_root / ".private-handoff"
+    private_parent.mkdir(exist_ok=True)
+    return private_parent
+
+
 def _initialized(tmp_path: Path) -> tuple[Path, Path]:
-    root = tmp_path / "overlay-task-owned-0001"
+    private_parent = _project_private_parent(tmp_path)
+    root = private_parent / "overlay-task-owned-0001"
     handle = initialize_overlay(
-        allowed_parent=tmp_path,
+        allowed_parent=private_parent,
         root=root,
         overlay_output_id="OVERLAY-EPOCH3-0001",
         controller_sha256=CONTROLLER_SHA256,
@@ -78,6 +96,57 @@ def _consumed(tmp_path: Path) -> tuple[Path, Path]:
         timestamp=TIMESTAMP_2,
     )
     return root, consumed.receipt_path
+
+
+def _imagegen_data_url(payload: bytes, media_type: str = "image/png") -> str:
+    encoded = base64.b64encode(payload).decode("ascii")
+    return f"data:{media_type};base64,{encoded}"
+
+
+def _returned_data_url(tmp_path: Path, data_url: str) -> tuple[Path, Path]:
+    root, receipt = _consumed(tmp_path)
+    returned = record_output_returned(
+        receipt_path=receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        timestamp=TIMESTAMP_3,
+        returned_output_count=1,
+        exact_generated_artifact_receipt=data_url,
+    )
+    return root, returned.receipt_path
+
+
+def _terminal_registration_failure(tmp_path: Path) -> tuple[Path, Path]:
+    root, receipt = _consumed(tmp_path)
+    invalid_output_hint = "data:image/png;base64,invalid-path-receipt"
+    returned = record_output_returned(
+        receipt_path=receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        timestamp=TIMESTAMP_3,
+        returned_output_count=1,
+        exact_generated_artifact_receipt=invalid_output_hint,
+    )
+    allowed_root = tmp_path / "allowed-generated-artifacts"
+    allowed_root.mkdir()
+    failed = register_output_before_decode(
+        receipt_path=returned.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        allowed_generated_artifact_root=allowed_root.resolve(),
+        exact_generated_artifact_receipt=invalid_output_hint,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    return root, failed.receipt_path
+
+
+def _fresh_process_environment() -> tuple[Path, dict[str, str]]:
+    api_src = Path(__file__).resolve().parents[1] / "src"
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = os.pathsep.join(
+        value for value in (str(api_src), environment.get("PYTHONPATH", "")) if value
+    )
+    return api_src, environment
 
 
 def test_overlay_prepare_and_consume_are_append_only_and_recoverable(tmp_path: Path) -> None:
@@ -222,11 +291,623 @@ def test_output_is_registered_and_receipted_before_any_decode(tmp_path: Path) ->
     assert attempt["output_opaque_id"] == "OUTPUT-CAL-REQ-002"
     assert exact_output_hint not in json.dumps(state)
     record = json.loads((root / "records" / registration["record_file"]).read_text())
+    registration_receipt = json.loads(
+        (root / "records" / registration["registration_receipt_file"]).read_text()
+    )
+    assert set(registration) == {
+        "output_opaque_id",
+        "record_file",
+        "record_sha256",
+        "registration_receipt_file",
+        "registration_receipt_sha256",
+        "registration_status",
+        "receipt_status",
+    }
+    assert set(record) == {
+        "schema_version",
+        "output_opaque_id",
+        "request_ordinal",
+        "source_kind",
+        "source_delivery_class",
+        "exact_generated_artifact_receipt_sha256",
+        "source_sha256",
+        "staging_sha256",
+        "byte_size",
+        "media_type",
+        "magic_byte_class",
+        "generation_specification_version",
+        "generation_specification_digest",
+        "assignment_manifest_version",
+        "assignment_manifest_digest",
+        "request_ledger_status",
+        "output_ledger_status",
+        "custody_status",
+        "retention_class",
+        "cleanup_policy",
+        "registration_timestamp",
+        "registration_status",
+        "registration_commit_receipt",
+        "decode_performed",
+        "dimensions_read",
+    }
+    assert set(registration_receipt) == {
+        "schema_version",
+        "registration_receipt_id",
+        "output_opaque_id",
+        "request_ordinal",
+        "output_record_file",
+        "output_record_sha256",
+        "output_record_bytes",
+        "exact_generated_artifact_receipt_sha256",
+        "source_sha256",
+        "staging_sha256",
+        "registration_status",
+        "receipt_status",
+        "decode_performed",
+        "dimensions_read",
+        "timestamp",
+    }
     assert record["registration_status"] == "COMMITTED"
     assert record["decode_performed"] is False
     assert record["dimensions_read"] is False
     assert "dimensions" not in record
     assert (root / "staging" / "OUTPUT-CAL-REQ-002.raw").read_bytes() == source.read_bytes()
+
+
+@pytest.mark.parametrize(
+    ("media_type", "payload", "magic_class"),
+    [
+        ("image/png", b"\x89PNG\r\n\x1a\nsynthetic-non-face-png", "PNG_89504E470D0A1A0A"),
+        ("image/jpeg", b"\xff\xd8\xff\xe0synthetic-non-face-jpeg", "JPEG_FFD8FF"),
+        (
+            "image/webp",
+            b"RIFF\x10\x00\x00\x00WEBPsynthetic-non-face-webp",
+            "WEBP_RIFF",
+        ),
+    ],
+)
+def test_imagegen_data_url_is_captured_before_decode_without_plaintext_persistence(
+    tmp_path: Path,
+    media_type: str,
+    payload: bytes,
+    magic_class: str,
+) -> None:
+    data_url = _imagegen_data_url(payload, media_type)
+    root, returned_receipt = _returned_data_url(tmp_path, data_url)
+    registered = register_imagegen_data_url_before_decode(
+        receipt_path=returned_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        project_worktree_root=tmp_path,
+        imagegen_data_url=data_url,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    result = verify_registration_before_decode(
+        registered.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=tmp_path,
+    )
+    assert result["phase"] == "OUTPUT_REGISTERED_PRE_DECODE"
+    assert result["sequence"] == 6
+    assert result["source_delivery_class"] == "CODEX_NATIVE_IMAGEGEN_DATA_URL"
+    assert result["media_type"] == media_type
+    assert result["magic_byte_class"] == magic_class
+    assert result["byte_size"] == len(payload)
+    assert result["source_sha256"] == result["staging_sha256"]
+    assert result["decode_performed"] is False
+    assert result["dimensions_read"] is False
+    assert (root / "staging" / "OUTPUT-CAL-REQ-002.raw").read_bytes() == payload
+
+    state = cast(
+        dict[str, Any],
+        verify_overlay(
+            registered.receipt_path,
+            expected_controller_sha256=CONTROLLER_SHA256,
+        )["state"],
+    )
+    assert state["decode_authorized"] is False
+    assert result["decode_authorized"] is True
+    registration = cast(dict[str, Any], state["output_registration"])
+    capture = json.loads(
+        (root / "records" / registration["capture_sidecar_file"]).read_text(encoding="utf-8")
+    )
+    assert capture["capture_status"] == "COMMITTED_PRE_DECODE"
+    assert capture["decode_performed"] is False
+    assert capture["dimensions_read"] is False
+    assert capture["source_sha256"] == result["source_sha256"]
+    assert capture["staging_sha256"] == result["staging_sha256"]
+    persisted_json = "".join(
+        path.read_text(encoding="utf-8")
+        for path in [
+            *sorted(root.glob("event-*.json")),
+            *sorted(root.glob("state-*.json")),
+            *sorted(root.glob("receipt-*.json")),
+            *sorted((root / "records").glob("*.json")),
+        ]
+    )
+    assert data_url not in persisted_json
+    assert base64.b64encode(payload).decode("ascii") not in persisted_json
+
+
+def test_imagegen_data_url_requires_exact_project_local_git_ignored_custody(
+    tmp_path: Path,
+) -> None:
+    data_url = _imagegen_data_url(b"\x89PNG\r\n\x1a\nproject-authority")
+    root, returned_receipt = _returned_data_url(tmp_path, data_url)
+    wrong_project_root = tmp_path / "wrong-project"
+    wrong_project_root.mkdir()
+    with pytest.raises(
+        ExecutionOverlayError,
+        match="PROJECT_PRIVATE_PARENT_AUTHORITY_MISMATCH",
+    ):
+        register_imagegen_data_url_before_decode(
+            receipt_path=returned_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            action_id="ACTION-CAL-REQ-002",
+            project_worktree_root=wrong_project_root,
+            imagegen_data_url=data_url,
+            timestamp="2026-08-29T00:00:04Z",
+        )
+    (tmp_path / ".gitignore").write_text(".unrelated/\n", encoding="utf-8")
+    with pytest.raises(
+        ExecutionOverlayError,
+        match="PROJECT_PRIVATE_NAMESPACE_NOT_GIT_IGNORED",
+    ):
+        register_imagegen_data_url_before_decode(
+            receipt_path=returned_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            action_id="ACTION-CAL-REQ-002",
+            project_worktree_root=tmp_path,
+            imagegen_data_url=data_url,
+            timestamp="2026-08-29T00:00:04Z",
+        )
+    assert (
+        verify_overlay(
+            returned_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+        )["state"]["phase"]
+        == "OUTPUT_RETURNED_RECEIPT_BOUND"
+    )
+    assert not (root / "receipt-000005.json").exists()
+
+
+def test_imagegen_capture_is_reverified_before_final_transition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data_url = _imagegen_data_url(b"\x89PNG\r\n\x1a\nfinal-gate-race")
+    _root, returned_receipt = _returned_data_url(tmp_path, data_url)
+    original_verify = overlay_module._verify_imagegen_capture_binding
+    calls = 0
+
+    def tamper_before_second_verification(**kwargs: Any) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            capture_name = cast(dict[str, Any], kwargs["capture_binding"])["capture_sidecar_file"]
+            capture_path = cast(Path, kwargs["root"]) / "records" / capture_name
+            capture_path.write_bytes(capture_path.read_bytes() + b" ")
+        original_verify(**kwargs)
+
+    monkeypatch.setattr(
+        overlay_module,
+        "_verify_imagegen_capture_binding",
+        tamper_before_second_verification,
+    )
+    failed = register_imagegen_data_url_before_decode(
+        receipt_path=returned_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        project_worktree_root=tmp_path,
+        imagegen_data_url=data_url,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    verified = verify_overlay(
+        failed.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )
+    assert calls == 2
+    assert verified["state"]["phase"] == "OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE"
+    assert verified["state"]["decode_authorized"] is False
+    assert verified["event"]["reason_code"] == "IMAGEGEN_CAPTURE_SIDECAR_NOT_VALID_PRE_DECODE"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX dirfd binding probe")
+def test_private_write_uses_bound_parent_descriptor_before_writing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent = tmp_path / "private-parent"
+    parent.mkdir()
+    held_parent = tmp_path / "private-parent-held"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    target = parent / "capture.raw"
+    original_open_chain = overlay_module._open_posix_directory_chain
+
+    def replace_parent_after_open(path: Path) -> list[int]:
+        descriptors = original_open_chain(path)
+        parent.rename(held_parent)
+        parent.symlink_to(outside, target_is_directory=True)
+        return descriptors
+
+    monkeypatch.setattr(
+        overlay_module,
+        "_open_posix_directory_chain",
+        replace_parent_after_open,
+    )
+    with pytest.raises(
+        ExecutionOverlayError,
+        match="GENERATED_ARTIFACT_ROOT_CHANGED_BEFORE_READ",
+    ):
+        overlay_module._write_bytes_create_or_verify_exact(target, b"private-bytes")
+    assert not (outside / target.name).exists()
+    assert not (held_parent / target.name).exists()
+
+
+def test_private_directory_create_uses_bound_parent_handle_before_creating(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent = tmp_path / "private-parent"
+    parent.mkdir()
+    held_parent = tmp_path / "private-parent-held"
+    replacement_parent = tmp_path / "private-parent-replacement"
+    target = parent / "successor-root"
+    if os.name == "nt":
+        handles = overlay_module._open_windows_directory_chain(parent)
+        try:
+            with pytest.raises(PermissionError):
+                parent.rename(held_parent)
+        finally:
+            overlay_module._close_windows_handles(handles)
+        overlay_module._create_new_plain_directory(target)
+        assert target.is_dir()
+        return
+
+    original_open_chain = overlay_module._open_posix_directory_chain
+
+    def replace_parent_after_open(path: Path) -> list[int]:
+        descriptors = original_open_chain(path)
+        parent.rename(held_parent)
+        replacement_parent.mkdir()
+        replacement_parent.rename(parent)
+        return descriptors
+
+    monkeypatch.setattr(
+        overlay_module,
+        "_open_posix_directory_chain",
+        replace_parent_after_open,
+    )
+
+    with pytest.raises(
+        ExecutionOverlayError,
+        match="PRIVATE_OVERLAY_DIRECTORY_BINDING_CHANGED",
+    ):
+        overlay_module._create_new_plain_directory(target)
+    assert not target.exists()
+    held_target = held_parent / target.name
+    assert not held_target.exists() or not any(held_target.iterdir())
+
+
+@pytest.mark.parametrize(
+    ("data_url", "expected_reason"),
+    [
+        ("https://invalid.example/image.png", "IMAGEGEN_DATA_URL_HEADER_INVALID"),
+        ("data:image/gif;base64,AAAA", "IMAGEGEN_DATA_URL_HEADER_INVALID"),
+        (
+            "data:image/png;charset=utf-8;base64,AAAA",
+            "IMAGEGEN_DATA_URL_HEADER_INVALID",
+        ),
+        ("data:image/png;base64,", "IMAGEGEN_DATA_URL_PAYLOAD_EMPTY"),
+        ("data:image/png;base64,AAAA AAAA", "IMAGEGEN_DATA_URL_BASE64_INVALID"),
+        ("data:image/png;base64,AAAA\nAAAA", "IMAGEGEN_DATA_URL_BASE64_INVALID"),
+        ("data:image/png;base64,AAAA===", "IMAGEGEN_DATA_URL_BASE64_INVALID"),
+        ("data:image/png;base64,AAAA-_==", "IMAGEGEN_DATA_URL_BASE64_INVALID"),
+        ("data:image/png;base64,AAAA%3D%3D", "IMAGEGEN_DATA_URL_BASE64_INVALID"),
+        ("data:image/png;base64,AB==", "IMAGEGEN_DATA_URL_BASE64_INVALID"),
+    ],
+)
+def test_imagegen_data_url_strict_grammar_failures_are_terminal_without_leakage(
+    tmp_path: Path,
+    data_url: str,
+    expected_reason: str,
+) -> None:
+    root, returned_receipt = _returned_data_url(tmp_path, data_url)
+    failed = register_imagegen_data_url_before_decode(
+        receipt_path=returned_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        project_worktree_root=tmp_path,
+        imagegen_data_url=data_url,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    verified = verify_overlay(
+        failed.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )
+    assert verified["state"]["phase"] == "OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE"
+    assert verified["state"]["hard_stop"] is True
+    assert verified["state"]["decode_authorized"] is False
+    assert verified["event"]["reason_code"] == expected_reason
+    persisted_json = "".join(
+        path.read_text(encoding="utf-8")
+        for path in [
+            *sorted(root.glob("event-*.json")),
+            *sorted(root.glob("state-*.json")),
+            *sorted(root.glob("receipt-*.json")),
+        ]
+    )
+    assert data_url not in persisted_json
+
+
+def test_imagegen_data_url_encoded_bound_is_checked_before_base64_decode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data_url = "data:image/png;base64," + "A" * 12
+    _root, returned_receipt = _returned_data_url(tmp_path, data_url)
+    monkeypatch.setattr(overlay_module, "MAX_DATA_URL_ENCODED_BYTES", 8)
+
+    def forbidden_decode(*_args: Any, **_kwargs: Any) -> bytes:
+        pytest.fail("encoded overflow must be rejected before Base64 decode")
+
+    monkeypatch.setattr(base64, "b64decode", forbidden_decode)
+    failed = register_imagegen_data_url_before_decode(
+        receipt_path=returned_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        project_worktree_root=tmp_path,
+        imagegen_data_url=data_url,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    verified = verify_overlay(
+        failed.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )
+    assert verified["event"]["reason_code"] == "IMAGEGEN_DATA_URL_ENCODED_BYTE_BOUND_FAILED"
+    assert verified["state"]["decode_authorized"] is False
+
+
+def test_imagegen_data_url_decoded_bound_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = b"\x89PNG\r\n\x1a\nX"
+    data_url = _imagegen_data_url(payload)
+    _root, returned_receipt = _returned_data_url(tmp_path, data_url)
+    monkeypatch.setattr(overlay_module, "MAX_RETURNED_BYTES", len(payload) - 1)
+    failed = register_imagegen_data_url_before_decode(
+        receipt_path=returned_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        project_worktree_root=tmp_path,
+        imagegen_data_url=data_url,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    verified = verify_overlay(
+        failed.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )
+    assert verified["event"]["reason_code"] == "IMAGEGEN_DATA_URL_DECODED_BYTE_BOUND_FAILED"
+    assert verified["state"]["decode_authorized"] is False
+
+
+@pytest.mark.parametrize(
+    ("data_url", "expected_reason"),
+    [
+        (
+            _imagegen_data_url(b"\x89PNG\r\n\x1a\nsynthetic", "image/jpeg"),
+            "IMAGEGEN_DATA_URL_MIME_MAGIC_MISMATCH",
+        ),
+        (
+            _imagegen_data_url(b"not-a-supported-image-magic", "image/png"),
+            "IMAGEGEN_DATA_URL_MAGIC_UNSUPPORTED",
+        ),
+    ],
+)
+def test_imagegen_data_url_mime_and_magic_must_agree(
+    tmp_path: Path,
+    data_url: str,
+    expected_reason: str,
+) -> None:
+    _root, returned_receipt = _returned_data_url(tmp_path, data_url)
+    failed = register_imagegen_data_url_before_decode(
+        receipt_path=returned_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        project_worktree_root=tmp_path,
+        imagegen_data_url=data_url,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    verified = verify_overlay(
+        failed.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )
+    assert verified["event"]["reason_code"] == expected_reason
+    assert verified["state"]["decode_authorized"] is False
+
+
+def test_imagegen_data_url_binding_mismatch_rejects_before_attempt_without_plaintext_error(
+    tmp_path: Path,
+) -> None:
+    bound = _imagegen_data_url(b"\x89PNG\r\n\x1a\nbound")
+    different = _imagegen_data_url(b"\x89PNG\r\n\x1a\ndifferent")
+    _root, returned_receipt = _returned_data_url(tmp_path, bound)
+    with pytest.raises(ExecutionOverlayError, match="IMAGEGEN_DATA_URL_BINDING_MISMATCH") as caught:
+        register_imagegen_data_url_before_decode(
+            receipt_path=returned_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            action_id="ACTION-CAL-REQ-002",
+            project_worktree_root=tmp_path,
+            imagegen_data_url=different,
+            timestamp="2026-08-29T00:00:04Z",
+        )
+    assert different not in str(caught.value)
+    with pytest.raises(ExecutionOverlayError, match="STATE_OR_ACTION_INVALID"):
+        register_imagegen_data_url_before_decode(
+            receipt_path=returned_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            action_id="ACTION-CAL-REQ-003",
+            project_worktree_root=tmp_path,
+            imagegen_data_url=bound,
+            timestamp="2026-08-29T00:00:04Z",
+        )
+    with pytest.raises(ExecutionOverlayError, match="CONTROLLER_DIGEST_MISMATCH"):
+        register_imagegen_data_url_before_decode(
+            receipt_path=returned_receipt,
+            expected_controller_sha256="b" * 64,
+            action_id="ACTION-CAL-REQ-002",
+            project_worktree_root=tmp_path,
+            imagegen_data_url=bound,
+            timestamp="2026-08-29T00:00:04Z",
+        )
+    state = verify_overlay(
+        returned_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )["state"]
+    assert state["phase"] == "OUTPUT_RETURNED_RECEIPT_BOUND"
+    assert state["counters"]["returned_output_count"] == 2
+
+
+def test_imagegen_data_url_exact_existing_staging_and_complete_replay_are_idempotent(
+    tmp_path: Path,
+) -> None:
+    payload = b"\x89PNG\r\n\x1a\nsynthetic-existing-staging"
+    data_url = _imagegen_data_url(payload)
+    root, returned_receipt = _returned_data_url(tmp_path, data_url)
+    staging = root / "staging" / "OUTPUT-CAL-REQ-002.raw"
+    staging.write_bytes(payload)
+    first = register_imagegen_data_url_before_decode(
+        receipt_path=returned_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        project_worktree_root=tmp_path,
+        imagegen_data_url=data_url,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    replayed = register_imagegen_data_url_before_decode(
+        receipt_path=returned_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        project_worktree_root=tmp_path,
+        imagegen_data_url=data_url,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    assert replayed == first
+    verified = verify_registration_before_decode(
+        replayed.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=tmp_path,
+    )
+    assert verified["source_sha256"] == verified["staging_sha256"]
+    assert staging.read_bytes() == payload
+
+
+def test_imagegen_data_url_different_existing_staging_fails_closed(tmp_path: Path) -> None:
+    data_url = _imagegen_data_url(b"\x89PNG\r\n\x1a\nexpected")
+    root, returned_receipt = _returned_data_url(tmp_path, data_url)
+    (root / "staging" / "OUTPUT-CAL-REQ-002.raw").write_bytes(b"\x89PNG\r\n\x1a\ndifferent")
+    failed = register_imagegen_data_url_before_decode(
+        receipt_path=returned_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        project_worktree_root=tmp_path,
+        imagegen_data_url=data_url,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    verified = verify_overlay(
+        failed.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )
+    assert verified["state"]["phase"] == "OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE"
+    assert verified["state"]["hard_stop"] is True
+    assert verified["state"]["decode_authorized"] is False
+
+
+def test_imagegen_capture_sidecar_preexisting_conflict_fails_closed(
+    tmp_path: Path,
+) -> None:
+    data_url = _imagegen_data_url(b"\x89PNG\r\n\x1a\nsidecar-conflict")
+    root, returned_receipt = _returned_data_url(tmp_path, data_url)
+    (root / "records" / "capture-OUTPUT-CAL-REQ-002.json").write_text(
+        '{"conflict":true}\n', encoding="utf-8"
+    )
+    failed = register_imagegen_data_url_before_decode(
+        receipt_path=returned_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        project_worktree_root=tmp_path,
+        imagegen_data_url=data_url,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    verified = verify_overlay(
+        failed.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )
+    assert verified["state"]["hard_stop"] is True
+    assert verified["state"]["decode_authorized"] is False
+
+
+@pytest.mark.parametrize("mutation", ["missing", "tampered"])
+def test_imagegen_capture_sidecar_is_mandatory_for_decode_gate(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    data_url = _imagegen_data_url(b"\x89PNG\r\n\x1a\nmandatory-sidecar")
+    root, returned_receipt = _returned_data_url(tmp_path, data_url)
+    registered = register_imagegen_data_url_before_decode(
+        receipt_path=returned_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        project_worktree_root=tmp_path,
+        imagegen_data_url=data_url,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    state = verify_overlay(
+        registered.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )["state"]
+    capture_path = root / "records" / state["output_registration"]["capture_sidecar_file"]
+    if mutation == "missing":
+        capture_path.unlink()
+    else:
+        capture_path.write_bytes(capture_path.read_bytes() + b" ")
+    with pytest.raises(ExecutionOverlayError):
+        verify_registration_before_decode(
+            registered.receipt_path,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            project_worktree_root=tmp_path,
+        )
+
+
+def test_imagegen_capture_rejects_reparse_staging_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data_url = _imagegen_data_url(b"\x89PNG\r\n\x1a\nreparse-staging")
+    root, returned_receipt = _returned_data_url(tmp_path, data_url)
+    original_is_reparse = overlay_module._is_reparse
+
+    def mark_staging_as_reparse(path: Path) -> bool:
+        return path == root / "staging" or original_is_reparse(path)
+
+    monkeypatch.setattr(overlay_module, "_is_reparse", mark_staging_as_reparse)
+    failed = register_imagegen_data_url_before_decode(
+        receipt_path=returned_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        project_worktree_root=tmp_path,
+        imagegen_data_url=data_url,
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    monkeypatch.setattr(overlay_module, "_is_reparse", original_is_reparse)
+    verified = verify_overlay(
+        failed.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )
+    assert verified["state"]["hard_stop"] is True
+    assert verified["state"]["decode_authorized"] is False
 
 
 def test_duplicate_dispatch_and_wrong_ordinal_fail_closed(tmp_path: Path) -> None:
@@ -659,6 +1340,576 @@ print(handle.receipt_path)
     assert recovered_receipt == root / "receipt-000001.json"
 
 
+@pytest.mark.parametrize("crash_after_write", [1, 2, 3, 4, 5, 6])
+def test_output_return_counter_and_binding_recover_once_in_fresh_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    crash_after_write: int,
+) -> None:
+    _root, consumed_receipt = _consumed(tmp_path)
+    data_url = _imagegen_data_url(b"\x89PNG\r\n\x1a\nreturned-crash-recovery")
+    original_write = overlay_module._write_json_create_or_verify_exact
+    write_count = 0
+
+    def injected_crash(path: Path, value: dict[str, Any]) -> tuple[str, int]:
+        nonlocal write_count
+        result = original_write(path, value)
+        write_count += 1
+        if write_count == crash_after_write:
+            raise RuntimeError("INJECTED_OUTPUT_RETURN_CRASH")
+        return result
+
+    monkeypatch.setattr(
+        overlay_module,
+        "_write_json_create_or_verify_exact",
+        injected_crash,
+    )
+    with pytest.raises(RuntimeError, match="INJECTED_OUTPUT_RETURN_CRASH"):
+        record_output_returned(
+            receipt_path=consumed_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            action_id="ACTION-CAL-REQ-002",
+            timestamp=TIMESTAMP_3,
+            returned_output_count=1,
+            exact_generated_artifact_receipt=data_url,
+        )
+    monkeypatch.setattr(
+        overlay_module,
+        "_write_json_create_or_verify_exact",
+        original_write,
+    )
+
+    api_src, environment = _fresh_process_environment()
+    script = """
+import base64
+import sys
+from pathlib import Path
+from mirror_api.synthetic_dataset.private_execution_overlay import record_output_returned
+
+payload = b"\\x89PNG\\r\\n\\x1a\\nreturned-crash-recovery"
+data_url = "data:image/png;base64," + base64.b64encode(payload).decode("ascii")
+handle = record_output_returned(
+    receipt_path=Path(sys.argv[1]),
+    expected_controller_sha256=sys.argv[2],
+    action_id="ACTION-CAL-REQ-002",
+    timestamp="2026-08-29T00:00:03Z",
+    returned_output_count=1,
+    exact_generated_artifact_receipt=data_url,
+)
+print(handle.receipt_path)
+"""
+    recovered = subprocess.run(  # noqa: S603 - fixed interpreter and inline test probe
+        [sys.executable, "-c", script, str(consumed_receipt), CONTROLLER_SHA256],
+        cwd=api_src.parent,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert recovered.returncode == 0, recovered.stderr
+    recovered_receipt = Path(recovered.stdout.strip())
+    state = verify_overlay(
+        recovered_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )["state"]
+    assert recovered_receipt.name == "receipt-000004.json"
+    assert state["phase"] == "OUTPUT_RETURNED_RECEIPT_BOUND"
+    assert state["counters"]["returned_output_count"] == 2
+    assert state["counters"]["raw_output_count"] == 2
+    assert state["counters"]["formal_raw_capacity_remaining"] == 30
+
+
+@pytest.mark.parametrize(
+    "crash_point",
+    [
+        "attempt-event",
+        "attempt-state",
+        "attempt-receipt",
+        "staging",
+        "capture",
+        "record",
+        "registration",
+        "final-event",
+        "final-state",
+        "final-receipt",
+    ],
+)
+def test_imagegen_registration_crash_windows_recover_in_fresh_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    crash_point: str,
+) -> None:
+    payload = b"\x89PNG\r\n\x1a\nregistration-crash-recovery"
+    data_url = _imagegen_data_url(payload)
+    root, returned_receipt = _returned_data_url(tmp_path, data_url)
+    original_json_write = overlay_module._write_json_create_or_verify_exact
+    original_bytes_write = overlay_module._write_bytes_create_or_verify_exact
+    json_targets = {
+        "attempt-event": "event-000005.json",
+        "attempt-state": "state-000005.json",
+        "attempt-receipt": "receipt-000005.json",
+        "capture": "capture-OUTPUT-CAL-REQ-002.json",
+        "record": "output-OUTPUT-CAL-REQ-002.json",
+        "registration": "registration-OUTPUT-CAL-REQ-002.json",
+        "final-event": "event-000006.json",
+        "final-state": "state-000006.json",
+        "final-receipt": "receipt-000006.json",
+    }
+
+    def injected_json_crash(path: Path, value: dict[str, Any]) -> tuple[str, int]:
+        result = original_json_write(path, value)
+        if json_targets.get(crash_point) == path.name:
+            raise RuntimeError(f"INJECTED_{crash_point.upper()}_CRASH")
+        return result
+
+    def injected_bytes_crash(path: Path, value: bytes) -> tuple[str, int]:
+        result = original_bytes_write(path, value)
+        if crash_point == "staging":
+            raise RuntimeError("INJECTED_STAGING_CRASH")
+        return result
+
+    monkeypatch.setattr(
+        overlay_module,
+        "_write_json_create_or_verify_exact",
+        injected_json_crash,
+    )
+    monkeypatch.setattr(
+        overlay_module,
+        "_write_bytes_create_or_verify_exact",
+        injected_bytes_crash,
+    )
+    with pytest.raises(RuntimeError, match="INJECTED_"):
+        register_imagegen_data_url_before_decode(
+            receipt_path=returned_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            action_id="ACTION-CAL-REQ-002",
+            project_worktree_root=tmp_path,
+            imagegen_data_url=data_url,
+            timestamp="2026-08-29T00:00:04Z",
+        )
+    monkeypatch.setattr(
+        overlay_module,
+        "_write_json_create_or_verify_exact",
+        original_json_write,
+    )
+    monkeypatch.setattr(
+        overlay_module,
+        "_write_bytes_create_or_verify_exact",
+        original_bytes_write,
+    )
+
+    api_src, environment = _fresh_process_environment()
+    script = """
+import base64
+import sys
+from pathlib import Path
+from mirror_api.synthetic_dataset.private_execution_overlay import (
+    register_imagegen_data_url_before_decode,
+)
+
+payload = b"\\x89PNG\\r\\n\\x1a\\nregistration-crash-recovery"
+data_url = "data:image/png;base64," + base64.b64encode(payload).decode("ascii")
+handle = register_imagegen_data_url_before_decode(
+    receipt_path=Path(sys.argv[1]),
+    expected_controller_sha256=sys.argv[2],
+    action_id="ACTION-CAL-REQ-002",
+    project_worktree_root=Path(sys.argv[3]),
+    imagegen_data_url=data_url,
+    timestamp="2026-08-29T00:00:04Z",
+)
+print(handle.receipt_path)
+"""
+    recovered = subprocess.run(  # noqa: S603 - fixed interpreter and inline test probe
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(returned_receipt),
+            CONTROLLER_SHA256,
+            str(tmp_path),
+        ],
+        cwd=api_src.parent,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert recovered.returncode == 0, recovered.stderr
+    recovered_receipt = Path(recovered.stdout.strip())
+    result = verify_registration_before_decode(
+        recovered_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=tmp_path,
+    )
+    assert recovered_receipt == root / "receipt-000006.json"
+    assert result["source_delivery_class"] == "CODEX_NATIVE_IMAGEGEN_DATA_URL"
+    state = verify_overlay(
+        recovered_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )["state"]
+    assert state["counters"]["returned_output_count"] == 2
+    assert state["counters"]["raw_output_count"] == 2
+    assert state["counters"]["formal_raw_capacity_remaining"] == 30
+    assert state["counters"]["active_calls"] == 0
+
+
+def test_terminal_overlay_rollover_derives_exact_ledger_and_preserves_predecessor(
+    tmp_path: Path,
+) -> None:
+    predecessor_root, predecessor_receipt = _terminal_registration_failure(tmp_path)
+    private_parent = predecessor_root.parent
+    predecessor_bytes = {
+        path.name: path.read_bytes()
+        for path in [
+            predecessor_root / "event-000006.json",
+            predecessor_root / "state-000006.json",
+            predecessor_root / "receipt-000006.json",
+        ]
+    }
+    with pytest.raises(
+        ExecutionOverlayError,
+        match="PROJECT_PRIVATE_PARENT_AUTHORITY_MISMATCH",
+    ):
+        rollover_terminal_overlay(
+            predecessor_receipt_path=predecessor_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            project_worktree_root=tmp_path,
+            allowed_parent=tmp_path,
+            successor_root=tmp_path / "overlay-task-owned-0002",
+            successor_overlay_output_id="OVERLAY-EPOCH4-0002",
+            timestamp="2026-08-29T00:00:05Z",
+        )
+    with pytest.raises(ExecutionOverlayError, match="ROLLOVER_SUCCESSOR_ROOT_NAME_INVALID"):
+        rollover_terminal_overlay(
+            predecessor_receipt_path=predecessor_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            project_worktree_root=tmp_path,
+            allowed_parent=private_parent,
+            successor_root=private_parent / "..",
+            successor_overlay_output_id="OVERLAY-EPOCH4-0002",
+            timestamp="2026-08-29T00:00:05Z",
+        )
+    successor_root = private_parent / "overlay-task-owned-0002"
+    successor = rollover_terminal_overlay(
+        predecessor_receipt_path=predecessor_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=tmp_path,
+        allowed_parent=private_parent,
+        successor_root=successor_root,
+        successor_overlay_output_id="OVERLAY-EPOCH4-0002",
+        timestamp="2026-08-29T00:00:05Z",
+    )
+    result = verify_rollover_successor(
+        successor.receipt_path,
+        predecessor_receipt_path=predecessor_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=tmp_path,
+    )
+    assert result == {
+        "status": "TERMINAL_OVERLAY_ROLLOVER_PASS",
+        "successor_overlay_output_id": "OVERLAY-EPOCH4-0002",
+        "predecessor_overlay_output_id": "OVERLAY-EPOCH3-0001",
+        "next_unused_ordinal": "CAL-REQ-003",
+        "formal_calls_remaining": 30,
+        "formal_raw_capacity_remaining": 30,
+        "global_native_output_capacity_remaining": 61,
+        "global_native_output_consumed": 3,
+        "decode_authorized": False,
+    }
+    replayed = rollover_terminal_overlay(
+        predecessor_receipt_path=predecessor_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=tmp_path,
+        allowed_parent=private_parent,
+        successor_root=successor_root,
+        successor_overlay_output_id="OVERLAY-EPOCH4-0002",
+        timestamp="2026-08-29T00:00:05Z",
+    )
+    assert replayed == successor
+    fork_root = private_parent / "overlay-task-owned-0003"
+    with pytest.raises(ExecutionOverlayError, match="CREATE_NEW_EXISTING_CONTENT_CONFLICT"):
+        rollover_terminal_overlay(
+            predecessor_receipt_path=predecessor_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            project_worktree_root=tmp_path,
+            allowed_parent=private_parent,
+            successor_root=fork_root,
+            successor_overlay_output_id="OVERLAY-EPOCH4-0003",
+            timestamp="2026-08-29T00:00:05Z",
+        )
+    assert not fork_root.exists()
+    predecessor_state = verify_overlay(
+        predecessor_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )["state"]
+    assert predecessor_state["phase"] == "OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE"
+    assert predecessor_state["hard_stop"] is True
+    assert predecessor_state["decode_authorized"] is False
+    assert {
+        path.name: path.read_bytes()
+        for path in [
+            predecessor_root / "event-000006.json",
+            predecessor_root / "state-000006.json",
+            predecessor_root / "receipt-000006.json",
+        ]
+    } == predecessor_bytes
+    with pytest.raises(ExecutionOverlayError, match="ORDINAL_MISMATCH"):
+        prepare_dispatch(
+            receipt_path=successor.receipt_path,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            ordinal="CAL-REQ-002",
+            action_id="ACTION-CAL-REQ-002-RETRY",
+            expected_output_opaque_id="OUTPUT-CAL-REQ-002-RETRY",
+            timestamp="2026-08-29T00:00:06Z",
+        )
+    rollover_parameters = inspect.signature(rollover_terminal_overlay).parameters
+    assert "next_unused_ordinal" not in rollover_parameters
+    assert "counters" not in rollover_parameters
+    assert "rollover_intent_id" not in rollover_parameters
+    assert "project_worktree_root" in rollover_parameters
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX rollover reparse race probe")
+def test_terminal_rollover_rejects_private_parent_reparse_after_intent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    predecessor_root, predecessor_receipt = _terminal_registration_failure(tmp_path)
+    private_parent = predecessor_root.parent
+    held_parent = tmp_path / ".private-handoff-held"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    successor_root = private_parent / "overlay-task-owned-race"
+    original_create = overlay_module._create_new_plain_directory
+
+    def replace_parent_before_directory_create(path: Path) -> None:
+        private_parent.rename(held_parent)
+        private_parent.symlink_to(outside, target_is_directory=True)
+        original_create(path)
+
+    monkeypatch.setattr(
+        overlay_module,
+        "_create_new_plain_directory",
+        replace_parent_before_directory_create,
+    )
+    with pytest.raises(
+        ExecutionOverlayError,
+        match="PRIVATE_OVERLAY_DIRECTORY_INVALID",
+    ):
+        rollover_terminal_overlay(
+            predecessor_receipt_path=predecessor_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            project_worktree_root=tmp_path,
+            allowed_parent=private_parent,
+            successor_root=successor_root,
+            successor_overlay_output_id="OVERLAY-EPOCH4-RACE",
+            timestamp="2026-08-29T00:00:05Z",
+        )
+    assert not any(outside.iterdir())
+    assert not (held_parent / successor_root.name).exists()
+
+
+@pytest.mark.parametrize(
+    "crash_point",
+    ["intent", "directories", "event", "state", "receipt"],
+)
+def test_terminal_rollover_partial_root_recovers_in_fresh_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    crash_point: str,
+) -> None:
+    predecessor_root, predecessor_receipt = _terminal_registration_failure(tmp_path)
+    private_parent = predecessor_root.parent
+    successor_root = private_parent / "overlay-task-owned-0002"
+    original_json_write = overlay_module._write_json_create_or_verify_exact
+    original_directory = overlay_module._create_or_verify_plain_directory
+
+    def injected_json_crash(path: Path, value: dict[str, Any]) -> tuple[str, int]:
+        result = original_json_write(path, value)
+        targets = {
+            "event": "event-000000.json",
+            "state": "state-000000.json",
+            "receipt": "receipt-000000.json",
+        }
+        if targets.get(crash_point) == path.name or (
+            crash_point == "intent" and path.name.startswith("rollover-intent-")
+        ):
+            raise RuntimeError(f"INJECTED_ROLLOVER_{crash_point.upper()}_CRASH")
+        return result
+
+    def injected_directory_crash(path: Path) -> None:
+        original_directory(path)
+        if crash_point == "directories" and path.name == "records":
+            raise RuntimeError("INJECTED_ROLLOVER_DIRECTORIES_CRASH")
+
+    monkeypatch.setattr(
+        overlay_module,
+        "_write_json_create_or_verify_exact",
+        injected_json_crash,
+    )
+    monkeypatch.setattr(
+        overlay_module,
+        "_create_or_verify_plain_directory",
+        injected_directory_crash,
+    )
+    with pytest.raises(RuntimeError, match="INJECTED_ROLLOVER_"):
+        rollover_terminal_overlay(
+            predecessor_receipt_path=predecessor_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            project_worktree_root=tmp_path,
+            allowed_parent=private_parent,
+            successor_root=successor_root,
+            successor_overlay_output_id="OVERLAY-EPOCH4-0002",
+            timestamp="2026-08-29T00:00:05Z",
+        )
+    monkeypatch.setattr(
+        overlay_module,
+        "_write_json_create_or_verify_exact",
+        original_json_write,
+    )
+    monkeypatch.setattr(
+        overlay_module,
+        "_create_or_verify_plain_directory",
+        original_directory,
+    )
+
+    api_src, environment = _fresh_process_environment()
+    script = """
+import sys
+from pathlib import Path
+from mirror_api.synthetic_dataset.private_execution_overlay import rollover_terminal_overlay
+
+handle = rollover_terminal_overlay(
+    predecessor_receipt_path=Path(sys.argv[1]),
+    expected_controller_sha256=sys.argv[2],
+    project_worktree_root=Path(sys.argv[3]),
+    allowed_parent=Path(sys.argv[4]),
+    successor_root=Path(sys.argv[5]),
+    successor_overlay_output_id="OVERLAY-EPOCH4-0002",
+    timestamp="2026-08-29T00:00:05Z",
+)
+print(handle.receipt_path)
+"""
+    recovered = subprocess.run(  # noqa: S603 - fixed interpreter and inline test probe
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(predecessor_receipt),
+            CONTROLLER_SHA256,
+            str(tmp_path),
+            str(private_parent),
+            str(successor_root),
+        ],
+        cwd=api_src.parent,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert recovered.returncode == 0, recovered.stderr
+    recovered_receipt = Path(recovered.stdout.strip())
+    result = verify_rollover_successor(
+        recovered_receipt,
+        predecessor_receipt_path=predecessor_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=tmp_path,
+    )
+    assert recovered_receipt == successor_root / "receipt-000000.json"
+    assert result["next_unused_ordinal"] == "CAL-REQ-003"
+    assert result["formal_calls_remaining"] == 30
+    assert result["formal_raw_capacity_remaining"] == 30
+    assert result["global_native_output_capacity_remaining"] == 61
+    assert result["global_native_output_consumed"] == 3
+
+
+def test_terminal_rollover_rejects_nonterminal_wrong_controller_and_tampering(
+    tmp_path: Path,
+) -> None:
+    nonterminal_parent = tmp_path / "nonterminal"
+    nonterminal_parent.mkdir()
+    nonterminal_root, nonterminal_receipt = _consumed(nonterminal_parent)
+    nonterminal_private_parent = nonterminal_root.parent
+    with pytest.raises(ExecutionOverlayError, match="ROLLOVER_TERMINAL_PREDECESSOR_INVALID"):
+        rollover_terminal_overlay(
+            predecessor_receipt_path=nonterminal_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            project_worktree_root=nonterminal_parent,
+            allowed_parent=nonterminal_private_parent,
+            successor_root=nonterminal_private_parent / "overlay-task-owned-0002",
+            successor_overlay_output_id="OVERLAY-EPOCH4-0002",
+            timestamp="2026-08-29T00:00:05Z",
+        )
+
+    terminal_parent = tmp_path / "terminal"
+    terminal_parent.mkdir()
+    predecessor_root, predecessor_receipt = _terminal_registration_failure(terminal_parent)
+    terminal_private_parent = predecessor_root.parent
+    with pytest.raises(ExecutionOverlayError, match="CONTROLLER_DIGEST_MISMATCH"):
+        rollover_terminal_overlay(
+            predecessor_receipt_path=predecessor_receipt,
+            expected_controller_sha256="b" * 64,
+            project_worktree_root=terminal_parent,
+            allowed_parent=terminal_private_parent,
+            successor_root=terminal_private_parent / "overlay-task-owned-0002",
+            successor_overlay_output_id="OVERLAY-EPOCH4-0002",
+            timestamp="2026-08-29T00:00:05Z",
+        )
+    successor = rollover_terminal_overlay(
+        predecessor_receipt_path=predecessor_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=terminal_parent,
+        allowed_parent=terminal_private_parent,
+        successor_root=terminal_private_parent / "overlay-task-owned-0002",
+        successor_overlay_output_id="OVERLAY-EPOCH4-0002",
+        timestamp="2026-08-29T00:00:05Z",
+    )
+    (predecessor_root / "event-000006.json").write_bytes(
+        (predecessor_root / "event-000006.json").read_bytes() + b" "
+    )
+    with pytest.raises(ExecutionOverlayError, match="EVENT_DIGEST_MISMATCH"):
+        verify_rollover_successor(
+            successor.receipt_path,
+            predecessor_receipt_path=predecessor_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            project_worktree_root=terminal_parent,
+        )
+
+    intent_parent = tmp_path / "intent-tamper"
+    intent_parent.mkdir()
+    intent_predecessor_root, intent_predecessor_receipt = _terminal_registration_failure(
+        intent_parent
+    )
+    intent_private_parent = intent_predecessor_root.parent
+    intent_successor = rollover_terminal_overlay(
+        predecessor_receipt_path=intent_predecessor_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=intent_parent,
+        allowed_parent=intent_private_parent,
+        successor_root=intent_private_parent / "overlay-task-owned-0002",
+        successor_overlay_output_id="OVERLAY-EPOCH4-0002",
+        timestamp="2026-08-29T00:00:05Z",
+    )
+    intent_state = verify_overlay(
+        intent_successor.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )["state"]
+    intent_path = (
+        intent_private_parent / intent_state["rollover_predecessor"]["rollover_intent_file"]
+    )
+    intent_path.write_bytes(intent_path.read_bytes() + b" ")
+    with pytest.raises(ExecutionOverlayError, match="ROLLOVER_INTENT_DIGEST_MISMATCH"):
+        verify_rollover_successor(
+            intent_successor.receipt_path,
+            predecessor_receipt_path=intent_predecessor_receipt,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            project_worktree_root=intent_parent,
+        )
+
+
 def test_private_prompt_rendering_is_deterministic_and_requires_prohibition() -> None:
     template = {
         "plaintext_export": "PROHIBITED",
@@ -763,6 +2014,10 @@ def test_controller_uses_no_directory_discovery_primitive() -> None:
     assert "import urllib" not in source
     assert "import socket" not in source
     assert "import subprocess" not in source
+    assert "from PIL" not in source
+    assert "import PIL" not in source
+    assert "Image.open(" not in source
+    assert "imagegen__" not in source
     assert "with generated_artifact_path.open" not in source
     assert "generated_artifact_path.stat()" not in source
     assert "O_NOFOLLOW" in source
