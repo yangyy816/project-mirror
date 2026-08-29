@@ -106,11 +106,13 @@ def _formal_admission_reasons(record: dict[str, Any]) -> set[str]:
     return reasons
 
 
-def _last_cc05_key_block(path: Path) -> list[tuple[str, str]]:
-    marker = (
-        "CURRENT_STATE_AUTHORITY_VERSION: "
-        "p2-m5-cc05-formal-questionbank-generation-policy-v3-eof/v1"
-    )
+def _last_key_block(
+    path: Path,
+    *,
+    authority_version: str,
+    sentinel: str,
+) -> list[tuple[str, str]]:
+    marker = f"CURRENT_STATE_AUTHORITY_VERSION: {authority_version}"
     text = path.read_text(encoding="utf-8")
     start = text.rfind(marker)
     assert start >= 0
@@ -119,7 +121,26 @@ def _last_cc05_key_block(path: Path) -> list[tuple[str, str]]:
         if ": " in line and not line.startswith("#"):
             key, value = line.split(": ", maxsplit=1)
             pairs.append((key, value))
+            if key == "CURRENT_AUTHORITY_TAIL_END":
+                assert value == sentinel
+                break
     return pairs
+
+
+def _last_cc05_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-cc05-formal-questionbank-generation-policy-v3-eof/v1",
+        sentinel="P2_M5_CC05_FORMAL_QUESTIONBANK_GENERATION_POLICY_V3_TRUE_EOF",
+    )
+
+
+def _last_cc05_a0_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-cc05-a0-e01-private-state-epoch3-rollover-eof/v1",
+        sentinel="P2_M5_CC05_A0_E01_PRIVATE_STATE_EPOCH3_ROLLOVER_TRUE_EOF",
+    )
 
 
 def test_policy_v3_has_canonical_digest_and_forward_only_scope() -> None:
@@ -470,3 +491,61 @@ def test_policy_v3_m5_true_eof_overlay_is_exactly_mirrored_and_fail_closed() -> 
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_CC05_FORMAL_QUESTIONBANK_GENERATION_POLICY_V3_TRUE_EOF",
     )
+
+
+def test_cc05_a0_epoch3_rollover_is_mirrored_zero_output_and_fail_closed() -> None:
+    canonical = _last_cc05_a0_key_block(ACCEPTANCE_PATH)
+    mirror = _last_cc05_a0_key_block(EXECUTION_PROTOCOL_PATH)
+
+    assert canonical == mirror
+    values = dict(canonical)
+    assert len(values) == len(canonical)
+    assert values["CC_P2_M5_05_STATUS"] == (
+        "PASS_AT_CDCC2591F42EAD6769107E423EECCE16FA9261D7_RUN_33238015901"
+    )
+    assert values["P2_M5_R40"] == (
+        "PASS_AT_CDCC2591F42EAD6769107E423EECCE16FA9261D7_RUN_33238015901"
+    )
+    assert values["CC_P2_M5_05_A0_STATUS"] == (
+        "PASS_AFTER_THIS_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert values["E01_EPOCH_2_EXECUTION_CUSTODY"] == (
+        "RETIRED_EVIDENCE_LOCATION_LOST_AFTER_A0_ACCEPTANCE"
+    )
+    assert values["E01_EPOCH_2_RECOVERY"] == "ABANDONED_NO_SCAN_NO_GUESS"
+    assert values["E01_EPOCH_2_PATH_SEARCH"] == "PROHIBITED"
+    assert values["E01_EPOCH_2_REUSE"] == "PROHIBITED"
+    assert values["E01_EPOCH_2_BYTES_ABSENCE_CLAIM"] == "PROHIBITED_NOT_MADE"
+    assert values["E01_ACTIVE_EXECUTION_CUSTODY"] == "NONE_PENDING_CC05_A"
+    assert values["E01_EPOCH_3_STATUS"] == (
+        "PROSPECTIVE_AUTHORIZED_NOT_CREATED_AFTER_A0_ACCEPTANCE"
+    )
+    assert values["E01_EPOCH_3_CREATE_MODE"] == "CREATE_NEW_NO_OVERWRITE"
+    assert values["E01_EPOCH_3_AUTHORIZED_ROOT_COUNT"] == "1"
+    assert values["E01_EPOCH_3_PRIVATE_DIGEST_INHERITANCE"] == ("PROHIBITED_COMPUTE_ALL_NEW")
+    assert values["CC_P2_M5_05_A0_IMAGEGEN_CALLS_EXECUTED"] == "0"
+    assert values["CC_P2_M5_05_A0_ORDINALS_CONSUMED"] == "0"
+    assert values["CC_P2_M5_05_A0_RAW_OUTPUTS_CREATED"] == "0"
+    assert values["CC_P2_M5_05_A0_PRIVATE_ROOTS_CREATED"] == "0"
+    assert values["FORMAL_E01_GENERATION_CALLS_EXECUTED"] == "1"
+    assert values["FORMAL_E01_RAW_OUTPUTS_CREATED"] == "1"
+    assert values["FORMAL_E01_PROVISIONAL_ACCEPTED_IDENTITIES"] == "0"
+    assert values["FORMAL_CALLS_REMAINING"] == "31"
+    assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "31"
+    assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "62"
+    assert values["CAL_REQ_001_STATUS"] == "CONSUMED_FAILED_NO_RETRY"
+    assert values["CAL_REQ_002_STATUS"] == "NOT_CONSUMED"
+    assert values["QUESTIONBANK_GENERATION_POLICY_DIGEST"] == (_policy()["content_sha256"].upper())
+    assert values["FORMAL_E01_STATUS"] == (
+        "SUSPENDED_PENDING_CC05_A_EPOCH3_PRIVATE_V3_MATERIALIZATION"
+    )
+    assert values["P2_M5_TECHNICAL_GATE"] == "NOT_EVALUATED"
+    assert values["P2_MVR_V1_RESULT"] == "NOT_EVALUATED"
+    assert values["P2_M6_ENTRY"] == "CLOSED_PENDING_TECHNICAL_AND_MVR_PASS"
+    assert values["NEXT_READY_TASK"] == "CC-P2-M5-05-A_PRIVATE_POLICY_MATERIALIZATION"
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_CC05_A0_E01_PRIVATE_STATE_EPOCH3_ROLLOVER_TRUE_EOF",
+    )
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
