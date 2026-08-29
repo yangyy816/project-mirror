@@ -125,6 +125,18 @@ Machine-readable redacted evidence SHA-256:
    independent Security/Privacy/License/Research review, Sol High final review and Principal acceptance.
 5. Until all Gates complete, `CAL-REQ-002` remains unconsumed and no generation is allowed.
 
+## P2-M5-R48 format repair
+
+Initial candidate `9d31a32d5c2863d0866b6bd4ba8b8f8894b45d24` reached run `33254856895` attempt 1. Secret scan and
+Docker validation passed, and quality/integration passed Python quality, PostgreSQL migration lifecycle, the complete
+Python suite and all frozen Phase 1/M1/M2/M3 evidence tests before failing only because Prettier reported this
+Milestone's Acceptance and Execution authority files as unformatted. Browser installation and integration were not
+run after that dependency failure; this is not Playwright failure evidence.
+
+`P2-M5-R48` is bounded to deterministic Prettier formatting of those two authority mirrors plus this forward failure
+record. It changes no policy value, private evidence, runtime, schema, API, dependency, security boundary, resource
+ledger or Gate. Imagegen calls and ordinals consumed in R48 remain zero, and `CAL-REQ-002` remains unconsumed.
+
 `CC_P2_M5_05_C_LOCAL_STATUS: PASS_PENDING_TRACKED_GATES`
 
 `P2_M5_STATE: EXECUTING`

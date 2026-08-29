@@ -1579,7 +1579,7 @@ def test_cc05_c_true_eof_overlay_is_complete_mirrored_and_binds_redacted_evidenc
     )
 
     assert canonical == mirror
-    assert len(canonical) == len(values) == 597
+    assert len(canonical) == len(values) == 610
     assert len(predecessor) == len(predecessor_values) == 532
     assert set(predecessor_values) <= values.keys()
     changed_keys = {
@@ -1684,8 +1684,21 @@ def test_cc05_c_true_eof_overlay_is_complete_mirrored_and_binds_redacted_evidenc
         "E01_EPOCH_4_ADULT_AGE_ASSIGNMENT_MANIFEST",
         "E01_EPOCH_4_FIXED_ENTRYPOINT_RECOVERY",
         "E01_EPOCH_4_PRIVATE_OUTPUT_REGISTRY_RECEIPT",
+        "P2_M5_R48",
+        "P2_M5_R48_PARENT_SHA",
+        "P2_M5_R48_PARENT_CI_RUN",
+        "P2_M5_R48_PARENT_CI_RESULTS",
+        "P2_M5_R48_FAILURE_CLASS",
+        "P2_M5_R48_FAILED_FILES",
+        "P2_M5_R48_REPAIR_SCOPE",
+        "P2_M5_R48_RUNTIME_SCHEMA_API_SECURITY_CHANGE",
+        "P2_M5_R48_IMAGEGEN_CALLS_EXECUTED",
+        "P2_M5_R48_ORDINALS_CONSUMED",
+        "P2_M5_R48_CAL_REQ_002_STATUS",
+        "P2_M5_R48_PLAYWRIGHT_STATUS",
+        "P2_M5_R48_POST_ACCEPTANCE_COMMIT_REQUIRED",
     }
-    assert len(added_keys) == 65
+    assert len(added_keys) == 78
     assert set(values) - set(predecessor_values) == added_keys
 
     assert values["CC_P2_M5_05_C0_STATUS"] == (
@@ -1725,6 +1738,15 @@ def test_cc05_c_true_eof_overlay_is_complete_mirrored_and_binds_redacted_evidenc
     assert values["CC_P2_M5_05_C_ADULT_20_25_ASSIGNMENT_COUNT"] == "24"
     assert values["CC_P2_M5_05_C_CAL_REQ_001_STATUS"] == "CONSUMED_FAILED_NO_RETRY"
     assert values["CC_P2_M5_05_C_CAL_REQ_002_STATUS"] == "NOT_CONSUMED"
+    assert values["P2_M5_R48_PARENT_SHA"] == "9D31A32D5C2863D0866B6BD4BA8B8F8894B45D24"
+    assert values["P2_M5_R48_PARENT_CI_RUN"] == "33254856895_ATTEMPT_1"
+    assert values["P2_M5_R48_FAILURE_CLASS"] == "DETERMINISTIC_PRETTIER_FORMAT_DRIFT"
+    assert values["P2_M5_R48_IMAGEGEN_CALLS_EXECUTED"] == "0"
+    assert values["P2_M5_R48_ORDINALS_CONSUMED"] == "0"
+    assert values["P2_M5_R48_CAL_REQ_002_STATUS"] == "NOT_CONSUMED"
+    assert values["P2_M5_R48_PLAYWRIGHT_STATUS"] == (
+        "NOT_RUN_DEPENDENCY_SKIPPED_NOT_A_PLAYWRIGHT_FAILURE"
+    )
     assert values["CC_P2_M5_05_C_IMAGEGEN_CALLS_EXECUTED"] == "0"
     assert values["CC_P2_M5_05_C_ORDINALS_CONSUMED"] == "0"
     assert values["CC_P2_M5_05_C_RAW_OUTPUTS_CREATED"] == "0"
