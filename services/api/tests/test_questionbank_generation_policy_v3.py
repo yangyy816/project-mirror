@@ -50,6 +50,18 @@ CC05_C_EVIDENCE_PATH = (
 CC05_C_EVIDENCE_DOC_PATH = (
     ROOT / "docs" / "operations" / "P2_M5_CC05_C_E01_PRIVATE_POLICY_MATERIALIZATION_EVIDENCE.md"
 )
+R43_Q01_EVIDENCE_PATH = (
+    ROOT
+    / "docs"
+    / "operations"
+    / "P2_M5_R43_Q01_PRIVATE_EXECUTION_OVERLAY_MATERIALIZATION_REDACTED_EVIDENCE.json"
+)
+R43_Q01_EVIDENCE_DOC_PATH = (
+    ROOT
+    / "docs"
+    / "operations"
+    / "P2_M5_R43_Q01_PRIVATE_EXECUTION_OVERLAY_MATERIALIZATION_EVIDENCE.md"
+)
 ACCEPTANCE_PATH = ROOT / "docs" / "operations" / "P2_M5_ACCEPTANCE.md"
 EXECUTION_PROTOCOL_PATH = ROOT / "docs" / "operations" / "P2_M5_EXECUTION_PROTOCOL.md"
 
@@ -320,6 +332,14 @@ def _last_cc05_c_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-cc05-c-e01-epoch4-private-materialization-eof/v1",
         sentinel="P2_M5_CC05_C_E01_EPOCH4_PRIVATE_POLICY_MATERIALIZATION_TRUE_EOF",
+    )
+
+
+def _last_r43_q01_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-r43-q01-epoch4-execution-overlay-materialization-eof/v1",
+        sentinel="P2_M5_R43_Q01_EPOCH4_EXECUTION_OVERLAY_MATERIALIZATION_TRUE_EOF",
     )
 
 
@@ -1775,8 +1795,8 @@ def test_cc05_c_true_eof_overlay_is_complete_mirrored_and_binds_redacted_evidenc
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_CC05_C_E01_EPOCH4_PRIVATE_POLICY_MATERIALIZATION_TRUE_EOF",
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").count(canonical[-1][1]) == 1
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").count(mirror[-1][1]) == 1
 
     tracked = "\n".join(
         (
@@ -2261,3 +2281,281 @@ def test_r45_gate_closure_overlay_is_complete_mirrored_and_true_eof() -> None:
     assert "provider_raw_payload" not in tracked.lower()
     assert "C:\\" not in tracked
     assert "D:\\" not in tracked
+
+
+def test_r43_q01_redacted_evidence_is_complete_zero_generation_and_path_free() -> None:
+    evidence = cast(
+        dict[str, Any],
+        json.loads(R43_Q01_EVIDENCE_PATH.read_text(encoding="utf-8")),
+    )
+
+    assert evidence["schema_version"] == ("mirror.p2-m5/R43Q01OverlayMaterializationEvidence/v1")
+    assert evidence["task_id"] == ("P2-M5-R43-Q01_PRIVATE_EXECUTION_OVERLAY_MATERIALIZATION")
+    assert evidence["status"] == (
+        "LOCAL_PRIVATE_OVERLAY_MATERIALIZATION_PASS_PENDING_TRACKED_GATES"
+    )
+    assert evidence["overlay_create_mode"] == "CREATE_NEW_NO_OVERWRITE"
+    assert evidence["overlay_root_count"] == 1
+    assert evidence["overlay_sequence"] == 0
+    assert evidence["overlay_phase"] == "READY"
+    assert evidence["decode_authorized"] is False
+    assert evidence["hard_stop"] is False
+    assert evidence["fresh_process_handle_recovery"] == "PASS"
+    assert evidence["project_private_recoverable_custody"] == (
+        "PASS_DEDICATED_GIT_IGNORED_PROJECT_FOLDER"
+    )
+    assert evidence["receipt_graph_document_count"] == 10
+    assert evidence["control_digest_match_count"] == 8
+    assert evidence["control_digest_expected_count"] == 8
+    assert evidence["prompt_render_validation"] == ("PASS_IN_MEMORY_EXACT_FOUR_FIELDS_NOT_EXPORTED")
+
+    for field in (
+        "controller_sha256",
+        "materialization_intent_sha256",
+        "overlay_handle_sha256",
+        "overlay_receipt_sha256",
+        "overlay_state_sha256",
+        "source_receipt_sha256",
+    ):
+        assert isinstance(evidence[field], str)
+        assert re.fullmatch(r"[0-9a-f]{64}", evidence[field])
+
+    assert evidence["request_call_count"] == 1
+    assert evidence["requested_output_count"] == 1
+    assert evidence["returned_output_count"] == 1
+    assert evidence["raw_output_count"] == 1
+    assert evidence["failed_call_count"] == 0
+    assert evidence["rejected_output_count"] == 0
+    assert evidence["admitted_identity_count"] == 0
+    assert evidence["formal_calls_remaining"] == 31
+    assert evidence["formal_raw_capacity_remaining"] == 31
+    assert evidence["global_native_output_capacity_remaining"] == 62
+    assert evidence["global_native_output_consumed"] == 2
+    assert evidence["active_calls"] == 0
+    assert evidence["cal_req_001_status"] == "CONSUMED_FAILED_NO_RETRY"
+    assert evidence["cal_req_002_status"] == "NOT_CONSUMED"
+    assert evidence["next_unused_formal_ordinal"] == "CAL-REQ-002"
+
+    for field in (
+        "generation_or_provider_calls_in_q01",
+        "ordinals_consumed_in_q01",
+        "raw_outputs_created_in_q01",
+        "image_bytes_read_in_q01",
+        "decode_qa_screening_admission_in_q01",
+        "real_user_runtime_generation_calls",
+    ):
+        assert evidence[field] == 0
+    for field in (
+        "cal_req_002_dispatch_authorized_in_q01",
+        "private_prompt_or_locator_in_tracked_evidence",
+        "public_api_change",
+        "schema_or_migration_change",
+        "dependency_model_or_workflow_change",
+        "question_bank_release_authorized",
+        "real_user_facial_processing_authorized",
+    ):
+        assert evidence[field] is False
+    assert evidence["p2_m5_technical_gate"] == "NOT_EVALUATED"
+    assert evidence["p2_mvr_v1_result"] == "NOT_EVALUATED"
+    assert evidence["p2_m6_entry"] == "CLOSED_PENDING_TECHNICAL_AND_MVR_PASS"
+    assert evidence["next_ready_task_after_acceptance"] == "EXECUTE_CAL_REQ_002"
+
+    tracked = "\n".join(
+        (
+            R43_Q01_EVIDENCE_PATH.read_text(encoding="utf-8"),
+            R43_Q01_EVIDENCE_DOC_PATH.read_text(encoding="utf-8"),
+        )
+    )
+    for forbidden in (
+        ".private-handoff",
+        ".local-storage",
+        "receipt_locator",
+        "overlay_receipt_relative",
+        "private_template_nonce",
+        "positive_segments",
+        "negative_segments",
+        "prompt_text",
+        "prompt_plaintext",
+        "seed_value",
+        "object_key",
+        "signed_url",
+        "data:image/",
+        "C:\\",
+        "D:\\",
+    ):
+        assert forbidden not in tracked
+    assert "provider_raw_payload" not in tracked.lower()
+
+
+def test_r43_q01_true_eof_is_complete_mirrored_and_binds_redacted_evidence() -> None:
+    canonical = _last_r43_q01_key_block(ACCEPTANCE_PATH)
+    mirror = _last_r43_q01_key_block(EXECUTION_PROTOCOL_PATH)
+    predecessor = _last_cc05_c_key_block(ACCEPTANCE_PATH)
+    values = dict(canonical)
+    predecessor_values = dict(predecessor)
+    evidence = cast(
+        dict[str, Any],
+        json.loads(R43_Q01_EVIDENCE_PATH.read_text(encoding="utf-8")),
+    )
+
+    assert canonical == mirror
+    assert len(canonical) == len(values) == 661
+    assert len(predecessor) == len(predecessor_values) == 610
+    assert set(predecessor_values) <= values.keys()
+
+    expected_changed_keys = {
+        "CURRENT_STATE_AUTHORITY_VERSION",
+        "CURRENT_STATE_AUTHORITY_PRECEDENCE",
+        "CURRENT_STATE_MIRROR_RULE",
+        "EARLIER_STATUS_SECTIONS",
+        "CC04_B_EXECUTION",
+        "FORMAL_E01_STATUS",
+        "FORMAL_E01_EXECUTION_AUTHORITY",
+        "CURRENT_STATE_PRECONDITION_FALLBACK",
+        "E01_ACTIVE_EXECUTION_CUSTODY",
+        "E01_EPOCH_4_STATUS",
+        "P2_M5_NEXT_ACTION",
+        "NEXT_READY_TASK",
+        "CURRENT_STATE_KEY_COVERAGE",
+        "STOP_OUTCOME",
+        "P2_M5_R43_Q01_STATUS",
+        "P2_M5_R43_Q01_REDACTED_EVIDENCE_REQUIRED",
+        "CURRENT_AUTHORITY_TAIL_END",
+    }
+    assert expected_changed_keys == {
+        key
+        for key, predecessor_value in predecessor_values.items()
+        if values[key] != predecessor_value
+    }
+
+    added_keys = {
+        "P2_M5_R43_Q01_AUTHORITY_CONDITION",
+        "P2_M5_R43_Q01_POST_ACCEPTANCE_COMMIT_REQUIRED",
+        "P2_M5_R43_Q01_PREDECESSOR_SHA",
+        "P2_M5_R43_Q01_CHANGE_CLASS",
+        "P2_M5_R43_Q01_SOURCE_OUTPUT_ID",
+        "P2_M5_R43_Q01_SOURCE_RECEIPT_SHA256",
+        "P2_M5_R43_Q01_CONTROLLER_SHA256",
+        "P2_M5_R43_Q01_MATERIALIZATION_INTENT_SHA256",
+        "P2_M5_R43_Q01_OVERLAY_OUTPUT_ID",
+        "P2_M5_R43_Q01_OVERLAY_HANDLE_SHA256",
+        "P2_M5_R43_Q01_OVERLAY_RECEIPT_SHA256",
+        "P2_M5_R43_Q01_OVERLAY_STATE_SHA256",
+        "P2_M5_R43_Q01_REDACTED_EVIDENCE_SHA256",
+        "P2_M5_R43_Q01_OVERLAY_CREATE_MODE",
+        "P2_M5_R43_Q01_OVERLAY_ROOT_COUNT",
+        "P2_M5_R43_Q01_PROJECT_PRIVATE_RECOVERABLE_CUSTODY",
+        "P2_M5_R43_Q01_RECEIPT_GRAPH_DOCUMENT_COUNT",
+        "P2_M5_R43_Q01_CONTROL_DIGEST_MATCH",
+        "P2_M5_R43_Q01_PROMPT_RENDER_VALIDATION",
+        "P2_M5_R43_Q01_OVERLAY_SEQUENCE",
+        "P2_M5_R43_Q01_OVERLAY_PHASE",
+        "P2_M5_R43_Q01_DECODE_AUTHORIZED",
+        "P2_M5_R43_Q01_HARD_STOP",
+        "P2_M5_R43_Q01_FRESH_PROCESS_HANDLE_RECOVERY",
+        "P2_M5_R43_Q01_REQUEST_CALL_COUNT",
+        "P2_M5_R43_Q01_REQUESTED_OUTPUT_COUNT",
+        "P2_M5_R43_Q01_RETURNED_OUTPUT_COUNT",
+        "P2_M5_R43_Q01_RAW_OUTPUT_COUNT",
+        "P2_M5_R43_Q01_FAILED_CALL_COUNT",
+        "P2_M5_R43_Q01_REJECTED_OUTPUT_COUNT",
+        "P2_M5_R43_Q01_ADMITTED_IDENTITY_COUNT",
+        "P2_M5_R43_Q01_FORMAL_CALLS_REMAINING",
+        "P2_M5_R43_Q01_FORMAL_RAW_CAPACITY_REMAINING",
+        "P2_M5_R43_Q01_GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING",
+        "P2_M5_R43_Q01_GLOBAL_NATIVE_OUTPUT_CONSUMED",
+        "P2_M5_R43_Q01_ACTIVE_CALLS",
+        "P2_M5_R43_Q01_CAL_REQ_001_STATUS",
+        "P2_M5_R43_Q01_CAL_REQ_002_STATUS",
+        "P2_M5_R43_Q01_CAL_REQ_002_DISPATCH_AUTHORIZED_IN_Q01",
+        "P2_M5_R43_Q01_GENERATION_OR_PROVIDER_CALLS",
+        "P2_M5_R43_Q01_RAW_OUTPUTS_CREATED",
+        "P2_M5_R43_Q01_IMAGE_BYTES_READ",
+        "P2_M5_R43_Q01_DECODE_QA_SCREENING_ADMISSION",
+        "P2_M5_R43_Q01_PRIVATE_PROMPT_OR_LOCATOR_IN_TRACKED_EVIDENCE",
+        "P2_M5_R43_Q01_PUBLIC_API_CHANGE",
+        "P2_M5_R43_Q01_SCHEMA_OR_MIGRATION_CHANGE",
+        "P2_M5_R43_Q01_DEPENDENCY_MODEL_OR_WORKFLOW_CHANGE",
+        "P2_M5_R43_Q01_QUESTION_BANK_RELEASE_AUTHORIZED",
+        "P2_M5_R43_Q01_PRODUCTION_PROVIDER_OR_GEOMETRY_APPROVED",
+        "P2_M5_R43_Q01_REAL_USER_FACIAL_PROCESSING_AUTHORIZED",
+        "P2_M5_R43_Q01_NEXT_TASK_AFTER_ACCEPTANCE",
+    }
+    assert len(added_keys) == 51
+    assert set(values) - set(predecessor_values) == added_keys
+
+    digest_bindings = {
+        "P2_M5_R43_Q01_SOURCE_RECEIPT_SHA256": "source_receipt_sha256",
+        "P2_M5_R43_Q01_CONTROLLER_SHA256": "controller_sha256",
+        "P2_M5_R43_Q01_MATERIALIZATION_INTENT_SHA256": "materialization_intent_sha256",
+        "P2_M5_R43_Q01_OVERLAY_HANDLE_SHA256": "overlay_handle_sha256",
+        "P2_M5_R43_Q01_OVERLAY_RECEIPT_SHA256": "overlay_receipt_sha256",
+        "P2_M5_R43_Q01_OVERLAY_STATE_SHA256": "overlay_state_sha256",
+    }
+    assert {key: values[key] for key in digest_bindings} == {
+        key: evidence[field].upper() for key, field in digest_bindings.items()
+    }
+    assert values["P2_M5_R43_Q01_REDACTED_EVIDENCE_SHA256"] == (
+        hashlib.sha256(R43_Q01_EVIDENCE_PATH.read_bytes()).hexdigest().upper()
+    )
+    assert values["P2_M5_R43_Q01_OVERLAY_OUTPUT_ID"].lower() == (
+        evidence["overlay_output_id"].lower()
+    )
+    assert values["P2_M5_R43_Q01_STATUS"] == (
+        "PASS_AFTER_THIS_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert values["P2_M5_R43_Q01_OVERLAY_PHASE"] == "READY"
+    assert values["P2_M5_R43_Q01_OVERLAY_SEQUENCE"] == "0"
+    assert values["P2_M5_R43_Q01_CONTROL_DIGEST_MATCH"] == "PASS_8_OF_8"
+    assert values["P2_M5_R43_Q01_REQUEST_CALL_COUNT"] == "1"
+    assert values["P2_M5_R43_Q01_REQUESTED_OUTPUT_COUNT"] == "1"
+    assert values["P2_M5_R43_Q01_RETURNED_OUTPUT_COUNT"] == "1"
+    assert values["P2_M5_R43_Q01_RAW_OUTPUT_COUNT"] == "1"
+    assert values["P2_M5_R43_Q01_FORMAL_CALLS_REMAINING"] == "31"
+    assert values["P2_M5_R43_Q01_FORMAL_RAW_CAPACITY_REMAINING"] == "31"
+    assert values["P2_M5_R43_Q01_GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "62"
+    assert values["P2_M5_R43_Q01_ACTIVE_CALLS"] == "0"
+    assert values["P2_M5_R43_Q01_CAL_REQ_002_STATUS"] == "NOT_CONSUMED"
+    assert values["P2_M5_R43_Q01_GENERATION_OR_PROVIDER_CALLS"] == "0"
+    assert values["P2_M5_R43_Q01_IMAGEGEN_CALLS"] == "0"
+    assert values["P2_M5_R43_Q01_ORDINALS_CONSUMED"] == "0"
+    assert values["P2_M5_R43_Q01_RAW_OUTPUTS_CREATED"] == "0"
+    assert values["P2_M5_R43_Q01_IMAGE_BYTES_READ"] == "0"
+    assert values["CAL_REQ_002_STATUS"] == "NOT_CONSUMED"
+    assert values["FORMAL_CALLS_REMAINING"] == "31"
+    assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "31"
+    assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "62"
+    assert values["NEXT_READY_TASK"] == "P2_M5_R43_Q01_SAME_SHA_GATES"
+    assert values["P2_M5_TECHNICAL_GATE"] == "NOT_EVALUATED"
+    assert values["P2_MVR_V1_RESULT"] == "NOT_EVALUATED"
+    assert values["P2_M6_ENTRY"] == "CLOSED_PENDING_TECHNICAL_AND_MVR_PASS"
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_R43_Q01_EPOCH4_EXECUTION_OVERLAY_MATERIALIZATION_TRUE_EOF",
+    )
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").count(canonical[-1][1]) == 1
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").count(mirror[-1][1]) == 1
+
+    tracked = "\n".join(
+        (
+            R43_Q01_EVIDENCE_PATH.read_text(encoding="utf-8"),
+            R43_Q01_EVIDENCE_DOC_PATH.read_text(encoding="utf-8"),
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-350_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-350_000:],
+        )
+    )
+    for forbidden in (
+        ".private-handoff",
+        ".local-storage",
+        "receipt_locator",
+        "overlay_receipt_relative",
+        "positive_segments",
+        "negative_segments",
+        "provider_raw_payload",
+        "data:image/",
+        "C:\\",
+        "D:\\",
+    ):
+        assert forbidden not in tracked
