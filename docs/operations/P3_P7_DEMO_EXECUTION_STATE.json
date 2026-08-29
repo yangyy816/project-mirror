@@ -2,8 +2,10 @@
   "schema_version": "mirror.demo/P3P7DemoExecutionState/v1",
   "goal_epoch": "P3_P7_COMPLETE_DEMO_EPOCH_02",
   "integration_branch": "codex/p3-p7-core-demo",
-  "integration_head": "dd16624ed5ff679b03fefc61994f4ea9fd85e71e",
+  "integration_head": "fab67bc3ed88472156fe342a89f4d0b4cd9c57b1",
   "migration_head": "demo_0008_d02_r2_source_auth",
+  "delivery_policy": "PRODUCT_AND_ALGORITHM_FIRST_RISK_TIERED",
+  "evidence_custody_host_binding": "FROZEN_DEFERRED",
   "closed_checkpoints": [
     "D00",
     "D01_A",
@@ -15,9 +17,13 @@
     "D02_R2_R05",
     "D02_R2_GENERATION_CAPABILITY_AUTHORITY",
     "D02_R2_REGISTRY_R06_WINDOWS_ROOT_ACL_HARDENING",
-    "D02_R2_LOCATOR_CUSTODY_IMPLEMENTATION"
+    "D02_R2_LOCATOR_CUSTODY_IMPLEMENTATION",
+    "D02_R2_CC10_PRODUCT_FIRST_CLOSURE",
+    "D02_R2_EPOCH_02_PLAN",
+    "D02_R2_EPOCH_02_IMPLEMENTATION",
+    "D02_R2_EPOCH_02_REQUEST_DIGEST_BRIDGE"
   ],
-  "active_checkpoint": "D02_R2_WINDOWS_HOST_BINDING_CANDIDATE_PROJECTION",
+  "active_checkpoint": "D02_R2_EPOCH_02_PRIVATE_PREFLIGHT",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -28,7 +34,12 @@
     "D02_R2_R05_INTEGRATION": "ed89d7d5b88825b5f01315b11d279ea8d1fd5de6",
     "D02_R2_GENERATION_CAPABILITY_AUTHORITY": "99c1a4f1a31d2fe1f0d2d7e33012ff025ad649aa",
     "D02_R2_REGISTRY_R06": "ab08a6e861ec364c62a6ab3dcf46a69483f1b741",
-    "D02_R2_LOCATOR_CUSTODY_IMPLEMENTATION": "dd16624ed5ff679b03fefc61994f4ea9fd85e71e"
+    "D02_R2_LOCATOR_CUSTODY_IMPLEMENTATION": "dd16624ed5ff679b03fefc61994f4ea9fd85e71e",
+    "D02_R2_CC10_CODE": "accae2835e9ec9e8831dff9cdd17172f29814588",
+    "D02_R2_CC10_PRODUCT_FIRST_CLOSURE": "48b23cb68a753228b4adcc89c13d0c6ddb7c00e1",
+    "D02_R2_EPOCH_02_PLAN": "3d3ce14556de8240cfb913a85bec2aaa8052aeae",
+    "D02_R2_EPOCH_02_IMPLEMENTATION": "911f0fc97df76c66f5e456dbda43cc4865fb7a2c",
+    "D02_R2_EPOCH_02_REQUEST_DIGEST_BRIDGE": "fab67bc3ed88472156fe342a89f4d0b4cd9c57b1"
   },
   "accepted_ci_runs": {
     "D09": 32701906246,
@@ -38,7 +49,10 @@
     "D02_R2_GENERATION_CAPABILITY_ACCEPTANCE_STATE": 33082956245,
     "D02_R2_REGISTRY_R06": 33085380915,
     "D02_R2_LOCATOR_CUSTODY_IMPLEMENTATION": 33156860094,
-    "D02_R2_LOCATOR_CUSTODY_ACCEPTANCE_STATE": 33161517249
+    "D02_R2_LOCATOR_CUSTODY_ACCEPTANCE_STATE": 33161517249,
+    "D02_R2_CC10_CODE": 33191941771,
+    "D02_R2_EPOCH_02_IMPLEMENTATION": 33213514888,
+    "D02_R2_EPOCH_02_REQUEST_DIGEST_BRIDGE": 33226054944
   },
   "generation_capability_candidate": {
     "authority_id": "P3_P7_D02_R2_GENERATION_CAPABILITY_AUTHORITY_01",
@@ -65,13 +79,30 @@
     "imagegen_calls_executed": 0,
     "private_locator_tracked": false
   },
+  "cc10_closure": {
+    "outcome": "PASS_WITH_DEFERRED_NON_BLOCKING_FINDINGS",
+    "native_and_etw": "NOT_IMPLEMENTED_DEFERRED",
+    "historical_s10_g7_g10": "NOT_EXECUTED_NOT_PASSED",
+    "cc11_or_cc12": false,
+    "local_synthetic_demo_dag_block": "LIFTED"
+  },
+  "epoch_02_execution": {
+    "authority_id": "P3_P7_D02_R2_EXECUTION_EPOCH_02",
+    "implementation_status": "PRINCIPAL_ACCEPTED",
+    "request_digest_bridge_status": "PRINCIPAL_ACCEPTED",
+    "request_digest_bridge_ci": "PASS_33226054944",
+    "evidence_root": "NOT_CREATED",
+    "two_copy_registry": "NOT_INITIALIZED",
+    "imagegen_calls_executed": 0,
+    "imagegen_calls_authorized": 4
+  },
   "current_blockers": {
-    "D02_R2": "WINDOWS_HOST_PROJECTION_COLLECTOR_NOT_IMPLEMENTED_CC10_REQUIRED",
+    "D02_R2": "PRIVATE_PREFLIGHT_AND_FULL_D02_R2_EXECUTION_NOT_COMPLETED",
     "D03": "BLOCKED_D02_R2_NOT_TASK_ACCEPTED",
     "D04_B": "BLOCKED_D02_R2_AND_D03_NOT_TASK_ACCEPTED",
     "D07_B": "BLOCKED_D02_R2_AND_D03_NOT_TASK_ACCEPTED"
   },
-  "next_ready_nodes": ["P3_P7_D02_CC_10_GOVERNANCE"],
+  "next_ready_nodes": ["D02_R2_EPOCH_02_PRIVATE_PREFLIGHT"],
   "production_release": "NOT_AUTHORIZED",
   "updated_by_principal": "INTEGRATION_PRINCIPAL"
 }
