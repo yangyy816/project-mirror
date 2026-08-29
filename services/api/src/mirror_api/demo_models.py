@@ -2055,6 +2055,75 @@ class DemoEditOperation(DemoAuthorityMixin, Base):
     )
 
 
+class DemoEditArtifact(DemoAuthorityMixin, Base):
+    __tablename__ = "demo_edit_artifacts"
+
+    demo_actor_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    demo_session_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    edit_operation_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    execution_job_binding_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "demo_job_bindings.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        nullable=False,
+        index=True,
+    )
+    formal_job_attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("job_attempts.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    private_object_key: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    engine: Mapped[str] = mapped_column(String(32), nullable=False)
+    engine_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    expected_engine_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    expected_config_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        ForeignKeyConstraint(
+            ["edit_operation_id", "demo_actor_id", "demo_session_id"],
+            [
+                "demo_edit_operations.id",
+                "demo_edit_operations.demo_actor_id",
+                "demo_edit_operations.demo_session_id",
+            ],
+            name="fk_demo_edit_artifacts_operation_owner",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "execution_job_binding_id",
+            "formal_job_attempt_id",
+            "edit_operation_id",
+            name="uq_demo_edit_artifacts_execution_attempt_operation",
+        ),
+        UniqueConstraint(
+            "id",
+            "demo_actor_id",
+            "demo_session_id",
+            name="uq_demo_edit_artifacts_id_actor_session",
+        ),
+        CheckConstraint(
+            "private_object_key ~ "
+            "'^demo-quarantine/[0-9a-f]{32}/[0-9a-f]{32}/[0-9a-f]{32}/[0-9a-f]{32}$'",
+            name="private_object_key_shape",
+        ),
+        CheckConstraint(
+            "engine IN ('RASTER','GEOMETRY')",
+            name="engine",
+        ),
+        CheckConstraint(
+            "expected_engine_digest ~ '^[0-9a-f]{64}$'",
+            name="expected_engine_digest_shape",
+        ),
+        CheckConstraint(
+            "expected_config_digest ~ '^[0-9a-f]{64}$'",
+            name="expected_config_digest_shape",
+        ),
+    )
+
+
 class DemoToolRun(DemoAuthorityMixin, Base):
     __tablename__ = "demo_tool_runs"
 
@@ -2074,6 +2143,12 @@ class DemoToolRun(DemoAuthorityMixin, Base):
     )
     formal_job_attempt_id: Mapped[str] = mapped_column(
         ForeignKey("job_attempts.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    demo_edit_artifact_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_edit_artifacts.id", ondelete="RESTRICT"),
+        index=True,
+        unique=True,
+        nullable=False,
     )
     tool_name: Mapped[str] = mapped_column(String(64), nullable=False)
     tool_version: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -2125,8 +2200,7 @@ class DemoToolRun(DemoAuthorityMixin, Base):
             name="edit_operation_digest_shape",
         ),
         CheckConstraint(
-            "(output_asset_id IS NULL AND output_asset_sha256 IS NULL) OR "
-            "(output_asset_id IS NOT NULL AND output_asset_sha256 ~ '^[0-9a-f]{64}$')",
+            "output_asset_id IS NULL AND output_asset_sha256 IS NULL",
             name="output_shape",
         ),
         CheckConstraint(
@@ -2137,11 +2211,6 @@ class DemoToolRun(DemoAuthorityMixin, Base):
             "outcome IN ('COMPLETED','REJECTED','FAILED','CANCELLED')",
             name="outcome",
         ),
-        CheckConstraint(
-            "(outcome = 'COMPLETED' AND output_asset_id IS NOT NULL) OR "
-            "(outcome <> 'COMPLETED' AND output_asset_id IS NULL)",
-            name="outcome_result_shape",
-        ),
     )
 
 
@@ -2151,9 +2220,7 @@ class DemoVerificationResult(DemoAuthorityMixin, Base):
     demo_actor_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     demo_session_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     tool_run_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True, unique=True)
-    image_version_id: Mapped[str] = mapped_column(
-        String(32), index=True, unique=True, nullable=False
-    )
+    image_version_id: Mapped[str | None] = mapped_column(String(32), index=True, unique=True)
     demo_job_binding_id: Mapped[str] = mapped_column(
         ForeignKey(
             "demo_job_bindings.id",
@@ -2165,10 +2232,19 @@ class DemoVerificationResult(DemoAuthorityMixin, Base):
         unique=True,
         nullable=False,
     )
-    output_asset_id: Mapped[str] = mapped_column(
-        ForeignKey("assets.id", ondelete="RESTRICT"), index=True, nullable=False
+    demo_edit_artifact_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_edit_artifacts.id", ondelete="RESTRICT"),
+        index=True,
+        unique=True,
+        nullable=False,
     )
-    output_asset_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    formal_job_attempt_id: Mapped[str] = mapped_column(
+        ForeignKey("job_attempts.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    output_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), index=True
+    )
+    output_asset_sha256: Mapped[str | None] = mapped_column(String(64))
     verifier_version: Mapped[str] = mapped_column(String(64), nullable=False)
     config_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
@@ -2200,7 +2276,14 @@ class DemoVerificationResult(DemoAuthorityMixin, Base):
             deferrable=True,
             initially="DEFERRED",
         ),
-        CheckConstraint("output_asset_sha256 ~ '^[0-9a-f]{64}$'", name="output_sha_shape"),
+        CheckConstraint(
+            "(outcome = 'PASS' AND image_version_id IS NOT NULL "
+            "AND output_asset_id IS NOT NULL "
+            "AND output_asset_sha256 ~ '^[0-9a-f]{64}$') OR "
+            "(outcome IN ('FAIL','HUMAN_REVIEW') AND image_version_id IS NULL "
+            "AND output_asset_id IS NULL AND output_asset_sha256 IS NULL)",
+            name="publication_shape",
+        ),
         CheckConstraint("config_digest ~ '^[0-9a-f]{64}$'", name="config_digest_shape"),
         CheckConstraint("jsonb_typeof(metrics) = 'object'", name="metrics_object"),
         CheckConstraint("jsonb_typeof(thresholds) = 'object'", name="thresholds_object"),
@@ -2209,6 +2292,114 @@ class DemoVerificationResult(DemoAuthorityMixin, Base):
             name="outcome",
         ),
         CheckConstraint("jsonb_typeof(reason_codes) = 'array'", name="reason_codes_array"),
+    )
+
+
+class DemoEditArtifactEvent(DemoAuthorityMixin, Base):
+    __tablename__ = "demo_edit_artifact_events"
+
+    demo_actor_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    demo_session_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    demo_edit_artifact_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    object_sha256: Mapped[str | None] = mapped_column(String(64))
+    byte_size: Mapped[int | None] = mapped_column(BigInteger)
+    width: Mapped[int | None] = mapped_column(Integer)
+    height: Mapped[int | None] = mapped_column(Integer)
+    mime_type: Mapped[str | None] = mapped_column(String(64))
+    engine_digest: Mapped[str | None] = mapped_column(String(64))
+    config_digest: Mapped[str | None] = mapped_column(String(64))
+    promoted_asset_id: Mapped[str | None] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), index=True, unique=True
+    )
+    promoted_asset_variant_id: Mapped[str | None] = mapped_column(
+        ForeignKey("asset_variants.id", ondelete="RESTRICT"), index=True, unique=True
+    )
+    verification_result_id: Mapped[str | None] = mapped_column(
+        ForeignKey(
+            "demo_verification_results.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        index=True,
+        unique=True,
+    )
+    image_version_id: Mapped[str | None] = mapped_column(
+        ForeignKey(
+            "demo_image_versions.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        index=True,
+        unique=True,
+    )
+    reason_code: Mapped[str | None] = mapped_column(String(64))
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        ForeignKeyConstraint(
+            ["demo_edit_artifact_id", "demo_actor_id", "demo_session_id"],
+            [
+                "demo_edit_artifacts.id",
+                "demo_edit_artifacts.demo_actor_id",
+                "demo_edit_artifacts.demo_session_id",
+            ],
+            name="fk_demo_edit_artifact_events_artifact_owner",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "demo_edit_artifact_id",
+            "sequence",
+            name="uq_demo_edit_artifact_events_artifact_sequence",
+        ),
+        UniqueConstraint(
+            "demo_edit_artifact_id",
+            "event_type",
+            name="uq_demo_edit_artifact_events_artifact_type",
+        ),
+        UniqueConstraint(
+            "id",
+            "demo_actor_id",
+            "demo_session_id",
+            name="uq_demo_edit_artifact_events_id_actor_session",
+        ),
+        CheckConstraint("sequence > 0", name="positive_sequence"),
+        CheckConstraint(
+            "event_type IN ('MATERIALIZED','PROMOTED','REJECTED','CANCELLED','CLEANED')",
+            name="event_type",
+        ),
+        CheckConstraint(
+            "(event_type = 'MATERIALIZED' AND object_sha256 ~ '^[0-9a-f]{64}$' "
+            "AND byte_size > 0 AND width > 0 AND height > 0 "
+            "AND mime_type IN ('image/jpeg','image/png') "
+            "AND engine_digest ~ '^[0-9a-f]{64}$' "
+            "AND config_digest ~ '^[0-9a-f]{64}$' "
+            "AND promoted_asset_id IS NULL AND promoted_asset_variant_id IS NULL "
+            "AND verification_result_id IS NULL AND image_version_id IS NULL "
+            "AND reason_code IS NULL) OR "
+            "(event_type = 'PROMOTED' AND object_sha256 IS NULL AND byte_size IS NULL "
+            "AND width IS NULL AND height IS NULL AND mime_type IS NULL "
+            "AND engine_digest IS NULL AND config_digest IS NULL "
+            "AND promoted_asset_id IS NOT NULL AND promoted_asset_variant_id IS NOT NULL "
+            "AND verification_result_id IS NOT NULL AND image_version_id IS NOT NULL "
+            "AND reason_code IS NULL) OR "
+            "(event_type = 'REJECTED' AND object_sha256 IS NULL AND byte_size IS NULL "
+            "AND width IS NULL AND height IS NULL AND mime_type IS NULL "
+            "AND engine_digest IS NULL AND config_digest IS NULL "
+            "AND promoted_asset_id IS NULL AND promoted_asset_variant_id IS NULL "
+            "AND verification_result_id IS NOT NULL AND image_version_id IS NULL "
+            "AND reason_code IS NOT NULL) OR "
+            "(event_type IN ('CANCELLED','CLEANED') AND object_sha256 IS NULL "
+            "AND byte_size IS NULL AND width IS NULL AND height IS NULL "
+            "AND mime_type IS NULL AND engine_digest IS NULL AND config_digest IS NULL "
+            "AND promoted_asset_id IS NULL AND promoted_asset_variant_id IS NULL "
+            "AND verification_result_id IS NULL AND image_version_id IS NULL "
+            "AND reason_code IS NOT NULL)",
+            name="event_shape",
+        ),
     )
 
 
@@ -2623,6 +2814,8 @@ DEMO_TABLE_NAMES = frozenset(
         "demo_image_versions",
         "demo_edit_plans",
         "demo_edit_operations",
+        "demo_edit_artifacts",
+        "demo_edit_artifact_events",
         "demo_tool_runs",
         "demo_verification_results",
         "demo_preference_events",

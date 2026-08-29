@@ -45,6 +45,8 @@ from mirror_api.demo_models import (
     DemoCommandBinding,
     DemoContextCompilation,
     DemoDesiredDeltaProfile,
+    DemoEditArtifact,
+    DemoEditArtifactEvent,
     DemoEditingSession,
     DemoEditOperation,
     DemoEditPlan,
@@ -87,7 +89,7 @@ _LEGACY_DEMO_GRAPH_TABLE_NAMES = set(DEMO_TABLE_NAMES) - {
     "demo_self_transfer_evidence",
 }
 
-DEMO_REVISION = "demo_0012_d05_profile_auth"
+DEMO_REVISION = "demo_0013_d07_publish_auth"
 D02_RECOVERED_QA_DOWN_REVISION = "demo_0006_d02_private_exec"
 D02_PRIVATE_EXEC_DOWN_REVISION = "demo_0005_d02_quality_auth"
 D02_QUALITY_DOWN_REVISION = "demo_0004_d09_episode_prov"
@@ -608,6 +610,121 @@ def _result_variant(
     session.add(variant)
     session.commit()
     return result_asset, variant
+
+
+def _d07_result_variant(
+    session: Session, source_asset: Asset, *, sha: str, variant_type: str
+) -> tuple[Asset, AssetVariant]:
+    result_asset = Asset(
+        id=new_id(),
+        owner_user_id=None,
+        asset_role="derived",
+        internal_purpose=None,
+        storage_key=f"demo-derived/{new_id()}",
+        mime_type=source_asset.mime_type,
+        byte_size=source_asset.byte_size,
+        width=source_asset.width,
+        height=source_asset.height,
+        sha256=sha,
+        synthetic=True,
+        is_ai_generated=source_asset.is_ai_generated,
+        is_ai_modified=True,
+    )
+    variant = AssetVariant(
+        id=new_id(),
+        source_asset_id=source_asset.id,
+        result_asset_id=result_asset.id,
+        variant_type=variant_type,
+    )
+    session.add_all((result_asset, variant))
+    session.commit()
+    return result_asset, variant
+
+
+def _reserve_materialized_artifact(
+    session: Session,
+    *,
+    actor: DemoActor,
+    demo_session: DemoSession,
+    operation: DemoEditOperation,
+    execution_binding: DemoJobBinding,
+    attempt: JobAttempt,
+    result_sha256: str,
+    result_template: Asset,
+    marker: str,
+) -> tuple[DemoEditArtifact, DemoEditArtifactEvent]:
+    engine_digest = hashlib.sha256(f"engine/{marker}".encode()).hexdigest()
+    config_digest = hashlib.sha256(f"config/{marker}".encode()).hexdigest()
+    artifact = _insert_demo_row(
+        session,
+        DemoEditArtifact,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        edit_operation_id=operation.id,
+        execution_job_binding_id=execution_binding.id,
+        formal_job_attempt_id=attempt.id,
+        private_object_key=(
+            f"demo-quarantine/{actor.id}/{execution_binding.id}/{operation.id}/{attempt.id}"
+        ),
+        engine=operation.engine,
+        engine_version=f"fixture-{operation.engine.lower()}-v1",
+        expected_engine_digest=engine_digest,
+        expected_config_digest=config_digest,
+    )
+    materialized = _insert_demo_row(
+        session,
+        DemoEditArtifactEvent,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        demo_edit_artifact_id=artifact.id,
+        sequence=1,
+        event_type="MATERIALIZED",
+        object_sha256=result_sha256,
+        byte_size=result_template.byte_size,
+        width=result_template.width,
+        height=result_template.height,
+        mime_type=result_template.mime_type,
+        engine_digest=engine_digest,
+        config_digest=config_digest,
+        promoted_asset_id=None,
+        promoted_asset_variant_id=None,
+        verification_result_id=None,
+        image_version_id=None,
+        reason_code=None,
+    )
+    return artifact, materialized
+
+
+def _build_artifact_promotion(
+    *,
+    actor: DemoActor,
+    demo_session: DemoSession,
+    artifact: DemoEditArtifact,
+    asset: Asset,
+    variant: AssetVariant,
+    verification: DemoVerificationResult,
+    image: DemoImageVersion,
+) -> DemoEditArtifactEvent:
+    return _build_demo_row(
+        DemoEditArtifactEvent,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        demo_edit_artifact_id=artifact.id,
+        sequence=2,
+        event_type="PROMOTED",
+        object_sha256=None,
+        byte_size=None,
+        width=None,
+        height=None,
+        mime_type=None,
+        engine_digest=None,
+        config_digest=None,
+        promoted_asset_id=asset.id,
+        promoted_asset_variant_id=variant.id,
+        verification_result_id=verification.id,
+        image_version_id=image.id,
+        reason_code=None,
+    )
 
 
 def _d02_result_variant(
@@ -2671,10 +2788,22 @@ def _prepare_followup_execution(
     )
     session.add(attempt)
     session.commit()
-    output_asset, output_variant = _result_variant(
+    output_sha256 = hashlib.sha256(new_id().encode()).hexdigest()
+    artifact, materialized_event = _reserve_materialized_artifact(
+        session,
+        actor=actor,
+        demo_session=demo_session,
+        operation=operation,
+        execution_binding=execution_binding,
+        attempt=attempt,
+        result_sha256=output_sha256,
+        result_template=parent_asset,
+        marker=f"followup-{operation.id}",
+    )
+    output_asset, output_variant = _d07_result_variant(
         session,
         parent_asset,
-        sha=hashlib.sha256(new_id().encode()).hexdigest(),
+        sha=output_sha256,
         variant_type="demo_p3_p7_followup_result",
     )
     tool_run = _insert_demo_row(
@@ -2686,16 +2815,17 @@ def _prepare_followup_execution(
         edit_operation_digest=operation.content_digest,
         demo_job_binding_id=execution_binding.id,
         formal_job_attempt_id=attempt.id,
+        demo_edit_artifact_id=artifact.id,
         tool_name="fixture-contrast",
         tool_version="fixture-contrast-v1",
         input_asset_id=parent_asset.id,
         input_asset_sha256=parent_asset.sha256,
-        output_asset_id=output_asset.id,
-        output_asset_sha256=output_asset.sha256,
+        output_asset_id=None,
+        output_asset_sha256=None,
         effect_contract={"identity_preserved": 1},
         outcome="COMPLETED",
     )
-    _, verification_binding = _insert_job_binding(
+    verification_job, verification_binding = _insert_job_binding(
         session,
         actor,
         endpoint_operation="tool.verify",
@@ -2703,6 +2833,15 @@ def _prepare_followup_execution(
         target_id=tool_run.id,
         demo_session=demo_session,
     )
+    verification_attempt = JobAttempt(
+        id=new_id(),
+        job_id=verification_job.id,
+        attempt=1,
+        status="PENDING",
+        started_at=utcnow(),
+    )
+    session.add(verification_attempt)
+    session.commit()
     image_id = new_id()
     verification_fields: dict[str, Any] = {
         "demo_actor_id": actor.id,
@@ -2710,6 +2849,8 @@ def _prepare_followup_execution(
         "tool_run_id": tool_run.id,
         "image_version_id": image_id,
         "demo_job_binding_id": verification_binding.id,
+        "demo_edit_artifact_id": artifact.id,
+        "formal_job_attempt_id": verification_attempt.id,
         "output_asset_id": output_asset.id,
         "output_asset_sha256": output_asset.sha256,
         "verifier_version": "fixture-verify-v1",
@@ -2741,6 +2882,15 @@ def _prepare_followup_execution(
     if image_overrides:
         image_fields.update(image_overrides)
     image = _build_demo_row(DemoImageVersion, row_id=image_id, **image_fields)
+    promotion_event = _build_artifact_promotion(
+        actor=actor,
+        demo_session=demo_session,
+        artifact=artifact,
+        asset=output_asset,
+        variant=output_variant,
+        verification=verification,
+        image=image,
+    )
     return {
         "image": image,
         "verification": verification,
@@ -2752,6 +2902,10 @@ def _prepare_followup_execution(
         "output_variant": output_variant,
         "execution_binding": execution_binding,
         "attempt": attempt,
+        "artifact": artifact,
+        "materialized_event": materialized_event,
+        "verification_attempt": verification_attempt,
+        "promotion_event": promotion_event,
     }
 
 
@@ -2773,10 +2927,22 @@ def _prepare_execution_step(
     actor = graph["actor"]
     demo_session = graph["session"]
     editing_session = graph["editing_session"]
-    output_asset, output_variant = _result_variant(
+    output_sha256 = hashlib.sha256(f"{marker}-{new_id()}".encode()).hexdigest()
+    artifact, materialized_event = _reserve_materialized_artifact(
+        session,
+        actor=actor,
+        demo_session=demo_session,
+        operation=operation,
+        execution_binding=execution_binding,
+        attempt=attempt,
+        result_sha256=output_sha256,
+        result_template=parent_asset,
+        marker=marker,
+    )
+    output_asset, output_variant = _d07_result_variant(
         session,
         parent_asset,
-        sha=hashlib.sha256(f"{marker}-{new_id()}".encode()).hexdigest(),
+        sha=output_sha256,
         variant_type=f"demo_p3_p7_{marker}",
     )
     tool_run = _insert_demo_row(
@@ -2788,16 +2954,17 @@ def _prepare_execution_step(
         edit_operation_digest=operation.content_digest,
         demo_job_binding_id=execution_binding.id,
         formal_job_attempt_id=attempt.id,
+        demo_edit_artifact_id=artifact.id,
         tool_name=f"fixture-{marker}",
         tool_version="fixture-step-v1",
         input_asset_id=parent_asset.id,
         input_asset_sha256=parent_asset.sha256,
-        output_asset_id=output_asset.id,
-        output_asset_sha256=output_asset.sha256,
+        output_asset_id=None,
+        output_asset_sha256=None,
         effect_contract={"identity_preserved": 1},
         outcome="COMPLETED",
     )
-    _, verification_binding = _insert_job_binding(
+    verification_job, verification_binding = _insert_job_binding(
         session,
         actor,
         endpoint_operation="tool.verify",
@@ -2805,6 +2972,15 @@ def _prepare_execution_step(
         target_id=tool_run.id,
         demo_session=demo_session,
     )
+    verification_attempt = JobAttempt(
+        id=new_id(),
+        job_id=verification_job.id,
+        attempt=1,
+        status="PENDING",
+        started_at=utcnow(),
+    )
+    session.add(verification_attempt)
+    session.commit()
     image_id = new_id()
     verification = _build_demo_row(
         DemoVerificationResult,
@@ -2813,6 +2989,8 @@ def _prepare_execution_step(
         tool_run_id=tool_run.id,
         image_version_id=image_id,
         demo_job_binding_id=verification_binding.id,
+        demo_edit_artifact_id=artifact.id,
+        formal_job_attempt_id=verification_attempt.id,
         output_asset_id=output_asset.id,
         output_asset_sha256=output_asset.sha256,
         verifier_version="fixture-verify-v1",
@@ -2840,12 +3018,145 @@ def _prepare_execution_step(
         tool_run_digest=tool_run.content_digest,
         verifier_digest=verification.content_digest,
     )
+    promotion_event = _build_artifact_promotion(
+        actor=actor,
+        demo_session=demo_session,
+        artifact=artifact,
+        asset=output_asset,
+        variant=output_variant,
+        verification=verification,
+        image=image,
+    )
     return {
         "image": image,
         "verification": verification,
         "tool_run": tool_run,
         "output_asset": output_asset,
         "output_variant": output_variant,
+        "artifact": artifact,
+        "materialized_event": materialized_event,
+        "verification_attempt": verification_attempt,
+        "promotion_event": promotion_event,
+    }
+
+
+def _insert_rejected_verification(
+    session: Session,
+    graph: dict[str, Any],
+    *,
+    outcome: str,
+) -> dict[str, Any]:
+    actor = cast(DemoActor, graph["actor"])
+    demo_session = cast(DemoSession, graph["session"])
+    operation = cast(DemoEditOperation, graph["operation"])
+    execution_binding = cast(DemoJobBinding, graph["execution_binding"])
+    input_asset = cast(Asset, graph["image0_asset"])
+    attempt = JobAttempt(
+        id=new_id(),
+        job_id=execution_binding.job_id,
+        attempt=2,
+        status="PENDING",
+        started_at=utcnow(),
+    )
+    session.add(attempt)
+    session.commit()
+    result_sha256 = hashlib.sha256(f"rejected/{outcome}/{new_id()}".encode()).hexdigest()
+    artifact, materialized_event = _reserve_materialized_artifact(
+        session,
+        actor=actor,
+        demo_session=demo_session,
+        operation=operation,
+        execution_binding=execution_binding,
+        attempt=attempt,
+        result_sha256=result_sha256,
+        result_template=input_asset,
+        marker=f"rejected-{outcome.lower()}",
+    )
+    tool_run = _insert_demo_row(
+        session,
+        DemoToolRun,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        edit_operation_id=operation.id,
+        edit_operation_digest=operation.content_digest,
+        demo_job_binding_id=execution_binding.id,
+        formal_job_attempt_id=attempt.id,
+        demo_edit_artifact_id=artifact.id,
+        tool_name="fixture-rejected-tool",
+        tool_version="fixture-rejected-tool-v1",
+        input_asset_id=input_asset.id,
+        input_asset_sha256=input_asset.sha256,
+        output_asset_id=None,
+        output_asset_sha256=None,
+        effect_contract={"identity_preserved": 0},
+        outcome="COMPLETED",
+    )
+    verification_job, verification_binding = _insert_job_binding(
+        session,
+        actor,
+        endpoint_operation="tool.verify",
+        target_type="TOOL_RUN",
+        target_id=tool_run.id,
+        demo_session=demo_session,
+    )
+    verification_attempt = JobAttempt(
+        id=new_id(),
+        job_id=verification_job.id,
+        attempt=1,
+        status="PENDING",
+        started_at=utcnow(),
+    )
+    session.add(verification_attempt)
+    session.commit()
+    verification = _build_demo_row(
+        DemoVerificationResult,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        tool_run_id=tool_run.id,
+        image_version_id=None,
+        demo_job_binding_id=verification_binding.id,
+        demo_edit_artifact_id=artifact.id,
+        formal_job_attempt_id=verification_attempt.id,
+        output_asset_id=None,
+        output_asset_sha256=None,
+        verifier_version="fixture-verify-v1",
+        config_digest=hashlib.sha256(f"rejected-verify/{outcome}".encode()).hexdigest(),
+        metrics={"identity_ppm": 500_000},
+        thresholds={"identity_min_ppm": 900_000},
+        outcome=outcome,
+        reason_codes=["fixture_rejected"],
+    )
+    rejection_event = _build_demo_row(
+        DemoEditArtifactEvent,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        demo_edit_artifact_id=artifact.id,
+        sequence=2,
+        event_type="REJECTED",
+        object_sha256=None,
+        byte_size=None,
+        width=None,
+        height=None,
+        mime_type=None,
+        engine_digest=None,
+        config_digest=None,
+        promoted_asset_id=None,
+        promoted_asset_variant_id=None,
+        verification_result_id=verification.id,
+        image_version_id=None,
+        reason_code="VERIFIER_REJECTED",
+    )
+    session.add(verification)
+    session.flush()
+    session.add(rejection_event)
+    session.commit()
+    return {
+        "artifact": artifact,
+        "materialized_event": materialized_event,
+        "tool_run": tool_run,
+        "verification": verification,
+        "verification_attempt": verification_attempt,
+        "rejection_event": rejection_event,
     }
 
 
@@ -2853,6 +3164,8 @@ def _commit_execution_pair(session: Session, step: dict[str, Any]) -> None:
     session.add(step["image"])
     session.flush()
     session.add(step["verification"])
+    session.flush()
+    session.add(step["promotion_event"])
     session.commit()
 
 
@@ -3583,8 +3896,22 @@ def _insert_full_demo_graph(
     )
     session.add(attempt)
     session.commit()
-    image1_asset, image1_variant = _result_variant(
-        session, image0_asset, sha=digest("e"), variant_type="demo_p3_p7_edit_result"
+    artifact, materialized_event = _reserve_materialized_artifact(
+        session,
+        actor=actor,
+        demo_session=demo_session,
+        operation=operation,
+        execution_binding=execution_binding,
+        attempt=attempt,
+        result_sha256=digest("e"),
+        result_template=image0_asset,
+        marker="initial-geometry",
+    )
+    image1_asset, image1_variant = _d07_result_variant(
+        session,
+        image0_asset,
+        sha=digest("e"),
+        variant_type="demo_p3_p7_edit_result",
     )
     tool_run = _insert_demo_row(
         session,
@@ -3595,16 +3922,17 @@ def _insert_full_demo_graph(
         edit_operation_digest=operation.content_digest,
         demo_job_binding_id=execution_binding.id,
         formal_job_attempt_id=attempt.id,
+        demo_edit_artifact_id=artifact.id,
         tool_name="fixture-tool",
         tool_version="fixture-tool-v1",
         input_asset_id=image0_asset.id,
         input_asset_sha256=image0_asset.sha256,
-        output_asset_id=image1_asset.id,
-        output_asset_sha256=image1_asset.sha256,
+        output_asset_id=None,
+        output_asset_sha256=None,
         effect_contract={"identity_preserved": 1},
         outcome="COMPLETED",
     )
-    _, verification_binding = _insert_job_binding(
+    verification_job, verification_binding = _insert_job_binding(
         session,
         actor,
         endpoint_operation="tool.verify",
@@ -3612,6 +3940,15 @@ def _insert_full_demo_graph(
         target_id=tool_run.id,
         demo_session=demo_session,
     )
+    verification_attempt = JobAttempt(
+        id=new_id(),
+        job_id=verification_job.id,
+        attempt=1,
+        status="PENDING",
+        started_at=utcnow(),
+    )
+    session.add(verification_attempt)
+    session.commit()
     image1_id = new_id()
     verification = _build_demo_row(
         DemoVerificationResult,
@@ -3620,6 +3957,8 @@ def _insert_full_demo_graph(
         tool_run_id=tool_run.id,
         image_version_id=image1_id,
         demo_job_binding_id=verification_binding.id,
+        demo_edit_artifact_id=artifact.id,
+        formal_job_attempt_id=verification_attempt.id,
         output_asset_id=image1_asset.id,
         output_asset_sha256=image1_asset.sha256,
         verifier_version="fixture-verify-v1",
@@ -3647,9 +3986,20 @@ def _insert_full_demo_graph(
         tool_run_digest=tool_run.content_digest,
         verifier_digest=verification.content_digest,
     )
+    promotion_event = _build_artifact_promotion(
+        actor=actor,
+        demo_session=demo_session,
+        artifact=artifact,
+        asset=image1_asset,
+        variant=image1_variant,
+        verification=verification,
+        image=image1,
+    )
     session.add(image1)
     session.flush()
     session.add(verification)
+    session.flush()
+    session.add(promotion_event)
     session.commit()
     accepted_event = _insert_preference_event(
         session,
@@ -3738,11 +4088,15 @@ def _insert_full_demo_graph(
         "result_plan": result_plan,
         "operation": operation,
         "execution_binding": execution_binding,
+        "artifact": artifact,
+        "materialized_event": materialized_event,
         "tool_run": tool_run,
         "image1": image1,
         "image1_asset": image1_asset,
         "image1_variant": image1_variant,
         "verification": verification,
+        "verification_attempt": verification_attempt,
+        "promotion_event": promotion_event,
         "accepted_event": accepted_event,
         "aesthetic_profile": aesthetic_profile,
         "context": context,
@@ -4542,23 +4896,196 @@ def test_derived_image_rejects_asset_snapshot_or_variant_mismatch(
     session.rollback()
 
 
-@pytest.mark.parametrize(
-    ("version_kind", "verification_outcome"),
-    (("QUARANTINED", "FAIL"), ("QUARANTINED", "HUMAN_REVIEW")),
-)
-def test_image_verifier_valid_outcome_mapping_commits(
-    session: Session, version_kind: str, verification_outcome: str
+@pytest.mark.parametrize("verification_outcome", ("FAIL", "HUMAN_REVIEW"))
+def test_rejected_verification_never_publishes_asset_or_image_version(
+    session: Session, verification_outcome: str
 ) -> None:
     graph = _insert_full_demo_graph(session, include_episode=False)
-    step = _prepare_followup_execution(
+    asset_count = session.scalar(text("SELECT count(*) FROM assets"))
+    image_count = session.scalar(text("SELECT count(*) FROM demo_image_versions"))
+    step = _insert_rejected_verification(
         session,
         graph,
-        image_overrides={"version_kind": version_kind},
-        verification_overrides={"outcome": verification_outcome},
+        outcome=verification_outcome,
     )
-    _commit_execution_pair(session, step)
-    assert step["image"].version_kind == version_kind
     assert step["verification"].outcome == verification_outcome
+    assert step["verification"].image_version_id is None
+    assert step["verification"].output_asset_id is None
+    assert session.scalar(text("SELECT count(*) FROM assets")) == asset_count
+    assert session.scalar(text("SELECT count(*) FROM demo_image_versions")) == image_count
+
+
+def test_d07_edit_artifact_and_event_are_individually_append_only(session: Session) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    for table_name, row_id in (
+        ("demo_edit_artifacts", graph["artifact"].id),
+        ("demo_edit_artifact_events", graph["materialized_event"].id),
+    ):
+        with pytest.raises(DBAPIError):
+            session.execute(
+                text(f"UPDATE {table_name} SET content_digest=content_digest WHERE id=:row_id"),  # noqa: S608
+                {"row_id": row_id},
+            )
+        session.rollback()
+        with pytest.raises(DBAPIError):
+            session.execute(
+                text(f"DELETE FROM {table_name} WHERE id=:row_id"),  # noqa: S608
+                {"row_id": row_id},
+            )
+        session.rollback()
+
+
+def test_d07_artifact_rejects_non_deterministic_private_key_and_wrong_binding(
+    session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    operation = cast(DemoEditOperation, graph["operation"])
+    actor = cast(DemoActor, graph["actor"])
+    demo_session = cast(DemoSession, graph["session"])
+    wrong_job, wrong_binding = _insert_job_binding(
+        session,
+        actor,
+        endpoint_operation="tool.verify",
+        target_type="TOOL_RUN",
+        target_id=graph["tool_run"].id,
+        demo_session=demo_session,
+    )
+    wrong_attempt = JobAttempt(
+        id=new_id(),
+        job_id=wrong_job.id,
+        attempt=1,
+        status="PENDING",
+        started_at=utcnow(),
+    )
+    session.add(wrong_attempt)
+    session.commit()
+    with pytest.raises(DBAPIError, match="exact execution JobBinding"):
+        _insert_demo_row(
+            session,
+            DemoEditArtifact,
+            demo_actor_id=actor.id,
+            demo_session_id=demo_session.id,
+            edit_operation_id=operation.id,
+            execution_job_binding_id=wrong_binding.id,
+            formal_job_attempt_id=wrong_attempt.id,
+            private_object_key=(
+                f"demo-quarantine/{actor.id}/{wrong_binding.id}/{operation.id}/{wrong_attempt.id}"
+            ),
+            engine=operation.engine,
+            engine_version="fixture-raster-v1",
+            expected_engine_digest="a" * 64,
+            expected_config_digest="b" * 64,
+        )
+    session.rollback()
+
+    binding = cast(DemoJobBinding, graph["execution_binding"])
+    attempt = JobAttempt(
+        id=new_id(),
+        job_id=binding.job_id,
+        attempt=2,
+        status="PENDING",
+        started_at=utcnow(),
+    )
+    session.add(attempt)
+    session.commit()
+    with pytest.raises(DBAPIError, match="private object key is not deterministic"):
+        _insert_demo_row(
+            session,
+            DemoEditArtifact,
+            demo_actor_id=actor.id,
+            demo_session_id=demo_session.id,
+            edit_operation_id=operation.id,
+            execution_job_binding_id=binding.id,
+            formal_job_attempt_id=attempt.id,
+            private_object_key=f"demo-quarantine/{actor.id}/{binding.id}/{operation.id}/not-an-attempt",
+            engine=operation.engine,
+            engine_version="fixture-raster-v1",
+            expected_engine_digest="c" * 64,
+            expected_config_digest="d" * 64,
+        )
+    session.rollback()
+
+
+def test_d07_artifact_event_rejects_foreign_owner_and_non_contiguous_sequence(
+    session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(session, include_episode=False)
+    execution_binding = cast(DemoJobBinding, graph["execution_binding"])
+    attempt = JobAttempt(
+        id=new_id(),
+        job_id=execution_binding.job_id,
+        attempt=2,
+        status="PENDING",
+        started_at=utcnow(),
+    )
+    session.add(attempt)
+    session.commit()
+    artifact, _ = _reserve_materialized_artifact(
+        session,
+        actor=cast(DemoActor, graph["actor"]),
+        demo_session=cast(DemoSession, graph["session"]),
+        operation=cast(DemoEditOperation, graph["operation"]),
+        execution_binding=execution_binding,
+        attempt=attempt,
+        result_sha256=hashlib.sha256(b"artifact-sequence").hexdigest(),
+        result_template=cast(Asset, graph["image0_asset"]),
+        marker="artifact-sequence",
+    )
+    other_actor = _insert_actor(session)
+    other_session = _insert_session(session, other_actor, config={"artifact": "foreign"})
+    fields = {
+        "demo_edit_artifact_id": artifact.id,
+        "sequence": 2,
+        "event_type": "CANCELLED",
+        "object_sha256": None,
+        "byte_size": None,
+        "width": None,
+        "height": None,
+        "mime_type": None,
+        "engine_digest": None,
+        "config_digest": None,
+        "promoted_asset_id": None,
+        "promoted_asset_variant_id": None,
+        "verification_result_id": None,
+        "image_version_id": None,
+        "reason_code": "USER_CANCELLED",
+    }
+    with pytest.raises(DBAPIError):
+        _insert_demo_row(
+            session,
+            DemoEditArtifactEvent,
+            demo_actor_id=other_actor.id,
+            demo_session_id=other_session.id,
+            **fields,
+        )
+    session.rollback()
+    with pytest.raises(DBAPIError, match="sequence is not contiguous"):
+        _insert_demo_row(
+            session,
+            DemoEditArtifactEvent,
+            demo_actor_id=artifact.demo_actor_id,
+            demo_session_id=artifact.demo_session_id,
+            **{**fields, "sequence": 3},
+        )
+    session.rollback()
+
+
+def test_d07_populated_artifact_authority_blocks_downgrade(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _insert_full_demo_graph(session, include_episode=False)
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", database_url)
+    session.close()
+    try:
+        with pytest.raises(
+            DBAPIError, match="cannot downgrade populated D07 publication authority"
+        ):
+            command.downgrade(config, "demo_0012_d05_profile_auth")
+    finally:
+        command.upgrade(config, DEMO_REVISION)
 
 
 @pytest.mark.parametrize(
@@ -4600,12 +5127,19 @@ def test_tool_run_requires_exact_operation_digest(session: Session) -> None:
     )
     session.add(attempt)
     session.commit()
-    output_asset = _result_asset(
+    output_sha256 = hashlib.sha256(b"operation-digest-output").hexdigest()
+    artifact, _ = _reserve_materialized_artifact(
         session,
-        graph["image0_asset"],
-        sha=hashlib.sha256(b"operation-digest-output").hexdigest(),
+        actor=graph["actor"],
+        demo_session=graph["session"],
+        operation=graph["operation"],
+        execution_binding=binding,
+        attempt=attempt,
+        result_sha256=output_sha256,
+        result_template=graph["image0_asset"],
+        marker="wrong-operation-digest",
     )
-    with pytest.raises(DBAPIError, match="Demo ToolRun JobAttempt ownership mismatch"):
+    with pytest.raises(DBAPIError, match="Demo ToolRun artifact reservation mismatch"):
         _insert_demo_row(
             session,
             DemoToolRun,
@@ -4615,12 +5149,13 @@ def test_tool_run_requires_exact_operation_digest(session: Session) -> None:
             edit_operation_digest=hashlib.sha256(b"wrong-operation-digest").hexdigest(),
             demo_job_binding_id=binding.id,
             formal_job_attempt_id=attempt.id,
+            demo_edit_artifact_id=artifact.id,
             tool_name="fixture-wrong-operation",
             tool_version="fixture-v1",
             input_asset_id=graph["image0_asset"].id,
             input_asset_sha256=graph["image0_asset"].sha256,
-            output_asset_id=output_asset.id,
-            output_asset_sha256=output_asset.sha256,
+            output_asset_id=None,
+            output_asset_sha256=None,
             effect_contract={"identity_preserved": 1},
             outcome="COMPLETED",
         )
@@ -4789,12 +5324,19 @@ def test_plan_operation_spec_mismatch_rejects_tool_run(session: Session) -> None
     )
     session.add(attempt)
     session.commit()
-    output_asset = _result_asset(
+    output_sha256 = hashlib.sha256(b"spec-mismatch-output").hexdigest()
+    artifact, _ = _reserve_materialized_artifact(
         session,
-        graph["image1_asset"],
-        sha=hashlib.sha256(b"spec-mismatch-output").hexdigest(),
+        actor=graph["actor"],
+        demo_session=graph["session"],
+        operation=mismatched_operation,
+        execution_binding=execution_binding,
+        attempt=attempt,
+        result_sha256=output_sha256,
+        result_template=graph["image1_asset"],
+        marker="spec-mismatch",
     )
-    with pytest.raises(DBAPIError, match="Demo ToolRun JobAttempt ownership mismatch"):
+    with pytest.raises(DBAPIError, match="Demo ToolRun artifact reservation mismatch"):
         _insert_demo_row(
             session,
             DemoToolRun,
@@ -4804,12 +5346,13 @@ def test_plan_operation_spec_mismatch_rejects_tool_run(session: Session) -> None
             edit_operation_digest=mismatched_operation.content_digest,
             demo_job_binding_id=execution_binding.id,
             formal_job_attempt_id=attempt.id,
+            demo_edit_artifact_id=artifact.id,
             tool_name="fixture-spec-mismatch",
             tool_version="fixture-v1",
             input_asset_id=graph["image1_asset"].id,
             input_asset_sha256=graph["image1_asset"].sha256,
-            output_asset_id=output_asset.id,
-            output_asset_sha256=output_asset.sha256,
+            output_asset_id=None,
+            output_asset_sha256=None,
             effect_contract={"identity_preserved": 1},
             outcome="COMPLETED",
         )
@@ -5303,7 +5846,7 @@ def test_accepted_episode_rejects_isolated_terminal_plan_provenance_drift(
 
 
 def test_demo_metadata_and_database_objects_match(session: Session) -> None:
-    assert len(DEMO_TABLE_NAMES) == 34
+    assert len(DEMO_TABLE_NAMES) == 36
     database_tables = set(
         session.scalars(
             text(
@@ -5320,7 +5863,7 @@ def test_demo_metadata_and_database_objects_match(session: Session) -> None:
                 "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_authority_%'"
             )
         )
-        == 33
+        == 35
     )
     assert (
         session.scalar(
