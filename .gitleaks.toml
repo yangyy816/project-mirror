@@ -23,3 +23,14 @@ commits = ["1c127dcf5ff3ce3d497eae9c2740d06714e988bf"]
 paths = ['''^docs/operations/P2_M8_M9_READINESS\.md$''']
 regexTarget = "match"
 regexes = ['''READINESS_CANDIDATE_OPENAPI_SHA256: a9ee1e0ad3b942e5be5790b4fc7ff8c0deab744a84d3383a7a8856a8f97b4841''']
+
+# P3-P7-D02-R2-R01: Gitleaks 8.28.0 classifies this historical synthetic
+# idempotency test key as a generic API key. The next local commit replaced the
+# literal; bind the exception to the exact old commit, test path, and match.
+[[allowlists]]
+description = "Historical D02-R2 synthetic idempotency-key false positive in 5323f85"
+condition = "AND"
+commits = ["5323f853838f9b48a0bf9a9d037ca9048e7cb2c7"]
+paths = ['''^services/api/tests/test_demo_d02_r2_epoch2_admission\.py$''']
+regexTarget = "match"
+regexes = ['''idempotency_key="epoch2-admission-key"''']
