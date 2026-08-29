@@ -107,7 +107,7 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
     assert {"target_type", "target_id", "authority_digest"} == set(target["required"])
 
 
-def test_capabilities_are_the_only_success_path_and_other_routes_are_strict() -> None:
+def test_capabilities_report_available_and_deferred_boundaries() -> None:
     app = _app()
     app.dependency_overrides[get_demo_actor] = lambda: DemoActor(
         id="0" * 32,
@@ -122,6 +122,7 @@ def test_capabilities_are_the_only_success_path_and_other_routes_are_strict() ->
     capabilities = client.get("/api/v1/demo/capabilities")
     assert capabilities.status_code == 200
     assert {item["status"] for item in capabilities.json()["capabilities"]} == {
+        "AVAILABLE",
         "NOT_IMPLEMENTED",
         "DEFERRED_WITH_EXPLICIT_REASON",
         "CAPABILITY_UNAVAILABLE",

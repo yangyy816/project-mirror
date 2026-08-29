@@ -17,7 +17,11 @@ from mirror_api.demo_analysis_service import (
     DemoAnalysisUnavailable,
 )
 from mirror_api.demo_dependencies import get_demo_actor
-from mirror_api.demo_idempotency import DemoIdempotencyPayloadConflict
+from mirror_api.demo_idempotency import (
+    DemoIdempotencyAuthorityCorruption,
+    DemoIdempotencyInputError,
+    DemoIdempotencyPayloadConflict,
+)
 from mirror_api.demo_job_service import (
     DemoJobAuthorityCorruption,
     DemoJobInputError,
@@ -28,6 +32,27 @@ from mirror_api.demo_job_service import (
 )
 from mirror_api.demo_models import DemoActor
 from mirror_api.demo_posterior import PairwiseChoice
+from mirror_api.demo_preference_ledger import (
+    DemoPreferenceActorUnavailable,
+    DemoPreferenceLedgerCorruption,
+    DemoPreferenceLedgerInputError,
+    DemoPreferenceSessionUnavailable,
+)
+from mirror_api.demo_profile_commands import (
+    CreateDemoConstraints,
+    CreateDemoProfileCompilation,
+    CreateDemoStyleFeedback,
+    DemoConstraintLockCommand,
+    DemoProfileCommandAuthorityCorruption,
+    DemoProfileCommandInputError,
+    DemoProfileCommandService,
+    DemoProfileCommandUnavailable,
+)
+from mirror_api.demo_profile_coordinator import DemoProfileCoordinator
+from mirror_api.demo_profile_dependencies import (
+    get_demo_profile_commands,
+    get_demo_profile_coordinator,
+)
 from mirror_api.demo_questionnaire_dependencies import get_demo_questionnaire_service
 from mirror_api.demo_questionnaire_service import (
     CreateDemoQuestionnaireResponse,
@@ -62,6 +87,7 @@ from mirror_api.demo_schemas import (
     DemoPreferenceEventResponse,
     DemoProfileCompileRequest,
     DemoProfileRebuildRequest,
+    DemoProfileResponse,
     DemoQuestionCompletedResponse,
     DemoQuestionnaireNextResponse,
     DemoQuestionnaireRunCreateRequest,
@@ -251,6 +277,51 @@ def _raise_questionnaire_error(error: Exception) -> NoReturn:
     ) from error
 
 
+def _raise_profile_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoIdempotencyPayloadConflict):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
+            message="幂等键已绑定到不同的 Profile 命令。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(
+        error,
+        (
+            DemoProfileCommandInputError,
+            DemoIdempotencyInputError,
+            DemoPreferenceLedgerInputError,
+        ),
+    ):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="DEMO_PROFILE_REQUEST_INVALID",
+            message="Profile 命令不符合 Demo authority 约束。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(
+        error,
+        (
+            DemoProfileCommandUnavailable,
+            DemoPreferenceActorUnavailable,
+            DemoPreferenceSessionUnavailable,
+            DemoJobUnavailable,
+        ),
+    ):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_PROFILE_AUTHORITY_UNAVAILABLE",
+            message="Profile authority 不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise APIError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="DEMO_PROFILE_AUTHORITY_CORRUPT",
+        message="Profile authority 无法安全读取。",
+        details={"track": "DEMO_PROTOTYPE"},
+    ) from error
+
+
 def _questionnaire_next_response(
     result: DemoQuestionnaireNext | DemoQuestionnaireCompleted,
 ) -> DemoQuestionnaireNextResponse:
@@ -305,7 +376,7 @@ async def get_capabilities() -> DemoCapabilitiesResponse:
         capabilities=[
             DemoCapability(code="P3_FACE_ANALYSIS", status="NOT_IMPLEMENTED"),
             DemoCapability(code="P4_QUESTIONNAIRE", status="NOT_IMPLEMENTED"),
-            DemoCapability(code="P5_COMPILER", status="NOT_IMPLEMENTED"),
+            DemoCapability(code="P5_COMPILER", status="AVAILABLE"),
             DemoCapability(code="P6_DETERMINISTIC_RASTER", status="NOT_IMPLEMENTED"),
             DemoCapability(code="P6_GEOMETRY", status="NOT_IMPLEMENTED"),
             DemoCapability(
@@ -579,10 +650,32 @@ async def create_questionnaire_response(
     responses=DEMO_ERRORS,
 )
 async def compile_profile(
-    payload: DemoProfileCompileRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del payload, idempotency_key
-    _not_implemented("profile_compile", "D05")
+    payload: DemoProfileCompileRequest,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoProfileCoordinator = Depends(get_demo_profile_coordinator),
+) -> DemoJobAcceptedResponse:
+    try:
+        result = await coordinator.create(
+            CreateDemoProfileCompilation(
+                demo_actor_id=actor.id,
+                demo_session_id=payload.session_id,
+                compiler_version=payload.compiler_version,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+    except (
+        DemoProfileCommandInputError,
+        DemoProfileCommandUnavailable,
+        DemoProfileCommandAuthorityCorruption,
+        DemoIdempotencyPayloadConflict,
+        DemoJobUnavailable,
+        DemoJobAuthorityCorruption,
+    ) as exc:
+        _raise_profile_error(exc)
+    return _job_accepted(result.job)
 
 
 @router.get(
@@ -592,8 +685,29 @@ async def compile_profile(
     openapi_extra=DEMO_OPENAPI,
     responses=DEMO_ERRORS,
 )
-async def get_active_profiles() -> NoReturn:
-    _not_implemented("profile_compile", "D05")
+async def get_active_profiles(
+    actor: DemoActor = Depends(get_demo_actor),
+    commands: DemoProfileCommandService = Depends(get_demo_profile_commands),
+) -> DemoActiveProfilesResponse:
+    try:
+        profiles = await commands.active_profiles(demo_actor_id=actor.id)
+    except (
+        DemoProfileCommandInputError,
+        DemoProfileCommandUnavailable,
+        DemoProfileCommandAuthorityCorruption,
+    ) as exc:
+        _raise_profile_error(exc)
+    return DemoActiveProfilesResponse(
+        profiles=[
+            DemoProfileResponse(
+                profile_id=item.profile_id,
+                generation=item.generation,
+                compilation_watermark=item.compilation_watermark,
+                learning_enabled=item.learning_enabled,
+            )
+            for item in profiles
+        ]
+    )
 
 
 @router.post(
@@ -605,10 +719,49 @@ async def get_active_profiles() -> NoReturn:
     responses=DEMO_ERRORS,
 )
 async def create_style_feedback(
-    payload: DemoStyleFeedbackRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del payload, idempotency_key
-    _not_implemented("preference_memory", "D09")
+    payload: DemoStyleFeedbackRequest,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    commands: DemoProfileCommandService = Depends(get_demo_profile_commands),
+) -> DemoPreferenceEventResponse:
+    command = (
+        CreateDemoStyleFeedback(
+            demo_actor_id=actor.id,
+            demo_session_id=payload.session_id,
+            event_type="EXPLICIT_STYLE_SELECTION",
+            idempotency_key=idempotency_key,
+            style_key=payload.style_key,
+        )
+        if payload.event_type == "EXPLICIT_STYLE_SELECTION"
+        else CreateDemoStyleFeedback(
+            demo_actor_id=actor.id,
+            demo_session_id=payload.session_id,
+            event_type="MAXIMUM_INTENSITY_CHANGED",
+            idempotency_key=idempotency_key,
+            target_key=payload.target_key,
+            maximum_intensity_ppm=payload.maximum_intensity_ppm,
+        )
+    )
+    try:
+        result = await commands.create_style_feedback(command)
+    except (
+        DemoProfileCommandInputError,
+        DemoProfileCommandUnavailable,
+        DemoProfileCommandAuthorityCorruption,
+        DemoIdempotencyInputError,
+        DemoIdempotencyPayloadConflict,
+        DemoIdempotencyAuthorityCorruption,
+        DemoPreferenceLedgerInputError,
+        DemoPreferenceActorUnavailable,
+        DemoPreferenceSessionUnavailable,
+        DemoPreferenceLedgerCorruption,
+    ) as exc:
+        _raise_profile_error(exc)
+    return DemoPreferenceEventResponse(
+        event_id=result.event_id,
+        event_type=result.event_type,
+        event_digest=result.event_digest,
+    )
 
 
 @router.post(
@@ -620,10 +773,48 @@ async def create_style_feedback(
     responses=DEMO_ERRORS,
 )
 async def create_constraints(
-    payload: DemoConstraintsCreateRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del payload, idempotency_key
-    _not_implemented("identity_constraints", "D05")
+    payload: DemoConstraintsCreateRequest,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    commands: DemoProfileCommandService = Depends(get_demo_profile_commands),
+) -> DemoIdentityConstraintsResponse:
+    try:
+        result = await commands.create_constraints(
+            CreateDemoConstraints(
+                demo_actor_id=actor.id,
+                demo_session_id=payload.session_id,
+                scope=payload.scope,
+                locks=tuple(
+                    DemoConstraintLockCommand(
+                        dimension_key=item.dimension_key,
+                        lock=item.lock,
+                        minimum_ppm=item.minimum_ppm,
+                        maximum_ppm=item.maximum_ppm,
+                    )
+                    for item in payload.locks
+                ),
+                prohibited_operations=tuple(payload.prohibited_operations),
+                idempotency_key=idempotency_key,
+            )
+        )
+    except (
+        DemoProfileCommandInputError,
+        DemoProfileCommandUnavailable,
+        DemoProfileCommandAuthorityCorruption,
+        DemoIdempotencyInputError,
+        DemoIdempotencyPayloadConflict,
+        DemoIdempotencyAuthorityCorruption,
+        DemoPreferenceLedgerInputError,
+        DemoPreferenceActorUnavailable,
+        DemoPreferenceSessionUnavailable,
+        DemoPreferenceLedgerCorruption,
+    ) as exc:
+        _raise_profile_error(exc)
+    return DemoIdentityConstraintsResponse(
+        constraints_id=result.constraints_id,
+        version=result.version,
+        scope=result.scope,
+    )
 
 
 @router.post(
