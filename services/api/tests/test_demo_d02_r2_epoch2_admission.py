@@ -461,8 +461,8 @@ async def test_atomic_admission_replay_conflict_and_cardinality() -> None:
             )
         coordinator = D02R2Epoch2AdmissionCoordinator(session_factory=sessions)
         first, replay = await asyncio.gather(
-            coordinator.admit(idempotency_key="epoch2-admission-key", bundle=bundle),
-            coordinator.admit(idempotency_key="epoch2-admission-key", bundle=bundle),
+            coordinator.admit(idempotency_key="same", bundle=bundle),
+            coordinator.admit(idempotency_key="same", bundle=bundle),
         )
         assert {first.replayed, replay.replayed} == {False, True}
         assert first.admission_id == replay.admission_id
@@ -486,7 +486,7 @@ async def test_atomic_admission_replay_conflict_and_cardinality() -> None:
             question_pair_rows=bundle.question_pair_rows,
         )
         with pytest.raises(D02R2Epoch2PayloadConflict):
-            await coordinator.admit(idempotency_key="epoch2-admission-key", bundle=conflicting)
+            await coordinator.admit(idempotency_key="same", bundle=conflicting)
         assert await _count(sessions, DemoD02R2Epoch2Admission) == 1
 
 
