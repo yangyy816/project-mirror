@@ -451,6 +451,7 @@ async def _count(sessions: async_sessionmaker[AsyncSession], model: type[Any]) -
 async def test_atomic_admission_replay_conflict_and_cardinality() -> None:
     bundle = _bundle()
     async with _database() as sessions:
+        idempotency_key = _digest("epoch2-admission-replay")
         preexisting_asset = dict(bundle.asset_rows[0])
         preexisting_asset["storage_key"] = "demo-r2-e2-test/preexisting-source-1"
         async with sessions() as session, session.begin():
@@ -461,8 +462,8 @@ async def test_atomic_admission_replay_conflict_and_cardinality() -> None:
             )
         coordinator = D02R2Epoch2AdmissionCoordinator(session_factory=sessions)
         first, replay = await asyncio.gather(
-            coordinator.admit(idempotency_key="same", bundle=bundle),
-            coordinator.admit(idempotency_key="same", bundle=bundle),
+            coordinator.admit(idempotency_key=idempotency_key, bundle=bundle),
+            coordinator.admit(idempotency_key=idempotency_key, bundle=bundle),
         )
         assert {first.replayed, replay.replayed} == {False, True}
         assert first.admission_id == replay.admission_id
@@ -486,7 +487,7 @@ async def test_atomic_admission_replay_conflict_and_cardinality() -> None:
             question_pair_rows=bundle.question_pair_rows,
         )
         with pytest.raises(D02R2Epoch2PayloadConflict):
-            await coordinator.admit(idempotency_key="same", bundle=conflicting)
+            await coordinator.admit(idempotency_key=idempotency_key, bundle=conflicting)
         assert await _count(sessions, DemoD02R2Epoch2Admission) == 1
 
 

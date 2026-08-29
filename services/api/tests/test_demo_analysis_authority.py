@@ -10,7 +10,7 @@ from typing import Any, cast
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, select, update
+from sqlalchemy import create_engine, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 from test_demo_schema_authority_invariants import (
@@ -49,6 +49,23 @@ def _alembic_config(database_url: str) -> Config:
     return config
 
 
+def _truncate_demo_analysis_test_authority(session: Session) -> None:
+    """Remove the Demo graph before its formal synthetic source fixture."""
+    _truncate_demo_authority(session)
+    session.execute(
+        text(
+            "TRUNCATE TABLE synthetic_identities, synthetic_qa_review_decisions, "
+            "synthetic_qa_measurements, synthetic_qa_runs, synthetic_asset_records, "
+            "synthetic_source_object_deletion_evidence, provider_cost_events, "
+            "synthetic_generation_evidence, synthetic_source_objects, generation_items, "
+            "generation_batches, job_attempts, jobs, synthetic_qa_policies, "
+            "synthetic_generation_policies, synthetic_prompt_templates, assets, "
+            "offline_synthetic_source_admissions CASCADE"
+        )
+    )
+    session.commit()
+
+
 @pytest.fixture
 def session() -> Generator[Session]:
     database_url = os.getenv("TEST_DATABASE_URL")
@@ -56,10 +73,10 @@ def session() -> Generator[Session]:
         pytest.skip("NOT VERIFIED LOCALLY: TEST_DATABASE_URL PostgreSQL is unavailable")
     engine = create_engine(database_url)
     with Session(engine) as db_session:
-        _truncate_demo_authority(db_session)
+        _truncate_demo_analysis_test_authority(db_session)
         yield db_session
         db_session.rollback()
-        _truncate_demo_authority(db_session)
+        _truncate_demo_analysis_test_authority(db_session)
     engine.dispose()
 
 

@@ -61,9 +61,11 @@ async def _database() -> AsyncIterator[tuple[async_sessionmaker[AsyncSession], _
         pytest.skip("NOT VERIFIED LOCALLY: TEST_DATABASE_URL PostgreSQL is unavailable")
     sync_database_url = database_url.replace("+asyncpg", "+psycopg")
     sync_engine = create_engine(sync_database_url)
-    invariants = import_module("test_demo_schema_authority_invariants")
     analysis_authority = import_module("test_demo_analysis_authority")
-    truncate = cast(_TruncateDemoAuthority, vars(invariants)["_truncate_demo_authority"])
+    truncate = cast(
+        _TruncateDemoAuthority,
+        vars(analysis_authority)["_truncate_demo_analysis_test_authority"],
+    )
     create_context = cast(_AnalysisContext, vars(analysis_authority)["_analysis_context"])
     try:
         with Session(sync_engine) as sync_session:
