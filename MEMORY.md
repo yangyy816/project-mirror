@@ -726,3 +726,11 @@
   projection `87dc168e130096b61c63bc1f2627844265fecac1`；离线/真实 PostgreSQL targeted Gates 通过，但它们分别仍等待
   fresh runtime evidence、geometry/application/verifier 与 Questionnaire application/router，不构成 D02、D04-B、
   D07-B 或 formal P3–P7 最终 PASS。
+
+- 2026-08-30：D05 Profile persistence/compiler authority 以 code SHA
+  `ce73cbcc6253e7c9d434e3ebb4e5ac869449f0d1` 和 exact CI head
+  `3987e9dfed69c50c15fbea86959831799a8c38a7` 收口为
+  `TASK_ACCEPTED_DOMAIN_READY_ROUTE_PENDING`；same-SHA run `33275794207` 的 quality/integration、Docker 与
+  secret-scan 三个 jobs 全绿，migration head 为 `demo_0012_d05_profile_auth`。该接受包含 verifier 与实际
+  SelfTransfer result Asset 的 PostgreSQL fail-closed 绑定，但不包含尚未提交的 HTTP/Worker wiring，亦不改变
+  D02 fresh runtime Gate、正式 P3–P7 状态或 `PRODUCTION_RELEASE: NOT_AUTHORIZED`。
