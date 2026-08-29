@@ -734,3 +734,9 @@
   secret-scan 三个 jobs 全绿，migration head 为 `demo_0012_d05_profile_auth`。该接受包含 verifier 与实际
   SelfTransfer result Asset 的 PostgreSQL fail-closed 绑定，但不包含尚未提交的 HTTP/Worker wiring，亦不改变
   D02 fresh runtime Gate、正式 P3–P7 状态或 `PRODUCTION_RELEASE: NOT_AUTHORIZED`。
+
+- 2026-08-30：D05 HTTP/Worker/OpenAPI/generated-client wiring 以 SHA
+  `41d3d718b2afc98c1d8cdbdca0b2ebf9f55726e2` 收口为 `TASK_ACCEPTED`；same-SHA run
+  `33278449485` 的 quality/integration、Docker 与 secret-scan 三个 jobs 全绿，migration head 仍包含
+  `demo_0012_d05_profile_auth`。该结论仅属于 `TRACK=DEMO_PROTOTYPE`，不构成正式 P5 PASS 或 production
+  authorization；后续产品主节点转为 D07-B verifier/ImageVersion/application wiring。
