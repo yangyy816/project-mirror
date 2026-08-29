@@ -48,7 +48,11 @@ def canonical_round_trip(value: Mapping[str, object]) -> dict[str, object]:
     return cast(dict[str, object], json.loads(canonical_json_bytes(value)))
 
 
-def prepared() -> tuple[dict[str, object], dict[str, object], list[dict[str, object]]]:
+def prepared(
+    *,
+    root_name_receipt_digest: str = digest("a"),
+    execution_contract_digest: str = digest("b"),
+) -> tuple[dict[str, object], dict[str, object], list[dict[str, object]]]:
     allocations = [
         Epoch2Allocation(
             index,
@@ -62,12 +66,12 @@ def prepared() -> tuple[dict[str, object], dict[str, object], list[dict[str, obj
     ]
     activation = build_reserve_activation_authority(
         terminal_binding=expected_e1_terminal_binding(),
-        root_name_receipt_digest=digest("a"),
+        root_name_receipt_digest=root_name_receipt_digest,
         allocations=allocations,
     )
     prereg = build_generation_preregistration_authority(
-        execution_contract_digest=digest("b"),
-        root_name_receipt_digest=digest("a"),
+        execution_contract_digest=execution_contract_digest,
+        root_name_receipt_digest=root_name_receipt_digest,
         cohort_policy_digest=digest("c"),
     )
     preregistration_digest = cast(str, prereg["generation_preregistration_digest"])
@@ -241,6 +245,109 @@ def test_preflight_binding_matrix_is_exact_and_acyclic() -> None:
                 preregistration=forged_preregistration,
                 allocation_manifest=manifest_authority,
                 producer_dispatch=dispatch_authority,
+                reserve_activation=activation,
+                generation_requests=tuple(requests),
+            ),
+            allocated_at_utc="2026-08-29T00:00:00.000000Z",
+        )
+
+
+@pytest.mark.parametrize(
+    ("allocation_sequence", "semantic_role"),
+    [
+        (2, "SOURCE_ALLOCATION_MANIFEST"),
+        (3, "SOURCE_PRODUCER_DISPATCH_RECEIPT"),
+        (4, "SOURCE_CANDIDATE"),
+        (5, "SOURCE_PROVENANCE"),
+        (12, "NEGATIVE_RECEIPT"),
+    ],
+)
+def test_preflight_projection_rejects_fully_resigned_foreign_root_graph(
+    allocation_sequence: int,
+    semantic_role: str,
+) -> None:
+    activation, preregistration, requests = prepared(
+        root_name_receipt_digest=digest("d"),
+        execution_contract_digest=digest("e"),
+    )
+    manifest = build_source_allocation_manifest(
+        execution_contract_digest=digest("e"),
+        preregistration=preregistration,
+        reserve_activation=activation,
+        generation_requests=requests,
+    )
+    dispatch = build_source_producer_dispatch(
+        execution_contract_digest=digest("e"),
+        preregistration=preregistration,
+        allocation_manifest=manifest,
+        reserve_activation=activation,
+        generation_requests=requests,
+    )
+    with pytest.raises(ValueError, match="current root receipt"):
+        project_preflight_output_name_receipt(
+            root_receipt={
+                "evidence_root_id": private_registry.EVIDENCE_ROOT_ID,
+                "dispatch_epoch": private_registry.DISPATCH_EPOCH,
+                "receipt_digest": digest("a"),
+                "contract_digest": digest("b"),
+            },
+            output_id=f"e2-preflight-foreign-{allocation_sequence}",
+            allocation_sequence=allocation_sequence,
+            semantic_role=semantic_role,
+            logical_name=(
+                f"e2-preflight-foreign-{allocation_sequence}.png"
+                if semantic_role == "SOURCE_CANDIDATE"
+                else f"e2-preflight-foreign-{allocation_sequence}.json"
+            ),
+            parent_authorities=PreflightParentAuthorities(
+                preregistration=preregistration,
+                allocation_manifest=manifest,
+                producer_dispatch=dispatch,
+                reserve_activation=activation,
+                generation_requests=tuple(requests),
+            ),
+            allocated_at_utc="2026-08-29T00:00:00.000000Z",
+        )
+
+
+@pytest.mark.parametrize(
+    ("root_name_receipt_digest", "execution_contract_digest"),
+    [(digest("d"), digest("b")), (digest("a"), digest("e"))],
+)
+def test_preflight_projection_rejects_normal_graph_with_wrong_current_root(
+    root_name_receipt_digest: str,
+    execution_contract_digest: str,
+) -> None:
+    activation, preregistration, requests = prepared()
+    manifest = build_source_allocation_manifest(
+        execution_contract_digest=digest("b"),
+        preregistration=preregistration,
+        reserve_activation=activation,
+        generation_requests=requests,
+    )
+    dispatch = build_source_producer_dispatch(
+        execution_contract_digest=digest("b"),
+        preregistration=preregistration,
+        allocation_manifest=manifest,
+        reserve_activation=activation,
+        generation_requests=requests,
+    )
+    with pytest.raises(ValueError, match="current root receipt"):
+        project_preflight_output_name_receipt(
+            root_receipt={
+                "evidence_root_id": private_registry.EVIDENCE_ROOT_ID,
+                "dispatch_epoch": private_registry.DISPATCH_EPOCH,
+                "receipt_digest": root_name_receipt_digest,
+                "contract_digest": execution_contract_digest,
+            },
+            output_id="e2-preflight-wrong-current-root",
+            allocation_sequence=4,
+            semantic_role="SOURCE_CANDIDATE",
+            logical_name="e2-preflight-wrong-current-root.png",
+            parent_authorities=PreflightParentAuthorities(
+                preregistration=preregistration,
+                allocation_manifest=manifest,
+                producer_dispatch=dispatch,
                 reserve_activation=activation,
                 generation_requests=tuple(requests),
             ),

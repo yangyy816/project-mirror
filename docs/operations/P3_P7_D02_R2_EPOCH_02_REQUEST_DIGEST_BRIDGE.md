@@ -141,6 +141,9 @@ authority. Sequence 1 derives its parent from the accepted generation
 capability; every other sequence receives and validates the corresponding
 preregistration, allocation-manifest or producer-dispatch authority object and
 its accepted upstream graph, then derives the parent digest internally.
+The validated preregistration `root_name_receipt_digest` and
+`execution_contract_digest` must equal the current root receipt values before
+any non-sequence-1 projection can be signed.
 Allocation sequence uses a strict integer boundary, so JSON booleans and other
 integer-like values fail before any create-new write.
 
