@@ -17,7 +17,8 @@ from mirror_api.demo_d02_r2_epoch2_request_bridge import (
     PREFLIGHT_SEMANTIC_ROLES_BY_SEQUENCE,
     PREFLIGHT_SOURCE_MAXIMUM_BYTES,
     PREFLIGHT_SOURCE_MEDIA_TYPE,
-    PreflightOutputNameBinding,
+    PREREGISTRATION_SCHEMA,
+    PreflightParentAuthorities,
     build_generation_preregistration_authority,
     build_source_allocation_manifest,
     build_source_producer_dispatch,
@@ -29,6 +30,7 @@ from mirror_api.demo_d02_r2_epoch2_request_bridge import (
     validate_source_producer_dispatch,
 )
 from mirror_api.demo_d02_r2_generation_epoch2 import (
+    ACCEPTED_CAPABILITY_DIGEST,
     GENERATION_REQUEST_SCHEMA,
     Epoch2Allocation,
     build_generation_request,
@@ -85,7 +87,7 @@ def prepared() -> tuple[dict[str, object], dict[str, object], list[dict[str, obj
 
 
 def test_preflight_binding_matrix_is_exact_and_acyclic() -> None:
-    capability = digest("1")
+    capability = ACCEPTED_CAPABILITY_DIGEST
     preregistration = digest("2")
     manifest = digest("3")
     dispatch = digest("4")
@@ -141,7 +143,33 @@ def test_preflight_binding_matrix_is_exact_and_acyclic() -> None:
         resolve_preflight_output_name_binding("SOURCE_GENERATION_RECEIPT")
     with pytest.raises(ValueError, match="dispatch digest"):
         resolve_preflight_output_name_binding("NEGATIVE_RECEIPT")
+    with pytest.raises(ValueError, match="accepted capability"):
+        resolve_preflight_output_name_binding(
+            "SOURCE_GENERATION_PREREGISTRATION",
+            generation_capability_authority_digest=digest("f"),
+        )
 
+    activation, preregistration_authority, requests = prepared()
+    manifest_authority = build_source_allocation_manifest(
+        execution_contract_digest=digest("b"),
+        preregistration=preregistration_authority,
+        reserve_activation=activation,
+        generation_requests=requests,
+    )
+    dispatch_authority = build_source_producer_dispatch(
+        execution_contract_digest=digest("b"),
+        preregistration=preregistration_authority,
+        allocation_manifest=manifest_authority,
+        reserve_activation=activation,
+        generation_requests=requests,
+    )
+    parent_authorities = PreflightParentAuthorities(
+        preregistration=preregistration_authority,
+        allocation_manifest=manifest_authority,
+        producer_dispatch=dispatch_authority,
+        reserve_activation=activation,
+        generation_requests=tuple(requests),
+    )
     root_receipt: dict[str, object] = {
         "evidence_root_id": private_registry.EVIDENCE_ROOT_ID,
         "dispatch_epoch": private_registry.DISPATCH_EPOCH,
@@ -149,13 +177,6 @@ def test_preflight_binding_matrix_is_exact_and_acyclic() -> None:
         "contract_digest": digest("b"),
     }
     for sequence, semantic_role in enumerate(PREFLIGHT_SEMANTIC_ROLES_BY_SEQUENCE, start=1):
-        binding = resolve_preflight_output_name_binding(
-            semantic_role,
-            generation_capability_authority_digest=capability,
-            generation_preregistration_digest=preregistration,
-            source_allocation_manifest_digest=manifest,
-            source_producer_dispatch_digest=dispatch,
-        )
         projected = project_preflight_output_name_receipt(
             root_receipt=root_receipt,
             output_id=f"e2-preflight-{sequence}",
@@ -166,7 +187,7 @@ def test_preflight_binding_matrix_is_exact_and_acyclic() -> None:
                 if semantic_role == "SOURCE_CANDIDATE"
                 else f"e2-preflight-{sequence}.json"
             ),
-            binding=binding,
+            parent_authorities=_preflight_parent_authorities(semantic_role, parent_authorities),
             allocated_at_utc="2026-08-29T00:00:00.000000Z",
         )
         assert projected["allocation_sequence"] == sequence
@@ -179,24 +200,88 @@ def test_preflight_binding_matrix_is_exact_and_acyclic() -> None:
             allocation_sequence=5,
             semantic_role="SOURCE_CANDIDATE",
             logical_name="e2-preflight-wrong-sequence.png",
-            binding=source,
+            parent_authorities=parent_authorities,
             allocated_at_utc="2026-08-29T00:00:00.000000Z",
         )
-    with pytest.raises(ValueError, match="role envelope"):
+    with pytest.raises(ValueError, match="generation preregistration"):
         project_preflight_output_name_receipt(
             root_receipt=root_receipt,
-            output_id="e2-preflight-wrong-envelope",
+            output_id="e2-preflight-wrong-parent",
             allocation_sequence=4,
             semantic_role="SOURCE_CANDIDATE",
-            logical_name="e2-preflight-wrong-envelope.png",
-            binding=PreflightOutputNameBinding(
-                producer_task_id=source.producer_task_id,
-                expected_parent_authority=source.expected_parent_authority,
-                expected_media_type=PREFLIGHT_JSON_MEDIA_TYPE,
-                maximum_bytes=source.maximum_bytes,
+            logical_name="e2-preflight-wrong-parent.png",
+            parent_authorities=PreflightParentAuthorities(
+                preregistration=manifest_authority,
+                allocation_manifest=manifest_authority,
+                producer_dispatch=dispatch_authority,
+                reserve_activation=activation,
+                generation_requests=tuple(requests),
             ),
             allocated_at_utc="2026-08-29T00:00:00.000000Z",
         )
+
+    forged_preregistration = deepcopy(preregistration_authority)
+    forged_preregistration["producer_task_id"] = "forged-producer"
+    forged_preregistration["generation_preregistration_digest"] = mirror_demo_digest(
+        PREREGISTRATION_SCHEMA,
+        {
+            key: cast(JsonValue, value)
+            for key, value in forged_preregistration.items()
+            if key != "generation_preregistration_digest"
+        },
+    )
+    with pytest.raises(ValueError, match="binding drifted"):
+        project_preflight_output_name_receipt(
+            root_receipt=root_receipt,
+            output_id="e2-preflight-resigned-parent",
+            allocation_sequence=4,
+            semantic_role="SOURCE_CANDIDATE",
+            logical_name="e2-preflight-resigned-parent.png",
+            parent_authorities=PreflightParentAuthorities(
+                preregistration=forged_preregistration,
+                allocation_manifest=manifest_authority,
+                producer_dispatch=dispatch_authority,
+                reserve_activation=activation,
+                generation_requests=tuple(requests),
+            ),
+            allocated_at_utc="2026-08-29T00:00:00.000000Z",
+        )
+
+
+@pytest.mark.parametrize("invalid_sequence", [True, False, 1.0, "1", None])
+def test_preflight_projection_rejects_non_integer_sequence(invalid_sequence: object) -> None:
+    with pytest.raises(ValueError, match="sequence and semantic role"):
+        project_preflight_output_name_receipt(
+            root_receipt={
+                "evidence_root_id": private_registry.EVIDENCE_ROOT_ID,
+                "dispatch_epoch": private_registry.DISPATCH_EPOCH,
+                "receipt_digest": digest("a"),
+                "contract_digest": digest("b"),
+            },
+            output_id="e2-preflight-invalid-sequence",
+            allocation_sequence=cast(int, invalid_sequence),
+            semantic_role="SOURCE_GENERATION_PREREGISTRATION",
+            logical_name="e2-preflight-invalid-sequence.json",
+            parent_authorities=None,
+            allocated_at_utc="2026-08-29T00:00:00.000000Z",
+        )
+
+
+def _preflight_parent_authorities(
+    semantic_role: str,
+    authorities: PreflightParentAuthorities,
+) -> PreflightParentAuthorities | None:
+    if semantic_role == "SOURCE_GENERATION_PREREGISTRATION":
+        return None
+    if semantic_role in {
+        "SOURCE_ALLOCATION_MANIFEST",
+        "SOURCE_CANDIDATE",
+        "SOURCE_PROVENANCE",
+        "SOURCE_PRODUCER_DISPATCH_RECEIPT",
+        "NEGATIVE_RECEIPT",
+    }:
+        return authorities
+    raise AssertionError(f"unexpected preflight role: {semantic_role}")
 
 
 def test_pure_name_receipt_projection_matches_registry_write_payload(
@@ -209,29 +294,26 @@ def test_pure_name_receipt_projection_matches_registry_write_payload(
         "receipt_digest": digest("a"),
         "contract_digest": digest("b"),
     }
-    binding = resolve_preflight_output_name_binding(
-        "SOURCE_CANDIDATE",
-        generation_preregistration_digest=digest("c"),
+    activation, preregistration, requests = prepared()
+    manifest = build_source_allocation_manifest(
+        execution_contract_digest=digest("b"),
+        preregistration=preregistration,
+        reserve_activation=activation,
+        generation_requests=requests,
     )
-    arguments = {
-        "output_id": "e2-source-projection-1",
-        "allocation_sequence": 4,
-        "semantic_role": "SOURCE_CANDIDATE",
-        "logical_name": "e2-source-projection-1.png",
-        "producer_task_id": binding.producer_task_id,
-        "expected_parent_authority": binding.expected_parent_authority,
-        "expected_media_type": binding.expected_media_type,
-        "maximum_bytes": binding.maximum_bytes,
-        "allocated_at_utc": "2026-08-29T00:00:00.000000Z",
-    }
-    projected = project_preflight_output_name_receipt(
-        root_receipt=root_receipt,
-        output_id=cast(str, arguments["output_id"]),
-        allocation_sequence=cast(int, arguments["allocation_sequence"]),
-        semantic_role=cast(str, arguments["semantic_role"]),
-        logical_name=cast(str, arguments["logical_name"]),
-        binding=binding,
-        allocated_at_utc=cast(str, arguments["allocated_at_utc"]),
+    dispatch = build_source_producer_dispatch(
+        execution_contract_digest=digest("b"),
+        preregistration=preregistration,
+        allocation_manifest=manifest,
+        reserve_activation=activation,
+        generation_requests=requests,
+    )
+    parent_authorities = PreflightParentAuthorities(
+        preregistration=preregistration,
+        allocation_manifest=manifest,
+        producer_dispatch=dispatch,
+        reserve_activation=activation,
+        generation_requests=tuple(requests),
     )
     captured: dict[str, object] = {}
 
@@ -249,7 +331,7 @@ def test_pure_name_receipt_projection_matches_registry_write_payload(
     monkeypatch.setattr(
         private_registry,
         "_control_path",
-        lambda _root, _destination, _name: tmp_path / "projected-receipt.json",
+        lambda _root, _destination, name: tmp_path / name,
     )
     monkeypatch.setattr(
         private_registry,
@@ -268,21 +350,37 @@ def test_pure_name_receipt_projection_matches_registry_write_payload(
     )
 
     authority = cast(private_registry.RootReceiptAuthority, object())
-    observed = private_registry.allocate_output_name_receipt(
-        tmp_path,
-        authority,
-        output_id=cast(str, arguments["output_id"]),
-        allocation_sequence=cast(int, arguments["allocation_sequence"]),
-        semantic_role=cast(str, arguments["semantic_role"]),
-        logical_name=cast(str, arguments["logical_name"]),
-        producer_task_id=cast(str, arguments["producer_task_id"]),
-        expected_parent_authority=cast(str, arguments["expected_parent_authority"]),
-        expected_media_type=cast(str, arguments["expected_media_type"]),
-        maximum_bytes=cast(int, arguments["maximum_bytes"]),
-        allocated_at_utc=cast(str, arguments["allocated_at_utc"]),
-    )
-    assert observed == projected
-    assert not (tmp_path / "projected-receipt.json").exists()
+    for sequence, semantic_role in enumerate(PREFLIGHT_SEMANTIC_ROLES_BY_SEQUENCE, start=1):
+        logical_name = (
+            f"e2-preflight-{sequence}.png"
+            if semantic_role == "SOURCE_CANDIDATE"
+            else f"e2-preflight-{sequence}.json"
+        )
+        projected = project_preflight_output_name_receipt(
+            root_receipt=root_receipt,
+            output_id=f"e2-preflight-{sequence}",
+            allocation_sequence=sequence,
+            semantic_role=semantic_role,
+            logical_name=logical_name,
+            parent_authorities=_preflight_parent_authorities(semantic_role, parent_authorities),
+            allocated_at_utc="2026-08-29T00:00:00.000000Z",
+        )
+        captured.clear()
+        observed = private_registry.allocate_output_name_receipt(
+            tmp_path,
+            authority,
+            output_id=cast(str, projected["output_id"]),
+            allocation_sequence=cast(int, projected["allocation_sequence"]),
+            semantic_role=cast(str, projected["semantic_role"]),
+            logical_name=cast(str, projected["logical_name"]),
+            producer_task_id=cast(str, projected["producer_task_id"]),
+            expected_parent_authority=cast(str, projected["expected_parent_authority"]),
+            expected_media_type=cast(str, projected["expected_media_type"]),
+            maximum_bytes=cast(int, projected["maximum_bytes"]),
+            allocated_at_utc=cast(str, projected["allocated_at_utc"]),
+        )
+        assert observed == projected
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_exact_bridge_happy_path_and_deterministic_replay() -> None:

@@ -136,6 +136,14 @@ name-receipt write. The projector and the registry writer must produce equal
 payloads and equal `name_receipt_digest`; any mismatch stops before ImageGen.
 Actual allocation remains ordered `1..12`.
 
+The projector does not accept a caller-supplied bare parent digest as
+authority. Sequence 1 derives its parent from the accepted generation
+capability; every other sequence receives and validates the corresponding
+preregistration, allocation-manifest or producer-dispatch authority object and
+its accepted upstream graph, then derives the parent digest internally.
+Allocation sequence uses a strict integer boundary, so JSON booleans and other
+integer-like values fail before any create-new write.
+
 The exact binding matrix is:
 
 | Sequence | Semantic role                       | Parent authority                      | Producer           | Media type         | Maximum bytes |

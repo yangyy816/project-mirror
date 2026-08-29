@@ -182,6 +182,17 @@ class PreflightOutputNameBinding:
     maximum_bytes: int
 
 
+@dataclass(frozen=True)
+class PreflightParentAuthorities:
+    """Validated upstream graph used to derive one receipt parent."""
+
+    preregistration: Mapping[str, object]
+    allocation_manifest: Mapping[str, object]
+    producer_dispatch: Mapping[str, object]
+    reserve_activation: Mapping[str, object]
+    generation_requests: Sequence[Mapping[str, object]]
+
+
 def _preflight_role_envelope(semantic_role: str) -> tuple[str, str, int]:
     if semantic_role == "SOURCE_CANDIDATE":
         return (
@@ -214,6 +225,8 @@ def resolve_preflight_output_name_binding(
             generation_capability_authority_digest,
             "generation capability authority digest",
         )
+        if parent != ACCEPTED_CAPABILITY_DIGEST:
+            _fail("generation capability authority digest is not the accepted capability")
     elif semantic_role in {
         "SOURCE_ALLOCATION_MANIFEST",
         "SOURCE_CANDIDATE",
@@ -252,7 +265,7 @@ def project_preflight_output_name_receipt(
     allocation_sequence: int,
     semantic_role: str,
     logical_name: str,
-    binding: PreflightOutputNameBinding,
+    parent_authorities: PreflightParentAuthorities | None,
     allocated_at_utc: str,
 ) -> JsonObject:
     """Purely project the exact registry payload before any create-new write."""
@@ -268,11 +281,13 @@ def project_preflight_output_name_receipt(
     )
     private_registry._require_output_id(output_id)
     if (
-        allocation_sequence < 1
+        type(allocation_sequence) is not int
+        or allocation_sequence < 1
         or allocation_sequence > len(PREFLIGHT_SEMANTIC_ROLES_BY_SEQUENCE)
         or PREFLIGHT_SEMANTIC_ROLES_BY_SEQUENCE[allocation_sequence - 1] != semantic_role
     ):
         _fail("allocation sequence and semantic role do not match the E2 preflight matrix")
+    binding = _resolve_preflight_binding_from_parent_authorities(semantic_role, parent_authorities)
     destination = private_registry._role_destination(semantic_role)
     private_registry._require_logical_name(logical_name)
     private_registry._require_digest(binding.expected_parent_authority, "expected parent authority")
@@ -324,6 +339,68 @@ def project_preflight_output_name_receipt(
         payload,
     )
     return payload
+
+
+def _resolve_preflight_binding_from_parent_authorities(
+    semantic_role: str,
+    parent_authorities: PreflightParentAuthorities | None,
+) -> PreflightOutputNameBinding:
+    if semantic_role == "SOURCE_GENERATION_PREREGISTRATION":
+        if parent_authorities is not None:
+            _fail("generation preregistration name receipt cannot override its capability parent")
+        _capability()
+        return resolve_preflight_output_name_binding(
+            semantic_role,
+            generation_capability_authority_digest=ACCEPTED_CAPABILITY_DIGEST,
+        )
+
+    if parent_authorities is None:
+        _fail("preflight parent authorities are required for this semantic role")
+    if semantic_role in {
+        "SOURCE_ALLOCATION_MANIFEST",
+        "SOURCE_CANDIDATE",
+        "SOURCE_PROVENANCE",
+    }:
+        preregistration = validate_generation_preregistration_authority(
+            parent_authorities.preregistration
+        )
+        return resolve_preflight_output_name_binding(
+            semantic_role,
+            generation_preregistration_digest=_digest(
+                preregistration["generation_preregistration_digest"],
+                "generation preregistration digest",
+            ),
+        )
+    if semantic_role == "SOURCE_PRODUCER_DISPATCH_RECEIPT":
+        manifest = validate_source_allocation_manifest(
+            parent_authorities.allocation_manifest,
+            preregistration=parent_authorities.preregistration,
+            reserve_activation=parent_authorities.reserve_activation,
+            generation_requests=parent_authorities.generation_requests,
+        )
+        return resolve_preflight_output_name_binding(
+            semantic_role,
+            source_allocation_manifest_digest=_digest(
+                manifest["source_allocation_manifest_digest"],
+                "source allocation manifest digest",
+            ),
+        )
+    if semantic_role == "NEGATIVE_RECEIPT":
+        dispatch = validate_source_producer_dispatch(
+            parent_authorities.producer_dispatch,
+            preregistration=parent_authorities.preregistration,
+            allocation_manifest=parent_authorities.allocation_manifest,
+            reserve_activation=parent_authorities.reserve_activation,
+            generation_requests=parent_authorities.generation_requests,
+        )
+        return resolve_preflight_output_name_binding(
+            semantic_role,
+            source_producer_dispatch_digest=_digest(
+                dispatch["source_producer_dispatch_digest"],
+                "source producer dispatch digest",
+            ),
+        )
+    _fail("semantic role is not part of the E2 preflight allocation envelope")
 
 
 def _fail(message: str) -> NoReturn:
