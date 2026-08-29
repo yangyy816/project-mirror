@@ -4,10 +4,13 @@ import hashlib
 import json
 import os
 import re
-from collections.abc import Mapping
+import stat
+import string
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Final, cast
+from typing import Any, BinaryIO, Final, cast
 
 OVERLAY_SCHEMA: Final = "mirror.p2-m5/Epoch3ExecutionOverlay/v1"
 STATE_SCHEMA: Final = "mirror.p2-m5/Epoch3ExecutionOverlayState/v1"
@@ -19,6 +22,15 @@ MAX_RETURNED_BYTES: Final = 16 * 1024 * 1024
 _OPAQUE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$")
 _ORDINAL = re.compile(r"^CAL-REQ-(\d{3})$")
 _FILE_ATTRIBUTE_REPARSE_POINT: Final = 0x400
+_FILE_ATTRIBUTE_DIRECTORY: Final = 0x10
+_ALLOWED_PRIVATE_PROMPT_FIELDS: Final = frozenset(
+    {
+        "REQUEST_ORDINAL",
+        "DECLARED_AGE_BAND",
+        "MORPHOLOGY_DESCRIPTOR",
+        "STYLE_DESCRIPTOR",
+    }
+)
 
 
 class ExecutionOverlayError(RuntimeError):
@@ -983,27 +995,313 @@ def _validated_generated_artifact_path(
         or not allowed_generated_artifact_root.is_absolute()
     ):
         raise ExecutionOverlayError("GENERATED_ARTIFACT_ABSOLUTE_PATH_REQUIRED")
-    _require_plain_directory(allowed_generated_artifact_root)
-    _require_plain_file(generated_artifact_path)
-    if not generated_artifact_path.resolve().is_relative_to(
-        allowed_generated_artifact_root.resolve()
-    ):
+    try:
+        relative_parts = generated_artifact_path.relative_to(allowed_generated_artifact_root).parts
+    except ValueError as error:
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_OUTSIDE_ALLOWED_ROOT") from error
+    if not relative_parts or any(part in {"", ".", ".."} for part in relative_parts):
         raise ExecutionOverlayError("GENERATED_ARTIFACT_OUTSIDE_ALLOWED_ROOT")
     return generated_artifact_path
+
+
+def _relative_artifact_parts(
+    *,
+    generated_artifact_path: Path,
+    allowed_generated_artifact_root: Path,
+) -> tuple[str, ...]:
+    try:
+        relative_parts = generated_artifact_path.relative_to(allowed_generated_artifact_root).parts
+    except ValueError as error:
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_OUTSIDE_ALLOWED_ROOT") from error
+    if not relative_parts or any(part in {"", ".", ".."} for part in relative_parts):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_OUTSIDE_ALLOWED_ROOT")
+    return relative_parts
+
+
+def _open_posix_directory_chain(path: Path) -> list[int]:
+    if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_UNAVAILABLE")
+    directory_flag = cast(int, os.O_DIRECTORY)  # type: ignore[attr-defined]
+    no_follow_flag = cast(int, os.O_NOFOLLOW)
+    flags = os.O_RDONLY | directory_flag | no_follow_flag
+    anchor = Path(path.anchor)
+    descriptors = [os.open(str(anchor), flags)]
+    try:
+        for part in path.parts[1:]:
+            descriptor = os.open(part, flags, dir_fd=descriptors[-1])
+            try:
+                if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                    raise ExecutionOverlayError("GENERATED_ARTIFACT_DIRECTORY_INVALID")
+            except Exception:
+                os.close(descriptor)
+                raise
+            descriptors.append(descriptor)
+        return descriptors
+    except Exception:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+        raise
+
+
+def _assert_posix_root_identity(path: Path, descriptor: int) -> None:
+    path_stat = os.lstat(path)
+    opened_stat = os.fstat(descriptor)
+    if not stat.S_ISDIR(path_stat.st_mode) or (path_stat.st_dev, path_stat.st_ino) != (
+        opened_stat.st_dev,
+        opened_stat.st_ino,
+    ):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_ROOT_CHANGED_BEFORE_READ")
+
+
+def _open_posix_generated_artifact(
+    *,
+    generated_artifact_path: Path,
+    allowed_generated_artifact_root: Path,
+) -> tuple[int, list[int]]:
+    if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_UNAVAILABLE")
+    descriptors = _open_posix_directory_chain(allowed_generated_artifact_root)
+    root_descriptor = descriptors[-1]
+    file_descriptor: int | None = None
+    try:
+        relative_parts = _relative_artifact_parts(
+            generated_artifact_path=generated_artifact_path,
+            allowed_generated_artifact_root=allowed_generated_artifact_root,
+        )
+        directory_flag = cast(int, os.O_DIRECTORY)  # type: ignore[attr-defined]
+        no_follow_flag = cast(int, os.O_NOFOLLOW)
+        directory_flags = os.O_RDONLY | directory_flag | no_follow_flag
+        for part in relative_parts[:-1]:
+            descriptor = os.open(part, directory_flags, dir_fd=descriptors[-1])
+            try:
+                if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                    raise ExecutionOverlayError("GENERATED_ARTIFACT_DIRECTORY_INVALID")
+            except Exception:
+                os.close(descriptor)
+                raise
+            descriptors.append(descriptor)
+        file_descriptor = os.open(
+            relative_parts[-1],
+            os.O_RDONLY | no_follow_flag,
+            dir_fd=descriptors[-1],
+        )
+        if not stat.S_ISREG(os.fstat(file_descriptor).st_mode):
+            os.close(file_descriptor)
+            file_descriptor = None
+            raise ExecutionOverlayError("GENERATED_ARTIFACT_FILE_INVALID")
+        _assert_posix_root_identity(allowed_generated_artifact_root, root_descriptor)
+        return file_descriptor, descriptors
+    except Exception:
+        if file_descriptor is not None:
+            os.close(file_descriptor)
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+        raise
+
+
+def _windows_final_path(handle: int) -> str:
+    import ctypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    get_final_path = kernel32.GetFinalPathNameByHandleW
+    get_final_path.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32]
+    get_final_path.restype = ctypes.c_uint32
+    buffer_size = 512
+    while buffer_size <= 32768:
+        buffer = ctypes.create_unicode_buffer(buffer_size)
+        result = get_final_path(handle, buffer, buffer_size, 0)
+        if result == 0:
+            raise ExecutionOverlayError("GENERATED_ARTIFACT_HANDLE_PATH_UNAVAILABLE")
+        if result < buffer_size:
+            value = buffer.value
+            if value.startswith("\\\\?\\UNC\\"):
+                value = "\\\\" + value[8:]
+            elif value.startswith("\\\\?\\"):
+                value = value[4:]
+            return os.path.normcase(os.path.normpath(value))
+        buffer_size = result + 1
+    raise ExecutionOverlayError("GENERATED_ARTIFACT_HANDLE_PATH_UNAVAILABLE")
+
+
+def _windows_open_path(path: Path, *, expect_directory: bool) -> int:
+    import ctypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    create_file = kernel32.CreateFileW
+    create_file.argtypes = [
+        ctypes.c_wchar_p,
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_void_p,
+    ]
+    create_file.restype = ctypes.c_void_p
+    get_file_information = kernel32.GetFileInformationByHandle
+    get_file_information.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    get_file_information.restype = ctypes.c_int
+    close_handle = kernel32.CloseHandle
+    close_handle.argtypes = [ctypes.c_void_p]
+    close_handle.restype = ctypes.c_int
+
+    class ByHandleFileInformation(ctypes.Structure):
+        _fields_ = [
+            ("dwFileAttributes", ctypes.c_uint32),
+            ("ftCreationTimeLow", ctypes.c_uint32),
+            ("ftCreationTimeHigh", ctypes.c_uint32),
+            ("ftLastAccessTimeLow", ctypes.c_uint32),
+            ("ftLastAccessTimeHigh", ctypes.c_uint32),
+            ("ftLastWriteTimeLow", ctypes.c_uint32),
+            ("ftLastWriteTimeHigh", ctypes.c_uint32),
+            ("dwVolumeSerialNumber", ctypes.c_uint32),
+            ("nFileSizeHigh", ctypes.c_uint32),
+            ("nFileSizeLow", ctypes.c_uint32),
+            ("nNumberOfLinks", ctypes.c_uint32),
+            ("nFileIndexHigh", ctypes.c_uint32),
+            ("nFileIndexLow", ctypes.c_uint32),
+        ]
+
+    flags = 0x00200000
+    if expect_directory:
+        flags |= 0x02000000
+    handle = create_file(str(path), 0x80000000, 0x00000001, None, 3, flags, None)
+    invalid_handle = ctypes.c_void_p(-1).value
+    if handle == invalid_handle or handle is None:
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_FAILED")
+    information = ByHandleFileInformation()
+    try:
+        if not get_file_information(handle, ctypes.byref(information)):
+            raise ExecutionOverlayError("GENERATED_ARTIFACT_HANDLE_INFO_UNAVAILABLE")
+        is_directory = bool(information.dwFileAttributes & _FILE_ATTRIBUTE_DIRECTORY)
+        if (
+            bool(information.dwFileAttributes & _FILE_ATTRIBUTE_REPARSE_POINT)
+            or is_directory != expect_directory
+            or _windows_final_path(handle) != os.path.normcase(os.path.normpath(str(path)))
+        ):
+            raise ExecutionOverlayError("GENERATED_ARTIFACT_HANDLE_BINDING_INVALID")
+        return cast(int, handle)
+    except Exception:
+        close_handle(handle)
+        raise
+
+
+def _close_windows_handles(handles: list[int]) -> None:
+    import ctypes
+
+    close_handle = ctypes.WinDLL("kernel32", use_last_error=True).CloseHandle
+    close_handle.argtypes = [ctypes.c_void_p]
+    close_handle.restype = ctypes.c_int
+    for handle in reversed(handles):
+        close_handle(handle)
+
+
+def _open_windows_generated_artifact(
+    *,
+    generated_artifact_path: Path,
+    allowed_generated_artifact_root: Path,
+) -> tuple[int, list[int]]:
+    root_parts = allowed_generated_artifact_root.parts
+    if not root_parts:
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_UNAVAILABLE")
+    current_path = Path(allowed_generated_artifact_root.anchor)
+    handles = [_windows_open_path(current_path, expect_directory=True)]
+    expected_paths = [current_path]
+    file_handle: int | None = None
+    try:
+        for part in root_parts[1:]:
+            current_path /= part
+            handles.append(_windows_open_path(current_path, expect_directory=True))
+            expected_paths.append(current_path)
+        relative_parts = _relative_artifact_parts(
+            generated_artifact_path=generated_artifact_path,
+            allowed_generated_artifact_root=allowed_generated_artifact_root,
+        )
+        for part in relative_parts[:-1]:
+            current_path /= part
+            handles.append(_windows_open_path(current_path, expect_directory=True))
+            expected_paths.append(current_path)
+        file_path = current_path / relative_parts[-1]
+        file_handle = _windows_open_path(file_path, expect_directory=False)
+        if any(
+            _windows_final_path(handle) != os.path.normcase(os.path.normpath(str(path)))
+            for handle, path in zip(handles, expected_paths, strict=True)
+        ):
+            raise ExecutionOverlayError("GENERATED_ARTIFACT_ROOT_CHANGED_BEFORE_READ")
+        return file_handle, handles
+    except Exception:
+        if file_handle is not None:
+            _close_windows_handles([file_handle])
+        _close_windows_handles(handles)
+        raise
+
+
+@contextmanager
+def _open_bound_generated_artifact(
+    *,
+    generated_artifact_path: Path,
+    allowed_generated_artifact_root: Path,
+) -> Iterator[BinaryIO]:
+    if os.name == "nt":
+        import msvcrt
+
+        file_handle, ancestor_handles = _open_windows_generated_artifact(
+            generated_artifact_path=generated_artifact_path,
+            allowed_generated_artifact_root=allowed_generated_artifact_root,
+        )
+        descriptor: int | None = None
+        source: BinaryIO | None = None
+        file_handle_owned = True
+        try:
+            descriptor = msvcrt.open_osfhandle(file_handle, os.O_RDONLY | os.O_BINARY)
+            file_handle_owned = False
+            source = cast(BinaryIO, os.fdopen(descriptor, "rb"))
+            descriptor = None
+            yield source
+        finally:
+            try:
+                if source is not None:
+                    source.close()
+                elif descriptor is not None:
+                    os.close(descriptor)
+                elif file_handle_owned:
+                    _close_windows_handles([file_handle])
+            finally:
+                _close_windows_handles(ancestor_handles)
+        return
+
+    file_descriptor, ancestor_descriptors = _open_posix_generated_artifact(
+        generated_artifact_path=generated_artifact_path,
+        allowed_generated_artifact_root=allowed_generated_artifact_root,
+    )
+    source = None
+    try:
+        source = cast(BinaryIO, os.fdopen(file_descriptor, "rb"))
+        yield source
+    finally:
+        try:
+            if source is not None:
+                source.close()
+            else:
+                os.close(file_descriptor)
+        finally:
+            for descriptor in reversed(ancestor_descriptors):
+                os.close(descriptor)
 
 
 def _copy_or_verify_generated_artifact(
     *,
     generated_artifact_path: Path,
+    allowed_generated_artifact_root: Path,
     staging_path: Path,
 ) -> tuple[str, int, bytes]:
     source_digest = hashlib.sha256()
     first_bytes = b""
-    with generated_artifact_path.open("rb") as source:
+    with _open_bound_generated_artifact(
+        generated_artifact_path=generated_artifact_path,
+        allowed_generated_artifact_root=allowed_generated_artifact_root,
+    ) as source:
         opened_before = os.fstat(source.fileno())
-        path_stat = generated_artifact_path.stat()
-        if (opened_before.st_dev, opened_before.st_ino) != (path_stat.st_dev, path_stat.st_ino):
-            raise ExecutionOverlayError("GENERATED_ARTIFACT_CHANGED_BEFORE_READ")
         source_size = opened_before.st_size
         if source_size <= 0 or source_size > MAX_RETURNED_BYTES:
             raise ExecutionOverlayError("OUTPUT_REGISTRATION_BYTE_BOUND_FAILED")
@@ -1098,6 +1396,7 @@ def register_output_before_decode(
         registration_receipt_path = _safe_child(root / "records", registration_receipt_name)
         source_sha256, source_size, first_bytes = _copy_or_verify_generated_artifact(
             generated_artifact_path=generated_artifact_path,
+            allowed_generated_artifact_root=allowed_generated_artifact_root,
             staging_path=staging_path,
         )
         staging_sha256 = sha256_file(staging_path)
@@ -1335,6 +1634,27 @@ def render_private_prompt(
     if not isinstance(positive, list) or not isinstance(negative, list):
         raise ExecutionOverlayError("PRIVATE_PROMPT_SEGMENTS_INVALID")
 
+    formatter = string.Formatter()
+
+    def render_segment(segment: str) -> str:
+        try:
+            fields = tuple(formatter.parse(segment))
+        except ValueError as error:
+            raise ExecutionOverlayError("PRIVATE_PROMPT_PLACEHOLDER_RENDER_FAILED") from error
+        for _literal, field_name, format_spec, conversion in fields:
+            if field_name is None:
+                continue
+            if (
+                field_name not in _ALLOWED_PRIVATE_PROMPT_FIELDS
+                or conversion is not None
+                or format_spec
+            ):
+                raise ExecutionOverlayError("PRIVATE_PROMPT_PLACEHOLDER_RENDER_FAILED")
+        try:
+            return segment.format_map(values)
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError) as error:
+            raise ExecutionOverlayError("PRIVATE_PROMPT_PLACEHOLDER_RENDER_FAILED") from error
+
     def render_groups(groups: list[Any]) -> list[str]:
         rendered: list[str] = []
         for group in groups:
@@ -1344,10 +1664,7 @@ def render_private_prompt(
                 or not all(isinstance(item, str) for item in group)
             ):
                 raise ExecutionOverlayError("PRIVATE_PROMPT_GROUP_INVALID")
-            try:
-                rendered.append("; ".join(item.format_map(values) for item in group))
-            except (AttributeError, IndexError, KeyError, TypeError, ValueError) as error:
-                raise ExecutionOverlayError("PRIVATE_PROMPT_PLACEHOLDER_RENDER_FAILED") from error
+            rendered.append("; ".join(render_segment(item) for item in group))
         return rendered
 
     positive_lines = render_groups(positive)

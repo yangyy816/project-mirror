@@ -400,6 +400,180 @@ def test_registration_rejects_out_of_scope_paths_and_data_urls(tmp_path: Path) -
         )
 
 
+@pytest.mark.parametrize("replacement", ["source", "root"])
+def test_registration_rejects_validate_open_reparse_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    replacement: str,
+) -> None:
+    root, receipt = _consumed(tmp_path)
+    artifact_root = tmp_path / "allowed-generated-artifacts"
+    artifact_root.mkdir()
+    source = artifact_root / "native-generated-artifact.bin"
+    source.write_bytes(b"\x89PNG\r\n\x1a\ntrusted-fixture")
+    outside_root = tmp_path / "outside-generated-artifacts"
+    outside_root.mkdir()
+    outside_source = outside_root / source.name
+    outside_source.write_bytes(b"outside-fixture-must-not-be-read")
+    returned = record_output_returned(
+        receipt_path=receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        timestamp=TIMESTAMP_3,
+        returned_output_count=1,
+        exact_generated_artifact_receipt=str(source.resolve()),
+    )
+
+    if os.name == "nt":
+        original_windows_open = overlay_module._windows_open_path
+
+        def replace_before_final_open_windows(path: Path, *, expect_directory: bool) -> int:
+            if path == source and not expect_directory:
+                if replacement == "source":
+                    source.unlink()
+                    source.symlink_to(outside_source)
+                else:
+                    artifact_root.rename(tmp_path / "displaced-allowed-generated-artifacts")
+                    artifact_root.symlink_to(outside_root, target_is_directory=True)
+            return original_windows_open(path, expect_directory=expect_directory)
+
+        monkeypatch.setattr(
+            overlay_module,
+            "_windows_open_path",
+            replace_before_final_open_windows,
+        )
+    else:
+        original_posix_open = os.open
+
+        def replace_before_final_open_posix(
+            path: str,
+            flags: int,
+            mode: int = 0o777,
+            *,
+            dir_fd: int | None = None,
+        ) -> int:
+            directory_flag = cast(int, getattr(os, "O_DIRECTORY", 0))
+            if path == source.name and dir_fd is not None and not flags & directory_flag:
+                if replacement == "source":
+                    source.unlink()
+                    source.symlink_to(outside_source)
+                else:
+                    artifact_root.rename(tmp_path / "displaced-allowed-generated-artifacts")
+                    artifact_root.symlink_to(outside_root, target_is_directory=True)
+            return original_posix_open(path, flags, mode, dir_fd=dir_fd)
+
+        monkeypatch.setattr(os, "open", replace_before_final_open_posix)
+
+    failed = register_output_before_decode(
+        receipt_path=returned.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-002",
+        allowed_generated_artifact_root=artifact_root.resolve(),
+        exact_generated_artifact_receipt=str(source.resolve()),
+        timestamp="2026-08-29T00:00:04Z",
+    )
+    state = cast(
+        dict[str, Any],
+        verify_overlay(
+            failed.receipt_path,
+            expected_controller_sha256=CONTROLLER_SHA256,
+        )["state"],
+    )
+    assert state["phase"] == "OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE"
+    assert state["decode_authorized"] is False
+    assert state["hard_stop"] is True
+    assert not (root / "staging" / "OUTPUT-CAL-REQ-002.raw").exists()
+    with pytest.raises(ExecutionOverlayError, match="STATE_OR_ACTION_INVALID"):
+        register_output_before_decode(
+            receipt_path=failed.receipt_path,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            action_id="ACTION-CAL-REQ-002",
+            allowed_generated_artifact_root=artifact_root.resolve(),
+            exact_generated_artifact_receipt=str(source.resolve()),
+            timestamp="2026-08-29T00:00:04Z",
+        )
+
+
+def test_bound_source_open_closes_all_resources_if_fdopen_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = tmp_path / "allowed-generated-artifacts"
+    artifact_root.mkdir()
+    source = artifact_root / "native-generated-artifact.bin"
+    source.write_bytes(b"synthetic-non-image-fixture")
+    opened_resources: list[int] = []
+
+    if os.name == "nt":
+        original_open = overlay_module._open_windows_generated_artifact
+
+        def capture_windows_resources(
+            *,
+            generated_artifact_path: Path,
+            allowed_generated_artifact_root: Path,
+        ) -> tuple[int, list[int]]:
+            file_handle, ancestor_handles = original_open(
+                generated_artifact_path=generated_artifact_path,
+                allowed_generated_artifact_root=allowed_generated_artifact_root,
+            )
+            opened_resources.extend([file_handle, *ancestor_handles])
+            return file_handle, ancestor_handles
+
+        monkeypatch.setattr(
+            overlay_module,
+            "_open_windows_generated_artifact",
+            capture_windows_resources,
+        )
+    else:
+        original_open = overlay_module._open_posix_generated_artifact
+
+        def capture_posix_resources(
+            *,
+            generated_artifact_path: Path,
+            allowed_generated_artifact_root: Path,
+        ) -> tuple[int, list[int]]:
+            file_descriptor, ancestor_descriptors = original_open(
+                generated_artifact_path=generated_artifact_path,
+                allowed_generated_artifact_root=allowed_generated_artifact_root,
+            )
+            opened_resources.extend([file_descriptor, *ancestor_descriptors])
+            return file_descriptor, ancestor_descriptors
+
+        monkeypatch.setattr(
+            overlay_module,
+            "_open_posix_generated_artifact",
+            capture_posix_resources,
+        )
+
+    def fail_fdopen(_descriptor: int, _mode: str) -> Any:
+        raise OSError("INJECTED_FDOPEN_FAILURE")
+
+    monkeypatch.setattr(os, "fdopen", fail_fdopen)
+    with pytest.raises(OSError, match="INJECTED_FDOPEN_FAILURE"):
+        with overlay_module._open_bound_generated_artifact(
+            generated_artifact_path=source,
+            allowed_generated_artifact_root=artifact_root,
+        ):
+            pytest.fail("fdopen failure must prevent the source context from opening")
+
+    assert opened_resources
+    if os.name == "nt":
+        import ctypes
+
+        get_handle_information = ctypes.WinDLL("kernel32", use_last_error=True).GetHandleInformation
+        get_handle_information.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        get_handle_information.restype = ctypes.c_int
+        flags = ctypes.c_uint32()
+        assert all(
+            not get_handle_information(ctypes.c_void_p(handle), ctypes.byref(flags))
+            for handle in opened_resources
+        )
+    else:
+        for descriptor in opened_resources:
+            with pytest.raises(OSError):
+                os.fstat(descriptor)
+
+
 def test_hash_chain_detects_prior_event_tampering(tmp_path: Path) -> None:
     root, receipt = _consumed(tmp_path)
     event = root / "event-000000.json"
@@ -537,7 +711,26 @@ def test_private_prompt_rendering_is_deterministic_and_requires_prohibition() ->
             expected_policy_digest=POLICY_DIGEST,
         )
 
-    for invalid_segment in ("{UNKNOWN_PLACEHOLDER}", "{REQUEST_ORDINAL[invalid]}"):
+    escaped = render_private_prompt(
+        prompt_template={
+            **template,
+            "positive_segments": [["literal {{braces}} and {REQUEST_ORDINAL}"]],
+        },
+        assignment_entry=assignment,
+        ordinal="CAL-REQ-002",
+        expected_policy_digest=POLICY_DIGEST,
+    )
+    assert "literal {braces} and CAL-REQ-002" in escaped
+
+    for invalid_segment in (
+        "{UNKNOWN_PLACEHOLDER}",
+        "{REQUEST_ORDINAL[invalid]}",
+        "{REQUEST_ORDINAL[0]}",
+        "{REQUEST_ORDINAL.__class__.__name__}",
+        "{0}",
+        "{REQUEST_ORDINAL!r}",
+        "{REQUEST_ORDINAL:>10}",
+    ):
         with pytest.raises(
             ExecutionOverlayError,
             match="PRIVATE_PROMPT_PLACEHOLDER_RENDER_FAILED",
@@ -570,3 +763,7 @@ def test_controller_uses_no_directory_discovery_primitive() -> None:
     assert "import urllib" not in source
     assert "import socket" not in source
     assert "import subprocess" not in source
+    assert "with generated_artifact_path.open" not in source
+    assert "generated_artifact_path.stat()" not in source
+    assert "O_NOFOLLOW" in source
+    assert "CreateFileW" in source
