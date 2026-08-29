@@ -154,7 +154,12 @@ class DemoEditingRepository(Protocol):
         self, artifact: EditArtifact, materialized: MaterializedObject
     ) -> EditArtifact: ...
 
-    async def append_rejected(self, artifact: EditArtifact, reason_code: str) -> EditArtifact: ...
+    async def append_rejected(
+        self,
+        artifact: EditArtifact,
+        verification: EffectVerificationResult,
+        materialized: MaterializedObject,
+    ) -> EditArtifact: ...
 
     async def promote_pass(
         self,
@@ -230,7 +235,11 @@ class DemoEditingService:
             return ExecutionResult(
                 artifact.artifact_id, ArtifactState.PROMOTED, verification.status, promotion, False
             )
-        rejected = await self._repository.append_rejected(artifact, verification.status.value)
+        rejected = await self._repository.append_rejected(
+            artifact,
+            verification,
+            materialized,
+        )
         return ExecutionResult(
             rejected.artifact_id, rejected.state, verification.status, None, False
         )

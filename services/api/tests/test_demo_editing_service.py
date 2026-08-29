@@ -20,6 +20,7 @@ from mirror_api.demo_editing_service import (
 )
 from mirror_api.demo_effect_verifier import (
     EffectVerificationInput,
+    EffectVerificationResult,
     EffectVerifierPolicy,
     VerificationStatus,
     verify_effect,
@@ -130,7 +131,9 @@ class _Repository:
         )
         return self.artifact
 
-    async def append_rejected(self, artifact: EditArtifact, reason_code: str) -> EditArtifact:
+    async def append_rejected(
+        self, artifact: EditArtifact, verification: object, materialized: MaterializedObject
+    ) -> EditArtifact:
         self.rejections += 1
         self.artifact = replace(artifact, state=ArtifactState.REJECTED)
         return self.artifact
@@ -161,7 +164,9 @@ class _Verifier:
     def __init__(self, status: str = "PASS") -> None:
         self.status = status
 
-    async def __call__(self, command: ExecutionCommand, object_: MaterializedObject):
+    async def __call__(
+        self, command: ExecutionCommand, materialized: MaterializedObject
+    ) -> EffectVerificationResult:
         policy = EffectVerifierPolicy(
             target_tolerance_ppm=1,
             structural_drift_thresholds_ppm={"jaw_width": 1},
@@ -185,12 +190,12 @@ class _Verifier:
                 artifact_codes=(),
                 original_before_sha256=command.source_asset_sha256,
                 original_after_sha256=command.source_asset_sha256,
-                result_bytes=object_.content,
-                declared_result_sha256=object_.sha256,
+                result_bytes=materialized.content,
+                declared_result_sha256=materialized.sha256,
                 decode_valid=True,
-                width=object_.width,
-                height=object_.height,
-                media_type=object_.mime_type,
+                width=materialized.width,
+                height=materialized.height,
+                media_type=materialized.mime_type,
             ),
         )
 
