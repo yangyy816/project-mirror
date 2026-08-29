@@ -34,3 +34,14 @@ commits = ["5323f853838f9b48a0bf9a9d037ca9048e7cb2c7"]
 paths = ['''^services/api/tests/test_demo_d02_r2_epoch2_admission\.py$''']
 regexTarget = "match"
 regexes = ['''idempotency_key="epoch2-admission-key"''']
+
+# P2-M5-CC05-R01: an unrelated fetched formal branch contains one historical
+# public OpenAPI digest under a field name that Gitleaks classifies as a generic
+# key. A subsequent commit renamed it; keep the exception exact and historical.
+[[allowlists]]
+description = "Historical formal QuestionBank OpenAPI digest false positive in 0500b9e"
+condition = "AND"
+commits = ["0500b9e60822d81811f85f2926534b26ad86a088"]
+paths = ['''^docs/research/P2_QUESTIONBANK_GENERATION_POLICY_V3\.json$''']
+regexTarget = "match"
+regexes = ['''71942e2bdd3ff8896f6c74e7ee2f562167cb635528d9d802b7d66c460b0f13cf''']
