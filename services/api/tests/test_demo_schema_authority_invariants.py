@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_EVEN, Decimal
 from pathlib import Path
 from threading import Barrier, Event
@@ -40,6 +40,7 @@ from mirror_api.demo_models import (
     DemoAcceptedVisualEpisode,
     DemoActor,
     DemoAestheticProfile,
+    DemoAnalysisRun,
     DemoBaselineFaceModel,
     DemoCommandBinding,
     DemoContextCompilation,
@@ -81,9 +82,10 @@ from mirror_api.models import (
 _LEGACY_DEMO_GRAPH_TABLE_NAMES = set(DEMO_TABLE_NAMES) - {
     "demo_d02_r2_source_authorities",
     "demo_d02_r2_epoch2_admissions",
+    "demo_analysis_runs",
 }
 
-DEMO_REVISION = "demo_0009_d02_r2_e2_adm"
+DEMO_REVISION = "demo_0010_d03_analysis_run"
 D02_RECOVERED_QA_DOWN_REVISION = "demo_0006_d02_private_exec"
 D02_PRIVATE_EXEC_DOWN_REVISION = "demo_0005_d02_quality_auth"
 D02_QUALITY_DOWN_REVISION = "demo_0004_d09_episode_prov"
@@ -164,6 +166,8 @@ def _build_demo_row(
     }:
         payload.pop("measurement_gate_count", None)
         payload.pop("decode_structure_record_count", None)
+    if model is DemoFaceObservation and schema_version == "mirror.demo/DemoFaceObservation/v1":
+        payload.pop("analysis_run_id", None)
     if model is DemoSyntheticIdentity and schema_version.endswith(("/v2", "/v3")):
         formal_identity_id = authority_fields.get("formal_synthetic_identity_id")
         if formal_identity_id is not None:
@@ -459,14 +463,20 @@ def _insert_actor(
     return actor
 
 
-def _insert_session(session: Session, actor: DemoActor, *, config: dict[str, Any]) -> DemoSession:
-    expires_at = datetime(2026, 8, 24, 0, 0, tzinfo=UTC)
+def _insert_session(
+    session: Session,
+    actor: DemoActor,
+    *,
+    config: dict[str, Any],
+    expires_at: datetime | None = None,
+) -> DemoSession:
+    session_expires_at = expires_at or datetime(2026, 8, 24, 0, 0, tzinfo=UTC)
     schema_version = "mirror.demo/DemoSession/v1"
     payload = {
         "config": config,
         "context_seed": "1" * 64,
         "demo_actor_id": actor.id,
-        "expires_at": _authority_time(expires_at),
+        "expires_at": _authority_time(session_expires_at),
     }
     demo_session = DemoSession(
         id=new_id(),
@@ -477,7 +487,7 @@ def _insert_session(session: Session, actor: DemoActor, *, config: dict[str, Any
         demo_actor_id=actor.id,
         config=config,
         context_seed="1" * 64,
-        expires_at=expires_at,
+        expires_at=session_expires_at,
     )
     session.add(demo_session)
     session.commit()
@@ -2943,6 +2953,269 @@ def _insert_two_operation_execution(session: Session, graph: dict[str, Any]) -> 
     }
 
 
+def _insert_p3_authority_graph(
+    session: Session,
+    *,
+    actor: DemoActor,
+    source_asset: Asset,
+    synthetic_identity: DemoSyntheticIdentity,
+) -> dict[str, Any]:
+    """Insert the P3 graph supported by the database revision under test."""
+
+    def digest(character: str) -> str:
+        return character * 64
+
+    analysis_authority_present = bool(
+        session.scalar(text("SELECT to_regclass('demo_analysis_runs') IS NOT NULL"))
+    )
+    if not analysis_authority_present:
+        demo_session = _insert_session(session, actor, config={"graph": 1})
+        observation = _build_demo_row(
+            DemoFaceObservation,
+            authority_schema_version="mirror.demo/DemoFaceObservation/v1",
+            demo_actor_id=actor.id,
+            demo_session_id=demo_session.id,
+            demo_synthetic_identity_id=synthetic_identity.id,
+            source_asset_id=source_asset.id,
+            source_asset_sha256=source_asset.sha256,
+            analyzer_version="fixture-analyzer-v1",
+            runtime_manifest_digest=digest("2"),
+            config_digest=digest("3"),
+            repeat_count=3,
+            observation_state="SUPPORTED",
+            unsupported_reason=None,
+        )
+        _persist_historical_authority_rows(session, observation)
+        repeats = [
+            _insert_demo_row(
+                session,
+                DemoFaceObservationRepeat,
+                demo_actor_id=actor.id,
+                demo_session_id=demo_session.id,
+                observation_id=observation.id,
+                repeat_index=index,
+                runtime_manifest_digest=digest("2"),
+                model_manifest_digest=digest("4"),
+                landmarks=[0] * 478,
+                pose={"yaw_ppm": 0},
+                quality={"score_ppm": 1_000_000},
+                measurements={"jaw_width_ppm": 0},
+            )
+            for index in range(1, 4)
+        ]
+        baseline = _insert_demo_row(
+            session,
+            DemoBaselineFaceModel,
+            demo_actor_id=actor.id,
+            demo_session_id=demo_session.id,
+            observation_id=observation.id,
+            version=1,
+            aggregation_version="fixture-aggregate-v1",
+            measurement_version="fixture-measure-v1",
+            ordered_repeat_digests=[repeat.content_digest for repeat in repeats],
+            measurements={"jaw_width_ppm": 0},
+            reliability={"jaw_width_ppm": 1_000_000},
+            uncertainty={"jaw_width_ppm": 0},
+            unsupported_state={},
+        )
+        self_state = _insert_demo_row(
+            session,
+            DemoSelfState,
+            demo_actor_id=actor.id,
+            demo_session_id=demo_session.id,
+            baseline_face_model_id=baseline.id,
+            version=1,
+            ontology_version="fixture-ontology-v1",
+            derivation_version="fixture-derive-v1",
+            measurements={"jaw_width_ppm": 0},
+            reliability={"jaw_width_ppm": 1_000_000},
+            uncertainty={"jaw_width_ppm": 0},
+            routing_eligibility={"eligible": 1},
+        )
+        return {
+            "session": demo_session,
+            "analysis_job": None,
+            "analysis_run": None,
+            "analysis_binding": None,
+            "analysis_attempt": None,
+            "observation": observation,
+            "repeats": repeats,
+            "baseline": baseline,
+            "self_state": self_state,
+        }
+
+    demo_session = _insert_session(
+        session,
+        actor,
+        config={
+            "schema_version": "mirror.demo/DemoSessionConfig/v1",
+            "synthetic_identity_id": synthetic_identity.id,
+        },
+        expires_at=datetime.now(UTC) + timedelta(hours=2),
+    )
+    analysis_client_key_hash = hashlib.sha256(new_id().encode()).hexdigest()
+    analysis_job = Job(
+        id=new_id(),
+        job_type="demo_p3_p7.analysis.create",
+        status="PENDING",
+        idempotency_key_hash=hashlib.sha256(
+            (
+                f"mirror.demo/JobIdempotency/v1\n{actor.id}\nanalysis.create\n"
+                f"{analysis_client_key_hash}"
+            ).encode()
+        ).hexdigest(),
+        request_id=f"demo-d03-{new_id()}",
+        payload={},
+        owner_user_id=None,
+    )
+    analysis_run_id = new_id()
+    analysis_binding_id = new_id()
+    analysis_run = _build_demo_row(
+        DemoAnalysisRun,
+        row_id=analysis_run_id,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        demo_synthetic_identity_id=synthetic_identity.id,
+        source_asset_id=source_asset.id,
+        source_asset_sha256=source_asset.sha256,
+        demo_job_binding_id=analysis_binding_id,
+        analyzer_version="fixture-analyzer-v1",
+        runtime_manifest_digest=digest("2"),
+        model_manifest_digest=digest("4"),
+        observation_config_digest=digest("3"),
+        baseline_aggregation_version="fixture-aggregate-v1",
+        measurement_version="fixture-measure-v1",
+        self_state_ontology_version="fixture-ontology-v1",
+        self_state_derivation_version="fixture-derive-v1",
+        repeat_count=3,
+    )
+    analysis_binding = _build_demo_row(
+        DemoJobBinding,
+        row_id=analysis_binding_id,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        job_id=analysis_job.id,
+        endpoint_operation="analysis.create",
+        idempotency_key_hash=analysis_client_key_hash,
+        request_digest=digest("6"),
+        target_type="ANALYSIS_RUN",
+        target_id=analysis_run.id,
+    )
+    session.add(analysis_job)
+    session.flush()
+    session.add(analysis_run)
+    session.flush()
+    session.add(analysis_binding)
+    session.commit()
+    analysis_started_at = datetime.now(UTC)
+    analysis_lease_token = hashlib.sha256(new_id().encode()).hexdigest()
+    analysis_attempt = JobAttempt(
+        id=new_id(),
+        job_id=analysis_job.id,
+        attempt=1,
+        status="RUNNING",
+        lease_token=analysis_lease_token,
+        started_at=analysis_started_at,
+    )
+    session.add(analysis_attempt)
+    analysis_job.status = "RUNNING"
+    analysis_job.attempt_count = 1
+    analysis_job.lease_token = analysis_lease_token
+    analysis_job.lease_acquired_at = analysis_started_at
+    analysis_job.lease_expires_at = analysis_started_at + timedelta(minutes=5)
+    session.commit()
+
+    observation = _build_demo_row(
+        DemoFaceObservation,
+        authority_schema_version="mirror.demo/DemoFaceObservation/v2",
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        demo_synthetic_identity_id=synthetic_identity.id,
+        source_asset_id=source_asset.id,
+        source_asset_sha256=source_asset.sha256,
+        analysis_run_id=analysis_run.id,
+        analyzer_version=analysis_run.analyzer_version,
+        runtime_manifest_digest=analysis_run.runtime_manifest_digest,
+        config_digest=analysis_run.observation_config_digest,
+        repeat_count=3,
+        observation_state="SUPPORTED",
+        unsupported_reason=None,
+    )
+    session.add(observation)
+    session.flush()
+    repeats = [
+        _build_demo_row(
+            DemoFaceObservationRepeat,
+            demo_actor_id=actor.id,
+            demo_session_id=demo_session.id,
+            observation_id=observation.id,
+            repeat_index=index,
+            runtime_manifest_digest=analysis_run.runtime_manifest_digest,
+            model_manifest_digest=analysis_run.model_manifest_digest,
+            landmarks=[0] * 478,
+            pose={"yaw_ppm": 0},
+            quality={"score_ppm": 1_000_000},
+            measurements={"jaw_width_ppm": 0},
+        )
+        for index in range(1, 4)
+    ]
+    session.add_all(repeats)
+    session.flush()
+    baseline = _build_demo_row(
+        DemoBaselineFaceModel,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        observation_id=observation.id,
+        version=1,
+        aggregation_version=analysis_run.baseline_aggregation_version,
+        measurement_version=analysis_run.measurement_version,
+        ordered_repeat_digests=[repeat.content_digest for repeat in repeats],
+        measurements={"jaw_width_ppm": 0},
+        reliability={"jaw_width_ppm": 1_000_000},
+        uncertainty={"jaw_width_ppm": 0},
+        unsupported_state={},
+    )
+    session.add(baseline)
+    session.flush()
+    self_state = _build_demo_row(
+        DemoSelfState,
+        demo_actor_id=actor.id,
+        demo_session_id=demo_session.id,
+        baseline_face_model_id=baseline.id,
+        version=1,
+        ontology_version=analysis_run.self_state_ontology_version,
+        derivation_version=analysis_run.self_state_derivation_version,
+        measurements={"jaw_width_ppm": 0},
+        reliability={"jaw_width_ppm": 1_000_000},
+        uncertainty={"jaw_width_ppm": 0},
+        routing_eligibility={"eligible": 1},
+    )
+    session.add(self_state)
+    session.flush()
+    analysis_finalized_at = datetime.now(UTC)
+    analysis_attempt.status = "COMPLETED"
+    analysis_attempt.result_code = "SUPPORTED"
+    analysis_attempt.finished_at = analysis_finalized_at
+    analysis_job.status = "COMPLETED"
+    analysis_job.lease_token = None
+    analysis_job.lease_acquired_at = None
+    analysis_job.lease_expires_at = None
+    analysis_job.finalized_at = analysis_finalized_at
+    analysis_job.result_code = "SUPPORTED"
+    session.commit()
+    return {
+        "session": demo_session,
+        "analysis_job": analysis_job,
+        "analysis_run": analysis_run,
+        "analysis_binding": analysis_binding,
+        "analysis_attempt": analysis_attempt,
+        "observation": observation,
+        "repeats": repeats,
+        "baseline": baseline,
+        "self_state": self_state,
+    }
+
+
 def _insert_full_demo_graph(
     session: Session,
     *,
@@ -2955,7 +3228,6 @@ def _insert_full_demo_graph(
         return character * 64
 
     actor = _insert_actor(session)
-    demo_session = _insert_session(session, actor, config={"graph": 1})
     source_asset, formal_identity = _accepted_synthetic_source(session)
     synthetic_identity = _insert_demo_row(
         session,
@@ -2970,67 +3242,21 @@ def _insert_full_demo_graph(
         admission_config_digest=digest("1"),
         supersedes_id=None,
     )
-    observation = _insert_demo_row(
+    p3_graph = _insert_p3_authority_graph(
         session,
-        DemoFaceObservation,
-        demo_actor_id=actor.id,
-        demo_session_id=demo_session.id,
-        demo_synthetic_identity_id=synthetic_identity.id,
-        source_asset_id=source_asset.id,
-        source_asset_sha256=source_asset.sha256,
-        analyzer_version="fixture-analyzer-v1",
-        runtime_manifest_digest=digest("2"),
-        config_digest=digest("3"),
-        repeat_count=3,
-        observation_state="SUPPORTED",
-        unsupported_reason=None,
+        actor=actor,
+        source_asset=source_asset,
+        synthetic_identity=synthetic_identity,
     )
-    repeats = [
-        _insert_demo_row(
-            session,
-            DemoFaceObservationRepeat,
-            demo_actor_id=actor.id,
-            demo_session_id=demo_session.id,
-            observation_id=observation.id,
-            repeat_index=index,
-            runtime_manifest_digest=digest("2"),
-            model_manifest_digest=digest("4"),
-            landmarks=[0] * 478,
-            pose={"yaw_ppm": 0},
-            quality={"score_ppm": 1_000_000},
-            measurements={"jaw_width_ppm": 0},
-        )
-        for index in range(1, 4)
-    ]
-    baseline = _insert_demo_row(
-        session,
-        DemoBaselineFaceModel,
-        demo_actor_id=actor.id,
-        demo_session_id=demo_session.id,
-        observation_id=observation.id,
-        version=1,
-        aggregation_version="fixture-aggregate-v1",
-        measurement_version="fixture-measure-v1",
-        ordered_repeat_digests=[repeat.content_digest for repeat in repeats],
-        measurements={"jaw_width_ppm": 0},
-        reliability={"jaw_width_ppm": 1_000_000},
-        uncertainty={"jaw_width_ppm": 0},
-        unsupported_state={},
-    )
-    self_state = _insert_demo_row(
-        session,
-        DemoSelfState,
-        demo_actor_id=actor.id,
-        demo_session_id=demo_session.id,
-        baseline_face_model_id=baseline.id,
-        version=1,
-        ontology_version="fixture-ontology-v1",
-        derivation_version="fixture-derive-v1",
-        measurements={"jaw_width_ppm": 0},
-        reliability={"jaw_width_ppm": 1_000_000},
-        uncertainty={"jaw_width_ppm": 0},
-        routing_eligibility={"eligible": 1},
-    )
+    demo_session = cast(DemoSession, p3_graph["session"])
+    analysis_job = p3_graph["analysis_job"]
+    analysis_run = p3_graph["analysis_run"]
+    analysis_binding = p3_graph["analysis_binding"]
+    analysis_attempt = p3_graph["analysis_attempt"]
+    observation = cast(DemoFaceObservation, p3_graph["observation"])
+    repeats = cast(list[DemoFaceObservationRepeat], p3_graph["repeats"])
+    baseline = cast(DemoBaselineFaceModel, p3_graph["baseline"])
+    self_state = cast(DemoSelfState, p3_graph["self_state"])
     v10_report_validator_present = bool(
         session.scalar(
             text(
@@ -3459,6 +3685,10 @@ def _insert_full_demo_graph(
         "source_asset": source_asset,
         "formal_identity": formal_identity,
         "synthetic_identity": synthetic_identity,
+        "analysis_job": analysis_job,
+        "analysis_run": analysis_run,
+        "analysis_binding": analysis_binding,
+        "analysis_attempt": analysis_attempt,
         "observation": observation,
         "repeats": repeats,
         "baseline": baseline,
@@ -3702,25 +3932,29 @@ def test_stale_synthetic_admission_cannot_create_observation_or_pair(
     )
     assert revoke.admission_action == "REVOKE"
 
-    observation = graph["observation"]
+    analysis_run = graph["analysis_run"]
     with pytest.raises(
         DBAPIError,
         match="Demo synthetic admission is not the current eligible row",
     ):
         _insert_demo_row(
             session,
-            DemoFaceObservation,
-            demo_actor_id=observation.demo_actor_id,
-            demo_session_id=observation.demo_session_id,
+            DemoAnalysisRun,
+            demo_actor_id=analysis_run.demo_actor_id,
+            demo_session_id=analysis_run.demo_session_id,
             demo_synthetic_identity_id=stale_admit.id,
-            source_asset_id=observation.source_asset_id,
-            source_asset_sha256=observation.source_asset_sha256,
-            analyzer_version=observation.analyzer_version,
-            runtime_manifest_digest=observation.runtime_manifest_digest,
-            config_digest=observation.config_digest,
-            repeat_count=observation.repeat_count,
-            observation_state=observation.observation_state,
-            unsupported_reason=observation.unsupported_reason,
+            source_asset_id=analysis_run.source_asset_id,
+            source_asset_sha256=analysis_run.source_asset_sha256,
+            demo_job_binding_id=new_id(),
+            analyzer_version=analysis_run.analyzer_version,
+            runtime_manifest_digest=analysis_run.runtime_manifest_digest,
+            model_manifest_digest=analysis_run.model_manifest_digest,
+            observation_config_digest=analysis_run.observation_config_digest,
+            baseline_aggregation_version=analysis_run.baseline_aggregation_version,
+            measurement_version=analysis_run.measurement_version,
+            self_state_ontology_version=analysis_run.self_state_ontology_version,
+            self_state_derivation_version=analysis_run.self_state_derivation_version,
+            repeat_count=analysis_run.repeat_count,
         )
     session.rollback()
 
@@ -5047,7 +5281,7 @@ def test_accepted_episode_rejects_isolated_terminal_plan_provenance_drift(
 
 
 def test_demo_metadata_and_database_objects_match(session: Session) -> None:
-    assert len(DEMO_TABLE_NAMES) == 31
+    assert len(DEMO_TABLE_NAMES) == 32
     database_tables = set(
         session.scalars(
             text(
@@ -5064,7 +5298,7 @@ def test_demo_metadata_and_database_objects_match(session: Session) -> None:
                 "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_authority_%'"
             )
         )
-        == 30
+        == 31
     )
     assert (
         session.scalar(
@@ -5138,7 +5372,7 @@ def test_demo_orm_and_database_foreign_keys_match(session: Session) -> None:
         actual_count += len(actual)
         assert actual == expected, table_name
 
-    assert expected_count == actual_count == 93
+    assert expected_count == actual_count == 99
 
 
 def test_canonical_json_digest_and_integer_numeric_authority(session: Session) -> None:
@@ -6518,7 +6752,11 @@ def test_d02_quality_populated_downgrade_fails_closed_without_side_effects(
     session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _insert_full_demo_graph(session)
+    source_asset, source_identity = _insert_local_d02_identity(
+        session,
+        marker="quality-populated-downgrade",
+    )
+    _insert_d02_question_bank(session, source_asset, source_identity)
     database_url = os.environ["TEST_DATABASE_URL"]
     monkeypatch.setenv("DATABASE_URL", database_url)
     config = _demo_alembic_config(database_url)
@@ -7028,13 +7266,10 @@ def test_populated_formal_demo_authority_blocks_downgrade(
     engine = create_engine(database_url)
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
-        assert (
-            connection.scalar(
-                text(
-                    "SELECT count(*) FROM pg_trigger "
-                    "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_authority_%'"
-                )
+        assert connection.scalar(
+            text(
+                "SELECT count(*) FROM pg_trigger "
+                "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_authority_%'"
             )
-            == 30
-        )
+        ) == len(DEMO_TABLE_NAMES - {"demo_d02_r2_source_authorities"})
     engine.dispose()

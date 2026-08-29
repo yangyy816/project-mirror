@@ -15,6 +15,7 @@ JobState = Literal["PENDING", "RUNNING", "COMPLETED", "REJECTED", "FAILED", "CAN
 DemoJobTargetType = Literal[
     "DEMO_ACTOR",
     "DEMO_SESSION",
+    "ANALYSIS_RUN",
     "FACE_OBSERVATION",
     "QUESTIONNAIRE_RUN",
     "SELF_TRANSFER_RUN",

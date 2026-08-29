@@ -546,6 +546,73 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
     )
 
 
+class DemoAnalysisRun(DemoAuthorityMixin, Base):
+    __tablename__ = "demo_analysis_runs"
+
+    demo_actor_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_actors.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    demo_session_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    demo_synthetic_identity_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_synthetic_identities.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    source_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("assets.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    source_asset_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    demo_job_binding_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "demo_job_bindings.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        unique=True,
+        nullable=False,
+    )
+    analyzer_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    runtime_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    observation_config_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    baseline_aggregation_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    measurement_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    self_state_ontology_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    self_state_derivation_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    repeat_count: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        ForeignKeyConstraint(
+            ["demo_session_id", "demo_actor_id"],
+            ["demo_sessions.id", "demo_sessions.demo_actor_id"],
+            name="fk_demo_analysis_runs_session_actor",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "id",
+            "demo_actor_id",
+            "demo_session_id",
+            name="uq_demo_analysis_runs_id_actor_session",
+        ),
+        CheckConstraint("source_asset_sha256 ~ '^[0-9a-f]{64}$'", name="source_sha_shape"),
+        CheckConstraint(
+            "runtime_manifest_digest ~ '^[0-9a-f]{64}$'",
+            name="runtime_manifest_digest_shape",
+        ),
+        CheckConstraint(
+            "model_manifest_digest ~ '^[0-9a-f]{64}$'",
+            name="model_manifest_digest_shape",
+        ),
+        CheckConstraint(
+            "observation_config_digest ~ '^[0-9a-f]{64}$'",
+            name="observation_config_digest_shape",
+        ),
+        CheckConstraint("repeat_count = 3", name="three_repeats"),
+    )
+
+
 class DemoFaceObservation(DemoAuthorityMixin, Base):
     __tablename__ = "demo_face_observations"
 
@@ -560,6 +627,11 @@ class DemoFaceObservation(DemoAuthorityMixin, Base):
         ForeignKey("assets.id", ondelete="RESTRICT"), index=True, nullable=False
     )
     source_asset_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    analysis_run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("demo_analysis_runs.id", ondelete="RESTRICT"),
+        index=True,
+        unique=True,
+    )
     analyzer_version: Mapped[str] = mapped_column(String(64), nullable=False)
     runtime_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     config_digest: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -568,7 +640,13 @@ class DemoFaceObservation(DemoAuthorityMixin, Base):
     unsupported_reason: Mapped[str | None] = mapped_column(String(64))
 
     __table_args__ = (
-        *_authority_constraints(__tablename__),
+        *_authority_constraints(
+            __tablename__,
+            schema_version_expression=(
+                "schema_version IN ('mirror.demo/DemoFaceObservation/v1',"
+                "'mirror.demo/DemoFaceObservation/v2')"
+            ),
+        ),
         ForeignKeyConstraint(
             ["demo_session_id", "demo_actor_id"],
             ["demo_sessions.id", "demo_sessions.demo_actor_id"],
@@ -588,6 +666,13 @@ class DemoFaceObservation(DemoAuthorityMixin, Base):
         ),
         CheckConstraint("config_digest ~ '^[0-9a-f]{64}$'", name="config_digest_shape"),
         CheckConstraint("repeat_count = 3", name="three_repeats"),
+        CheckConstraint(
+            "(schema_version = 'mirror.demo/DemoFaceObservation/v1' "
+            "AND analysis_run_id IS NULL) OR "
+            "(schema_version = 'mirror.demo/DemoFaceObservation/v2' "
+            "AND analysis_run_id IS NOT NULL)",
+            name="analysis_run_version_shape",
+        ),
         CheckConstraint(
             "(observation_state = 'SUPPORTED' AND unsupported_reason IS NULL) OR "
             "(observation_state = 'UNSUPPORTED' AND unsupported_reason IS NOT NULL)",
@@ -2257,12 +2342,19 @@ class DemoJobBinding(DemoAuthorityMixin, Base):
         ),
         CheckConstraint("request_digest ~ '^[0-9a-f]{64}$'", name="request_digest_shape"),
         CheckConstraint(
-            "target_type IN ('DEMO_ACTOR','DEMO_SESSION','FACE_OBSERVATION',"
+            "target_type IN ('DEMO_ACTOR','DEMO_SESSION','ANALYSIS_RUN','FACE_OBSERVATION',"
             "'QUESTIONNAIRE_RUN','SELF_TRANSFER_RUN','EDITING_SESSION','IMAGE_VERSION',"
             "'EDIT_PLAN','EDIT_OPERATION','TOOL_RUN')",
             name="target_type",
         ),
         CheckConstraint("target_id ~ '^[0-9a-f]{32}$'", name="target_id_shape"),
+        Index(
+            "uq_demo_job_bindings_analysis_run_target",
+            "target_type",
+            "target_id",
+            unique=True,
+            postgresql_where=text("target_type = 'ANALYSIS_RUN'"),
+        ),
     )
 
 
@@ -2326,6 +2418,7 @@ DEMO_TABLE_NAMES = frozenset(
         "demo_d02_r2_source_authorities",
         "demo_d02_r2_epoch2_admissions",
         "demo_synthetic_identities",
+        "demo_analysis_runs",
         "demo_face_observations",
         "demo_face_observation_repeats",
         "demo_baseline_face_models",

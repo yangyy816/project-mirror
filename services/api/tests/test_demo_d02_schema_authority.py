@@ -66,7 +66,7 @@ _AUTHORITY_EXCLUDED_COLUMNS = {
     "tombstoned_at",
 }
 
-_HEAD_DEMO_REVISION = "demo_0009_d02_r2_e2_adm"
+_HEAD_DEMO_REVISION = "demo_0010_d03_analysis_run"
 
 
 @pytest.fixture
@@ -1458,7 +1458,27 @@ def test_populated_legacy_v1_round_trip_is_byte_exact_and_formal_ddl_is_unchange
             formal_ddl_after_upgrade = _formal_table_ddl_signature(connection)
         engine.dispose()
         assert isinstance(first_source_key, str)
-        assert formal_ddl_after_upgrade == formal_ddl_before
+        d03_formal_trigger_keys = {
+            ("jobs", "trg_demo_d03_job_state"),
+            ("jobs", "trg_demo_d03_job_transition"),
+            ("job_attempts", "trg_demo_d03_job_attempt_state"),
+            ("job_attempts", "trg_demo_d03_job_attempt_transition"),
+        }
+        d03_formal_entries = tuple(
+            row
+            for row in formal_ddl_after_upgrade
+            if (row[1], row[2]) in d03_formal_trigger_keys
+        )
+        formal_ddl_without_d03 = tuple(
+            row
+            for row in formal_ddl_after_upgrade
+            if (row[1], row[2]) not in d03_formal_trigger_keys
+        )
+        assert {
+            (cast(str, row[1]), cast(str, row[2])) for row in d03_formal_entries
+        } == d03_formal_trigger_keys
+        assert len(d03_formal_entries) == 6
+        assert formal_ddl_without_d03 == formal_ddl_before
 
         command.downgrade(config, D02_DOWN_REVISION)
         engine = create_engine(database_url)

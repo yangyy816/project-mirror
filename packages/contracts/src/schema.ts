@@ -1257,7 +1257,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "DEMO_ACTOR" | "DEMO_SESSION" | "FACE_OBSERVATION" | "QUESTIONNAIRE_RUN" | "SELF_TRANSFER_RUN" | "EDITING_SESSION" | "IMAGE_VERSION" | "EDIT_PLAN" | "EDIT_OPERATION" | "TOOL_RUN";
+            target_type: "DEMO_ACTOR" | "DEMO_SESSION" | "ANALYSIS_RUN" | "FACE_OBSERVATION" | "QUESTIONNAIRE_RUN" | "SELF_TRANSFER_RUN" | "EDITING_SESSION" | "IMAGE_VERSION" | "EDIT_PLAN" | "EDIT_OPERATION" | "TOOL_RUN";
             /** Target Id */
             target_id: string;
             /** Authority Digest */
