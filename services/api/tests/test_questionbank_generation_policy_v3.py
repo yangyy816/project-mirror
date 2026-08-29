@@ -1337,7 +1337,10 @@ def test_cc05_c0_epoch4_rollover_is_complete_mirrored_zero_generation_and_fail_c
     assert values["FORMAL_CALLS_REMAINING"] == "31"
     assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "31"
     assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "62"
-    assert values["NEXT_READY_TASK"] == ("CC-P2-M5-05-C_PRIVATE_POLICY_MATERIALIZATION")
+    successor_task = "CC-P2-M5-05-C_PRIVATE_POLICY_MATERIALIZATION"
+    assert values["NEXT_READY_TASK"] == successor_task
+    assert values["CC_P2_M5_05_C0_SINGLE_SUCCESSOR"] == successor_task
+    assert values["E01_EPOCH_4_MATERIALIZATION_TASK"] == successor_task
     assert values["P2_M5_TECHNICAL_GATE"] == "NOT_EVALUATED"
     assert values["P2_MVR_V1_RESULT"] == "NOT_EVALUATED"
     assert values["P2_M6_ENTRY"] == "CLOSED_PENDING_TECHNICAL_AND_MVR_PASS"
