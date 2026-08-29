@@ -2,8 +2,8 @@
   "schema_version": "mirror.demo/P3P7DemoExecutionState/v1",
   "goal_epoch": "P3_P7_COMPLETE_DEMO_EPOCH_02",
   "integration_branch": "codex/p3-p7-core-demo",
-  "integration_head": "fab67bc3ed88472156fe342a89f4d0b4cd9c57b1",
-  "migration_head": "demo_0008_d02_r2_source_auth",
+  "integration_head": "93919f47ea391694d4ed952cec8a3e7d5683dc4a",
+  "migration_head": "demo_0009_d02_r2_e2_adm",
   "delivery_policy": "PRODUCT_AND_ALGORITHM_FIRST_RISK_TIERED",
   "evidence_custody_host_binding": "FROZEN_DEFERRED",
   "closed_checkpoints": [
@@ -21,9 +21,10 @@
     "D02_R2_CC10_PRODUCT_FIRST_CLOSURE",
     "D02_R2_EPOCH_02_PLAN",
     "D02_R2_EPOCH_02_IMPLEMENTATION",
-    "D02_R2_EPOCH_02_REQUEST_DIGEST_BRIDGE"
+    "D02_R2_EPOCH_02_REQUEST_DIGEST_BRIDGE",
+    "D02_R2_EPOCH_02_GENERATED_NOT_DURABLY_RECOVERABLE"
   ],
-  "active_checkpoint": "D02_R2_EPOCH_02_PRIVATE_PREFLIGHT",
+  "active_checkpoint": "D03_D04_B_D07_B_IMPLEMENTATION_WAVE",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -40,6 +41,9 @@
     "D02_R2_EPOCH_02_PLAN": "3d3ce14556de8240cfb913a85bec2aaa8052aeae",
     "D02_R2_EPOCH_02_IMPLEMENTATION": "911f0fc97df76c66f5e456dbda43cc4865fb7a2c",
     "D02_R2_EPOCH_02_REQUEST_DIGEST_BRIDGE": "fab67bc3ed88472156fe342a89f4d0b4cd9c57b1"
+  },
+  "implementation_checkpoint_shas": {
+    "D03_D04_B_D07_B_DOMAIN_SLICES": "93919f47ea391694d4ed952cec8a3e7d5683dc4a"
   },
   "accepted_ci_runs": {
     "D09": 32701906246,
@@ -73,10 +77,13 @@
     "principal_acceptance": "PRINCIPAL_ACCEPTED"
   },
   "private_execution_state": {
-    "evidence_root": "NOT_CREATED",
-    "root_name_receipt": "NOT_CREATED",
-    "two_copy_registry": "NOT_INITIALIZED",
-    "imagegen_calls_executed": 0,
+    "evidence_root": "NOT_DURABLY_RECOVERABLE",
+    "root_name_receipt": "NOT_DURABLY_RECOVERABLE",
+    "two_copy_registry": "NOT_DURABLY_RECOVERABLE",
+    "imagegen_calls_executed": 4,
+    "source_bytes_recoverable": "NO",
+    "old_handle_recovery_attempted": false,
+    "new_imagegen_calls": 0,
     "private_locator_tracked": false
   },
   "cc10_closure": {
@@ -91,18 +98,84 @@
     "implementation_status": "PRINCIPAL_ACCEPTED",
     "request_digest_bridge_status": "PRINCIPAL_ACCEPTED",
     "request_digest_bridge_ci": "PASS_33226054944",
-    "evidence_root": "NOT_CREATED",
-    "two_copy_registry": "NOT_INITIALIZED",
-    "imagegen_calls_executed": 0,
-    "imagegen_calls_authorized": 4
+    "evidence_root": "NOT_DURABLY_RECOVERABLE",
+    "two_copy_registry": "NOT_DURABLY_RECOVERABLE",
+    "imagegen_calls_executed": 4,
+    "imagegen_calls_authorized": 4,
+    "handle_loss_classification": "EPHEMERAL_RUNTIME_HANDOFF_LOSS",
+    "durable_artifact_result": "C",
+    "source_bytes_recoverable": "NO",
+    "m3_m4_recipe_recoverable": "NO",
+    "old_handle_recovery_attempted": false,
+    "new_imagegen_calls": 0,
+    "m3_m4_execution": "NOT_COMPLETED",
+    "postgresql_admission": "NOT_STARTED",
+    "d02_r2_task_accepted": false,
+    "outcome": "GENERATED_BUT_NOT_DURABLY_RECOVERABLE",
+    "local_product_checkpoint": "5323f853838f9b48a0bf9a9d037ca9048e7cb2c7"
+  },
+  "handle_loss_forward_resolution": {
+    "task_id": "P3_P7_D02_R2_M3_M4_HANDLE_LOSS_FORWARD_RESOLUTION",
+    "status": "PASS_WITH_DEFERRED_NON_BLOCKING_FINDINGS",
+    "handle_loss_classification": "EPHEMERAL_RUNTIME_HANDOFF_LOSS",
+    "durable_artifact_result": "C",
+    "selected_forward_path": "NEW_SYNTHETIC_SOURCE_COHORT_EPOCH_03_WHEN_RUNTIME_EVIDENCE_IS_REQUIRED",
+    "historical_runtime_equivalence": "NOT_CLAIMED",
+    "old_handle_recovery_attempted": false,
+    "new_epoch_call_budget": {
+      "requested_primary_calls": 4,
+      "authorized_primary_calls": 0,
+      "retry_calls": 0,
+      "reserve_calls": 0
+    },
+    "call_1_prerequisites": [
+      "NEW_TASK_ID_AND_ORDINALS",
+      "NEW_OUTPUT_IDS",
+      "DURABLE_SOURCE_DESTINATION_VERIFIED",
+      "VERSIONED_M3_M4_RECIPE_AND_MODEL_AUTHORITY_AVAILABLE"
+    ],
+    "materialization_timing": "DEFERRED_UNTIL_AN_ACTUAL_RUNTIME_DEPENDENT_GATE"
+  },
+  "m3_dependency_state": {
+    "frozen_status": "FROZEN_UNCHANGED",
+    "capability_authority": "ACCEPTED",
+    "current_handle_requirement": "NOT_A_GLOBAL_PREREQUISITE",
+    "runtime_replay_state": "DEFERRED_UNTIL_ACTUALLY_REQUIRED"
+  },
+  "d02_split_state": {
+    "capability_and_contract_state": "EXECUTION_READY",
+    "runtime_replay_state": "DEFERRED_UNTIL_ACTUALLY_REQUIRED",
+    "final_gate": "PENDING_RUNTIME_EVIDENCE"
+  },
+  "implementation_wave": {
+    "status": "DOMAIN_SLICES_VALIDATED_NOT_TASK_ACCEPTED",
+    "D03": "FACE_OBSERVATION_BASELINE_SELF_STATE_DOMAIN_READY_RUNTIME_ADAPTER_DEFERRED",
+    "D04_B": "POSTERIOR_ROUTING_DOMAIN_READY_REAL_BANK_ADAPTER_DEFERRED",
+    "D07_B": "IMAGE_VERSION_LIFECYCLE_DOMAIN_READY_REAL_ASSET_EDITOR_DEFERRED",
+    "offline_targeted_validation": "PASS_112_TESTS_RUFF_STRICT_MYPY_DIFF_CHECK",
+    "task_acceptance_claimed": false
   },
   "current_blockers": {
-    "D02_R2": "PRIVATE_PREFLIGHT_AND_FULL_D02_R2_EXECUTION_NOT_COMPLETED",
-    "D03": "BLOCKED_D02_R2_NOT_TASK_ACCEPTED",
-    "D04_B": "BLOCKED_D02_R2_AND_D03_NOT_TASK_ACCEPTED",
-    "D07_B": "BLOCKED_D02_R2_AND_D03_NOT_TASK_ACCEPTED"
+    "D02_RUNTIME_REPLAY": "DEFERRED_UNTIL_ACTUALLY_REQUIRED",
+    "D02_FINAL_GATE": "PENDING_RUNTIME_EVIDENCE",
+    "D03": "IMPLEMENTATION_OPEN_RUNTIME_INTEGRATION_DEFERRED",
+    "D04_B": "IMPLEMENTATION_OPEN_REAL_BANK_INTEGRATION_DEFERRED",
+    "D07_B": "IMPLEMENTATION_OPEN_REAL_ASSET_INTEGRATION_DEFERRED"
   },
-  "next_ready_nodes": ["D02_R2_EPOCH_02_PRIVATE_PREFLIGHT"],
+  "next_ready_nodes": [
+    "D03_APPLICATION_PERSISTENCE_AND_WORKER_IMPLEMENTATION",
+    "D04_B_APPLICATION_PERSISTENCE_IMPLEMENTATION",
+    "D07_B_DETERMINISTIC_RASTER_AND_GEOMETRY_IMPLEMENTATION",
+    "D05_PURE_COMPILER_IMPLEMENTATION"
+  ],
+  "runtime_evidence_blocked_nodes": [
+    "D02_FINAL_RUNTIME_GATE",
+    "D03_FRESH_M3_RUNTIME_INTEGRATION_GATE",
+    "D04_B_REAL_QUESTION_BANK_INTEGRATION_GATE",
+    "D07_B_REAL_ASSET_AND_M4_RUNTIME_INTEGRATION_GATE",
+    "D12_COMPLETE_RUNTIME_E2E"
+  ],
+  "project_status": "ACTIVE_WITH_DEFERRED_RUNTIME_GATE",
   "production_release": "NOT_AUTHORIZED",
   "updated_by_principal": "INTEGRATION_PRINCIPAL"
 }

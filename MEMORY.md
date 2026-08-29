@@ -709,3 +709,11 @@
   `NOT_IMPLEMENTED_DEFERRED` / `NOT_EXECUTED_NOT_PASSED`，不伪造 PASS，不创建 CC11/CC12，并解除其对本地
   synthetic Demo 产品 DAG 的阻断。D02-R2 仍未接受，D03/D04-B/D07-B 继续等待真实 D02-R2 completion；
   `PRODUCTION_RELEASE: NOT_AUTHORIZED`。
+
+- 2026-08-29：Owner 明确冻结新的跨节点依赖语义：P2-M3 的 capability、algorithm/model identity、contract 与
+  QA authority 继续 `FROZEN_UNCHANGED`；当前未物化 task-scoped M3 runtime/model handle 只记为
+  `M3_RUNTIME_REPLAY_NOT_CURRENTLY_MATERIALIZED`，不是全局前置。D02 拆为
+  `CAPABILITY_AND_CONTRACT_STATE=EXECUTION_READY`、`RUNTIME_REPLAY_STATE=DEFERRED_UNTIL_ACTUALLY_REQUIRED` 与
+  `FINAL_GATE=PENDING_RUNTIME_EVIDENCE`，项目状态为 `ACTIVE_WITH_DEFERRED_RUNTIME_GATE`。下游纯领域、应用、
+  persistence、Worker 与 UI 实现可以按既有冻结契约继续；只有明确消费 fresh M3/D02 runtime artifacts 的集成或
+  最终 Gate 延后。不得因此重开 M3、弱化历史 acceptance 或伪造 runtime evidence。
