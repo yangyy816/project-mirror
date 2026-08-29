@@ -335,11 +335,11 @@ def _last_cc05_c_key_block(path: Path) -> list[tuple[str, str]]:
     )
 
 
-def _last_r43_q01_key_block(path: Path) -> list[tuple[str, str]]:
+def _last_r49_q01_key_block(path: Path) -> list[tuple[str, str]]:
     return _last_key_block(
         path,
-        authority_version="p2-m5-r43-q01-epoch4-execution-overlay-materialization-eof/v1",
-        sentinel="P2_M5_R43_Q01_EPOCH4_EXECUTION_OVERLAY_MATERIALIZATION_TRUE_EOF",
+        authority_version="p2-m5-r49-q01-post-acceptance-next-ready-task-repair-eof/v1",
+        sentinel="P2_M5_R49_Q01_POST_ACCEPTANCE_NEXT_READY_TASK_AUTHORITY_REPAIR_TRUE_EOF",
     )
 
 
@@ -2387,9 +2387,9 @@ def test_r43_q01_redacted_evidence_is_complete_zero_generation_and_path_free() -
     assert "provider_raw_payload" not in tracked.lower()
 
 
-def test_r43_q01_true_eof_is_complete_mirrored_and_binds_redacted_evidence() -> None:
-    canonical = _last_r43_q01_key_block(ACCEPTANCE_PATH)
-    mirror = _last_r43_q01_key_block(EXECUTION_PROTOCOL_PATH)
+def test_r49_q01_true_eof_is_complete_mirrored_and_binds_redacted_evidence() -> None:
+    canonical = _last_r49_q01_key_block(ACCEPTANCE_PATH)
+    mirror = _last_r49_q01_key_block(EXECUTION_PROTOCOL_PATH)
     predecessor = _last_cc05_c_key_block(ACCEPTANCE_PATH)
     values = dict(canonical)
     predecessor_values = dict(predecessor)
@@ -2399,7 +2399,7 @@ def test_r43_q01_true_eof_is_complete_mirrored_and_binds_redacted_evidence() -> 
     )
 
     assert canonical == mirror
-    assert len(canonical) == len(values) == 661
+    assert len(canonical) == len(values) == 683
     assert len(predecessor) == len(predecessor_values) == 610
     assert set(predecessor_values) <= values.keys()
 
@@ -2480,8 +2480,30 @@ def test_r43_q01_true_eof_is_complete_mirrored_and_binds_redacted_evidence() -> 
         "P2_M5_R43_Q01_PRODUCTION_PROVIDER_OR_GEOMETRY_APPROVED",
         "P2_M5_R43_Q01_REAL_USER_FACIAL_PROCESSING_AUTHORIZED",
         "P2_M5_R43_Q01_NEXT_TASK_AFTER_ACCEPTANCE",
+        "P2_M5_R49_STATUS",
+        "P2_M5_R49_TASK_ID",
+        "P2_M5_R49_PARENT_CANDIDATE_SHA",
+        "P2_M5_R49_PARENT_CI_RUN",
+        "P2_M5_R49_PARENT_CI_RESULTS",
+        "P2_M5_R49_PARENT_ARTIFACT_INSPECTION",
+        "P2_M5_R49_PARENT_SECURITY_REVIEW",
+        "P2_M5_R49_PARENT_SOL_HIGH_FINAL_REVIEW",
+        "P2_M5_R49_PARENT_PRINCIPAL_ACCEPTANCE",
+        "P2_M5_R49_FAILURE_CLASS",
+        "P2_M5_R49_REPAIR_SCOPE",
+        "P2_M5_R49_AUTHORITY_CONDITION",
+        "P2_M5_R49_POST_ACCEPTANCE_AUTOMATIC_NEXT_READY_TASK",
+        "P2_M5_R49_POST_ACCEPTANCE_COMMIT_REQUIRED",
+        "P2_M5_R49_PRINCIPAL_ACCEPTANCE",
+        "P2_M5_R49_IMAGEGEN_CALLS_EXECUTED",
+        "P2_M5_R49_ORDINALS_CONSUMED",
+        "P2_M5_R49_RAW_OUTPUTS_CREATED",
+        "P2_M5_R49_IMAGE_BYTES_READ",
+        "P2_M5_R49_DECODE_QA_SCREENING_ADMISSION",
+        "P2_M5_R49_CAL_REQ_002_STATUS",
+        "P2_M5_R49_RUNTIME_SCHEMA_API_DEPENDENCY_WORKFLOW_CHANGE",
     }
-    assert len(added_keys) == 51
+    assert len(added_keys) == 73
     assert set(values) - set(predecessor_values) == added_keys
 
     digest_bindings = {
@@ -2502,7 +2524,16 @@ def test_r43_q01_true_eof_is_complete_mirrored_and_binds_redacted_evidence() -> 
         evidence["overlay_output_id"].lower()
     )
     assert values["P2_M5_R43_Q01_STATUS"] == (
-        "PASS_AFTER_THIS_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+        "PASS_AFTER_P2_M5_R49_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert values["P2_M5_R49_PARENT_CANDIDATE_SHA"] == ("A710FF19A43C28AC0954B39572F3F16FC3C5884C")
+    assert values["P2_M5_R49_PARENT_CI_RUN"] == "33259731211_ATTEMPT_1"
+    assert values["P2_M5_R49_FAILURE_CLASS"] == (
+        "POST_ACCEPTANCE_CURRENT_AUTHORITY_NEXT_TASK_CONFLICT"
+    )
+    assert values["P2_M5_R49_PARENT_SECURITY_REVIEW"] == "PASS"
+    assert values["P2_M5_R49_PARENT_SOL_HIGH_FINAL_REVIEW"] == (
+        "FAIL_POST_ACCEPTANCE_CURRENT_AUTHORITY_NEXT_TASK_CONFLICT"
     )
     assert values["P2_M5_R43_Q01_OVERLAY_PHASE"] == "READY"
     assert values["P2_M5_R43_Q01_OVERLAY_SEQUENCE"] == "0"
@@ -2525,13 +2556,18 @@ def test_r43_q01_true_eof_is_complete_mirrored_and_binds_redacted_evidence() -> 
     assert values["FORMAL_CALLS_REMAINING"] == "31"
     assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "31"
     assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "62"
-    assert values["NEXT_READY_TASK"] == "P2_M5_R43_Q01_SAME_SHA_GATES"
+    assert (
+        values["P2_M5_R49_POST_ACCEPTANCE_AUTOMATIC_NEXT_READY_TASK"]
+        == values["NEXT_READY_TASK"]
+        == evidence["next_ready_task_after_acceptance"]
+        == "EXECUTE_CAL_REQ_002"
+    )
     assert values["P2_M5_TECHNICAL_GATE"] == "NOT_EVALUATED"
     assert values["P2_MVR_V1_RESULT"] == "NOT_EVALUATED"
     assert values["P2_M6_ENTRY"] == "CLOSED_PENDING_TECHNICAL_AND_MVR_PASS"
     assert canonical[-1] == (
         "CURRENT_AUTHORITY_TAIL_END",
-        "P2_M5_R43_Q01_EPOCH4_EXECUTION_OVERLAY_MATERIALIZATION_TRUE_EOF",
+        "P2_M5_R49_Q01_POST_ACCEPTANCE_NEXT_READY_TASK_AUTHORITY_REPAIR_TRUE_EOF",
     )
     assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
     assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
