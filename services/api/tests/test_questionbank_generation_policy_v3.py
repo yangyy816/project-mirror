@@ -135,6 +135,16 @@ def _last_cc05_key_block(path: Path) -> list[tuple[str, str]]:
     )
 
 
+def _last_r39_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version=(
+            "p2-m5-r39-r38-principal-acceptance-effective-state-authority-repair-eof/v1"
+        ),
+        sentinel=("P2_M5_R39_R38_PRINCIPAL_ACCEPTANCE_EFFECTIVE_STATE_AUTHORITY_REPAIR_TRUE_EOF"),
+    )
+
+
 def _last_cc05_a0_key_block(path: Path) -> list[tuple[str, str]]:
     return _last_key_block(
         path,
@@ -496,10 +506,18 @@ def test_policy_v3_m5_true_eof_overlay_is_exactly_mirrored_and_fail_closed() -> 
 def test_cc05_a0_epoch3_rollover_is_mirrored_zero_output_and_fail_closed() -> None:
     canonical = _last_cc05_a0_key_block(ACCEPTANCE_PATH)
     mirror = _last_cc05_a0_key_block(EXECUTION_PROTOCOL_PATH)
+    r39_keys = {key for key, _ in _last_r39_key_block(ACCEPTANCE_PATH)}
+    cc05_keys = {key for key, _ in _last_cc05_key_block(ACCEPTANCE_PATH)}
+    predecessor_keys = r39_keys | cc05_keys
 
     assert canonical == mirror
     values = dict(canonical)
     assert len(values) == len(canonical)
+    assert len(canonical) == 272
+    assert len(r39_keys) == 204
+    assert len(cc05_keys) == 58
+    assert len(predecessor_keys) == 231
+    assert predecessor_keys <= values.keys()
     assert values["CC_P2_M5_05_STATUS"] == (
         "PASS_AT_CDCC2591F42EAD6769107E423EECCE16FA9261D7_RUN_33238015901"
     )
@@ -527,6 +545,7 @@ def test_cc05_a0_epoch3_rollover_is_mirrored_zero_output_and_fail_closed() -> No
     assert values["CC_P2_M5_05_A0_ORDINALS_CONSUMED"] == "0"
     assert values["CC_P2_M5_05_A0_RAW_OUTPUTS_CREATED"] == "0"
     assert values["CC_P2_M5_05_A0_PRIVATE_ROOTS_CREATED"] == "0"
+    assert values["CC_P2_M5_05_A0_PRIVATE_BYTES_CREATED_OR_READ"] == "0"
     assert values["FORMAL_E01_GENERATION_CALLS_EXECUTED"] == "1"
     assert values["FORMAL_E01_RAW_OUTPUTS_CREATED"] == "1"
     assert values["FORMAL_E01_PROVISIONAL_ACCEPTED_IDENTITIES"] == "0"
