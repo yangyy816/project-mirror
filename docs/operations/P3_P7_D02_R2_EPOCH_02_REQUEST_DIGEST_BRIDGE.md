@@ -164,6 +164,80 @@ reopen CC09/CC10, add a custody layer, change public API, migration, ORM or
 Provider invocation, or authorize an ImageGen call before the three singleton
 events replay equally in both registry copies.
 
+## E2 provenance and generation-receipt closure
+
+The pre-execution exact-SHA review identified a blocking creator-identity
+collision in the legacy-shaped receipt validator. E2 resolves it in a new
+domain without modifying or weakening the E1 validator:
+
+```text
+PROVENANCE_SCHEMA:
+  mirror.demo/D02R2Epoch2GenerationResultProvenance/v1
+
+GENERATION_RECEIPT_SCHEMA:
+  mirror.demo/D02R2Epoch2SourceGenerationReceipt/v1
+
+GENERATION_RECEIPT_CREATOR_TASK:
+  P3_P7_D02_R2_EXECUTION_02
+
+SOURCE_PRODUCER_TASK:
+  P3_P7_D02_R2_SOURCE_COHORT_02
+```
+
+`producer_task_id` in the E2 generation receipt names the execution task that
+creates, seals and registers the receipt. `source_producer_task_id` separately
+binds the source producer already frozen in the request/allocation tuple. The
+two identities must not be conflated. Request continuity remains enforced by
+the request digest, ordinal, source/provenance output IDs and both preallocated
+name-receipt digests.
+
+The E2 provenance is created only after the source commit. It binds the exact
+source name/seal/registry-commit chain and PNG checksum, byte size, MIME type,
+width and height. It contains no Prompt, locator, image bytes or output hint;
+unknown Provider, model, version, seed, usage and cost values remain `null`
+rather than being guessed. Its fixed execution fields are:
+
+```text
+control_plane_invocation: image_gen.imagegen
+call_count: 1
+outputs_per_call: 1
+retry_count: 0
+reference_image_count: 0
+public_internet_egress_during_call:
+  ORDINAL_SCOPED_CONTROL_PLANE_LEASE_ONLY
+public_internet_egress_after_call: DENIED
+control_plane_lease_state: REVOKED
+synthetic_only_attested: true
+real_person_reference_used: false
+```
+
+The E2 generation receipt validates the exact key set and domain-separated
+digest, complete request/allocation/dispatch tuple, source name/seal/commit,
+provenance name/seal/commit, Asset checksum/size/MIME/dimensions and both
+synthetic/reference attestations. A scalar provenance digest without its
+registered provenance chain is invalid.
+
+Generation-receipt name allocation occurs only after the corresponding
+provenance commit has replayed. The four allocations are fixed as:
+
+```text
+allocation_sequence: 12 + candidate_ordinal  # 13..16
+semantic_role: SOURCE_GENERATION_RECEIPT
+producer_task_id: P3_P7_D02_R2_EXECUTION_02
+expected_parent_authority: generation_result_provenance_digest
+expected_media_type: application/json
+maximum_bytes: 262144
+relative_destination_class: DATA_GENERATION_RECEIPTS
+allowed_tasks:
+  - P3_P7_D02_R2_EXECUTION_02
+  - P3_P7_D02_R2_EVIDENCE_REVIEW_02
+```
+
+The no-cycle order is source durable write and source commit, provenance
+payload and provenance commit, generation-receipt name allocation, then
+generation-receipt durable write/seal/commit. Neither provenance nor the
+generation receipt refers to its own seal or commit.
+
 ```text
 D02_R2_TASK_ACCEPTED: NO
 D03: BLOCKED_PENDING_D02_R2_TASK_ACCEPTED

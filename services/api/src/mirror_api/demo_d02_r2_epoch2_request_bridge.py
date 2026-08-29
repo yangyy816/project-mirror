@@ -800,7 +800,12 @@ def validate_generation_receipt_request_binding(
         "generation_preregistration_digest": request.get("generation_preregistration_digest"),
         "source_allocation_manifest_digest": manifest.get("source_allocation_manifest_digest"),
         "source_producer_dispatch_digest": dispatch.get("source_producer_dispatch_digest"),
-        "producer_task_id": request.get("producer_task_id"),
+        # The E2 receipt is created and registered by the execution task.  The
+        # source producer remains bound independently through the accepted
+        # request/allocation tuple; conflating these two identities makes a
+        # registry-valid receipt impossible.
+        "producer_task_id": private_registry.TASK_ID,
+        "source_producer_task_id": request.get("producer_task_id"),
         "dispatch_epoch": request.get("dispatch_epoch"),
         "source_output_id": request.get("source_output_id"),
         "output_name_receipt_digest": request.get("source_name_receipt_digest"),
