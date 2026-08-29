@@ -31,6 +31,89 @@ CC05_A_EVIDENCE_DOC_PATH = (
 ACCEPTANCE_PATH = ROOT / "docs" / "operations" / "P2_M5_ACCEPTANCE.md"
 EXECUTION_PROTOCOL_PATH = ROOT / "docs" / "operations" / "P2_M5_EXECUTION_PROTOCOL.md"
 
+_CC05_A_AUTHORIZED_A0_OVERRIDES = {
+    "ASSIGNMENT_LEDGER_VERSION": ("p2-m5-cc05a-calibration-assignment-v3-cal-req-002-forward"),
+    "CC04_B_E01": "READY_TO_RESUME_AT_CAL_REQ_002_AFTER_CC05_A_ACCEPTANCE",
+    "CC04_B_EXECUTION": (
+        "EXECUTION_READY_FOR_EXACT_CAL_REQ_002_ONLY_AFTER_PRINCIPAL_PRIVATE_PREFLIGHT"
+    ),
+    "CC_P2_M5_05_A0_AUTHORITY_CONDITION": (
+        "SATISFIED_AT_762B03F52A9F23450C00F7F7FEFC977DB30AB128_RUN_33240395967_"
+        "AFTER_EIGHT_ARTIFACT_INSPECTION_SECURITY_AND_SOL_HIGH_REVIEW"
+    ),
+    "CC_P2_M5_05_A0_STATUS": ("PASS_AT_762B03F52A9F23450C00F7F7FEFC977DB30AB128_RUN_33240395967"),
+    "CURRENT_AUTHORITY_TAIL_END": (
+        "P2_M5_CC05_A_E01_EPOCH3_PRIVATE_POLICY_MATERIALIZATION_TRUE_EOF"
+    ),
+    "CURRENT_STATE_AUTHORITY_PRECEDENCE": (
+        "THIS_CONDITIONAL_TRUE_EOF_OVERLAY_SUPERSEDES_ACCEPTED_A0_FOR_THE_COMPLETE_"
+        "LISTED_KEYSET_ONLY_AFTER_CC05_A_SAME_SHA_CI_EIGHT_ARTIFACT_CONTENT_CHECKS_"
+        "SECURITY_PRIVACY_LICENSE_RESEARCH_SOL_AND_PRINCIPAL_ACCEPTANCE"
+    ),
+    "CURRENT_STATE_AUTHORITY_VERSION": ("p2-m5-cc05-a-e01-epoch3-private-materialization-eof/v1"),
+    "CURRENT_STATE_KEY_COVERAGE": (
+        "COMPLETE_A0_PREDECESSOR_KEYSET_PLUS_CC05_A_EPOCH3_MATERIALIZATION_DIGEST_"
+        "COUNTER_RECOVERY_AND_REDACTION_KEYS"
+    ),
+    "CURRENT_STATE_MIRROR_RULE": (
+        "MUST_MATCH_CANONICAL_ACCEPTANCE_CC05_A_KEY_SET_ORDER_AND_VALUES"
+    ),
+    "CURRENT_STATE_PRECONDITION_FALLBACK": (
+        "ACCEPTED_A0_TRUE_EOF_REMAINS_CURRENT_UNTIL_CC05_A_AUTHORITY_CONDITION_IS_SATISFIED"
+    ),
+    "DURABLE_BOOTSTRAP": (
+        "p2-m5-cc05a-e01-epoch3-bootstrap-v1_SHA256_"
+        "EE8BEC4F875F678BC2DBDAE0EC65E7538696D5B38898154ABCC314D03D335D52"
+    ),
+    "E01_ACTIVE_EXECUTION_CUSTODY": (
+        "E01_EPOCH_3_PRINCIPAL_PRIVATE_CUSTODY_ACTIVE_AFTER_CC05_A_ACCEPTANCE"
+    ),
+    "E01_EPOCH_3_ADMISSION_RUBRIC_VERSION": (
+        "formal-questionbank-admission-review-v3-private-epoch3"
+    ),
+    "E01_EPOCH_3_ADULT_AGE_ASSIGNMENT_MANIFEST": (
+        "FROZEN_7_ADULT_18_19_24_ADULT_20_25_SHA256_"
+        "F966470C4FF3F79D9417AF95549FC020E95847249502E41DCCFFFA53CB5C9B51"
+    ),
+    "E01_EPOCH_3_BOOTSTRAP_DIGEST": (
+        "EE8BEC4F875F678BC2DBDAE0EC65E7538696D5B38898154ABCC314D03D335D52"
+    ),
+    "E01_EPOCH_3_BOOTSTRAP_VERSION": "p2-m5-cc05a-e01-epoch3-bootstrap-v1",
+    "E01_EPOCH_3_FIXED_ENTRYPOINT_RECOVERY": "PASS",
+    "E01_EPOCH_3_POLICY_ENVELOPE_VERSION": ("p2-m5-cc05a-questionbank-policy-envelope-v3"),
+    "E01_EPOCH_3_PROMPT_TEMPLATE_VERSION": (
+        "cn-formal-questionbank-prompt-semantics-v3-private-epoch3"
+    ),
+    "E01_EPOCH_3_RECEIPT_BEFORE_DECODE": "PASS_RECEIPT_PRESENT_ZERO_DECODE",
+    "E01_EPOCH_3_REGISTER_BEFORE_DECODE": "PASS_REGISTERED_ZERO_DECODE",
+    "E01_EPOCH_3_STATUS": ("MATERIALIZED_RECOVERABLE_AND_BOUND_TO_V3_AFTER_CC05_A_ACCEPTANCE"),
+    "E01_PRIVATE_STATE_EPOCH": "E01-EPOCH-3_MATERIALIZED_AFTER_CC05_A_ACCEPTANCE",
+    "EARLIER_STATUS_SECTIONS": (
+        "PRESERVED_HISTORICAL_EVIDENCE_NON_CURRENT_FOR_THE_COMPLETE_LISTED_KEYSET_"
+        "AFTER_CC05_A_ACCEPTANCE"
+    ),
+    "EFFECTIVE_ORDINAL_RANGE": "CAL-REQ-002_TO_CAL-REQ-032",
+    "FORMAL_E01_EXECUTION_AUTHORITY": (
+        "AUTHORIZED_FOR_CAL_REQ_002_ONLY_AFTER_EXACT_PRIVATE_BOOTSTRAP_COUNTER_AND_"
+        "REGISTER_BEFORE_DECODE_PREFLIGHT"
+    ),
+    "FORMAL_E01_NEXT_ALLOWED_ORDINAL": "CAL-REQ-002",
+    "FORMAL_E01_STATUS": "READY_TO_RESUME_AT_CAL_REQ_002_AFTER_CC05_A_ACCEPTANCE",
+    "GENERATION_SPECIFICATION_EFFECTIVE_RANGE": "CAL-REQ-002_TO_CAL-REQ-032",
+    "GENERATION_SPECIFICATION_VERSION": ("p2-m5-cc05a-formal-questionbank-generation-v3-epoch3"),
+    "NEXT_READY_TASK": "EXECUTE_CAL_REQ_002",
+    "OUTPUT_LEDGER_VERSION": "p2-m5-cc05a-e01-output-ledger-v3",
+    "P2_M5_NEXT_ACTION": (
+        "EXECUTE_EXACT_CAL_REQ_002_AFTER_CC05_A_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    ),
+    "PRIVATE_REGISTRY_VERSION": "p2-m5-cc05a-e01-private-registry-v3",
+    "REQUEST_LEDGER_VERSION": "p2-m5-cc05a-e01-request-ledger-v3",
+    "STOP_OUTCOME": (
+        "NONE_AFTER_CC05_A_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE_ELSE_ACCEPTED_A0_"
+        "REMAINS_CURRENT_AND_CAL_REQ_002_IS_NOT_DISPATCHED"
+    ),
+}
+
 
 def _policy() -> dict[str, Any]:
     return cast(dict[str, Any], json.loads(POLICY_PATH.read_text(encoding="utf-8")))
@@ -762,6 +845,17 @@ def test_cc05_a_true_eof_overlay_is_complete_mirrored_and_binds_redacted_evidenc
     assert len(values) == len(canonical)
     assert len(a0) == 272
     assert {key for key, _ in a0} <= values.keys()
+    a0_values = dict(a0)
+    actual_a0_overrides = {
+        key: values[key]
+        for key, predecessor_value in a0_values.items()
+        if values[key] != predecessor_value
+    }
+    assert len(_CC05_A_AUTHORIZED_A0_OVERRIDES) == 37
+    assert actual_a0_overrides == _CC05_A_AUTHORIZED_A0_OVERRIDES
+    assert {
+        key: values[key] for key in a0_values.keys() - _CC05_A_AUTHORIZED_A0_OVERRIDES.keys()
+    } == {key: a0_values[key] for key in a0_values.keys() - _CC05_A_AUTHORIZED_A0_OVERRIDES.keys()}
     assert values["P2_M5_R41"] == (
         "PASS_AT_762B03F52A9F23450C00F7F7FEFC977DB30AB128_RUN_33240395967"
     )
@@ -783,23 +877,26 @@ def test_cc05_a_true_eof_overlay_is_complete_mirrored_and_binds_redacted_evidenc
     assert values["CC_P2_M5_05_A_PRIVATE_LOCATOR_IN_TRACKED_EVIDENCE"] == "FALSE"
     assert values["CC_P2_M5_05_A_PROMPT_PLAINTEXT_IN_TRACKED_EVIDENCE"] == "FALSE"
     assert values["CC_P2_M5_05_A_PRIVATE_DIGEST_INHERITANCE"] == "0"
-    assert values["CC_P2_M5_05_A_BOOTSTRAP_SHA256"] == (evidence["bootstrap_sha256"].upper())
-    assert values["CC_P2_M5_05_A_PRIVATE_REGISTRY_SHA256"] == (
-        evidence["private_registry_sha256"].upper()
-    )
-    assert values["CC_P2_M5_05_A_PRIVATE_PROMPT_TEMPLATE_SHA256"] == (
-        evidence["prompt_template_sha256"].upper()
-    )
-    assert values["CC_P2_M5_05_A_ASSIGNMENT_LEDGER_SHA256"] == (
-        evidence["assignment_ledger_sha256"].upper()
-    )
-    assert values["CC_P2_M5_05_A_ADULT_AGE_ASSIGNMENT_SHA256"] == (
-        evidence["adult_age_assignment_sha256"].upper()
-    )
+    digest_bindings = {
+        "CC_P2_M5_05_A_BOOTSTRAP_SHA256": "bootstrap_sha256",
+        "CC_P2_M5_05_A_PRIVATE_REGISTRY_SHA256": "private_registry_sha256",
+        "CC_P2_M5_05_A_GENERATION_SPECIFICATION_SHA256": ("generation_specification_sha256"),
+        "CC_P2_M5_05_A_POLICY_ENVELOPE_SHA256": "policy_envelope_sha256",
+        "CC_P2_M5_05_A_PRIVATE_PROMPT_TEMPLATE_SHA256": "prompt_template_sha256",
+        "CC_P2_M5_05_A_ADMISSION_RUBRIC_SHA256": "admission_rubric_sha256",
+        "CC_P2_M5_05_A_ASSIGNMENT_LEDGER_SHA256": "assignment_ledger_sha256",
+        "CC_P2_M5_05_A_REQUEST_LEDGER_SHA256": "request_ledger_sha256",
+        "CC_P2_M5_05_A_OUTPUT_LEDGER_SHA256": "output_ledger_sha256",
+        "CC_P2_M5_05_A_PRIVATE_RECEIPT_SHA256": "private_receipt_sha256",
+        "CC_P2_M5_05_A_PUBLIC_ASSIGNMENT_SEMANTICS_SHA256": ("public_assignment_semantics_sha256"),
+        "CC_P2_M5_05_A_ADULT_AGE_ASSIGNMENT_SHA256": "adult_age_assignment_sha256",
+    }
+    assert len(digest_bindings) == 12
+    assert {authority_key: values[authority_key] for authority_key in digest_bindings} == {
+        authority_key: evidence[evidence_key].upper()
+        for authority_key, evidence_key in digest_bindings.items()
+    }
     assert values["CC_P2_M5_05_A_PRIVATE_RECEIPT_ID"] == (evidence["private_receipt_id"])
-    assert values["CC_P2_M5_05_A_PRIVATE_RECEIPT_SHA256"] == (
-        evidence["private_receipt_sha256"].upper()
-    )
     assert (
         values["CC_P2_M5_05_A_REDACTED_EVIDENCE_SHA256"]
         == hashlib.sha256(CC05_A_EVIDENCE_PATH.read_bytes()).hexdigest().upper()
