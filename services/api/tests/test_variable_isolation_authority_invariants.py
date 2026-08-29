@@ -929,7 +929,7 @@ def test_m5_downgrade_refuses_to_discard_durable_authority(
     engine = create_engine(database_url)
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "demo_0008_d02_r2_source_auth"
+            "demo_0010_d03_analysis_run"
         )
         assert (
             connection.scalar(
