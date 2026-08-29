@@ -14,6 +14,7 @@ from mirror_api.data_rights.task_contract import (
     AccountDeletionTaskMessage,
     DataExportTaskMessage,
 )
+from mirror_api.demo_analysis_task_contract import DemoAnalysisTaskMessage
 from mirror_api.ingestion.task_contract import IngestionTaskMessage
 from mirror_api.synthetic_dataset.task_contract import (
     SyntheticGenerationTaskMessage,
@@ -31,6 +32,8 @@ from mirror_worker.runtime import (
     run_data_export_cleanup,
     run_data_export_message,
     run_data_rights_reconciliation,
+    run_demo_analysis_message,
+    run_demo_analysis_reconciliation,
     run_ingestion_message,
     run_reconciliation,
     run_synthetic_generation_message,
@@ -72,6 +75,8 @@ celery_app.conf.update(
         "mirror.synthetic_m3.reconcile": {"queue": "mirror.maintenance"},
         "mirror.synthetic_transform.process": {"queue": "mirror.synthetic"},
         "mirror.synthetic_m4.reconcile": {"queue": "mirror.maintenance"},
+        "mirror.demo_analysis.process": {"queue": "mirror.demo"},
+        "mirror.demo_analysis.reconcile": {"queue": "mirror.maintenance"},
     },
 )
 
@@ -97,6 +102,35 @@ INGESTION_RETRY_POLICY = {
 def foundation_probe(message: dict[str, Any]) -> dict[str, str]:
     envelope = TaskEnvelope.from_message(message)
     return FoundationProbeService().execute(envelope)
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.demo_analysis.process",
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=120,
+    time_limit=150,
+)
+def process_demo_analysis(message: dict[str, Any]) -> dict[str, str | None]:
+    return asyncio.run(run_demo_analysis_message(message))
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.demo_analysis.reconcile",
+    autoretry_for=(RuntimeError,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    **INGESTION_RETRY_POLICY,
+)
+def reconcile_demo_analysis(*, limit: int = 100) -> list[str]:
+    return list(
+        asyncio.run(
+            run_demo_analysis_reconciliation(
+                dispatcher=CeleryTaskDispatcher(),
+                limit=limit,
+            )
+        )
+    )
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -382,6 +416,16 @@ class CeleryTaskDispatcher:
             task_id=secrets.token_hex(16),
             headers={"request_id": message.request_id, "job_id": message.job_id},
             queue="mirror.ingestion",
+        )
+        return message.job_id
+
+    def dispatch_demo_analysis(self, message: DemoAnalysisTaskMessage) -> str:
+        message.validate()
+        process_demo_analysis.apply_async(
+            args=[message.to_message()],
+            task_id=secrets.token_hex(16),
+            headers={"request_id": message.request_id, "job_id": message.job_id},
+            queue="mirror.demo",
         )
         return message.job_id
 

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
 
-from sqlalchemy import select, text
+from sqlalchemy import and_, or_, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -50,6 +50,9 @@ DEMO_SELF_STATE_SCHEMA = "mirror.demo/DemoSelfState/v1"
 DEMO_JOB_BINDING_SCHEMA = "mirror.demo/DemoJobBinding/v1"
 DEMO_ANALYSIS_OPERATION = "analysis.create"
 DEMO_ANALYSIS_JOB_TYPE = "demo_p3_p7.analysis.create"
+DEMO_ANALYSIS_MAX_ATTEMPTS = 3
+DEMO_ANALYSIS_LEASE_EXPIRED = "D03_LEASE_EXPIRED"
+DEMO_ANALYSIS_LEASE_RETRY_EXHAUSTED = "D03_LEASE_RETRY_EXHAUSTED"
 
 _ID = re.compile(r"^[0-9a-f]{32}$")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
@@ -101,6 +104,7 @@ class DemoAnalysisConfiguration:
     self_state_ontology_version: str
     self_state_derivation_version: str
     lease_seconds: int = 300
+    max_attempts: int = DEMO_ANALYSIS_MAX_ATTEMPTS
 
     def validate(self) -> None:
         for name, value in (
@@ -120,6 +124,8 @@ class DemoAnalysisConfiguration:
             _require_digest(value, name)
         if type(self.lease_seconds) is not int or not 30 <= self.lease_seconds <= 3_600:
             raise DemoAnalysisInputError("lease_seconds must be in [30, 3600]")
+        if self.max_attempts != DEMO_ANALYSIS_MAX_ATTEMPTS:
+            raise DemoAnalysisInputError("max_attempts must match the frozen D03 retry authority")
 
 
 @dataclass(frozen=True)
@@ -143,7 +149,15 @@ class DemoAnalysisAccepted:
     job_id: str
     analysis_run_id: str
     demo_session_id: str
+    request_id: str
     replayed: bool
+
+
+@dataclass(frozen=True)
+class DemoAnalysisDispatchCandidate:
+    analysis_run_id: str
+    job_id: str
+    request_id: str
 
 
 @dataclass(frozen=True)
@@ -403,6 +417,7 @@ class DemoAnalysisService:
                     job_id=job_id,
                     analysis_run_id=run_id,
                     demo_session_id=command.demo_session_id,
+                    request_id=command.request_id,
                     replayed=False,
                 )
 
@@ -417,24 +432,41 @@ class DemoAnalysisService:
                 job = await self._lock_job(session, job_id)
                 run = await self._lock_bound_run(session, job=job, expected_run_id=analysis_run_id)
                 self._validate_job_envelope(job, request_id=request_id)
-                if job.status in _TERMINAL or job.status == "RUNNING":
+                if job.status in _TERMINAL:
                     return None
-                if job.status != "PENDING" or job.attempt_count != 0:
-                    raise DemoAnalysisAuthorityCorruption("D03 Job cannot be claimed")
                 now = self._normalized_now()
+                if job.status == "RUNNING":
+                    if job.lease_expires_at is None or job.lease_expires_at > now:
+                        return None
+                    current_attempt = await self._lock_current_attempt(session, job)
+                    if job.attempt_count >= self._configuration.max_attempts:
+                        self._terminalize_expired_attempt(
+                            job,
+                            current_attempt,
+                            now=now,
+                            code=DEMO_ANALYSIS_LEASE_RETRY_EXHAUSTED,
+                        )
+                        await session.flush()
+                        return None
+                    self._expire_attempt_for_retry(current_attempt, now=now)
+                elif job.status == "PENDING" and job.attempt_count == 0:
+                    pass
+                else:
+                    raise DemoAnalysisAuthorityCorruption("D03 Job cannot be claimed")
                 lease_token = secrets.token_hex(32)
                 expires_at = now + timedelta(seconds=self._configuration.lease_seconds)
+                attempt_number = job.attempt_count + 1
                 attempt = JobAttempt(
                     id=new_id(),
                     job_id=job.id,
-                    attempt=1,
+                    attempt=attempt_number,
                     status="RUNNING",
                     lease_token=lease_token,
                     started_at=now,
                 )
                 session.add(attempt)
                 job.status = "RUNNING"
-                job.attempt_count = 1
+                job.attempt_count = attempt_number
                 job.lease_token = lease_token
                 job.lease_acquired_at = now
                 job.lease_expires_at = expires_at
@@ -459,6 +491,57 @@ class DemoAnalysisService:
                     observation_config_digest=run.observation_config_digest,
                 )
 
+    async def reconciliation_candidates(
+        self, *, limit: int = 100
+    ) -> tuple[DemoAnalysisDispatchCandidate, ...]:
+        """Return durable PENDING or expired-RUNNING dispatch intents."""
+
+        if type(limit) is not int or not 1 <= limit <= 1_000:
+            raise DemoAnalysisInputError("reconciliation limit must be in [1, 1000]")
+        now = self._normalized_now()
+        async with self._sessions() as session:
+            rows = (
+                await session.execute(
+                    select(Job, DemoJobBinding, DemoAnalysisRun)
+                    .join(DemoJobBinding, DemoJobBinding.job_id == Job.id)
+                    .join(DemoAnalysisRun, DemoAnalysisRun.id == DemoJobBinding.target_id)
+                    .where(
+                        Job.job_type == DEMO_ANALYSIS_JOB_TYPE,
+                        DemoJobBinding.endpoint_operation == DEMO_ANALYSIS_OPERATION,
+                        DemoJobBinding.target_type == "ANALYSIS_RUN",
+                        or_(
+                            Job.status == "PENDING",
+                            and_(
+                                Job.status == "RUNNING",
+                                Job.lease_expires_at.is_not(None),
+                                Job.lease_expires_at <= now,
+                            ),
+                        ),
+                    )
+                    .order_by(Job.created_at, Job.id)
+                    .limit(limit)
+                )
+            ).all()
+            candidates: list[DemoAnalysisDispatchCandidate] = []
+            for job, binding, run in rows:
+                self._validate_job_envelope(job, request_id=job.request_id)
+                if (
+                    binding.target_id != run.id
+                    or run.demo_job_binding_id != binding.id
+                    or binding.job_id != job.id
+                ):
+                    raise DemoAnalysisAuthorityCorruption(
+                        "D03 reconciliation authority is inconsistent"
+                    )
+                candidates.append(
+                    DemoAnalysisDispatchCandidate(
+                        analysis_run_id=run.id,
+                        job_id=job.id,
+                        request_id=job.request_id,
+                    )
+                )
+            return tuple(candidates)
+
     async def complete(
         self,
         reservation: DemoAnalysisReservation,
@@ -471,7 +554,9 @@ class DemoAnalysisService:
                 job, run, attempt = await self._lock_reservation(session, reservation)
                 if job.status in _TERMINAL:
                     return None
-                self._require_current_reservation(job, attempt, reservation)
+                self._require_current_reservation(
+                    job, attempt, reservation, now=self._normalized_now()
+                )
                 await self._lock_completion_authority(session, run)
                 if (
                     await session.scalar(
@@ -566,7 +651,9 @@ class DemoAnalysisService:
                 job, _, attempt = await self._lock_reservation(session, reservation)
                 if job.status in _TERMINAL:
                     return False
-                self._require_current_reservation(job, attempt, reservation)
+                self._require_current_reservation(
+                    job, attempt, reservation, now=self._normalized_now()
+                )
                 now = self._normalized_now()
                 attempt.status = status
                 attempt.result_code = None if status == "FAILED" else code
@@ -729,6 +816,7 @@ class DemoAnalysisService:
             job_id=job.id,
             analysis_run_id=run.id,
             demo_session_id=run.demo_session_id,
+            request_id=job.request_id,
             replayed=True,
         )
 
@@ -883,7 +971,11 @@ class DemoAnalysisService:
 
     @staticmethod
     def _require_current_reservation(
-        job: Job, attempt: JobAttempt, reservation: DemoAnalysisReservation
+        job: Job,
+        attempt: JobAttempt,
+        reservation: DemoAnalysisReservation,
+        *,
+        now: datetime,
     ) -> None:
         if (
             job.status != "RUNNING"
@@ -893,8 +985,41 @@ class DemoAnalysisService:
             or attempt.status != "RUNNING"
             or attempt.lease_token != reservation.lease_token
             or attempt.finished_at is not None
+            or job.lease_expires_at is None
+            or job.lease_expires_at <= now
         ):
             raise DemoAnalysisLeaseLost("D03 reservation is no longer current")
+
+    @staticmethod
+    def _expire_attempt_for_retry(attempt: JobAttempt, *, now: datetime) -> None:
+        if attempt.status != "RUNNING" or attempt.finished_at is not None:
+            raise DemoAnalysisAuthorityCorruption("expired D03 attempt is not RUNNING")
+        attempt.status = "FAILED"
+        attempt.result_code = None
+        attempt.error_code = DEMO_ANALYSIS_LEASE_EXPIRED
+        attempt.finished_at = now
+
+    @staticmethod
+    def _terminalize_expired_attempt(
+        job: Job,
+        attempt: JobAttempt,
+        *,
+        now: datetime,
+        code: str,
+    ) -> None:
+        if attempt.status != "RUNNING" or attempt.finished_at is not None:
+            raise DemoAnalysisAuthorityCorruption("expired D03 attempt is not RUNNING")
+        attempt.status = "FAILED"
+        attempt.result_code = None
+        attempt.error_code = code
+        attempt.finished_at = now
+        job.status = "FAILED"
+        job.lease_token = None
+        job.lease_acquired_at = None
+        job.lease_expires_at = None
+        job.finalized_at = now
+        job.result_code = code
+        job.updated_at = now
 
     @staticmethod
     def _validate_job_envelope(job: Job, *, request_id: str) -> None:

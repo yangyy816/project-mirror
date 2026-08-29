@@ -163,6 +163,8 @@ def test_celery_registration_and_retry_policy() -> None:
         "mirror.synthetic_transform.process",
         "mirror.synthetic_m4.reconcile",
     } <= set(celery_app.tasks)
+    assert "mirror.demo_analysis.process" in celery_app.tasks
+    assert "mirror.demo_analysis.reconcile" in celery_app.tasks
     assert INGESTION_RETRY_POLICY == {
         "max_retries": 3,
         "retry_backoff": True,
@@ -175,6 +177,8 @@ def test_celery_registration_and_retry_policy() -> None:
     assert routes["mirror.synthetic_generation.process"]["queue"] == "mirror.synthetic"
     assert routes["mirror.synthetic_transform.process"]["queue"] == "mirror.synthetic"
     assert routes["mirror.synthetic_m4.reconcile"]["queue"] == "mirror.maintenance"
+    assert routes["mirror.demo_analysis.process"]["queue"] == "mirror.demo"
+    assert routes["mirror.demo_analysis.reconcile"]["queue"] == "mirror.maintenance"
     assert celery_app.conf.worker_prefetch_multiplier == 1
 
 

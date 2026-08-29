@@ -14,6 +14,12 @@ from mirror_api.data_rights.task_contract import (
     DataExportTaskMessage,
     DataRightsDispatcher,
 )
+from mirror_api.demo_analysis_dependencies import accepted_demo_analysis_configuration
+from mirror_api.demo_analysis_service import DemoAnalysisService
+from mirror_api.demo_analysis_task_contract import (
+    DemoAnalysisDispatcher,
+    DemoAnalysisTaskMessage,
+)
 from mirror_api.geometry_dependencies import create_geometry_transform_provider
 from mirror_api.ingestion.service import IngestionService
 from mirror_api.ingestion.task_contract import IngestionDispatcher, IngestionTaskMessage
@@ -54,6 +60,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async
 from mirror_worker.asset_deletion import AssetDeletionTaskExecutor
 from mirror_worker.cleanup import SqlAlchemyIngestionCleanup
 from mirror_worker.data_rights import AccountDeletionTaskExecutor, DataExportTaskExecutor
+from mirror_worker.demo_analysis import DemoAnalysisTaskExecutor
+from mirror_worker.demo_analysis_runtime import DeferredDemoAnalysisRuntime
 from mirror_worker.ingestion import (
     IngestionMaintenance,
     IngestionReconciler,
@@ -96,6 +104,13 @@ class SyntheticM3Runtime:
 class SyntheticM4Runtime:
     engine: AsyncEngine
     application: SyntheticM4OrchestrationService
+
+
+@dataclass(frozen=True)
+class DemoAnalysisRuntime:
+    engine: AsyncEngine
+    application: DemoAnalysisService
+    runtime: DeferredDemoAnalysisRuntime
 
 
 def _requirement(settings: Settings) -> ConsentRequirement:
@@ -225,6 +240,21 @@ def create_synthetic_m4_runtime(settings: Settings) -> SyntheticM4Runtime:
     )
 
 
+def create_demo_analysis_runtime(settings: Settings) -> DemoAnalysisRuntime:
+    """Compose D03 authority while keeping the ephemeral M3 handle fail-closed."""
+
+    engine = create_async_engine(settings.database_url)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    return DemoAnalysisRuntime(
+        engine=engine,
+        application=DemoAnalysisService(
+            session_factory=sessions,
+            configuration=accepted_demo_analysis_configuration(),
+        ),
+        runtime=DeferredDemoAnalysisRuntime(),
+    )
+
+
 async def run_ingestion_message(
     message: dict[str, Any], *, settings: Settings | None = None
 ) -> dict[str, str]:
@@ -234,6 +264,42 @@ async def run_ingestion_message(
             IngestionTaskMessage.from_message(message)
         )
         return asdict(result)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_demo_analysis_message(
+    message: dict[str, Any], *, settings: Settings | None = None
+) -> dict[str, str | None]:
+    runtime = create_demo_analysis_runtime(settings or get_settings())
+    try:
+        result = await DemoAnalysisTaskExecutor(
+            application=runtime.application,
+            runtime=runtime.runtime,
+        ).execute(DemoAnalysisTaskMessage.from_message(message))
+        return asdict(result)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_demo_analysis_reconciliation(
+    *,
+    dispatcher: DemoAnalysisDispatcher,
+    limit: int = 100,
+    settings: Settings | None = None,
+) -> tuple[str, ...]:
+    runtime = create_demo_analysis_runtime(settings or get_settings())
+    try:
+        dispatched: list[str] = []
+        for candidate in await runtime.application.reconciliation_candidates(limit=limit):
+            message = DemoAnalysisTaskMessage(
+                analysis_run_id=candidate.analysis_run_id,
+                job_id=candidate.job_id,
+                request_id=candidate.request_id,
+            )
+            dispatcher.dispatch_demo_analysis(message)
+            dispatched.append(candidate.job_id)
+        return tuple(dispatched)
     finally:
         await runtime.engine.dispose()
 

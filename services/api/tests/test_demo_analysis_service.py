@@ -4,12 +4,16 @@ import asyncio
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from importlib import import_module
 from typing import Any, Protocol, cast
 
 import pytest
+from alembic import command as alembic_command
+from alembic.config import Config
 from sqlalchemy import create_engine, func, select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session
 
@@ -18,6 +22,7 @@ from mirror_api.demo_analysis_service import (
     CreateDemoAnalysis,
     DemoAnalysisConfiguration,
     DemoAnalysisInputError,
+    DemoAnalysisLeaseLost,
     DemoAnalysisPayloadConflict,
     DemoAnalysisRepeatEvidence,
     DemoAnalysisRuntimeEvidence,
@@ -285,6 +290,79 @@ async def test_claim_and_complete_publish_exact_graph_atomically(
         assert await _count(sessions, DemoFaceObservationRepeat) == 3
         assert await _count(sessions, DemoBaselineFaceModel) == 1
         assert await _count(sessions, DemoSelfState) == 1
+
+
+@pytest.mark.asyncio
+async def test_expired_leases_create_bounded_attempts_and_then_fail_terminal() -> None:
+    async with _database() as (sessions, fixture):
+        wall_clock = datetime.now(UTC)
+        current = [wall_clock - timedelta(seconds=120)]
+        service = DemoAnalysisService(
+            session_factory=sessions,
+            configuration=replace(_configuration(), lease_seconds=30),
+            now=lambda: current[0],
+        )
+        command = _command(fixture, key="d03-expired-lease-retry")
+        accepted = await service.create(command)
+        first = await service.claim(
+            analysis_run_id=accepted.analysis_run_id,
+            job_id=accepted.job_id,
+            request_id=accepted.request_id,
+        )
+        assert first is not None and first.attempt == 1
+
+        current[0] = wall_clock - timedelta(seconds=60)
+        assert [item.job_id for item in await service.reconciliation_candidates()] == [
+            accepted.job_id
+        ]
+        second = await service.claim(
+            analysis_run_id=accepted.analysis_run_id,
+            job_id=accepted.job_id,
+            request_id=accepted.request_id,
+        )
+        assert second is not None and second.attempt == 2
+
+        current[0] = wall_clock - timedelta(seconds=10)
+        with pytest.raises(DemoAnalysisLeaseLost):
+            await service.complete(first, _runtime_evidence())
+        third = await service.claim(
+            analysis_run_id=accepted.analysis_run_id,
+            job_id=accepted.job_id,
+            request_id=accepted.request_id,
+        )
+        assert third is not None and third.attempt == 3
+
+        current[0] = wall_clock + timedelta(seconds=21)
+        exhausted = await service.claim(
+            analysis_run_id=accepted.analysis_run_id,
+            job_id=accepted.job_id,
+            request_id=accepted.request_id,
+        )
+        assert exhausted is None
+        snapshot = await service.snapshot(
+            demo_actor_id=fixture.demo_actor_id,
+            analysis_run_id=accepted.analysis_run_id,
+        )
+        assert snapshot.status == "FAILED"
+        assert snapshot.result_code == "D03_LEASE_RETRY_EXHAUSTED"
+        async with sessions() as session:
+            attempts = list(
+                (
+                    await session.scalars(
+                        select(JobAttempt)
+                        .where(JobAttempt.job_id == accepted.job_id)
+                        .order_by(JobAttempt.attempt)
+                    )
+                ).all()
+            )
+        assert [attempt.status for attempt in attempts] == ["FAILED", "FAILED", "FAILED"]
+        assert [attempt.error_code for attempt in attempts] == [
+            "D03_LEASE_EXPIRED",
+            "D03_LEASE_EXPIRED",
+            "D03_LEASE_RETRY_EXHAUSTED",
+        ]
+        with pytest.raises(DBAPIError, match="cannot downgrade populated multi-attempt"):
+            alembic_command.downgrade(Config("alembic.ini"), "demo_0010_d03_analysis_run")
 
 
 @pytest.mark.asyncio

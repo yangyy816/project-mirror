@@ -36,7 +36,7 @@ from mirror_api.demo_models import (
 )
 from mirror_api.models import Job, JobAttempt, new_id
 
-_HEAD = "demo_0010_d03_analysis_run"
+_HEAD = "demo_0011_d03_job_recovery"
 _DOWN = "demo_0009_d02_r2_e2_adm"
 _DIGEST_A = "a" * 64
 _DIGEST_B = "b" * 64

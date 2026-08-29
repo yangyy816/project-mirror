@@ -85,7 +85,7 @@ _LEGACY_DEMO_GRAPH_TABLE_NAMES = set(DEMO_TABLE_NAMES) - {
     "demo_analysis_runs",
 }
 
-DEMO_REVISION = "demo_0010_d03_analysis_run"
+DEMO_REVISION = "demo_0011_d03_job_recovery"
 D02_RECOVERED_QA_DOWN_REVISION = "demo_0006_d02_private_exec"
 D02_PRIVATE_EXEC_DOWN_REVISION = "demo_0005_d02_quality_auth"
 D02_QUALITY_DOWN_REVISION = "demo_0004_d09_episode_prov"
@@ -421,6 +421,24 @@ def _truncate_demo_authority(session: Session) -> None:
     session.commit()
 
 
+def _truncate_formal_synthetic_fixture_authority(session: Session) -> None:
+    """Keep this module independent from partial formal fixtures left by peers."""
+
+    session.execute(
+        text(
+            "TRUNCATE TABLE transform_runs, landmark_warp_plans, variant_specifications, "
+            "synthetic_identities, synthetic_qa_review_decisions, "
+            "synthetic_qa_measurements, synthetic_qa_runs, synthetic_asset_records, "
+            "synthetic_source_object_deletion_evidence, provider_cost_events, "
+            "synthetic_generation_evidence, synthetic_source_objects, generation_items, "
+            "generation_batches, job_attempts, jobs, synthetic_qa_policies, "
+            "geometry_ontology_versions, synthetic_generation_policies, "
+            "synthetic_prompt_templates, assets, offline_synthetic_source_admissions CASCADE"
+        )
+    )
+    session.commit()
+
+
 @pytest.fixture
 def session() -> Generator[Session]:
     database_url = os.getenv("TEST_DATABASE_URL")
@@ -429,9 +447,11 @@ def session() -> Generator[Session]:
     engine = create_engine(database_url)
     with Session(engine) as db_session:
         _truncate_demo_authority(db_session)
+        _truncate_formal_synthetic_fixture_authority(db_session)
         yield db_session
         db_session.rollback()
         _truncate_demo_authority(db_session)
+        _truncate_formal_synthetic_fixture_authority(db_session)
     engine.dispose()
 
 

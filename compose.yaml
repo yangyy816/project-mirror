@@ -84,7 +84,7 @@ services:
       - mirror_worker.app:celery_app
       - worker
       - --loglevel=INFO
-      - --queues=mirror.default,mirror.ingestion,mirror.synthetic,mirror.maintenance
+      - --queues=mirror.default,mirror.ingestion,mirror.synthetic,mirror.maintenance,mirror.demo
       - --concurrency=2
       - --prefetch-multiplier=1
     volumes:

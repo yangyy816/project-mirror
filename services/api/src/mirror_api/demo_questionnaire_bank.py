@@ -65,6 +65,24 @@ class QuestionBankProjectionError(ValueError):
 
 
 @dataclass(frozen=True)
+class QuestionSidePresentation:
+    result_asset_id: str
+    result_checksum: str
+    result_lineage_digest: str
+    requested_direction: str
+    measured_delta_ppm: int
+
+
+@dataclass(frozen=True)
+class QuestionPairPresentation:
+    question_pair_digest: str
+    source_asset_id: str
+    source_checksum: str
+    left: QuestionSidePresentation
+    right: QuestionSidePresentation
+
+
+@dataclass(frozen=True)
 class AdmittedQuestionBank:
     pairs: tuple[QuestionPair, ...]
     morphology_scale_ppm: Mapping[str, int]
@@ -72,6 +90,7 @@ class AdmittedQuestionBank:
     config_digest: str
     projection_digest: str
     canonical_payload: Mapping[str, object]
+    presentations: Mapping[str, QuestionPairPresentation]
 
 
 async def load_admitted_question_bank(
@@ -164,6 +183,7 @@ def project_admitted_question_bank(
         "report_payload": report_payload,
     }
     projected: list[QuestionPair] = []
+    presentations: dict[str, QuestionPairPresentation] = {}
     for pair in sorted(pairs, key=lambda row: row.id):
         if (
             pair.schema_version != R2_PAIR_SCHEMA
@@ -177,22 +197,44 @@ def project_admitted_question_bank(
             raise QuestionBankProjectionError("question pair report binding is invalid")
         _validate_canonical_row(pair, R2_PAIR_SCHEMA, R2_PAIR_FIELDS)
         try:
-            validate_r2_pair_qa_payload(pair.qa_payload, report=report_view)
+            qa = validate_r2_pair_qa_payload(pair.qa_payload, report=report_view)
         except D02R2AuthorityError as exc:
             raise QuestionBankProjectionError("question pair QA authority is invalid") from exc
         source_anchor = anchors.get(pair.demo_synthetic_identity_id)
         if source_anchor is None or pair.dimension_key not in source_anchor:
             raise QuestionBankProjectionError("pair source identity or target anchor is invalid")
-        projected.append(
-            QuestionPair(
-                pair.id,
-                pair.dimension_key,
-                pair.magnitude_ppm,
-                pair.demo_synthetic_identity_id,
-                MappingProxyType(dict(source_anchor)),
-                _fisher(pair.magnitude_ppm),
-                pair.pair_quality_ppm,
-            )
+        projected_pair = QuestionPair(
+            pair.id,
+            pair.dimension_key,
+            pair.magnitude_ppm,
+            pair.demo_synthetic_identity_id,
+            MappingProxyType(dict(source_anchor)),
+            _fisher(pair.magnitude_ppm),
+            pair.pair_quality_ppm,
+        )
+        projected.append(projected_pair)
+        record = cast(Mapping[str, Any], qa["pair_screening_record_payload"])
+        record_payload = cast(Mapping[str, Any], record["pair_screening_record_payload"])
+        left = cast(Mapping[str, Any], record_payload["left"])
+        right = cast(Mapping[str, Any], record_payload["right"])
+        presentations[pair.id] = QuestionPairPresentation(
+            question_pair_digest=pair.content_digest,
+            source_asset_id=pair.source_asset_id,
+            source_checksum=pair.source_asset_sha256,
+            left=QuestionSidePresentation(
+                result_asset_id=pair.left_asset_id,
+                result_checksum=pair.left_asset_sha256,
+                result_lineage_digest=cast(str, left["lineage_digest"]),
+                requested_direction="NEGATIVE",
+                measured_delta_ppm=pair.left_delta_ppm,
+            ),
+            right=QuestionSidePresentation(
+                result_asset_id=pair.right_asset_id,
+                result_checksum=pair.right_asset_sha256,
+                result_lineage_digest=cast(str, right["lineage_digest"]),
+                requested_direction="POSITIVE",
+                measured_delta_ppm=pair.right_delta_ppm,
+            ),
         )
     expected_slots = {
         (source_id, dimension, magnitude)
@@ -241,12 +283,29 @@ def project_admitted_question_bank(
         "pairs": [
             {
                 "pair_id": p.pair_id,
+                "question_pair_digest": presentations[p.pair_id].question_pair_digest,
                 "dimension_id": p.dimension_id,
                 "source_identity_id": p.source_identity_id,
+                "source_asset_id": presentations[p.pair_id].source_asset_id,
+                "source_checksum": presentations[p.pair_id].source_checksum,
                 "magnitude_ppm": p.magnitude_ppm,
                 "morphology_anchor_ppm": dict(sorted(p.morphology_anchor_ppm.items())),
                 "expected_fisher_information_ppm": p.expected_fisher_information_ppm,
                 "pair_quality_ppm": p.pair_quality_ppm,
+                "left": {
+                    "result_asset_id": presentations[p.pair_id].left.result_asset_id,
+                    "result_checksum": presentations[p.pair_id].left.result_checksum,
+                    "result_lineage_digest": presentations[p.pair_id].left.result_lineage_digest,
+                    "requested_direction": presentations[p.pair_id].left.requested_direction,
+                    "measured_delta_ppm": presentations[p.pair_id].left.measured_delta_ppm,
+                },
+                "right": {
+                    "result_asset_id": presentations[p.pair_id].right.result_asset_id,
+                    "result_checksum": presentations[p.pair_id].right.result_checksum,
+                    "result_lineage_digest": presentations[p.pair_id].right.result_lineage_digest,
+                    "requested_direction": presentations[p.pair_id].right.requested_direction,
+                    "measured_delta_ppm": presentations[p.pair_id].right.measured_delta_ppm,
+                },
             }
             for p in projected
         ],
@@ -262,6 +321,7 @@ def project_admitted_question_bank(
         config_digest,
         digest,
         frozen_payload,
+        MappingProxyType(dict(presentations)),
     )
 
 

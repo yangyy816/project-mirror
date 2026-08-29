@@ -20,6 +20,7 @@ from mirror_worker.demo_analysis import (
     DemoAnalysisRuntimeRejected,
     DemoAnalysisTaskExecutor,
 )
+from mirror_worker.demo_analysis_runtime import DeferredDemoAnalysisRuntime
 
 _RUN_ID = "a" * 32
 _JOB_ID = "b" * 32
@@ -274,3 +275,10 @@ async def test_publication_failure_rolls_to_rejected_or_failed_without_detail(
     )
     assert result.status == expected_status
     assert application.terminal_calls == [expected_terminal]
+
+
+@pytest.mark.asyncio
+async def test_deferred_runtime_fails_closed_without_fabricating_observation() -> None:
+    with pytest.raises(DemoAnalysisRuntimeFailed) as raised:
+        await DeferredDemoAnalysisRuntime().observe(_reservation())
+    assert raised.value.code == "M3_RUNTIME_REPLAY_NOT_CURRENTLY_MATERIALIZED"

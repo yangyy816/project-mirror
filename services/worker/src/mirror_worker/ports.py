@@ -7,6 +7,7 @@ from mirror_api.data_rights.task_contract import (
     AccountDeletionTaskMessage,
     DataExportTaskMessage,
 )
+from mirror_api.demo_analysis_task_contract import DemoAnalysisTaskMessage
 from mirror_api.ingestion.task_contract import IngestionTaskMessage
 from mirror_api.synthetic_dataset.task_contract import (
     SyntheticGenerationTaskMessage,
@@ -21,6 +22,8 @@ class TaskDispatcher(Protocol):
     def dispatch(self, envelope: TaskEnvelope) -> str: ...
 
     def dispatch_ingestion(self, message: IngestionTaskMessage) -> str: ...
+
+    def dispatch_demo_analysis(self, message: DemoAnalysisTaskMessage) -> str: ...
 
     def dispatch_asset_deletion(self, message: AssetDeletionTaskMessage) -> str: ...
 

@@ -2,9 +2,45 @@ from __future__ import annotations
 
 from typing import Annotated, Any, NoReturn
 
-from fastapi import APIRouter, Depends, Header, status
+from fastapi import APIRouter, Depends, Header, Request, status
 
+from mirror_api.demo_analysis_coordinator import DemoAnalysisCoordinator
+from mirror_api.demo_analysis_dependencies import (
+    get_demo_analysis_coordinator,
+    get_demo_job_service,
+)
+from mirror_api.demo_analysis_service import (
+    CreateDemoAnalysis,
+    DemoAnalysisAuthorityCorruption,
+    DemoAnalysisInputError,
+    DemoAnalysisPayloadConflict,
+    DemoAnalysisUnavailable,
+)
 from mirror_api.demo_dependencies import get_demo_actor
+from mirror_api.demo_idempotency import DemoIdempotencyPayloadConflict
+from mirror_api.demo_job_service import (
+    DemoJobAuthorityCorruption,
+    DemoJobInputError,
+    DemoJobService,
+    DemoJobSnapshot,
+    DemoJobStateConflict,
+    DemoJobUnavailable,
+)
+from mirror_api.demo_models import DemoActor
+from mirror_api.demo_posterior import PairwiseChoice
+from mirror_api.demo_questionnaire_dependencies import get_demo_questionnaire_service
+from mirror_api.demo_questionnaire_service import (
+    CreateDemoQuestionnaireResponse,
+    CreateDemoQuestionnaireRun,
+    DemoQuestionnaireAuthorityCorruption,
+    DemoQuestionnaireCompleted,
+    DemoQuestionnaireConflict,
+    DemoQuestionnaireInputError,
+    DemoQuestionnaireNext,
+    DemoQuestionnairePayloadConflict,
+    DemoQuestionnaireService,
+    DemoQuestionnaireUnavailable,
+)
 from mirror_api.demo_schemas import (
     DemoActiveProfilesResponse,
     DemoAnalysisCreateRequest,
@@ -26,11 +62,15 @@ from mirror_api.demo_schemas import (
     DemoPreferenceEventResponse,
     DemoProfileCompileRequest,
     DemoProfileRebuildRequest,
+    DemoQuestionCompletedResponse,
     DemoQuestionnaireNextResponse,
     DemoQuestionnaireRunCreateRequest,
     DemoQuestionnaireStepResponse,
+    DemoQuestionNextResponse,
     DemoQuestionResponseRequest,
+    DemoQuestionSideResponse,
     DemoRestoreRequest,
+    DemoRoutingComponents,
     DemoSessionCreateRequest,
     DemoSessionResponse,
     DemoStyleFeedbackRequest,
@@ -74,6 +114,182 @@ def _not_implemented(capability: str, owner_task: str) -> NoReturn:
             "capability": capability,
             "owner_task": owner_task,
         },
+    )
+
+
+def _job_target(snapshot: DemoJobSnapshot) -> dict[str, str]:
+    return {
+        "target_type": snapshot.target.target_type,
+        "target_id": snapshot.target.target_id,
+        "authority_digest": snapshot.target.authority_digest,
+    }
+
+
+def _job_response(snapshot: DemoJobSnapshot) -> DemoJobResponse:
+    return DemoJobResponse(
+        job_id=snapshot.job_id,
+        status=snapshot.status,
+        capability=snapshot.capability,
+        job_binding_digest=snapshot.job_binding_digest,
+        target=_job_target(snapshot),
+        result_code=snapshot.result_code,
+        finalized_at=snapshot.finalized_at,
+    )
+
+
+def _job_accepted(snapshot: DemoJobSnapshot) -> DemoJobAcceptedResponse:
+    return DemoJobAcceptedResponse(
+        job_id=snapshot.job_id,
+        status="PENDING",
+        capability=snapshot.capability,
+        job_binding_digest=snapshot.job_binding_digest,
+        target=_job_target(snapshot),
+    )
+
+
+def _raise_analysis_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoAnalysisPayloadConflict):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
+            message="幂等键已绑定到不同的分析请求。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoAnalysisInputError):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="DEMO_ANALYSIS_REQUEST_INVALID",
+            message="分析请求不符合 Demo authority 约束。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoAnalysisUnavailable):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_ANALYSIS_UNAVAILABLE",
+            message="分析任务不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise APIError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="DEMO_ANALYSIS_AUTHORITY_UNAVAILABLE",
+        message="分析 authority 无法安全读取。",
+        details={"track": "DEMO_PROTOTYPE"},
+    ) from error
+
+
+def _raise_job_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoIdempotencyPayloadConflict):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
+            message="幂等键已绑定到不同的 Job 命令。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoJobStateConflict):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="DEMO_JOB_STATE_CONFLICT",
+            message="Job 当前状态不允许该操作。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoJobInputError):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="DEMO_JOB_REQUEST_INVALID",
+            message="Job 命令不符合 Demo contract。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoJobUnavailable):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_JOB_UNAVAILABLE",
+            message="Job 不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise APIError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="DEMO_JOB_AUTHORITY_UNAVAILABLE",
+        message="Job authority 无法安全读取。",
+        details={"track": "DEMO_PROTOTYPE"},
+    ) from error
+
+
+def _raise_questionnaire_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoQuestionnairePayloadConflict):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
+            message="幂等键已绑定到不同的问卷请求。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoQuestionnaireConflict):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="DEMO_QUESTIONNAIRE_STATE_CONFLICT",
+            message="问卷状态已变化，不能应用当前操作。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoQuestionnaireInputError):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="DEMO_QUESTIONNAIRE_REQUEST_INVALID",
+            message="问卷请求不符合 Demo authority 约束。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoQuestionnaireUnavailable):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_QUESTIONNAIRE_UNAVAILABLE",
+            message="问卷资源不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise APIError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="DEMO_QUESTIONNAIRE_AUTHORITY_UNAVAILABLE",
+        message="问卷 authority 无法安全读取。",
+        details={"track": "DEMO_PROTOTYPE"},
+    ) from error
+
+
+def _questionnaire_next_response(
+    result: DemoQuestionnaireNext | DemoQuestionnaireCompleted,
+) -> DemoQuestionnaireNextResponse:
+    if isinstance(result, DemoQuestionnaireCompleted):
+        return DemoQuestionCompletedResponse(
+            kind="COMPLETED",
+            run_id=result.questionnaire_run_id,
+            completed_at=result.completed_at,
+        )
+    presentation = result.presentation
+    return DemoQuestionNextResponse(
+        kind="QUESTION",
+        step_id=result.snapshot.step_id,
+        question_pair_id=result.question_pair_id,
+        question_pair_digest=presentation.question_pair_digest,
+        dimension_key=result.dimension_key,
+        magnitude_ppm=result.magnitude_ppm,
+        source_identity_id=result.source_identity_id,
+        source_asset_id=presentation.source_asset_id,
+        source_checksum=presentation.source_checksum,
+        left=DemoQuestionSideResponse(
+            result_asset_id=presentation.left.result_asset_id,
+            result_checksum=presentation.left.result_checksum,
+            result_lineage_digest=presentation.left.result_lineage_digest,
+            requested_direction=presentation.left.requested_direction,
+            measured_delta_ppm=presentation.left.measured_delta_ppm,
+        ),
+        right=DemoQuestionSideResponse(
+            result_asset_id=presentation.right.result_asset_id,
+            result_checksum=presentation.right.result_checksum,
+            result_lineage_digest=presentation.right.result_lineage_digest,
+            requested_direction=presentation.right.requested_direction,
+            measured_delta_ppm=presentation.right.measured_delta_ppm,
+        ),
+        routing_score_ppm=result.routing_score_ppm,
+        routing_components=DemoRoutingComponents(**dict(result.routing_components)),
+        routing_evidence_digest=result.routing_evidence_digest,
+        step_sequence=result.snapshot.step_sequence,
+        run_version=result.snapshot.run_version,
     )
 
 
@@ -150,10 +366,30 @@ async def list_identities() -> NoReturn:
     responses=DEMO_ERRORS,
 )
 async def create_analysis(
-    payload: DemoAnalysisCreateRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del payload, idempotency_key
-    _not_implemented("face_analysis", "D03")
+    payload: DemoAnalysisCreateRequest,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoAnalysisCoordinator = Depends(get_demo_analysis_coordinator),
+) -> DemoJobAcceptedResponse:
+    try:
+        result = await coordinator.create(
+            CreateDemoAnalysis(
+                demo_actor_id=actor.id,
+                demo_session_id=payload.session_id,
+                source_asset_id=payload.source_asset_id,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+    except (
+        DemoAnalysisInputError,
+        DemoAnalysisPayloadConflict,
+        DemoAnalysisUnavailable,
+        DemoAnalysisAuthorityCorruption,
+    ) as exc:
+        _raise_analysis_error(exc)
+    return _job_accepted(result.job)
 
 
 @router.get(
@@ -163,9 +399,60 @@ async def create_analysis(
     openapi_extra=DEMO_OPENAPI,
     responses=DEMO_ERRORS,
 )
-async def get_analysis(analysis_id: DemoId) -> NoReturn:
-    del analysis_id
-    _not_implemented("face_analysis", "D03")
+async def get_analysis(
+    analysis_id: DemoId,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoAnalysisCoordinator = Depends(get_demo_analysis_coordinator),
+) -> DemoAnalysisResponse:
+    try:
+        job, observation_id, observation_digest = await coordinator.snapshot(
+            demo_actor_id=actor.id,
+            analysis_run_id=analysis_id,
+        )
+    except (
+        DemoAnalysisInputError,
+        DemoAnalysisUnavailable,
+        DemoAnalysisAuthorityCorruption,
+        DemoJobUnavailable,
+        DemoJobAuthorityCorruption,
+    ) as exc:
+        if isinstance(exc, (DemoJobUnavailable, DemoJobAuthorityCorruption)):
+            _raise_job_error(exc)
+        _raise_analysis_error(exc)
+    if job.status in {"PENDING", "RUNNING"}:
+        return DemoAnalysisResponse(
+            analysis_id=analysis_id,
+            session_id=job.demo_session_id,
+            state="PENDING",
+        )
+    if job.status == "COMPLETED":
+        if (
+            job.result_code not in {"SUPPORTED", "UNSUPPORTED"}
+            or observation_id is None
+            or observation_digest is None
+            or job.demo_session_id is None
+        ):
+            _raise_analysis_error(
+                DemoAnalysisAuthorityCorruption(
+                    "completed analysis lacks final observation authority"
+                )
+            )
+        return DemoAnalysisResponse(
+            analysis_id=analysis_id,
+            session_id=job.demo_session_id,
+            state=job.result_code,
+            observation_digest=observation_digest,
+        )
+    raise APIError(
+        status_code=status.HTTP_409_CONFLICT,
+        code=f"DEMO_ANALYSIS_{job.status}",
+        message="分析任务已终止，未产生可发布 observation。",
+        details={
+            "track": "DEMO_PROTOTYPE",
+            "job_id": job.job_id,
+            "result_code": job.result_code,
+        },
+    )
 
 
 @router.post(
@@ -177,10 +464,37 @@ async def get_analysis(analysis_id: DemoId) -> NoReturn:
     responses=DEMO_ERRORS,
 )
 async def create_questionnaire_run(
-    payload: DemoQuestionnaireRunCreateRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del payload, idempotency_key
-    _not_implemented("questionnaire", "D04")
+    payload: DemoQuestionnaireRunCreateRequest,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    questionnaires: DemoQuestionnaireService = Depends(get_demo_questionnaire_service),
+    jobs: DemoJobService = Depends(get_demo_job_service),
+) -> DemoJobAcceptedResponse:
+    try:
+        accepted = await questionnaires.create(
+            CreateDemoQuestionnaireRun(
+                demo_actor_id=actor.id,
+                demo_session_id=payload.session_id,
+                self_state_id=payload.self_state_id,
+                question_bank_version=payload.question_bank_version,
+                max_questions=payload.max_questions,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+        job = await jobs.get(demo_actor_id=actor.id, job_id=accepted.job_id)
+    except (
+        DemoQuestionnaireInputError,
+        DemoQuestionnaireUnavailable,
+        DemoQuestionnaireConflict,
+        DemoQuestionnairePayloadConflict,
+        DemoQuestionnaireAuthorityCorruption,
+    ) as exc:
+        _raise_questionnaire_error(exc)
+    except (DemoJobUnavailable, DemoJobAuthorityCorruption) as exc:
+        _raise_job_error(exc)
+    return _job_accepted(job)
 
 
 @router.get(
@@ -190,9 +504,25 @@ async def create_questionnaire_run(
     openapi_extra=DEMO_OPENAPI,
     responses=DEMO_ERRORS,
 )
-async def get_questionnaire_next(run_id: DemoId) -> NoReturn:
-    del run_id
-    _not_implemented("questionnaire", "D04")
+async def get_questionnaire_next(
+    run_id: DemoId,
+    actor: DemoActor = Depends(get_demo_actor),
+    questionnaires: DemoQuestionnaireService = Depends(get_demo_questionnaire_service),
+) -> DemoQuestionnaireNextResponse:
+    try:
+        return _questionnaire_next_response(
+            await questionnaires.next(
+                demo_actor_id=actor.id,
+                questionnaire_run_id=run_id,
+            )
+        )
+    except (
+        DemoQuestionnaireInputError,
+        DemoQuestionnaireUnavailable,
+        DemoQuestionnaireConflict,
+        DemoQuestionnaireAuthorityCorruption,
+    ) as exc:
+        _raise_questionnaire_error(exc)
 
 
 @router.post(
@@ -204,10 +534,40 @@ async def get_questionnaire_next(run_id: DemoId) -> NoReturn:
     responses=DEMO_ERRORS,
 )
 async def create_questionnaire_response(
-    run_id: DemoId, payload: DemoQuestionResponseRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del run_id, payload, idempotency_key
-    _not_implemented("questionnaire", "D04")
+    run_id: DemoId,
+    payload: DemoQuestionResponseRequest,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    questionnaires: DemoQuestionnaireService = Depends(get_demo_questionnaire_service),
+) -> DemoQuestionnaireStepResponse:
+    try:
+        result = await questionnaires.respond(
+            CreateDemoQuestionnaireResponse(
+                demo_actor_id=actor.id,
+                questionnaire_run_id=run_id,
+                selected_side=PairwiseChoice(payload.selected_side),
+                expected_step_sequence=payload.expected_step_sequence,
+                expected_run_version=payload.expected_run_version,
+                response_latency_ms=payload.response_latency_ms,
+                idempotency_key=idempotency_key,
+            )
+        )
+    except (
+        DemoQuestionnaireInputError,
+        DemoQuestionnaireUnavailable,
+        DemoQuestionnaireConflict,
+        DemoQuestionnairePayloadConflict,
+        DemoQuestionnaireAuthorityCorruption,
+    ) as exc:
+        _raise_questionnaire_error(exc)
+    return DemoQuestionnaireStepResponse(
+        step_id=result.step_id,
+        run_id=result.questionnaire_run_id,
+        event_type=result.event_type,
+        step_number=result.step_number,
+        step_sequence=result.step_sequence,
+        run_version=result.run_version,
+    )
 
 
 @router.post(
@@ -387,9 +747,15 @@ async def get_trace(session_id: DemoId) -> NoReturn:
     openapi_extra=DEMO_OPENAPI,
     responses=DEMO_ERRORS,
 )
-async def get_job(job_id: DemoId) -> NoReturn:
-    del job_id
-    _not_implemented("job_status", "D01-C")
+async def get_job(
+    job_id: DemoId,
+    actor: DemoActor = Depends(get_demo_actor),
+    jobs: DemoJobService = Depends(get_demo_job_service),
+) -> DemoJobResponse:
+    try:
+        return _job_response(await jobs.get(demo_actor_id=actor.id, job_id=job_id))
+    except (DemoJobInputError, DemoJobUnavailable, DemoJobAuthorityCorruption) as exc:
+        _raise_job_error(exc)
 
 
 @router.post(
@@ -400,7 +766,26 @@ async def get_job(job_id: DemoId) -> NoReturn:
     responses=DEMO_ERRORS,
 )
 async def cancel_job(
-    job_id: DemoId, payload: DemoJobCancelRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del job_id, payload, idempotency_key
-    _not_implemented("job_cancel", "D01-C")
+    job_id: DemoId,
+    payload: DemoJobCancelRequest,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    jobs: DemoJobService = Depends(get_demo_job_service),
+) -> DemoJobResponse:
+    try:
+        snapshot = await jobs.cancel(
+            demo_actor_id=actor.id,
+            job_id=job_id,
+            expected_status=payload.expected_status,
+            reason=payload.reason,
+            idempotency_key=idempotency_key,
+        )
+    except (
+        DemoIdempotencyPayloadConflict,
+        DemoJobInputError,
+        DemoJobUnavailable,
+        DemoJobStateConflict,
+        DemoJobAuthorityCorruption,
+    ) as exc:
+        _raise_job_error(exc)
+    return _job_response(snapshot)
