@@ -717,3 +717,12 @@
   `FINAL_GATE=PENDING_RUNTIME_EVIDENCE`，项目状态为 `ACTIVE_WITH_DEFERRED_RUNTIME_GATE`。下游纯领域、应用、
   persistence、Worker 与 UI 实现可以按既有冻结契约继续；只有明确消费 fresh M3/D02 runtime artifacts 的集成或
   最终 Gate 延后。不得因此重开 M3、弱化历史 acceptance 或伪造 runtime evidence。
+
+- 2026-08-29：D03 analysis authority/application/Worker 在 `df2426fb143e4e87c018bb3eb6897aff3cd81829`
+  完成独立零 finding 审查，same-SHA run `33257194685` 三 jobs 全绿，Principal 接受为
+  `TASK_ACCEPTED_DOMAIN_READY_ROUTE_PENDING`；fresh M3 runtime Gate 继续 deferred，中央 Demo route 在 application
+  wiring 前仍返回 501。随后串行集成 D02 typed runtime-forward bridge `d7053932965cf1a829fb55d05ef44b6c5ca9cedf`、
+  D07-B deterministic raster slice `cbb04eb600ebe2da9b8019bc07e9ab8d3885f1df` 与 D04-B admitted QuestionBank
+  projection `87dc168e130096b61c63bc1f2627844265fecac1`；离线/真实 PostgreSQL targeted Gates 通过，但它们分别仍等待
+  fresh runtime evidence、geometry/application/verifier 与 Questionnaire application/router，不构成 D02、D04-B、
+  D07-B 或 formal P3–P7 最终 PASS。
