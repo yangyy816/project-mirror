@@ -1,0 +1,336 @@
+{
+  "schema_version": "mirror.synthetic-questionbank/GenerationAdmissionPolicy/v3",
+  "policy_version": "cn-formal-questionbank-adult-18-25-v3",
+  "content_sha256": "2a52489b847276c65a61f0635d1ff674dba433754f8154fa85b0d0534d79b70a",
+  "status": "APPROVED_FORWARD_ONLY",
+  "authority": ["ADR-052", "ADR-024", "ADR-029"],
+  "historical_evidence_mutated": false,
+  "formal_scope_precedence": {
+    "mode": "NARROWER_FORWARD_OVERLAY",
+    "restricts_adr_029_style_descriptors": true,
+    "adr_030_general_research_cohort_boundary_not_formal_admission": true,
+    "historical_adr_029_and_030_evidence_unchanged": true
+  },
+  "scope": {
+    "formal_question_bank": true,
+    "pairwise_comparison": true,
+    "aesthetic_profile_synthetic_input": true,
+    "local_web_demo_face_cases": true,
+    "real_user_runtime_generation_calls": 0,
+    "question_bank_release_authorized": false,
+    "public_api_change": false,
+    "schema_or_migration_change": false,
+    "production_provider_approved": false,
+    "real_user_facial_processing_authorized": false
+  },
+  "age_policy": {
+    "main_question_bank_age_policy": "ADULT_ONLY_18_TO_25",
+    "allowed_declared_age_bands": ["ADULT_18_19", "ADULT_20_25"],
+    "distribution": {
+      "target_percent": { "ADULT_20_25": 70, "ADULT_18_19": 20 },
+      "adult_only_flex_percent": 10,
+      "flex_allowed_age_bands": ["ADULT_18_19", "ADULT_20_25"],
+      "majority_band": "ADULT_20_25",
+      "small_pack_rounding": "LARGEST_REMAINDER_WITH_ADULT_20_25_MAJORITY"
+    },
+    "adult_status_required": "VERIFIED_SYNTHETIC_ADULT",
+    "adult_status_semantics": "SYNTHETIC_PROVENANCE_PLUS_ADULT_DECLARATION_PLUS_VERSIONED_HUMAN_PRESENTATION_REVIEW",
+    "suspected_minor_required": false,
+    "automatic_age_estimation": "PROHIBITED",
+    "adult_18_19_style_rule": "NONSEXUAL_ONLY",
+    "adult_18_19_allowed_style_families": [
+      "CLEAN_NATURAL",
+      "KOREAN_CLEAR_RESTRAINED",
+      "GENTLE_SWEET",
+      "REFINED_COOL",
+      "COLD_RESERVED"
+    ],
+    "light_mature_style_allowed_band": "ADULT_20_25",
+    "sexualized_presentation": "PROHIBITED_FOR_FORMAL_PACK"
+  },
+  "presentation_scope": {
+    "market_scope": "CN_MAINLAND",
+    "visual_context": "EAST_ASIAN_PRESENTING_FIRST_WAVE",
+    "synthetic_only": true,
+    "female_oriented_questionnaire": true,
+    "sensitive_identity_classification": false,
+    "real_user_sensitive_trait_inference": false,
+    "single_template_face": "PROHIBITED",
+    "celebrity_or_public_figure_imitation": "PROHIBITED",
+    "real_person_reference": "PROHIBITED"
+  },
+  "capture_grammar": {
+    "orientation": "FRONT_FACING",
+    "gaze": "DIRECT_EYE_CONTACT",
+    "expression": "NEUTRAL_OR_MILDLY_NATURAL",
+    "shoulder_and_neck": "STABLE",
+    "head_occupancy": "EQUIVALENT_WITHIN_VERSIONED_QA",
+    "camera_and_framing": "EQUIVALENT_CLOSE_PORTRAIT",
+    "lighting": "STABLE_SOFT",
+    "background": "CLEAN_NEUTRAL_LOW_DISTRACTION",
+    "makeup": "LIGHT_NATURAL",
+    "clothing": "SIMPLE_LOW_DISTRACTION",
+    "forbidden_uncontrolled_differences": [
+      "SIDE_PROFILE",
+      "CAMERA_TILT_OR_ELEVATION",
+      "LARGE_HEAD_ROTATION",
+      "EXAGGERATED_EXPRESSION",
+      "FACIAL_FEATURE_OCCLUSION",
+      "STRONG_LIGHTING_CHANGE",
+      "BACKGROUND_DOMINANCE",
+      "MAKEUP_OR_CLOTHING_DOMINANCE",
+      "DRAMATIC_ACCESSORY",
+      "HEAVY_FILTER_OR_RETOUCH"
+    ]
+  },
+  "style_policy": {
+    "presentation_families": [
+      "CLEAN_NATURAL",
+      "KOREAN_CLEAR_RESTRAINED",
+      "GENTLE_SWEET",
+      "REFINED_COOL",
+      "LIGHT_MATURE_ALLURING_NONSEXUAL",
+      "RELAXED_POLISHED",
+      "COLD_RESERVED",
+      "HEROIC_SHARP",
+      "STRONG_INDIVIDUAL_DISTINCTIVENESS"
+    ],
+    "m5_preregistered_nonsexual_cells_preserved": [
+      "PURE_CLEAN_NATURAL",
+      "GENTLE_SWEET_APPROACHABLE",
+      "REFINED_ELEGANT",
+      "SOPHISTICATED_URBAN",
+      "GLAMOROUS_STRIKING",
+      "INTELLECTUAL_ELEGANT_LIGHT_MATURE"
+    ],
+    "style_is_identity_or_sensitive_trait": false,
+    "style_reassignment_after_output": "PROHIBITED",
+    "large_makeup_hair_clothing_pose_background_difference": "PROHIBITED"
+  },
+  "pair_contracts": {
+    "GEOMETRY_PAIR": {
+      "same_base_synthetic_identity": true,
+      "same_seed_family_when_supported": true,
+      "unsupported_seed_fact": null,
+      "same_declared_age_band": true,
+      "preserved_conditions": [
+        "POSE",
+        "EXPRESSION",
+        "BACKGROUND",
+        "LIGHTING",
+        "CAMERA_AND_FRAMING",
+        "HAIR",
+        "MAKEUP",
+        "CLOTHING",
+        "UNRELATED_FACIAL_ATTRIBUTES"
+      ],
+      "primary_geometry_dimension_count": 1,
+      "maximum_necessary_correlated_variables": 1,
+      "correlated_variable_must_be_preregistered": true,
+      "remeasure_result": true,
+      "variable_isolation_required": "PASS"
+    },
+    "STYLE_PAIR": {
+      "same_base_synthetic_identity": true,
+      "preserve_primary_facial_geometry": true,
+      "style_direction_count": 1,
+      "allowed_direction_examples": [
+        "NATURAL_TO_REFINED",
+        "WARM_TO_COOL",
+        "SOFT_TO_SHARP",
+        "INNOCENT_NATURAL_TO_MATURE_REFINED",
+        "SWEET_TO_COLD",
+        "RELAXED_TO_POLISHED"
+      ],
+      "large_makeup_hair_clothing_pose_expression_lighting_background_difference": "PROHIBITED",
+      "remeasure_geometry": true
+    },
+    "shared_admission": {
+      "both_sides_independently_pass_hard_gates": true,
+      "pair_comparability_required": "PASS",
+      "obvious_error_answer_side": "HARD_REJECT_COMPLETE_PAIR",
+      "one_sided_visual_failure": "HARD_REJECT_COMPLETE_PAIR",
+      "finish_imbalance": "HARD_REJECT_COMPLETE_PAIR",
+      "multi_variable_contamination": "HARD_REJECT_COMPLETE_PAIR"
+    }
+  },
+  "product_curation": {
+    "mode": "CATEGORICAL_NON_NUMERIC",
+    "per_face_numeric_rating": false,
+    "cohort_distribution_percent": {
+      "COORDINATED_HIGHER_FINISH": { "minimum": 70, "maximum": 80 },
+      "DISTINCTIVE_PRODUCT_ACCEPTABLE": { "minimum": 15, "maximum": 25 },
+      "NEUTRAL_BOUNDARY": { "minimum": 0, "maximum": 10 }
+    },
+    "forbidden_authorities": [
+      "BEAUTY_SCORE",
+      "ATTRACTIVENESS_SCORE",
+      "RANKING",
+      "PERCENTILE",
+      "UNIVERSAL_IDEAL_FACE"
+    ],
+    "anti_homogenization_required": "PASS"
+  },
+  "required_record_fields": [
+    "synthetic_identity_id",
+    "declared_age_band",
+    "adult_status",
+    "suspected_minor",
+    "visual_context",
+    "style_family",
+    "sexualized_presentation",
+    "age_style_compatibility",
+    "pair_type",
+    "geometry_dimensions",
+    "controlled_variables",
+    "preserved_variables",
+    "generation_source_kind",
+    "generation_provider",
+    "generation_version",
+    "prompt_policy_version",
+    "source_digest",
+    "qa_result",
+    "rejection_reason",
+    "pair_id",
+    "pair_side",
+    "base_identity_family",
+    "real_person_reference",
+    "celebrity_resemblance",
+    "source_rights",
+    "decode_qa",
+    "likeness_review",
+    "duplicate_status",
+    "pair_comparability",
+    "variable_isolation",
+    "visual_quality",
+    "anti_homogenization"
+  ],
+  "provider_fact_rules": {
+    "generation_provider_field_required_but_nullable": true,
+    "codex_native_source_kind": "CODEX_NATIVE_IMAGEGEN",
+    "codex_native_runtime_provider": false,
+    "unavailable_model_request_seed_usage_cost": null,
+    "unavailable_provider_fact_defaults": {
+      "provider": null,
+      "model": null,
+      "model_version": null,
+      "request_reference": null,
+      "seed": null,
+      "usage": null,
+      "cost": null
+    },
+    "fact_inference_or_guessing": "PROHIBITED"
+  },
+  "formal_admission": {
+    "adult_status": "VERIFIED_SYNTHETIC_ADULT",
+    "declared_age_bands": ["ADULT_18_19", "ADULT_20_25"],
+    "suspected_minor": false,
+    "sexualized_presentation": false,
+    "age_style_compatibility": "PASS",
+    "real_person_reference": false,
+    "celebrity_resemblance": false,
+    "source_rights": "PASS",
+    "decode_qa": "PASS",
+    "likeness_review": "PASS",
+    "duplicate_status": "PASS",
+    "pair_comparability": "PASS",
+    "variable_isolation": "PASS",
+    "visual_quality": "PASS",
+    "anti_homogenization": "PASS"
+  },
+  "hard_reject_reason_codes": [
+    "ADULT_STATUS_NOT_VERIFIED",
+    "DECLARED_AGE_OUTSIDE_FORMAL_BANDS",
+    "SUSPECTED_MINOR_PRESENTATION",
+    "CHILD_OR_STUDENT_MINOR_CONTEXT",
+    "AGE_BAND_PRESENTATION_MISMATCH",
+    "UNEXPECTED_SEXUALIZED_CONTEXT",
+    "REAL_PERSON_REFERENCE",
+    "CELEBRITY_OR_PUBLIC_FIGURE_RESEMBLANCE",
+    "SOURCE_OR_RIGHTS_FAILURE",
+    "DECODE_OR_AUTOMATIC_QA_FAILURE",
+    "PAIR_VARIABLE_CONTAMINATION",
+    "PAIR_COMPARABILITY_FAILURE",
+    "PAIR_ONE_SIDED_VISUAL_FAILURE",
+    "STRUCTURAL_DISTORTION",
+    "EXACT_DUPLICATE",
+    "HOMOGENIZATION_RISK",
+    "MANIFEST_OR_POLICY_BINDING_MISMATCH"
+  ],
+  "prompt_semantics": {
+    "required": [
+      "CLEARLY_ADULT",
+      "AGE_BAND_18_TO_25",
+      "EAST_ASIAN_PRESENTING_FIRST_WAVE",
+      "FRONT_FACING",
+      "DIRECT_EYE_CONTACT",
+      "NEUTRAL_NATURAL_EXPRESSION",
+      "STABLE_SOFT_LIGHTING",
+      "CLEAN_NEUTRAL_BACKGROUND",
+      "CONSISTENT_FRAMING",
+      "NATURAL_FACIAL_ANATOMY",
+      "SYNTHETIC_NON_REAL_PERSON",
+      "NO_CELEBRITY_OR_PUBLIC_FIGURE_RESEMBLANCE"
+    ],
+    "geometry_pair_required": [
+      "SAME_SYNTHETIC_BASE_IDENTITY",
+      "SAME_POSE_CAMERA_LIGHTING_HAIR_MAKEUP_BACKGROUND",
+      "CHANGE_ONLY_NAMED_FACIAL_DIMENSION",
+      "PRESERVE_ALL_UNRELATED_FACIAL_ATTRIBUTES"
+    ],
+    "forbidden": [
+      "UNDER_18_SUBJECT",
+      "MINOR_OR_SCHOOLGIRL_CONTEXT",
+      "CHILDLIKE_PRESENTATION",
+      "REAL_PERSON_OR_NAMED_IDENTITY_REFERENCE",
+      "CELEBRITY_OR_PUBLIC_FIGURE_IMITATION",
+      "SEXUALIZED_OR_FETISHIZED_PRESENTATION",
+      "UNIVERSAL_TEMPLATE_FACE",
+      "SENSITIVE_TRAIT_INFERENCE"
+    ],
+    "full_prompt_in_git": false
+  },
+  "private_material": {
+    "forbidden_in_git_memory_logs_artifacts_ui": [
+      "FULL_PROMPT",
+      "SEED_VALUE",
+      "IMAGE_BYTES",
+      "PRIVATE_LOCATOR",
+      "OBJECT_KEY",
+      "SIGNED_URL",
+      "PROVIDER_RAW_PAYLOAD",
+      "CREDENTIAL"
+    ],
+    "allowed_tracked_evidence": [
+      "POLICY",
+      "REQUIRED_AND_FORBIDDEN_PROMPT_SEMANTICS",
+      "OPAQUE_REFERENCE",
+      "SHA256_DIGEST",
+      "CHECKSUM",
+      "ALLOWLISTED_AGGREGATE_OUTCOME"
+    ]
+  },
+  "demo_policy": {
+    "pregenerated_synthetic_assets_only": true,
+    "same_formal_hard_gates": true,
+    "real_user_runtime_generation_calls": 0,
+    "real_person_examples": false,
+    "research_or_internal_label_required": true,
+    "production_validity_claim": false,
+    "production_training_data_claim": false
+  },
+  "m5_transition": {
+    "baseline_commit": "5eda4cf19ca2c8f3f5b66dd4e7e2f5cbd0d51950",
+    "baseline_openapi_canonical_sha256": "71942e2bdd3ff8896f6c74e7ee2f562167cb635528d9d802b7d66c460b0f13cf",
+    "migration_head": "0014_m5_eval_authority",
+    "dependency_changes": 0,
+    "model_artifacts_added": 0,
+    "cal_req_002_consumed": false,
+    "image_generation_calls_in_policy_change": 0,
+    "next_task": "CC-P2-M5-05-A_PRIVATE_POLICY_MATERIALIZATION",
+    "dispatch_before_private_v3_binding": "PROHIBITED",
+    "m5_technical_gate": "NOT_EVALUATED",
+    "p2_mvr_v1": "NOT_EVALUATED",
+    "p2_m6_entry": "CLOSED"
+  }
+}

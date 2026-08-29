@@ -91,6 +91,33 @@ ADR-031 为 Codex native tool 未暴露 requested dimensions 的未来 cohort �
 实际输出冒充请求参数或在 raw admission 前裁切。MIME、checksum、byte、edge、pixel、single-frame、
 private source-root 与 decode gates 不变，v1 manifest/evidence 继续冻结。
 
+## Formal QuestionBank generation and pairwise admission v3
+
+ADR-052 前向冻结 `P2_QUESTIONBANK_GENERATION_POLICY_V3`，只约束新正式 QuestionBank 候选、
+pairwise stimulus、AestheticProfile synthetic input 与本地 Web Demo 选图，不追溯重标 ADR-024/
+028/029/030、V01 或既有生成 evidence。正式用途只允许声明为 `ADULT_18_19` 或
+`ADULT_20_25` 且通过版本化人工成年呈现复核的合成人物；20–25 默认约 70%，18–19 默认约
+20%，剩余约 10% 只能在这两个成年 band 内灵活分配。任何 under-18 declaration、
+`suspected_minor=true`、儿童/学生未成年语境或 band/presentation 不一致均 hard reject；不运行或持久化
+自动年龄估计。18–19 只允许非性化风格，全正式 pack 禁止 sexualized 或 fetishized presentation。
+
+V3 将 `GEOMETRY_PAIR` 与 `STYLE_PAIR` 分开。前者优先从同一 QA-passed canonical identity 出发，
+只改变一个主要 geometry dimension，最多携带一个预注册的必要相关变量；后者保持 identity 与主要
+facial geometry，只改变一个版本化 style direction。两类 pair 都固定 pose、camera/framing、expression、
+lighting、background、hair、makeup 与 clothing 等控制条件，两侧分别通过相同 hard gates，随后再通过
+pair comparability 与 variable-isolation Gate。一侧低完成度、结构异常或成为明显错误答案时整对拒绝。
+
+产品接受度只保存 categorical review evidence，不创建 beauty/attractiveness score、rating、ranking、
+percentile 或统一理想脸。pack-level curation 可以在不产生单脸打分的前提下维持较高完成度、个人辨识度、
+连续 morphology、identity distinctness 与 style bandwidth；年轻化不得通过 infantilization、模板脸或
+同质化实现。完整 machine-readable authority 位于
+`docs/research/P2_QUESTIONBANK_GENERATION_POLICY_V3.json`。
+
+Web Demo 只能选择预生成且已通过同等 admission Gate 的 synthetic assets，并明确标记为 internal/research
+demonstration。真实用户运行时 image-generation 调用固定为 0。V3 不新增 M6 schema、migration、public
+API 或 release authority；这些 typed persistence 与 immutable manifest binding 只能在 M6 entry Gate
+通过后的 rolling-wave refinement 中决定。
+
 ## Reference research boundary
 
 网络、文献和获授权市场研究默认只提取人工复核的 abstract non-identifying descriptors，再进入
