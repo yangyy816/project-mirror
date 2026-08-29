@@ -31,6 +31,7 @@ CC05_A_EVIDENCE_DOC_PATH = (
 R43_REPAIR_PATH = ROOT / "docs" / "operations" / "P2_M5_R43_EPOCH3_EXECUTION_TRANSITION_REPAIR.md"
 R44_REPAIR_PATH = ROOT / "docs" / "operations" / "P2_M5_R44_R43_GATE_CLOSURE_REPAIR.md"
 R45_REPAIR_PATH = ROOT / "docs" / "operations" / "P2_M5_R45_R44_GATE_CLOSURE_REPAIR.md"
+R46_REPAIR_PATH = ROOT / "docs" / "operations" / "P2_M5_R46_R45_CI_PLATFORM_TYPING_REPAIR.md"
 ACCEPTANCE_PATH = ROOT / "docs" / "operations" / "P2_M5_ACCEPTANCE.md"
 EXECUTION_PROTOCOL_PATH = ROOT / "docs" / "operations" / "P2_M5_EXECUTION_PROTOCOL.md"
 
@@ -269,6 +270,14 @@ def _last_r45_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-r45-r44-gate-closure-repair-eof/v1",
         sentinel="P2_M5_R45_R44_GATE_CLOSURE_REPAIR_TRUE_EOF",
+    )
+
+
+def _last_r46_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-r46-r45-ci-platform-typing-repair-eof/v1",
+        sentinel="P2_M5_R46_R45_CI_PLATFORM_TYPING_REPAIR_TRUE_EOF",
     )
 
 
@@ -1144,6 +1153,183 @@ def test_r44_execution_transition_overlay_is_complete_mirrored_and_fail_closed()
     assert "D:\\" not in tracked
 
 
+def test_r46_ci_platform_typing_overlay_is_complete_mirrored_and_true_eof() -> None:
+    canonical = _last_r46_key_block(ACCEPTANCE_PATH)
+    mirror = _last_r46_key_block(EXECUTION_PROTOCOL_PATH)
+    predecessor = _last_r45_key_block(ACCEPTANCE_PATH)
+    values = dict(canonical)
+    predecessor_values = dict(predecessor)
+
+    assert canonical == mirror
+    assert len(canonical) == len(values) == 441
+    assert len(predecessor) == len(predecessor_values) == 405
+    assert set(predecessor_values) <= values.keys()
+
+    expected_overrides = {
+        "CURRENT_STATE_AUTHORITY_VERSION": "p2-m5-r46-r45-ci-platform-typing-repair-eof/v1",
+        "CURRENT_STATE_AUTHORITY_PRECEDENCE": (
+            "THIS_CONDITIONAL_TRUE_EOF_OVERLAY_SUPERSEDES_ACCEPTED_CC05_A_FOR_THE_COMPLETE_"
+            "LISTED_KEYSET_ONLY_AFTER_R46_SAME_SHA_CI_EIGHT_ARTIFACT_CONTENT_CHECKS_"
+            "SECURITY_PRIVACY_LICENSE_RESEARCH_SOL_AND_PRINCIPAL_ACCEPTANCE"
+        ),
+        "CURRENT_STATE_MIRROR_RULE": (
+            "MUST_MATCH_CANONICAL_ACCEPTANCE_R46_KEY_SET_ORDER_AND_VALUES"
+        ),
+        "EARLIER_STATUS_SECTIONS": (
+            "PRESERVED_HISTORICAL_EVIDENCE_NON_CURRENT_FOR_THE_COMPLETE_LISTED_KEYSET_"
+            "AFTER_R46_ACCEPTANCE"
+        ),
+        "CC04_B_EXECUTION": "SUSPENDED_PENDING_R46_AND_R43_Q01_EXECUTION_OVERLAY_ACCEPTANCE",
+        "FORMAL_E01_STATUS": (
+            "SUSPENDED_PENDING_R46_ACCEPTANCE_AND_PRIVATE_OVERLAY_MATERIALIZATION"
+        ),
+        "FORMAL_E01_EXECUTION_AUTHORITY": (
+            "NOT_EFFECTIVE_UNTIL_R46_AND_R43_Q01_REDACTED_EVIDENCE_ALL_GATES_AND_"
+            "PRINCIPAL_ACCEPTANCE"
+        ),
+        "CURRENT_STATE_KEY_COVERAGE": (
+            "COMPLETE_CC05_A_PREDECESSOR_KEYSET_PLUS_R43_R44_R45_AND_R46_CI_PLATFORM_"
+            "TYPING_REPAIR_KEYS"
+        ),
+        "CURRENT_STATE_PRECONDITION_FALLBACK": (
+            "ACCEPTED_CC05_A_TRUE_EOF_REMAINS_CURRENT_UNTIL_R46_AUTHORITY_CONDITION_IS_SATISFIED"
+        ),
+        "P2_M5_NEXT_ACTION": (
+            "COMPLETE_R46_SAME_SHA_GATES_THEN_R43_Q01_PRIVATE_EXECUTION_OVERLAY_MATERIALIZATION"
+        ),
+        "NEXT_READY_TASK": "P2_M5_R46_SAME_SHA_GATES",
+        "STOP_OUTCOME": (
+            "CAL_REQ_002_NOT_DISPATCHED_PENDING_ACCEPTED_R46_EXECUTION_OVERLAY_AUTHORITY"
+        ),
+        "P2_M5_R43_STATUS": (
+            "REJECTED_AT_8BECAE2_SECURITY_AND_SOL_HIGH_FINDINGS_REPAIRED_ONLY_WITH_R46_ACCEPTANCE"
+        ),
+        "P2_M5_R43_AUTHORITY_CONDITION": (
+            "EFFECTIVE_ONLY_WITH_R46_AFTER_R46_COMMIT_SAME_SHA_CI_ALL_EIGHT_ARTIFACT_"
+            "CONTENT_CHECKS_SECURITY_PRIVACY_LICENSE_RESEARCH_SOL_AND_PRINCIPAL_ACCEPTANCE"
+        ),
+        "P2_M5_R44_STATUS": (
+            "REJECTED_AT_50B1DE2_SECURITY_AND_SOL_HIGH_TOCTOU_AND_PROMPT_FORMAT_FINDINGS_"
+            "REPAIRED_ONLY_WITH_R46_ACCEPTANCE"
+        ),
+        "P2_M5_R44_AUTHORITY_CONDITION": (
+            "EFFECTIVE_ONLY_WITH_R46_AFTER_R46_COMMIT_SAME_SHA_CI_ALL_EIGHT_ARTIFACT_"
+            "CONTENT_CHECKS_SECURITY_PRIVACY_LICENSE_RESEARCH_SOL_AND_PRINCIPAL_ACCEPTANCE"
+        ),
+        "P2_M5_R43_Q01_STATUS": "CLOSED_PENDING_ACCEPTED_R46_EXECUTION_OVERLAY_AUTHORITY",
+        "P2_M5_R45_STATUS": (
+            "REJECTED_AT_2ED324237DEC074B9BD3412B4458FB715DA95899_RUN_33249622650_"
+            "LINUX_STRICT_MYPY_PLATFORM_TYPING_FAILURE"
+        ),
+        "P2_M5_R45_AUTHORITY_CONDITION": (
+            "NOT_SATISFIED_AT_2ED324237DEC074B9BD3412B4458FB715DA95899_RUN_33249622650_"
+            "SUPERSEDED_BY_R46"
+        ),
+        "CURRENT_AUTHORITY_TAIL_END": "P2_M5_R46_R45_CI_PLATFORM_TYPING_REPAIR_TRUE_EOF",
+    }
+    actual_overrides = {
+        key: values[key]
+        for key, predecessor_value in predecessor_values.items()
+        if values[key] != predecessor_value
+    }
+    assert actual_overrides == expected_overrides
+    assert {key: values[key] for key in predecessor_values.keys() - expected_overrides.keys()} == {
+        key: predecessor_values[key]
+        for key in predecessor_values.keys() - expected_overrides.keys()
+    }
+
+    additions = {
+        "P2_M5_R45_CANDIDATE_SHA": "2ED324237DEC074B9BD3412B4458FB715DA95899",
+        "P2_M5_R45_CI_RUN": "33249622650_ATTEMPT_1",
+        "P2_M5_R45_CI_RESULTS": (
+            "QUALITY_AND_INTEGRATION_FAIL_LINUX_STRICT_MYPY;SECRET_SCAN_PASS;DOCKER_VALIDATION_PASS"
+        ),
+        "P2_M5_R45_ARTIFACT_ACCEPTANCE": "NOT_EVALUATED_INCOMPLETE_CI",
+        "P2_M5_R45_INDEPENDENT_REVIEWS": "NOT_STARTED_CI_PRECONDITION_FAILED",
+        "P2_M5_R45_PRINCIPAL_ACCEPTANCE": (
+            "DENIED_AT_2ED324237DEC074B9BD3412B4458FB715DA95899_RUN_33249622650"
+        ),
+        "P2_M5_R46_STATUS": "READY_FOR_TRACKED_EVIDENCE",
+        "P2_M5_R46_AUTHORITY_CONDITION": (
+            "EFFECTIVE_ONLY_AFTER_R46_COMMIT_SAME_SHA_CI_ALL_EIGHT_ARTIFACT_CONTENT_"
+            "CHECKS_SECURITY_PRIVACY_LICENSE_RESEARCH_SOL_AND_PRINCIPAL_ACCEPTANCE"
+        ),
+        "P2_M5_R46_POST_ACCEPTANCE_COMMIT_REQUIRED": "NO",
+        "P2_M5_R46_PARENT_SHA": "2ED324237DEC074B9BD3412B4458FB715DA95899",
+        "P2_M5_R46_REJECTED_PARENT_RUN": "33249622650_ATTEMPT_1",
+        "P2_M5_R46_ACCEPTED_FALLBACK": ("CC05_A_AT_40A239831985B76DD55788A4EDE6D98D60438F3D"),
+        "P2_M5_R46_FAILURE_CLASS": "DETERMINISTIC_LINUX_STRICT_MYPY_PLATFORM_STUB_TYPING",
+        "P2_M5_R46_FINDINGS": (
+            "POSIX_FLAG_REDUNDANT_CAST_AND_UNUSED_IGNORE;"
+            "WINDOWS_ONLY_CTYPES_MSVCRT_OS_STUB_ATTRIBUTES"
+        ),
+        "P2_M5_R46_REPAIR_SCOPE": (
+            "PLATFORM_NEUTRAL_RUNTIME_CAPABILITY_LOOKUP_AND_TYPE_NARROWING_ONLY"
+        ),
+        "P2_M5_R46_POSIX_CAPABILITY_BOUNDARY": (
+            "GETATTR_O_DIRECTORY_AND_O_NOFOLLOW_INTEGER_GUARD_FAIL_CLOSED"
+        ),
+        "P2_M5_R46_WINDOWS_CAPABILITY_BOUNDARY": (
+            "GETATTR_WINDLL_OPEN_OSFHANDLE_AND_O_BINARY_GUARD_FAIL_CLOSED"
+        ),
+        "P2_M5_R46_MYPY_TARGETS": "WINDOWS_DEFAULT_AND_EXPLICIT_LINUX",
+        "P2_M5_R46_RUNTIME_BEHAVIOR_CHANGE": "NONE",
+        "P2_M5_R46_SOURCE_READ_BOUNDARY": (
+            "UNCHANGED_FROM_R45_HANDLE_BOUND_NO_FOLLOW_COMPONENT_OPEN"
+        ),
+        "P2_M5_R46_PROMPT_BOUNDARY": "UNCHANGED_FROM_R45_EXACT_FOUR_FIELD_FORMATTER_PARSE",
+        "P2_M5_R46_REGISTRATION_FAILURE": (
+            "AUTOMATIC_OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE_TERMINAL"
+        ),
+        "P2_M5_R46_STATE_MACHINE_CHANGE": "NONE",
+        "P2_M5_R46_SCHEMA_OR_MIGRATION_CHANGE": "NONE",
+        "P2_M5_R46_PUBLIC_API_CHANGE": "NONE",
+        "P2_M5_R46_DEPENDENCY_MODEL_OR_WORKFLOW_CHANGE": "NONE",
+        "P2_M5_R46_IMAGEGEN_CALLS_EXECUTED": "0",
+        "P2_M5_R46_ORDINALS_CONSUMED": "0",
+        "P2_M5_R46_RAW_OUTPUTS_CREATED": "0",
+        "P2_M5_R46_PRIVATE_ROOTS_CREATED": "0",
+        "P2_M5_R46_PRIVATE_IMAGE_BYTES_READ_OR_WRITTEN": "0",
+        "P2_M5_R46_DECODE_QA_SCREENING_ADMISSION": "0",
+        "P2_M5_R46_NEXT_PRIVATE_TASK": ("P2-M5-R43-Q01_PRIVATE_EXECUTION_OVERLAY_MATERIALIZATION"),
+        "P2_M5_R46_Q01_IMAGEGEN_CALLS": "0",
+        "P2_M5_R46_Q01_ORDINALS_CONSUMED": "0",
+        "P2_M5_R46_Q01_REDACTED_EVIDENCE_REQUIRED": "YES_BEFORE_CAL_REQ_002_DISPATCH",
+    }
+    assert len(additions) == 36
+    assert set(values) - set(predecessor_values) == set(additions)
+    assert {key: values[key] for key in additions} == additions
+    assert values["CAL_REQ_002_STATUS"] == "NOT_CONSUMED"
+    assert values["FORMAL_E01_GENERATION_CALLS_EXECUTED"] == "1"
+    assert values["FORMAL_E01_RAW_OUTPUTS_CREATED"] == "1"
+    assert values["FORMAL_CALLS_REMAINING"] == "31"
+    assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "31"
+    assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "62"
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_R46_R45_CI_PLATFORM_TYPING_REPAIR_TRUE_EOF",
+    )
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+
+    tracked = "\n".join(
+        (
+            R45_REPAIR_PATH.read_text(encoding="utf-8"),
+            R46_REPAIR_PATH.read_text(encoding="utf-8"),
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-175_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-175_000:],
+        )
+    )
+    assert ".local-storage" not in tracked
+    assert "data:image/" not in tracked
+    assert "private_template_nonce" not in tracked
+    assert "positive_segments" not in tracked
+    assert "negative_segments" not in tracked
+    assert "provider_raw_payload" not in tracked.lower()
+    assert "C:\\" not in tracked
+    assert "D:\\" not in tracked
+
+
 def test_r45_gate_closure_overlay_is_complete_mirrored_and_true_eof() -> None:
     canonical = _last_r45_key_block(ACCEPTANCE_PATH)
     mirror = _last_r45_key_block(EXECUTION_PROTOCOL_PATH)
@@ -1278,9 +1464,6 @@ def test_r45_gate_closure_overlay_is_complete_mirrored_and_true_eof() -> None:
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_R45_R44_GATE_CLOSURE_REPAIR_TRUE_EOF",
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
-
     tracked = "\n".join(
         (
             R44_REPAIR_PATH.read_text(encoding="utf-8"),

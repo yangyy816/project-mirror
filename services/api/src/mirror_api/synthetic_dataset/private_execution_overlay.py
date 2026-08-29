@@ -1018,11 +1018,16 @@ def _relative_artifact_parts(
     return relative_parts
 
 
-def _open_posix_directory_chain(path: Path) -> list[int]:
-    if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
+def _posix_safe_open_flags() -> tuple[int, int]:
+    directory_flag = getattr(os, "O_DIRECTORY", None)
+    no_follow_flag = getattr(os, "O_NOFOLLOW", None)
+    if not isinstance(directory_flag, int) or not isinstance(no_follow_flag, int):
         raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_UNAVAILABLE")
-    directory_flag = cast(int, os.O_DIRECTORY)  # type: ignore[attr-defined]
-    no_follow_flag = cast(int, os.O_NOFOLLOW)
+    return directory_flag, no_follow_flag
+
+
+def _open_posix_directory_chain(path: Path) -> list[int]:
+    directory_flag, no_follow_flag = _posix_safe_open_flags()
     flags = os.O_RDONLY | directory_flag | no_follow_flag
     anchor = Path(path.anchor)
     descriptors = [os.open(str(anchor), flags)]
@@ -1058,8 +1063,7 @@ def _open_posix_generated_artifact(
     generated_artifact_path: Path,
     allowed_generated_artifact_root: Path,
 ) -> tuple[int, list[int]]:
-    if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
-        raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_UNAVAILABLE")
+    directory_flag, no_follow_flag = _posix_safe_open_flags()
     descriptors = _open_posix_directory_chain(allowed_generated_artifact_root)
     root_descriptor = descriptors[-1]
     file_descriptor: int | None = None
@@ -1068,8 +1072,6 @@ def _open_posix_generated_artifact(
             generated_artifact_path=generated_artifact_path,
             allowed_generated_artifact_root=allowed_generated_artifact_root,
         )
-        directory_flag = cast(int, os.O_DIRECTORY)  # type: ignore[attr-defined]
-        no_follow_flag = cast(int, os.O_NOFOLLOW)
         directory_flags = os.O_RDONLY | directory_flag | no_follow_flag
         for part in relative_parts[:-1]:
             descriptor = os.open(part, directory_flags, dir_fd=descriptors[-1])
@@ -1102,7 +1104,10 @@ def _open_posix_generated_artifact(
 def _windows_final_path(handle: int) -> str:
     import ctypes
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    win_dll = getattr(ctypes, "WinDLL", None)
+    if not callable(win_dll):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_UNAVAILABLE")
+    kernel32 = win_dll("kernel32", use_last_error=True)
     get_final_path = kernel32.GetFinalPathNameByHandleW
     get_final_path.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32]
     get_final_path.restype = ctypes.c_uint32
@@ -1126,7 +1131,10 @@ def _windows_final_path(handle: int) -> str:
 def _windows_open_path(path: Path, *, expect_directory: bool) -> int:
     import ctypes
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    win_dll = getattr(ctypes, "WinDLL", None)
+    if not callable(win_dll):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_UNAVAILABLE")
+    kernel32 = win_dll("kernel32", use_last_error=True)
     create_file = kernel32.CreateFileW
     create_file.argtypes = [
         ctypes.c_wchar_p,
@@ -1189,7 +1197,10 @@ def _windows_open_path(path: Path, *, expect_directory: bool) -> int:
 def _close_windows_handles(handles: list[int]) -> None:
     import ctypes
 
-    close_handle = ctypes.WinDLL("kernel32", use_last_error=True).CloseHandle
+    win_dll = getattr(ctypes, "WinDLL", None)
+    if not callable(win_dll):
+        raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_UNAVAILABLE")
+    close_handle = win_dll("kernel32", use_last_error=True).CloseHandle
     close_handle.argtypes = [ctypes.c_void_p]
     close_handle.restype = ctypes.c_int
     for handle in reversed(handles):
@@ -1253,7 +1264,14 @@ def _open_bound_generated_artifact(
         source: BinaryIO | None = None
         file_handle_owned = True
         try:
-            descriptor = msvcrt.open_osfhandle(file_handle, os.O_RDONLY | os.O_BINARY)
+            open_osfhandle = getattr(msvcrt, "open_osfhandle", None)
+            binary_flag = getattr(os, "O_BINARY", None)
+            if not callable(open_osfhandle) or not isinstance(binary_flag, int):
+                raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_UNAVAILABLE")
+            descriptor_value = open_osfhandle(file_handle, os.O_RDONLY | binary_flag)
+            if not isinstance(descriptor_value, int):
+                raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_UNAVAILABLE")
+            descriptor = descriptor_value
             file_handle_owned = False
             source = cast(BinaryIO, os.fdopen(descriptor, "rb"))
             descriptor = None
