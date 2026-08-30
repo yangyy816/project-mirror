@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Any, NoReturn, cast
 
 from fastapi import APIRouter, Depends, Header, Request, status
@@ -54,11 +55,15 @@ from mirror_api.demo_job_service import (
     DemoJobUnavailable,
 )
 from mirror_api.demo_memory_coordinator import DemoMemoryCoordinator
-from mirror_api.demo_memory_dependencies import get_demo_memory_coordinator
+from mirror_api.demo_memory_dependencies import (
+    get_demo_memory_coordinator,
+    get_demo_memory_service,
+)
 from mirror_api.demo_memory_service import (
     DemoMemoryAuthorityCorruption,
     DemoMemoryConflict,
     DemoMemoryInputError,
+    DemoMemoryService,
     DemoMemoryUnavailable,
     RebuildDemoAestheticProfile,
 )
@@ -556,9 +561,30 @@ async def create_session(
     openapi_extra=DEMO_OPENAPI,
     responses=DEMO_ERRORS,
 )
-async def get_session_context(session_id: DemoId) -> NoReturn:
-    del session_id
-    _not_implemented("context_compile", "D10")
+async def get_session_context(
+    session_id: DemoId,
+    recall_at: datetime,
+    actor: DemoActor = Depends(get_demo_actor),
+    memory: DemoMemoryService = Depends(get_demo_memory_service),
+) -> DemoContextResponse:
+    try:
+        recalled = await memory.recall_context(
+            demo_actor_id=actor.id,
+            demo_session_id=session_id,
+            recall_at=recall_at,
+        )
+    except (
+        DemoMemoryInputError,
+        DemoMemoryUnavailable,
+        DemoMemoryAuthorityCorruption,
+    ) as exc:
+        _raise_memory_error(exc)
+    return DemoContextResponse(
+        session_id=session_id,
+        profile_id=recalled.aesthetic_profile_id,
+        compilation_digest=recalled.context_digest,
+        expires_at=recalled.expires_at,
+    )
 
 
 @router.get(
@@ -1246,9 +1272,29 @@ async def rebuild_profiles(
     openapi_extra=DEMO_OPENAPI,
     responses=DEMO_ERRORS,
 )
-async def get_trace(session_id: DemoId) -> NoReturn:
-    del session_id
-    _not_implemented("context_trace", "D10")
+async def get_trace(
+    session_id: DemoId,
+    recall_at: datetime,
+    actor: DemoActor = Depends(get_demo_actor),
+    memory: DemoMemoryService = Depends(get_demo_memory_service),
+) -> DemoTraceResponse:
+    try:
+        recalled = await memory.recall_context(
+            demo_actor_id=actor.id,
+            demo_session_id=session_id,
+            recall_at=recall_at,
+        )
+    except (
+        DemoMemoryInputError,
+        DemoMemoryUnavailable,
+        DemoMemoryAuthorityCorruption,
+    ) as exc:
+        _raise_memory_error(exc)
+    return DemoTraceResponse(
+        session_id=session_id,
+        evidence_digest=recalled.context_digest,
+        context_compilation_id=recalled.context_compilation_id,
+    )
 
 
 @router.get(

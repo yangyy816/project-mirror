@@ -2267,6 +2267,16 @@
               "pattern": "^[0-9a-f]{32}$",
               "title": "Session Id"
             }
+          },
+          {
+            "name": "recall_at",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Recall At"
+            }
           }
         ],
         "responses": {
@@ -4248,6 +4258,16 @@
               "type": "string",
               "pattern": "^[0-9a-f]{32}$",
               "title": "Session Id"
+            }
+          },
+          {
+            "name": "recall_at",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Recall At"
             }
           }
         ],

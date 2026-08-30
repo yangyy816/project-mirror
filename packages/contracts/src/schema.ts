@@ -3354,7 +3354,9 @@ export interface operations {
     };
     demoGetSessionContext: {
         parameters: {
-            query?: never;
+            query: {
+                recall_at: string;
+            };
             header?: never;
             path: {
                 session_id: string;
@@ -4776,7 +4778,9 @@ export interface operations {
     };
     demoGetTrace: {
         parameters: {
-            query?: never;
+            query: {
+                recall_at: string;
+            };
             header?: never;
             path: {
                 session_id: string;
