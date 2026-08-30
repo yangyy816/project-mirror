@@ -113,6 +113,12 @@ CC07_EVIDENCE_PATH = (
     / "operations"
     / "P2_M5_CC07_EXACT_PRIVATE_VISION_CAPABILITY_REQUALIFICATION_EVIDENCE.json"
 )
+CC08_ADR_PATH = (
+    ROOT / "docs" / "adr" / "ADR-055-recoverable-private-vision-runtime-version-and-rebinding.md"
+)
+CC08_CONTRACT_PATH = (
+    ROOT / "docs" / "operations" / "P2_M5_CC08_RECOVERABLE_PRIVATE_VISION_RUNTIME_CONTRACT.md"
+)
 
 _CC05_A_AUTHORIZED_A0_OVERRIDES = {
     "ASSIGNMENT_LEDGER_VERSION": ("p2-m5-cc05a-calibration-assignment-v3-cal-req-002-forward"),
@@ -495,6 +501,14 @@ def _last_cc07_a_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-cc07-a-exact-input-acquisition-stop-eof/v1",
         sentinel="P2_M5_CC07_A_EXACT_INPUT_ACQUISITION_STOP_TRUE_EOF",
+    )
+
+
+def _last_cc08_g_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-cc08-g-superseding-runtime-v2-decision-eof/v1",
+        sentinel="P2_M5_CC08_G_SUPERSEDING_RUNTIME_V2_DECISION_TRUE_EOF",
     )
 
 
@@ -3840,8 +3854,8 @@ def test_cc07_a_acquisition_stop_is_truthful_and_coherent_at_true_eof() -> None:
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_CC07_A_EXACT_INPUT_ACQUISITION_STOP_TRUE_EOF",
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    assert canonical[-1][1] in ACCEPTANCE_PATH.read_text(encoding="utf-8")
+    assert mirror[-1][1] in EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")
 
     evidence = json.loads(CC07_EVIDENCE_PATH.read_text(encoding="utf-8"))
     assert evidence["outcome"] == "BLOCKED_EXACT_BUILD_INPUT_AUTHORITY_UNAVAILABLE"
@@ -3856,6 +3870,113 @@ def test_cc07_a_acquisition_stop_is_truthful_and_coherent_at_true_eof() -> None:
             ACCEPTANCE_PATH.read_text(encoding="utf-8")[-28_000:],
             EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-28_000:],
             CC07_EVIDENCE_PATH.read_text(encoding="utf-8"),
+        )
+    )
+    for forbidden in (
+        "data:image/",
+        "prompt_plaintext",
+        "signed_url",
+        "object_key",
+        "D:\\p-worktrees\\",
+        "cc07a-d761637e4c0147cc",
+    ):
+        assert forbidden not in tracked
+
+
+def test_cc08_g_superseding_runtime_v2_decision_is_coherent_at_true_eof() -> None:
+    canonical = _last_cc08_g_key_block(ACCEPTANCE_PATH)
+    mirror = _last_cc08_g_key_block(EXECUTION_PROTOCOL_PATH)
+    values = dict(canonical)
+
+    assert canonical == mirror
+    assert len(canonical) == len(values)
+    assert values["CURRENT_STATE_MIRROR_RULE"] == (
+        "MUST_MATCH_CANONICAL_CC08_G_KEY_SET_ORDER_AND_VALUES"
+    )
+    assert values["P2_M5_CC07_A"] == (
+        "HONEST_STOP_ACCEPTED_AT_359EB10961D2ACC32603A136194270C9B1596B77"
+    )
+    assert values["P2_M5_CC07_A_CI_RUN"] == ("33339583295_ATTEMPT_1_ALL_MANDATORY_JOBS_PASS")
+    assert values["P2_M5_CC07_A_PRINCIPAL_ACCEPTANCE"] == "GRANTED_HONEST_STOP"
+    assert values["P2_M5_CC08_G"] == "TASK_ACCEPTED_ON_AUTHORITY_ACTIVATION"
+    assert values["P2_M5_CC08_G_CHANGE_CONTROL_ID"] == "CC-P2-M5-08"
+    assert values["P2_M5_CC08_G_CHANGE_CLASS"] == (
+        "FORWARD_SUPERSEDING_RUNTIME_VERSION_CHANGE_CONTROL"
+    )
+    assert values["P2_M5_CC08_G_OLD_RUNTIME_IDENTITY"] == ("IMMUTABLE_NOT_RELABELED_OR_RETRIED")
+    assert values["P2_M5_CC08_G_BUILD_RECIPE_VERSION"] == (
+        "p2-m5-cc08-source-built-vision-recipe-v1"
+    )
+    assert values["P2_M5_CC08_G_RUNTIME_MANIFEST_VERSION"] == (
+        "p2-m5-cc08-private-vision-runtime-v1"
+    )
+    assert values["P2_M5_CC08_G_QA_POLICY_VERSION"] == ("p2-m5-cc08-private-vision-qa-v1")
+    assert values["P2_M5_CC08_G_CAPABILITY_PROFILE_VERSION"] == (
+        "p2-m5-cc08-post-registration-capability-v1"
+    )
+    assert values["P2_M5_CC08_G_MODEL_SHA256"] == (
+        "64184E229B263107BC2B804C6625DB1341FF2BB731874B0BCC2FE6544E0BC9FF"
+    )
+    assert values["P2_M5_CC08_G_NEW_RUNTIME_DIGESTS"] == (
+        "UNKNOWN_UNTIL_TWO_CLEAN_BYTE_IDENTICAL_ROOTS_PER_PLATFORM"
+    )
+    assert values["P2_M5_CC08_G_OLD_QA_THRESHOLDS"] == (
+        "PREREGISTERED_CANDIDATE_HYPOTHESES_ONLY_NOT_INHERITED_APPROVAL"
+    )
+    assert values["P2_M5_CC08_G_QA_REQUALIFICATION"] == (
+        "FRESH_SYNTHETIC_CALIBRATION_THEN_SEALED_IDENTITY_DISJOINT_HOLDOUT_REQUIRED"
+    )
+    assert values["P2_M5_CC08_G_CONTROLLER_REBINDING"] == (
+        "CLOSED_UNTIL_NEW_RUNTIME_AND_QA_AUTHORITIES_ACCEPTED"
+    )
+    for key in (
+        "P2_M5_CC08_G_IMAGEGEN_CALLS",
+        "P2_M5_CC08_G_CANARY_READS",
+        "P2_M5_CC08_G_DECODE_CALLS",
+        "P2_M5_CC08_G_M3_CALLS",
+        "P2_M5_CC08_G_RUNTIME_BUILDS",
+        "P2_M5_CC08_G_MODEL_LOADS",
+        "P2_M5_CC08_G_DB_MUTATIONS",
+    ):
+        assert values[key] == "0"
+    assert values["CAL_REQ_004_STATUS"] == "OUTPUT_REGISTERED_PRE_DECODE"
+    assert values["CAL_REQ_004_POST_REGISTRATION_EXECUTION_AUTHORIZED"] == (
+        "FALSE_PENDING_CC08_F_ACCEPTANCE"
+    )
+    assert values["FORMAL_CALLS_REMAINING"] == "28"
+    assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "28"
+    assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "59"
+    assert values["CAL_REQ_005_DISPATCH_AUTHORIZED"] == (
+        "FALSE_PENDING_CAL_REQ_004_TECHNICAL_QA_PASS"
+    )
+    assert values["NEXT_READY_TASK"] == (
+        "P2-M5-CC08-A_FREEZE_RECOVERABLE_BUILDER_RECIPE_AND_INPUT_LOCK"
+    )
+    assert values["POST_ACCEPTANCE_COMMIT_REQUIRED"] == "NO"
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_CC08_G_SUPERSEDING_RUNTIME_V2_DECISION_TRUE_EOF",
+    )
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+
+    adr = " ".join(CC08_ADR_PATH.read_text(encoding="utf-8").split())
+    contract = " ".join(CC08_CONTRACT_PATH.read_text(encoding="utf-8").split())
+    for required in (
+        "CC-P2-M5-08",
+        "p2-m5-cc08-private-vision-runtime-v1",
+        "IMMUTABLE_NOT_RELABELED_OR_RETRIED",
+        "P2-M5-CC08-A_FREEZE_RECOVERABLE_BUILDER_RECIPE_AND_INPUT_LOCK",
+        "EXECUTE_CAL_REQ_004_POST_REGISTRATION_CANARY_WITH_CC08_RUNTIME_V1",
+    ):
+        assert required in f"{adr} {contract} {canonical}"
+
+    tracked = "\n".join(
+        (
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-28_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-28_000:],
+            CC08_ADR_PATH.read_text(encoding="utf-8"),
+            CC08_CONTRACT_PATH.read_text(encoding="utf-8"),
         )
     )
     for forbidden in (
