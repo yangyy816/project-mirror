@@ -324,7 +324,8 @@ def no_echo_terminal_input(stream: BinaryIO) -> Iterator[None]:
         raise PrivateImageGenCaptureError("PRIVATE_CAPTURE_TTY_REQUIRED")
     file_descriptor = stream.fileno()
     if os.name == "nt":
-        kernel32 = ctypes.windll.kernel32
+        ctypes_module = cast(Any, ctypes)
+        kernel32 = ctypes_module.windll.kernel32
         std_input_handle = kernel32.GetStdHandle(-10)
         mode = ctypes.c_uint()
         if not kernel32.GetConsoleMode(std_input_handle, ctypes.byref(mode)):
