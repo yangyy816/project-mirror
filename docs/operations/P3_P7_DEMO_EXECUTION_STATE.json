@@ -31,7 +31,7 @@
     "D05_API_WORKER_WIRING_AND_CONTRACT",
     "D07_B_RASTER_PUBLICATION_RUNTIME_LOCAL_CLOSURE"
   ],
-  "active_checkpoint": "D02_FINAL_GATE_HANDOFF_AND_D06_D08_PRODUCT_FORWARD",
+  "active_checkpoint": "D02_AUTONOMY_BOOTSTRAP_AND_D06_PRODUCT_FORWARD",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -288,25 +288,51 @@
       "final_acceptance": "NOT_VERIFIED",
       "validation": "PASS_TARGETED_UNIT_POSTGRESQL_RUNTIME_MIGRATION_LIFECYCLE_RUFF_STRICT_MYPY_RUNTIME_OPENAPI_GENERATED_TYPES_LINT_TYPECHECK_VITEST",
       "task_acceptance_claimed": false
+    },
+    "D08_TYPED_TOOL_REGISTRY": {
+      "code_sha": "633cf4ac61708226dcc4c6a837b0ba7c7d1e8d20",
+      "implementation": "COMPLETE",
+      "real_postgresql_integration": "PASS",
+      "real_geometry_runtime": "DEFERRED_TO_D02_M4",
+      "final_acceptance": "NOT_VERIFIED",
+      "validation": "PASS_API_EDITING_153_WORKER_3_REGISTRY_REPOSITORY_24_RUFF_STRICT_MYPY_DIFF_CHECK_CHANGED_FILES_GITLEAKS",
+      "task_acceptance_claimed": false
     }
   },
+  "d02_autonomous_execution_envelope": {
+    "version": "D02_AUTONOMOUS_EXECUTION_ENVELOPE_V1",
+    "subsystem_owner": "D02_SUBSYSTEM_PRINCIPAL",
+    "status": "AUTONOMY_BOOTSTRAP_PENDING_FORWARD_INTEGRATION",
+    "cohort_authority": "DATA_DRIVEN_IMMUTABLE_REGISTERED_SPEC",
+    "unknown_cohort_policy": "FAIL_CLOSED",
+    "authorized_new_cohorts": 2,
+    "max_provider_calls_total": 8,
+    "calls_per_cohort": 4,
+    "concurrency": 1,
+    "outputs_per_call": 1,
+    "retry_calls": 0,
+    "reserve_calls": 0,
+    "main_process_bootstrap_integration": "ONE_FORWARD_INTEGRATION_ONLY",
+    "main_process_final_candidate_integration": "ONE_FINAL_INTEGRATION_AND_DAG_UNLOCK",
+    "main_process_private_state_access": "FORBIDDEN",
+    "main_process_imagegen_calls": 0
+  },
   "ownership_split": {
-    "status": "D02_HANDOFF_READY_PRODUCT_FORWARD_ACTIVE",
+    "status": "D02_AUTONOMOUS_EXECUTION_ENVELOPE_ACTIVE_PRODUCT_FORWARD_ACTIVE",
     "common_base_sha": "002af481df5b957a31d207de72b3a07942f34c81",
     "d02_branch": "codex/p3-p7-d02-final-gate",
     "d02_tracked_checkpoint_sha": "5f759c4e48f5d45493519c8cfdaeb33864f1e067",
     "product_branch": "codex/p3-p7-product-forward",
-    "private_execution_owner": "D02_RECOVERY_PRINCIPAL",
+    "private_execution_owner": "D02_SUBSYSTEM_PRINCIPAL",
     "main_process_d02_access": "FORBIDDEN_UNTIL_INTEGRATION_RETURN"
   },
   "current_blockers": {
-    "D02_FINAL_GATE": "OWNED_BY_D02_RECOVERY_PRINCIPAL_NOT_VERIFIED",
+    "D02_FINAL_GATE": "OWNED_BY_D02_SUBSYSTEM_PRINCIPAL_NOT_VERIFIED",
     "D03_REAL_RUNTIME_INTEGRATION": "BLOCKED_BY_D02",
     "D04_B_REAL_BANK_INTEGRATION": "BLOCKED_BY_D02",
     "D07_B_REAL_D02_ASSET_AND_M4_INTEGRATION": "BLOCKED_BY_D02"
   },
   "next_ready_nodes": [
-    "D08_TYPED_PLANNER_REGISTRY_VERIFIER_IMPLEMENTATION",
     "D06_SELF_TRANSFER_REFERENCE_PROFILE_IMPLEMENTATION"
   ],
   "runtime_evidence_blocked_nodes": [
@@ -316,7 +342,7 @@
     "D07_B_REAL_ASSET_AND_M4_RUNTIME_INTEGRATION_GATE",
     "D12_COMPLETE_RUNTIME_E2E"
   ],
-  "project_status": "ACTIVE_WITH_D02_FINAL_GATE_ISOLATED",
+  "project_status": "ACTIVE",
   "production_release": "NOT_AUTHORIZED",
   "updated_by_principal": "INTEGRATION_PRINCIPAL"
 }

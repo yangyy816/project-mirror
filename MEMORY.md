@@ -740,3 +740,11 @@
   `33278449485` 的 quality/integration、Docker 与 secret-scan 三个 jobs 全绿，migration head 仍包含
   `demo_0012_d05_profile_auth`。该结论仅属于 `TRACK=DEMO_PROTOTYPE`，不构成正式 P5 PASS 或 production
   authorization；后续产品主节点转为 D07-B verifier/ImageVersion/application wiring。
+
+- 2026-08-30：Owner 冻结 `D02_AUTONOMOUS_EXECUTION_ENVELOPE_V1`：D02 专属对话升级为
+  `D02_SUBSYSTEM_PRINCIPAL`，在一次数据驱动、不可变 cohort authority bootstrap 集成后独立负责 D02
+  implementation、repair、runtime、screening、PostgreSQL admission、CI、预授权最多两个 cohort/八次串行
+  Provider 调用及最终 candidate。Integration Principal 只保留一次 bootstrap forward integration、最终 D02
+  candidate 集成/DAG 解锁及公共 API、跨领域和生产边界；不得访问 D02 private namespace、调用 D02 ImageGen、
+  拆分内部 repair 或为新 cohort 继续增加 hard-coded migration/trigger allowlist。D02 未返回期间产品主线保持
+  `ACTIVE`，下一产品节点为 D06；真实 D03/D04-B/D07-B runtime Gate 与 D12 E2E 继续诚实延后。
