@@ -1,0 +1,60 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { getDemoCapabilities } from "./demo-capabilities";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("demo capabilities server adapter", () => {
+  it("returns a generated-contract-compatible response after strict validation", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          track: "DEMO_PROTOTYPE",
+          capabilities: [{ code: "P5_COMPILER", status: "AVAILABLE" }],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getDemoCapabilities()).resolves.toEqual({
+      track: "DEMO_PROTOTYPE",
+      capabilities: [{ code: "P5_COMPILER", status: "AVAILABLE" }],
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/api/v1/demo/capabilities",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+  });
+
+  it.each([
+    { track: "NOT_A_TRACK" },
+    {
+      track: "DEMO_PROTOTYPE",
+      capabilities: [
+        { code: "P5_COMPILER", status: "AVAILABLE", unexpected: true },
+      ],
+    },
+    {
+      track: "DEMO_PROTOTYPE",
+      capabilities: [
+        {
+          code: "P6_MAKEUP",
+          status: "DEFERRED_WITH_EXPLICIT_REASON",
+          reason: "",
+        },
+      ],
+    },
+  ])("fails closed for an invalid response %#", async (payload) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(payload), { status: 200 }),
+      ),
+    );
+
+    await expect(getDemoCapabilities()).resolves.toBeNull();
+  });
+});

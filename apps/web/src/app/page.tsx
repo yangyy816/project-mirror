@@ -42,6 +42,12 @@ export default async function HomePage() {
             <Button variant="secondary" disabled>
               查看隐私说明
             </Button>
+            <Link
+              href="/demo"
+              className="rounded-full border border-black/15 bg-white/70 px-5 py-3 text-sm font-semibold text-ink transition hover:bg-white"
+            >
+              查看 Demo 能力
+            </Link>
           </div>
         </div>
 
