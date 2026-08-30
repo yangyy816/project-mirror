@@ -31,7 +31,7 @@
     "D05_API_WORKER_WIRING_AND_CONTRACT",
     "D07_B_RASTER_PUBLICATION_RUNTIME_LOCAL_CLOSURE"
   ],
-  "active_checkpoint": "D02_AUTONOMY_BOOTSTRAP_AND_D06_PRODUCT_FORWARD",
+  "active_checkpoint": "D02_AUTONOMY_BOOTSTRAP_AND_D10_PRODUCT_FORWARD",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -297,6 +297,18 @@
       "final_acceptance": "NOT_VERIFIED",
       "validation": "PASS_API_EDITING_153_WORKER_3_REGISTRY_REPOSITORY_24_RUFF_STRICT_MYPY_DIFF_CHECK_CHANGED_FILES_GITLEAKS",
       "task_acceptance_claimed": false
+    },
+    "D06_SELF_TRANSFER_REFERENCE_PROFILE": {
+      "code_sha": "53cbac335a6a0008fbb4395a10715d0e6512d1ad",
+      "implementation": "COMPLETE_INTERNAL_APPLICATION_SLICE",
+      "real_postgresql_integration": "PASS",
+      "published_image_and_verifier_bridge": "PASS_FIXTURE_AUTHORITY",
+      "real_d02_runtime_integration": "DEFERRED_TO_D02_FINAL_GATE",
+      "public_api_worker_wiring": "NOT_IN_INTERNAL_SLICE",
+      "final_acceptance": "NOT_VERIFIED",
+      "review": "ONE_BLOCKING_DUPLICATE_DIMENSION_FINDING_REPAIRED_AND_PRINCIPAL_VERIFIED",
+      "validation": "PASS_D06_POSTGRESQL_6_D05_D07_D06_COMBINED_REGRESSION_RUFF_STRICT_MYPY_DIFF_CHECK_CHANGED_FILE_SECRET_PATTERN_SCAN",
+      "task_acceptance_claimed": false
     }
   },
   "d02_autonomous_execution_envelope": {
@@ -305,13 +317,20 @@
     "status": "AUTONOMY_BOOTSTRAP_PENDING_FORWARD_INTEGRATION",
     "cohort_authority": "DATA_DRIVEN_IMMUTABLE_REGISTERED_SPEC",
     "unknown_cohort_policy": "FAIL_CLOSED",
-    "authorized_new_cohorts": 2,
-    "max_provider_calls_total": 8,
-    "calls_per_cohort": 4,
-    "concurrency": 1,
-    "outputs_per_call": 1,
-    "retry_calls": 0,
-    "reserve_calls": 0,
+    "provider_budget_authority": {
+      "version": "D02_PROVIDER_BUDGET_50_ROLLING_10",
+      "max_provider_calls_total": 50,
+      "rolling_tranche_calls": 10,
+      "supersedes": "D02_TWO_COHORT_EIGHT_CALL_BUDGET"
+    },
+    "migration_lease": {
+      "lease_id": "D02_AUTONOMY_BOOTSTRAP",
+      "status": "GRANTED",
+      "granted_from_integration_sha": "9d090c99b4e768276c5a0452c4cc6179e73fa61c",
+      "entry_migration_head": "demo_0014_d02_r2_e3_versioning",
+      "entry_head_count": 1,
+      "release_condition": "BOOTSTRAP_FORWARD_INTEGRATED_AND_NEW_COMMON_BASE_PUBLISHED"
+    },
     "main_process_bootstrap_integration": "ONE_FORWARD_INTEGRATION_ONLY",
     "main_process_final_candidate_integration": "ONE_FINAL_INTEGRATION_AND_DAG_UNLOCK",
     "main_process_private_state_access": "FORBIDDEN",
@@ -333,7 +352,7 @@
     "D07_B_REAL_D02_ASSET_AND_M4_INTEGRATION": "BLOCKED_BY_D02"
   },
   "next_ready_nodes": [
-    "D06_SELF_TRANSFER_REFERENCE_PROFILE_IMPLEMENTATION"
+    "D10_MEMORY_CONTEXT_COMPILER_RECALL"
   ],
   "runtime_evidence_blocked_nodes": [
     "D02_FINAL_RUNTIME_GATE",

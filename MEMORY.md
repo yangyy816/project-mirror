@@ -743,8 +743,19 @@
 
 - 2026-08-30：Owner 冻结 `D02_AUTONOMOUS_EXECUTION_ENVELOPE_V1`：D02 专属对话升级为
   `D02_SUBSYSTEM_PRINCIPAL`，在一次数据驱动、不可变 cohort authority bootstrap 集成后独立负责 D02
-  implementation、repair、runtime、screening、PostgreSQL admission、CI、预授权最多两个 cohort/八次串行
-  Provider 调用及最终 candidate。Integration Principal 只保留一次 bootstrap forward integration、最终 D02
+  implementation、repair、runtime、screening、PostgreSQL admission、CI、Provider 调用及最终 candidate；
+  当前预算 authority 已更新为总计 50 次、滚动 tranche 10 次，取代旧的两 cohort/八次调用字段。Integration
+  Principal 只保留一次 bootstrap forward integration、最终 D02
   candidate 集成/DAG 解锁及公共 API、跨领域和生产边界；不得访问 D02 private namespace、调用 D02 ImageGen、
   拆分内部 repair 或为新 cohort 继续增加 hard-coded migration/trigger allowlist。D02 未返回期间产品主线保持
-  `ACTIVE`，下一产品节点为 D06；真实 D03/D04-B/D07-B runtime Gate 与 D12 E2E 继续诚实延后。
+  `ACTIVE`；`D02_AUTONOMY_BOOTSTRAP` 已从产品 SHA `9d090c99...`、唯一 migration head
+  `demo_0014_d02_r2_e3_versioning` 获得独占 migration lease，直到 bootstrap forward integration 和新 common
+  base 发布。真实 D03/D04-B/D07-B runtime Gate 与 D12 E2E 继续诚实延后。
+
+- 2026-08-31：D06 内部 application slice 以 SHA `53cbac335a6a0008fbb4395a10715d0e6512d1ad`
+  实现 owner/session-bound self-transfer request、Job reservation、PASS ImageVersion/verifier finalization、整数
+  projection 和 accepted-source Reference Profile 编译；不改 migration、ORM 或公共 API。`REJECTED/ADJUSTED`
+  只保留 immutable RESULT provenance，不创建学习 projection；同 SelfState/dimension 已有 `ACCEPTED` authority
+  时通过 PostgreSQL transaction advisory lock 原子 fail closed，直到未来显式 supersession/correction 语义冻结。
+  真实 PostgreSQL D06 6 项及 D05/D07/D06 联合回归通过；真实 D02 runtime integration 与 D06 final acceptance 仍为
+  `NOT_VERIFIED`，产品主线下一节点为 D10。
