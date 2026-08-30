@@ -775,3 +775,16 @@
   `REAL_D02_INTEGRATION_PENDING` 与 `UI_CONTRACT_ONLY`，不创建会话、Job、上传、Provider 或后台任务，也不宣称
   `LOCAL_WEB_AGENT`。Web 62 项测试、typecheck、lint 与 production build 通过；完整 Playwright
   Web→API→PostgreSQL→Redis/Celery flow 和 D11 final acceptance 仍 `NOT_VERIFIED`。
+
+- 2026-08-31：D10 Profile rebuild 以 `03d420ed4bb56b2e4f97767c08840faecefe30fc` 拆为可恢复的
+  PENDING admission、初始 PENDING JobAttempt、owner-bound Worker claim 和原子
+  `COMPLETED|REJECTED|FAILED|CANCELLED`；未预期异常回滚至 durable PENDING 且不留下 partial Profile。
+  `98ddfc47e74a894e25142c9cc677e23178d91776` 将既有 `POST /api/v1/demo/profiles/rebuild` 接到该真实
+  Job/Worker 边界，OpenAPI 内容与 generated TypeScript 无漂移；Context/trace 继续显式 501，D10 final
+  acceptance 仍为 `NOT_VERIFIED`。
+
+- 2026-08-31：D06 Reference Profile 不能在当前无 migration/ORM 变更范围内诚实增加可恢复 Worker 编排：
+  既有 compile command 没有 immutable request/JobBinding authority，而 self-transfer execution 的合法终结需要
+  已发布 D07 ImageVersion 和显式用户 outcome。D02 autonomy 持有 migration lease 期间不得借用
+  `SELF_TRANSFER_RUN` 或伪造终态；该 wiring 延后，产品主线转向已有 `context.compile` authority 的 D10 Context
+  queued compiler。
