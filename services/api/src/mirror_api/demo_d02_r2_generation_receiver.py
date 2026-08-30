@@ -1,22 +1,26 @@
-"""Fail-closed local receiver for one ImageGen PNG data URL.
+"""Fail-closed ImageGen result materializer and local PNG receiver.
 
-This module deliberately has no knowledge of evidence roots, prompts, provider
-responses, registries, or output locators.  Its only write authority is the
+This module deliberately has no knowledge of evidence roots, prompts, registries,
+or persistent output locators.  It accepts only typed programmatic result fields;
+human ``output_hint`` text is never parsed.  Its only write authority is the
 Principal-created :class:`PreallocatedDestination` capability.
 """
 
 from __future__ import annotations
 
+import argparse
 import base64
 import binascii
 import ctypes
 import hashlib
+import json
 import os
 import re
 import stat
+import sys
 import warnings
 import zlib
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -28,6 +32,7 @@ DATA_URL_PREFIX: Final = "data:image/png;base64,"
 MAXIMUM_BYTES: Final = 20_971_520
 MAXIMUM_CANONICAL_BASE64_PAYLOAD_BYTES: Final = 27_962_028
 MAXIMUM_COMPLETE_DATA_URL_ASCII_BYTES: Final = 27_962_050
+MAXIMUM_PROVIDER_RESULT_FILE_BYTES: Final = MAXIMUM_COMPLETE_DATA_URL_ASCII_BYTES + 1_048_576
 MINIMUM_EDGE_PIXELS: Final = 64
 MAXIMUM_EDGE_PIXELS: Final = 8192
 MAXIMUM_PIXEL_COUNT: Final = 40_000_000
@@ -99,56 +104,75 @@ class PreallocatedDestination:
         object.__setattr__(self, "_ancestor_identities", ancestor_identities)
 
     def write_create_new_durable(self, data: bytes) -> bytes:
-        """Write exactly once and independently replay the resulting bytes."""
+        """Stage completely, publish create-new, and independently replay bytes."""
 
         path = self._path
         parent = path.parent
+        temporary = parent / f".{path.name}.incoming"
         _validate_ancestor_identities(
             self._ancestor_identities,
             code="DESTINATION_WRITE_FAILED",
         )
         _require_not_reparse_if_exists(path, code="DESTINATION_COLLISION")
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
-        flags |= getattr(os, "O_NOFOLLOW", 0)
+        _require_not_reparse_if_exists(temporary, code="DESTINATION_TEMP_COLLISION")
+        temporary_identity: tuple[int, int] | None = None
+        published = False
         try:
-            descriptor = os.open(path, flags, 0o600)
-        except FileExistsError as error:
-            raise D02R2PngReceiverError(
-                "DESTINATION_COLLISION", "preallocated destination already exists"
-            ) from error
-        except OSError as error:
-            raise D02R2PngReceiverError(
-                "DESTINATION_WRITE_FAILED", "exclusive create failed"
-            ) from error
-        try:
-            opened_identity = _descriptor_identity(descriptor, code="DESTINATION_WRITE_FAILED")
-            _write_all(descriptor, data)
-            os.fsync(descriptor)
-            _require_opened_path_identity(path, opened_identity, code="DESTINATION_REPLAY_FAILED")
-        except D02R2PngReceiverError:
-            raise
-        except OSError as error:
-            raise D02R2PngReceiverError(
-                "DESTINATION_DURABILITY_FAILED", "file durability sync failed"
-            ) from error
-        finally:
+            temporary_identity = _write_staged_file(temporary, data)
             try:
-                os.close(descriptor)
+                _sync_directory(parent)
             except OSError as error:
                 raise D02R2PngReceiverError(
-                    "DESTINATION_DURABILITY_FAILED", "file close failed"
+                    "DESTINATION_DURABILITY_FAILED", "staging durability sync failed"
                 ) from error
-        try:
-            _sync_directory(parent)
-        except OSError as error:
-            raise D02R2PngReceiverError(
-                "DESTINATION_DURABILITY_FAILED", "parent durability sync failed"
-            ) from error
-        _validate_ancestor_identities(
-            self._ancestor_identities,
-            code="DESTINATION_REPLAY_FAILED",
-        )
-        return _read_file_bytes_no_follow(path, maximum_bytes=len(data))
+            try:
+                os.link(temporary, path, follow_symlinks=False)
+            except FileExistsError as error:
+                raise D02R2PngReceiverError(
+                    "DESTINATION_COLLISION", "preallocated destination already exists"
+                ) from error
+            except OSError as error:
+                raise D02R2PngReceiverError(
+                    "DESTINATION_PUBLISH_FAILED", "atomic create-new publish failed"
+                ) from error
+            published = True
+            _require_opened_path_identity(
+                path,
+                temporary_identity,
+                code="DESTINATION_PUBLISH_FAILED",
+            )
+            try:
+                _sync_directory(parent)
+            except OSError as error:
+                raise D02R2PngReceiverError(
+                    "DESTINATION_DURABILITY_FAILED", "published destination sync failed"
+                ) from error
+            replayed = _read_file_bytes_no_follow(path, maximum_bytes=len(data))
+            if replayed != data:
+                _fail("DESTINATION_REPLAY_FAILED", "published bytes differ from staged bytes")
+            try:
+                os.unlink(temporary)
+            except OSError as error:
+                raise D02R2PngReceiverError(
+                    "DESTINATION_TEMP_CLEANUP_FAILED", "staging cleanup failed"
+                ) from error
+            try:
+                _sync_directory(parent)
+            except OSError as error:
+                raise D02R2PngReceiverError(
+                    "DESTINATION_DURABILITY_FAILED", "cleanup durability sync failed"
+                ) from error
+            _validate_ancestor_identities(
+                self._ancestor_identities,
+                code="DESTINATION_REPLAY_FAILED",
+            )
+            return replayed
+        except BaseException:
+            if published:
+                _best_effort_unlink_owned(path, temporary_identity)
+            _best_effort_unlink_owned(temporary, temporary_identity)
+            _best_effort_sync_directory(parent)
+            raise
 
 
 def bind_principal_preallocated_destination(
@@ -189,6 +213,138 @@ def bind_principal_preallocated_destination(
     )
 
 
+class ImageGenResultMaterializer:
+    """Convert one structured ImageGen result into the existing PNG receiver.
+
+    The materializer intentionally ignores prompts, revised prompts, and free-form
+    output hints.  It supports canonical MCP image fields and the exact structured
+    Codex ``image_gen.generation`` extension event.  It never logs or returns the
+    private bytes or locator.
+    """
+
+    def receive(
+        self,
+        *,
+        result_metadata: object,
+        destination: PreallocatedDestination,
+        allowed_saved_file: Path | None = None,
+    ) -> ReceivedPng:
+        kind, reference = _extract_programmatic_imagegen_reference(
+            result_metadata,
+            allowed_saved_file=allowed_saved_file,
+        )
+        if kind == "DATA_URL":
+            return receive_imagegen_png(image_url=reference, destination=destination)
+        if kind == "LOCAL_FILE":
+            return receive_imagegen_png_file(
+                source_file=Path(reference),
+                destination=destination,
+            )
+        _fail(
+            "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+            "ImageGen result reference kind is unsupported",
+        )
+
+
+def _extract_programmatic_imagegen_reference(
+    value: object,
+    *,
+    allowed_saved_file: Path | None,
+) -> tuple[str, str]:
+    if not isinstance(value, Mapping):
+        _fail("RESULT_REFERENCE_NOT_RETURNED", "ImageGen result must be an object")
+
+    payload = value.get("payload")
+    if isinstance(payload, Mapping):
+        item = payload.get("item")
+        if isinstance(item, Mapping) and item.get("kind") == "image_gen.generation":
+            value = item
+
+    if value.get("kind") == "image_gen.generation":
+        if (
+            value.get("type") != "Extension"
+            or value.get("status") != "completed"
+            or value.get("failure") is not None
+        ):
+            _fail(
+                "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+                "ImageGen extension result is not a completed success",
+            )
+        raw_result = value.get("result")
+        if isinstance(raw_result, str) and raw_result:
+            if raw_result.startswith(DATA_URL_PREFIX):
+                return "DATA_URL", raw_result
+            return "DATA_URL", DATA_URL_PREFIX + raw_result
+        saved_path = value.get("savedPath")
+        if not isinstance(saved_path, str) or not saved_path:
+            _fail(
+                "RESULT_REFERENCE_NOT_RETURNED",
+                "ImageGen extension returned neither result bytes nor a saved path",
+            )
+        source = Path(saved_path)
+        if not source.is_absolute():
+            if os.name != "nt" and re.fullmatch(r"[A-Za-z]:[\\/].+", saved_path):
+                _fail(
+                    "HOST_CONTAINER_PATH_MISMATCH",
+                    "ImageGen returned a host path that is not mapped in this process",
+                )
+            _fail(
+                "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+                "ImageGen saved path is not absolute",
+            )
+        if allowed_saved_file is None:
+            _fail(
+                "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+                "ImageGen saved path lacks a Principal-bound file capability",
+            )
+        try:
+            resolved_source = source.resolve(strict=True)
+            resolved_allowed = allowed_saved_file.resolve(strict=True)
+        except OSError:
+            _fail("GENERATED_FILE_NOT_FOUND", "ImageGen saved file is unavailable")
+        if resolved_source != source or resolved_allowed != allowed_saved_file:
+            _fail(
+                "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+                "ImageGen saved path changed identity before materialization",
+            )
+        if resolved_source != resolved_allowed or not resolved_source.is_file():
+            _fail(
+                "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+                "ImageGen saved path differs from the Principal-bound file",
+            )
+        return "LOCAL_FILE", str(resolved_source)
+
+    direct = value.get("image_url")
+    if isinstance(direct, str):
+        return "DATA_URL", direct
+    structured = value.get("structuredContent")
+    if isinstance(structured, Mapping) and isinstance(structured.get("image_url"), str):
+        return "DATA_URL", cast(str, structured["image_url"])
+    content = value.get("content")
+    if isinstance(content, list):
+        images = [
+            item
+            for item in content
+            if isinstance(item, Mapping)
+            and item.get("type") == "image"
+            and item.get("mimeType") == "image/png"
+            and isinstance(item.get("data"), str)
+        ]
+        if len(images) == 1:
+            return "DATA_URL", DATA_URL_PREFIX + cast(str, images[0]["data"])
+        if len(images) > 1:
+            _fail(
+                "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+                "ImageGen result contains multiple PNG payloads",
+            )
+    if "output_hint" in value:
+        _fail(
+            "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+            "free-form output_hint is not a programmatic image reference",
+        )
+    _fail("RESULT_REFERENCE_NOT_RETURNED", "ImageGen result has no supported reference")
+
+
 def receive_imagegen_png(*, image_url: str, destination: PreallocatedDestination) -> ReceivedPng:
     """Validate a canonical PNG data URL fully in memory, then persist it once."""
 
@@ -203,6 +359,84 @@ def receive_imagegen_png(*, image_url: str, destination: PreallocatedDestination
     if replayed_facts != facts:
         _fail("DESTINATION_REPLAY_FAILED", "durable replay metadata differs from validated PNG")
     return facts
+
+
+def receive_imagegen_result_file(
+    *,
+    result_file: Path,
+    destination: PreallocatedDestination,
+) -> ReceivedPng:
+    """Consume one private provider-result file before publishing its PNG."""
+
+    return receive_imagegen_png(
+        image_url=consume_imagegen_result_file(result_file),
+        destination=destination,
+    )
+
+
+def receive_imagegen_png_file(
+    *, source_file: Path, destination: PreallocatedDestination
+) -> ReceivedPng:
+    """Consume a built-in ImageGen local-file handoff through the same writer."""
+
+    if not source_file.is_absolute():
+        _fail("INVALID_PROVIDER_FILE", "provider PNG file path must be absolute")
+    try:
+        source_file = source_file.resolve(strict=True)
+    except OSError as error:
+        raise D02R2PngReceiverError(
+            "INVALID_PROVIDER_FILE", "provider PNG file is unavailable"
+        ) from error
+    _require_not_reparse(source_file, code="INVALID_PROVIDER_FILE")
+    identity = _path_identity(source_file, code="INVALID_PROVIDER_FILE")
+    data = _read_file_bytes_no_follow(
+        source_file,
+        maximum_bytes=MAXIMUM_BYTES,
+        code="INVALID_PROVIDER_FILE",
+    )
+    _require_opened_path_identity(source_file, identity, code="INVALID_PROVIDER_FILE")
+    validated = _validate_png_bytes(data)
+    replayed = destination.write_create_new_durable(data)
+    if replayed != data or hashlib.sha256(replayed).hexdigest() != validated.sha256:
+        _fail("DESTINATION_REPLAY_FAILED", "published PNG differs from provider file")
+    return validated
+
+
+def consume_imagegen_result_file(result_file: Path) -> str:
+    """Read, remove, and decode the provider envelope without publishing bytes."""
+
+    result_bytes = _consume_provider_result_file(result_file)
+    try:
+        value: object = json.loads(result_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise D02R2PngReceiverError(
+            "INVALID_PROVIDER_RESULT", "provider result is not canonical JSON"
+        ) from error
+    return _extract_image_url(value)
+
+
+def _extract_image_url(value: object) -> str:
+    if not isinstance(value, dict):
+        _fail("INVALID_PROVIDER_RESULT", "provider result must be an object")
+    direct = value.get("image_url")
+    if isinstance(direct, str):
+        return direct
+    structured = value.get("structuredContent")
+    if isinstance(structured, dict) and isinstance(structured.get("image_url"), str):
+        return cast(str, structured["image_url"])
+    content = value.get("content")
+    if isinstance(content, list):
+        images = [
+            item
+            for item in content
+            if isinstance(item, dict)
+            and item.get("type") == "image"
+            and item.get("mimeType") == "image/png"
+            and isinstance(item.get("data"), str)
+        ]
+        if len(images) == 1:
+            return DATA_URL_PREFIX + cast(str, images[0]["data"])
+    _fail("INVALID_PROVIDER_RESULT", "provider result has no unique PNG image")
 
 
 def _decode_canonical_png_data_url(image_url: str) -> bytes:
@@ -381,32 +615,127 @@ def _write_all(descriptor: int, data: bytes) -> None:
         offset += written
 
 
-def _read_file_bytes_no_follow(path: Path, *, maximum_bytes: int) -> bytes:
-    _require_not_reparse(path, code="DESTINATION_REPLAY_FAILED")
+def _write_staged_file(path: Path, data: bytes) -> tuple[int, int]:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags, 0o600)
+    except FileExistsError as error:
+        raise D02R2PngReceiverError(
+            "DESTINATION_TEMP_COLLISION", "staging destination already exists"
+        ) from error
+    except OSError as error:
+        raise D02R2PngReceiverError(
+            "DESTINATION_WRITE_FAILED", "exclusive staging create failed"
+        ) from error
+    identity: tuple[int, int] | None = None
+    try:
+        identity = _descriptor_identity(descriptor, code="DESTINATION_WRITE_FAILED")
+        _write_all(descriptor, data)
+        try:
+            os.fsync(descriptor)
+        except OSError as error:
+            raise D02R2PngReceiverError(
+                "DESTINATION_DURABILITY_FAILED", "staging file sync failed"
+            ) from error
+        _require_opened_path_identity(path, identity, code="DESTINATION_WRITE_FAILED")
+    except BaseException:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+        _best_effort_unlink_owned(path, identity)
+        raise
+    try:
+        os.close(descriptor)
+    except OSError as error:
+        _best_effort_unlink_owned(path, identity)
+        raise D02R2PngReceiverError(
+            "DESTINATION_DURABILITY_FAILED", "staging file close failed"
+        ) from error
+    return identity
+
+
+def _consume_provider_result_file(path: Path) -> bytes:
+    if not isinstance(path, Path) or not path.is_absolute():
+        _fail("INVALID_PROVIDER_RESULT", "provider result path must be absolute")
+    if _SAFE_LEAF_RE.fullmatch(path.name) is None or path.name in {".", ".."}:
+        _fail("INVALID_PROVIDER_RESULT", "provider result leaf is invalid")
+    try:
+        parent = path.parent.resolve(strict=True)
+    except OSError as error:
+        raise D02R2PngReceiverError(
+            "INVALID_PROVIDER_RESULT", "provider result parent is unavailable"
+        ) from error
+    if parent != path.parent:
+        _fail("INVALID_PROVIDER_RESULT", "provider result parent changed identity")
+    ancestors = _capture_ancestor_identities(parent)
+    _require_not_reparse(path, code="INVALID_PROVIDER_RESULT")
+    identity = _path_identity(path, code="INVALID_PROVIDER_RESULT")
+    result = _read_file_bytes_no_follow(
+        path,
+        maximum_bytes=MAXIMUM_PROVIDER_RESULT_FILE_BYTES,
+        code="INVALID_PROVIDER_RESULT",
+    )
+    _require_opened_path_identity(path, identity, code="INVALID_PROVIDER_RESULT")
+    try:
+        os.unlink(path)
+        _sync_directory(parent)
+    except OSError as error:
+        raise D02R2PngReceiverError(
+            "PROVIDER_RESULT_CLEANUP_FAILED", "provider result cleanup failed"
+        ) from error
+    _validate_ancestor_identities(ancestors, code="INVALID_PROVIDER_RESULT")
+    return result
+
+
+def _read_file_bytes_no_follow(
+    path: Path,
+    *,
+    maximum_bytes: int,
+    code: str = "DESTINATION_REPLAY_FAILED",
+) -> bytes:
+    _require_not_reparse(path, code=code)
     flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
         descriptor = os.open(path, flags)
     except OSError as error:
-        raise D02R2PngReceiverError(
-            "DESTINATION_REPLAY_FAILED", "no-follow replay open failed"
-        ) from error
+        raise D02R2PngReceiverError(code, "no-follow file open failed") from error
     try:
-        opened_identity = _descriptor_identity(descriptor, code="DESTINATION_REPLAY_FAILED")
+        opened_identity = _descriptor_identity(descriptor, code=code)
         chunks: list[bytes] = []
         total = 0
         while chunk := os.read(descriptor, 1024 * 1024):
             total += len(chunk)
             if total > maximum_bytes:
-                _fail("DESTINATION_REPLAY_FAILED", "replay exceeded validated byte size")
+                _fail(code, "file read exceeded its maximum byte size")
             chunks.append(chunk)
-        _require_opened_path_identity(path, opened_identity, code="DESTINATION_REPLAY_FAILED")
+        _require_opened_path_identity(path, opened_identity, code=code)
         return b"".join(chunks)
     except D02R2PngReceiverError:
         raise
     except OSError as error:
-        raise D02R2PngReceiverError("DESTINATION_REPLAY_FAILED", "replay read failed") from error
+        raise D02R2PngReceiverError(code, "no-follow file read failed") from error
     finally:
         os.close(descriptor)
+
+
+def _best_effort_unlink_owned(path: Path, identity: tuple[int, int] | None) -> None:
+    if identity is None:
+        return
+    try:
+        _require_not_reparse(path, code="DESTINATION_TEMP_CLEANUP_FAILED")
+        if _path_identity(path, code="DESTINATION_TEMP_CLEANUP_FAILED") == identity:
+            os.unlink(path)
+    except (D02R2PngReceiverError, OSError):
+        return
+
+
+def _best_effort_sync_directory(path: Path) -> None:
+    try:
+        _sync_directory(path)
+    except OSError:
+        return
 
 
 def _capture_ancestor_identities(
@@ -545,3 +874,67 @@ def _windows_last_error() -> int:
 
 def _fail(code: str, message: str) -> NoReturn:
     raise D02R2PngReceiverError(code, message)
+
+
+def _run_cli(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser()
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--result-leaf")
+    source.add_argument("--tool-result-stdin", action="store_true")
+    parser.add_argument("--destination-leaf", required=True)
+    args = parser.parse_args(argv)
+    try:
+        parent = Path.cwd().resolve(strict=True)
+        destination = bind_principal_preallocated_destination(
+            parent=parent,
+            leaf_name=cast(str, args.destination_leaf),
+        )
+        if bool(args.tool_result_stdin):
+            raw_result = sys.stdin.buffer.read(MAXIMUM_PROVIDER_RESULT_FILE_BYTES + 1)
+            if len(raw_result) > MAXIMUM_PROVIDER_RESULT_FILE_BYTES:
+                _fail("INVALID_PROVIDER_RESULT", "tool result exceeds the frozen maximum")
+            try:
+                result_metadata: object = json.loads(raw_result.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise D02R2PngReceiverError(
+                    "INVALID_PROVIDER_RESULT", "tool result stdin is not JSON"
+                ) from error
+            result = ImageGenResultMaterializer().receive(
+                result_metadata=result_metadata,
+                destination=destination,
+            )
+        else:
+            image_url = consume_imagegen_result_file(parent / cast(str, args.result_leaf))
+            result = receive_imagegen_png(
+                image_url=image_url,
+                destination=destination,
+            )
+    except D02R2PngReceiverError as error:
+        print(
+            json.dumps(
+                {"status": "FAILED", "code": error.code},
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    print(
+        json.dumps(
+            {
+                "status": "PERSISTED",
+                "media_type": "image/png",
+                "byte_size": result.byte_size,
+                "sha256": result.sha256,
+                "width": result.width,
+                "height": result.height,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_run_cli())

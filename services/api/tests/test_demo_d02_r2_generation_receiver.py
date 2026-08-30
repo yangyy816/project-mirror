@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import json
+import os
+import subprocess
+import sys
 import zlib
 from collections.abc import Callable
 from io import BytesIO
@@ -43,6 +48,239 @@ def test_receives_valid_png_before_and_after_durable_replay(tmp_path: Path) -> N
     assert result.height == 64
     assert result.byte_size > 0
     assert len(result.sha256) == 64
+
+
+def test_provider_result_file_handoff_is_consumed_before_publish(tmp_path: Path) -> None:
+    image_url = _png_url()
+    expected = base64.b64decode(image_url[len(receiver.DATA_URL_PREFIX) :])
+    result_file = tmp_path / "provider-result.json"
+    result_file.write_text(
+        json.dumps({"image_url": image_url}, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    facts = receiver.receive_imagegen_result_file(
+        result_file=result_file.resolve(),
+        destination=_destination(tmp_path),
+    )
+
+    assert facts.sha256 == hashlib.sha256(expected).hexdigest()
+    assert (tmp_path / "source.png").read_bytes() == expected
+    assert not result_file.exists()
+    assert not (tmp_path / ".source.png.incoming").exists()
+
+
+def test_builtin_imagegen_png_file_handoff_uses_same_durable_writer(tmp_path: Path) -> None:
+    image_url = _png_url(size=(96, 80))
+    expected = base64.b64decode(image_url[len(receiver.DATA_URL_PREFIX) :])
+    source_parent = tmp_path / "provider"
+    destination_parent = tmp_path / "evidence"
+    source_parent.mkdir()
+    destination_parent.mkdir()
+    source = source_parent / "generated.png"
+    source.write_bytes(expected)
+
+    facts = receiver.receive_imagegen_png_file(
+        source_file=source.resolve(),
+        destination=_destination(destination_parent),
+    )
+
+    assert facts.sha256 == hashlib.sha256(expected).hexdigest()
+    assert (destination_parent / "source.png").read_bytes() == expected
+    assert source.read_bytes() == expected
+    assert not (destination_parent / ".source.png.incoming").exists()
+
+
+def test_materializer_consumes_structured_extension_result_without_saved_path(
+    tmp_path: Path,
+) -> None:
+    image_url = _png_url(size=(96, 80))
+    expected = base64.b64decode(image_url[len(receiver.DATA_URL_PREFIX) :])
+    private_prompt = "PRIVATE_PROMPT_MUST_NOT_BE_INTERPRETED_OR_LOGGED"
+    result_metadata = {
+        "type": "Extension",
+        "kind": "image_gen.generation",
+        "status": "completed",
+        "failure": None,
+        "result": image_url[len(receiver.DATA_URL_PREFIX) :],
+        "savedPath": "",
+        "revisedPrompt": private_prompt,
+    }
+
+    facts = receiver.ImageGenResultMaterializer().receive(
+        result_metadata=result_metadata,
+        destination=_destination(tmp_path),
+    )
+
+    assert facts.sha256 == hashlib.sha256(expected).hexdigest()
+    assert (tmp_path / "source.png").read_bytes() == expected
+    assert private_prompt not in repr(facts)
+
+
+def test_materializer_uses_exact_saved_path_fallback(tmp_path: Path) -> None:
+    image_url = _png_url(size=(80, 96))
+    expected = base64.b64decode(image_url[len(receiver.DATA_URL_PREFIX) :])
+    source_parent = tmp_path / "provider"
+    destination_parent = tmp_path / "evidence"
+    source_parent.mkdir()
+    destination_parent.mkdir()
+    source = source_parent / "generated.png"
+    source.write_bytes(expected)
+
+    facts = receiver.ImageGenResultMaterializer().receive(
+        result_metadata={
+            "type": "Extension",
+            "kind": "image_gen.generation",
+            "status": "completed",
+            "failure": None,
+            "result": None,
+            "savedPath": str(source.resolve()),
+            "revisedPrompt": "PRIVATE",
+        },
+        destination=_destination(destination_parent),
+        allowed_saved_file=source.resolve(),
+    )
+
+    assert facts.sha256 == hashlib.sha256(expected).hexdigest()
+    assert (destination_parent / "source.png").read_bytes() == expected
+    assert source.read_bytes() == expected
+
+
+def test_materializer_rejects_free_form_output_hint_without_parsing_paths(
+    tmp_path: Path,
+) -> None:
+    output_hint = r"generated file C:\private\first.png and preview C:\private\second.png"
+
+    assert (
+        _error_code(
+            receiver.ImageGenResultMaterializer().receive,
+            result_metadata={"output_hint": output_hint},
+            destination=_destination(tmp_path),
+        )
+        == "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE"
+    )
+    assert not (tmp_path / "source.png").exists()
+
+
+def test_materializer_reports_missing_saved_file_before_receiver(tmp_path: Path) -> None:
+    missing = (tmp_path / "missing.png").resolve()
+    assert (
+        _error_code(
+            receiver.ImageGenResultMaterializer().receive,
+            result_metadata={
+                "type": "Extension",
+                "kind": "image_gen.generation",
+                "status": "completed",
+                "failure": None,
+                "result": None,
+                "savedPath": str(missing),
+            },
+            destination=_destination(tmp_path),
+            allowed_saved_file=missing,
+        )
+        == "GENERATED_FILE_NOT_FOUND"
+    )
+    assert not (tmp_path / "source.png").exists()
+
+
+def test_invalid_provider_result_is_consumed_with_zero_output(tmp_path: Path) -> None:
+    result_file = tmp_path / "provider-result.json"
+    result_file.write_text('{"image_url":42}', encoding="utf-8")
+
+    assert (
+        _error_code(
+            receiver.receive_imagegen_result_file,
+            result_file=result_file.resolve(),
+            destination=_destination(tmp_path),
+        )
+        == "INVALID_PROVIDER_RESULT"
+    )
+    assert not result_file.exists()
+    assert not (tmp_path / "source.png").exists()
+    assert not (tmp_path / ".source.png.incoming").exists()
+
+
+def test_cli_file_handoff_never_echoes_provider_payload(tmp_path: Path) -> None:
+    image_url = _png_url()
+    result_file = tmp_path / "provider-result.json"
+    result_file.write_text(
+        json.dumps({"image_url": image_url}, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    source_root = str(Path(receiver.__file__).resolve().parents[1])
+    environment["PYTHONPATH"] = os.pathsep.join(
+        value for value in (source_root, environment.get("PYTHONPATH", "")) if value
+    )
+
+    completed = subprocess.run(  # noqa: S603 - fixed current interpreter and literal argv
+        [
+            sys.executable,
+            "-m",
+            "mirror_api.demo_d02_r2_generation_receiver",
+            "--result-leaf",
+            result_file.name,
+            "--destination-leaf",
+            "source.png",
+        ],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0
+    assert image_url not in completed.stdout
+    assert image_url not in completed.stderr
+    assert image_url[len(receiver.DATA_URL_PREFIX) :][:32] not in completed.stdout
+    assert image_url[len(receiver.DATA_URL_PREFIX) :][:32] not in completed.stderr
+    assert json.loads(completed.stdout)["status"] == "PERSISTED"
+    assert completed.stderr == ""
+    assert not result_file.exists()
+    assert (tmp_path / "source.png").is_file()
+    assert not (tmp_path / ".source.png.incoming").exists()
+
+
+def test_cli_collision_consumes_payload_and_preserves_existing_output(tmp_path: Path) -> None:
+    image_url = _png_url()
+    result_file = tmp_path / "provider-result.json"
+    result_file.write_text(
+        json.dumps({"image_url": image_url}, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    target = tmp_path / "source.png"
+    target.write_bytes(b"existing")
+    environment = os.environ.copy()
+    source_root = str(Path(receiver.__file__).resolve().parents[1])
+    environment["PYTHONPATH"] = os.pathsep.join(
+        value for value in (source_root, environment.get("PYTHONPATH", "")) if value
+    )
+
+    completed = subprocess.run(  # noqa: S603 - fixed current interpreter and literal argv
+        [
+            sys.executable,
+            "-m",
+            "mirror_api.demo_d02_r2_generation_receiver",
+            "--result-leaf",
+            result_file.name,
+            "--destination-leaf",
+            target.name,
+        ],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 2
+    assert json.loads(completed.stderr)["code"] == "DESTINATION_COLLISION"
+    assert image_url not in completed.stdout
+    assert image_url not in completed.stderr
+    assert not result_file.exists()
+    assert target.read_bytes() == b"existing"
+    assert not (tmp_path / ".source.png.incoming").exists()
 
 
 @pytest.mark.parametrize(
@@ -254,7 +492,7 @@ def test_destination_capability_rejects_symlinked_parent(tmp_path: Path) -> None
     assert raised.value.code == "DESTINATION_CAPABILITY_INVALID"
 
 
-@pytest.mark.parametrize("failure", ["short_write", "fsync", "parent_sync", "replay"])
+@pytest.mark.parametrize("failure", ["short_write", "fsync", "parent_sync", "publish", "replay"])
 def test_destination_failures_are_fail_closed(
     failure: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -276,6 +514,12 @@ def test_destination_failures_are_fail_closed(
             receiver, "_sync_directory", lambda _path: (_ for _ in ()).throw(OSError("no"))
         )
         expected = "DESTINATION_DURABILITY_FAILED"
+    elif failure == "publish":
+        monkeypatch.setattr(
+            "mirror_api.demo_d02_r2_generation_receiver.os.link",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("no")),
+        )
+        expected = "DESTINATION_PUBLISH_FAILED"
     else:
         monkeypatch.setattr(
             receiver,
@@ -291,6 +535,8 @@ def test_destination_failures_are_fail_closed(
         )
         == expected
     )
+    assert not target.exists()
+    assert not (tmp_path / ".source.png.incoming").exists()
 
 
 def test_windows_parent_sync_branch_uses_platform_primitive(
