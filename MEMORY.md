@@ -759,3 +759,19 @@
   时通过 PostgreSQL transaction advisory lock 原子 fail closed，直到未来显式 supersession/correction 语义冻结。
   真实 PostgreSQL D06 6 项及 D05/D07/D06 联合回归通过；真实 D02 runtime integration 与 D06 final acceptance 仍为
   `NOT_VERIFIED`，产品主线下一节点为 D10。
+
+- 2026-08-31：D10 内部 application slice 以前向修复 SHA
+  `0aebd6c1ffe9a2a6692f253c5e33a8d5c1efb6cb` 收口 deterministic Profile rebuild、显式 as-of Context recall、
+  RESET/ROLLBACK/TOMBSTONE/DELETE 生命周期投影、D06 Reference 依赖重验及 PostgreSQL 原子 Job/Profile/Context
+  authority。真实 PostgreSQL D10 13 项、D05/D06/D09/D10 联合 68 项、Ruff、strict mypy、migration lifecycle、
+  diff 与敏感模式扫描均通过；独立 exact-SHA review 为 `PASS_FINDINGS_NONE`。公开 API/Worker wiring 与最终 P7
+  acceptance 不在该内部切片中，状态继续为 `NOT_VERIFIED`。
+
+- 2026-08-31：D11 只读 Demo capability shell 经前向认证边界修复，以 SHA
+  `4a293dae91daffee7523442fd70b637aed19daf6` 收口 `/demo` 服务端页面。页面只探测真实
+  `GET /api/v1/demo/capabilities`；该 route 继承 Demo Bearer 认证，未配置安全凭据路径时明确显示
+  `DEMO_AUTH_REQUIRED`，请求不携带、存储或向浏览器暴露 Bearer。其他 API 故障或非法响应严格显示
+  `unavailable`，不使用缓存或 fixture 替代。页面固定标记 `DEMO_PROTOTYPE`、
+  `REAL_D02_INTEGRATION_PENDING` 与 `UI_CONTRACT_ONLY`，不创建会话、Job、上传、Provider 或后台任务，也不宣称
+  `LOCAL_WEB_AGENT`。Web 62 项测试、typecheck、lint 与 production build 通过；完整 Playwright
+  Web→API→PostgreSQL→Redis/Celery flow 和 D11 final acceptance 仍 `NOT_VERIFIED`。
