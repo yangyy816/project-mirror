@@ -12,7 +12,7 @@ from typing import Any, cast
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import CheckConstraint, Connection, Table, create_engine, select, text
+from sqlalchemy import CheckConstraint, Connection, MetaData, Table, create_engine, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 from test_demo_schema_authority_invariants import (
@@ -66,7 +66,7 @@ _AUTHORITY_EXCLUDED_COLUMNS = {
     "tombstoned_at",
 }
 
-_HEAD_DEMO_REVISION = "demo_0012_d05_profile_auth"
+_HEAD_DEMO_REVISION = "demo_0014_d02_r2_e3_versioning"
 
 
 @pytest.fixture
@@ -1199,8 +1199,19 @@ def test_revision9_recanonicalized_report_attacks_fail_closed(
     expected_error: str,
 ) -> None:
     session = revision9_session
-    graph = _insert_full_demo_graph(session, include_episode=False)
-    report = graph["pair_screening_report"]
+    source_asset, admission = _insert_legacy_local_d02_identity(
+        session, marker=f"revision9-report-attack-{new_id()}"
+    )
+    bank, _ = _insert_legacy_d02_question_bank_fixture(session, source_asset, admission)
+    report_table = Table(
+        "demo_pair_screening_reports", MetaData(), autoload_with=session.connection()
+    )
+    report_values = (
+        session.execute(select(report_table).where(report_table.c.id == bank.screening_report_id))
+        .mappings()
+        .one()
+    )
+    report = DemoPairScreeningReport(**dict(report_values))
     report_payload = copy.deepcopy(report.report_payload)
     field_overrides: dict[str, Any] = {}
 

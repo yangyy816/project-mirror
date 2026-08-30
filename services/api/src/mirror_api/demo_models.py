@@ -215,6 +215,7 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
     generation_source_asset_width: Mapped[int | None] = mapped_column(Integer)
     generation_source_asset_height: Mapped[int | None] = mapped_column(Integer)
     source_normalization_receipt_digest: Mapped[str | None] = mapped_column(String(64))
+    generation_policy_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     source_provenance_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     source_provenance_output_id: Mapped[str] = mapped_column(String(128), nullable=False)
     source_provenance_name_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -235,7 +236,9 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
             __tablename__,
             schema_version_expression=(
                 "schema_version IN ('mirror.demo/D02R2SourceAuthorityRecord/v1',"
-                "'mirror.demo/D02R2Epoch2SourceAuthorityRecord/v1')"
+                "'mirror.demo/D02R2Epoch2SourceAuthorityRecord/v1',"
+                "'mirror.demo/D02R2Epoch3SourceAuthorityRecord/v1',"
+                "'mirror.demo/D02R2Epoch4SourceAuthorityRecord/v1')"
             ),
         ),
         UniqueConstraint("execution_contract_digest", "source_ordinal", name="execution_ordinal"),
@@ -282,7 +285,8 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
             "AND generation_source_asset_mime_type IS NULL "
             "AND generation_source_asset_width IS NULL "
             "AND generation_source_asset_height IS NULL "
-            "AND source_normalization_receipt_digest IS NULL) OR "
+            "AND source_normalization_receipt_digest IS NULL "
+            "AND generation_policy_metadata IS NULL) OR "
             "(schema_version = 'mirror.demo/D02R2Epoch2SourceAuthorityRecord/v1' "
             "AND evidence_root_id = 'P3_P7_D02_R2_CC08_E2_EVIDENCE_ROOT' "
             "AND generation_request_digest = generation_request_policy_digest "
@@ -294,8 +298,54 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
             "AND generation_source_asset_mime_type = 'image/png' "
             "AND generation_source_asset_width > 0 "
             "AND generation_source_asset_height > 0 "
-            "AND source_normalization_receipt_digest ~ '^[0-9a-f]{64}$')",
+            "AND source_normalization_receipt_digest ~ '^[0-9a-f]{64}$' "
+            "AND generation_policy_metadata IS NULL) OR "
+            "(schema_version = 'mirror.demo/D02R2Epoch3SourceAuthorityRecord/v1' "
+            "AND evidence_root_id = 'P3_P7_D02_R2_E3_EVIDENCE_ROOT' "
+            "AND generation_request_digest = generation_request_policy_digest "
+            "AND execution_epoch = 'D02_R2_EPOCH_03' "
+            "AND producer_task_id = 'P3_P7_D02_R2_SOURCE_COHORT_03' "
+            "AND dispatch_epoch = 3 "
+            "AND generation_source_asset_sha256 ~ '^[0-9a-f]{64}$' "
+            "AND generation_source_asset_byte_size > 0 "
+            "AND generation_source_asset_mime_type = 'image/png' "
+            "AND generation_source_asset_width > 0 "
+            "AND generation_source_asset_height > 0 "
+            "AND source_normalization_receipt_digest ~ '^[0-9a-f]{64}$' "
+            "AND jsonb_typeof(generation_policy_metadata) = 'object') OR "
+            "(schema_version = 'mirror.demo/D02R2Epoch4SourceAuthorityRecord/v1' "
+            "AND evidence_root_id = 'P3_P7_D02_R2_E4_EVIDENCE_ROOT' "
+            "AND generation_request_digest = generation_request_policy_digest "
+            "AND execution_epoch = 'D02_R2_EPOCH_04' "
+            "AND producer_task_id = 'P3_P7_D02_R2_SOURCE_COHORT_04' "
+            "AND dispatch_epoch = 4 "
+            "AND generation_source_asset_sha256 ~ '^[0-9a-f]{64}$' "
+            "AND generation_source_asset_byte_size > 0 "
+            "AND generation_source_asset_mime_type = 'image/png' "
+            "AND generation_source_asset_width > 0 "
+            "AND generation_source_asset_height > 0 "
+            "AND source_normalization_receipt_digest ~ '^[0-9a-f]{64}$' "
+            "AND jsonb_typeof(generation_policy_metadata) = 'object')",
             name="evidence_root",
+        ),
+        CheckConstraint(
+            "generation_policy_metadata IS NULL OR ("
+            "schema_version IN ('mirror.demo/D02R2Epoch3SourceAuthorityRecord/v1',"
+            "'mirror.demo/D02R2Epoch4SourceAuthorityRecord/v1') "
+            "AND generation_policy_metadata ->> 'schema_version' = "
+            "CASE WHEN schema_version = 'mirror.demo/D02R2Epoch3SourceAuthorityRecord/v1' "
+            "THEN 'mirror.demo/D02R2Epoch3GenerationPolicyMetadata/v1' "
+            "ELSE 'mirror.demo/D02R2Epoch4GenerationPolicyMetadata/v1' END "
+            "AND generation_policy_metadata ->> 'adult_status' = "
+            "'VERIFIED_SYNTHETIC_ADULT' "
+            "AND generation_policy_metadata ->> 'suspected_minor' = 'false' "
+            "AND generation_policy_metadata ->> 'real_person_reference' = 'false' "
+            "AND generation_policy_metadata ->> 'celebrity_resemblance' = 'false' "
+            "AND generation_policy_metadata ->> 'source_digest' = source_asset_sha256 "
+            "AND generation_policy_metadata ->> 'metadata_digest' ~ '^[0-9a-f]{64}$' "
+            "AND generation_policy_metadata -> 'source_policy_profile' ->> "
+            "'declared_age_band' IN ('ADULT_18_19','ADULT_20_25'))",
+            name="generation_policy_metadata",
         ),
         CheckConstraint(
             "source_output_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' "
@@ -1067,7 +1117,7 @@ class DemoQuestionPair(DemoAuthorityMixin, Base):
 
 
 class DemoD02R2Epoch2Admission(DemoAuthorityMixin, Base):
-    """Atomic E2 binding for one complete Report/Bank/Pair authority graph."""
+    """Atomic versioned binding for one complete Report/Bank/Pair authority graph."""
 
     __tablename__ = "demo_d02_r2_epoch2_admissions"
 
@@ -1109,7 +1159,11 @@ class DemoD02R2Epoch2Admission(DemoAuthorityMixin, Base):
     __table_args__ = (
         *_authority_constraints(
             __tablename__,
-            schema_version_expression=("schema_version = 'mirror.demo/D02R2Epoch2Admission/v1'"),
+            schema_version_expression=(
+                "schema_version IN ('mirror.demo/D02R2Epoch2Admission/v1',"
+                "'mirror.demo/D02R2Epoch3Admission/v1',"
+                "'mirror.demo/D02R2Epoch4Admission/v1')"
+            ),
         ),
         UniqueConstraint("idempotency_key_hash", name="idempotency_key_hash"),
         UniqueConstraint("screening_report_id", name="screening_report_id"),
@@ -1124,8 +1178,15 @@ class DemoD02R2Epoch2Admission(DemoAuthorityMixin, Base):
             name="digest_shapes",
         ),
         CheckConstraint(
-            "execution_epoch = 'D02_R2_EPOCH_02' "
-            "AND evidence_root_id = 'P3_P7_D02_R2_CC08_E2_EVIDENCE_ROOT'",
+            "(schema_version = 'mirror.demo/D02R2Epoch2Admission/v1' "
+            "AND execution_epoch = 'D02_R2_EPOCH_02' "
+            "AND evidence_root_id = 'P3_P7_D02_R2_CC08_E2_EVIDENCE_ROOT') OR "
+            "(schema_version = 'mirror.demo/D02R2Epoch3Admission/v1' "
+            "AND execution_epoch = 'D02_R2_EPOCH_03' "
+            "AND evidence_root_id = 'P3_P7_D02_R2_E3_EVIDENCE_ROOT') OR "
+            "(schema_version = 'mirror.demo/D02R2Epoch4Admission/v1' "
+            "AND execution_epoch = 'D02_R2_EPOCH_04' "
+            "AND evidence_root_id = 'P3_P7_D02_R2_E4_EVIDENCE_ROOT')",
             name="epoch_root",
         ),
         CheckConstraint(

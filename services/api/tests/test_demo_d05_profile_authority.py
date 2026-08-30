@@ -9,7 +9,10 @@ from typing import Any, cast
 import pytest
 import test_demo_schema_authority_invariants as authority
 from alembic import command
-from sqlalchemy import text
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
+from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
@@ -23,8 +26,7 @@ from mirror_api.demo_models import (
     DemoStyleProfile,
 )
 
-_HEAD = "demo_0012_d05_profile_auth"
-_DOWN = "demo_0011_d03_job_recovery"
+_D05_REVISION = "demo_0012_d05_profile_auth"
 
 
 @pytest.fixture
@@ -491,6 +493,24 @@ def test_d05_alembic_check_and_populated_downgrade_fail_closed(
     config = authority._demo_alembic_config(database_url)
     command.check(config)
     session.close()
-    with pytest.raises(Exception, match="cannot downgrade populated D05 profile authority"):
-        command.downgrade(config, _DOWN)
-    command.upgrade(config, _HEAD)
+    script = ScriptDirectory.from_config(config).get_revision(_D05_REVISION)
+    assert script is not None
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            transaction = connection.begin()
+            migration_module = script.module
+            monkeypatch.setattr(
+                migration_module,
+                "op",
+                Operations(MigrationContext.configure(connection)),
+            )
+            try:
+                with pytest.raises(
+                    Exception, match="cannot downgrade populated D05 profile authority"
+                ):
+                    migration_module.downgrade()
+            finally:
+                transaction.rollback()
+    finally:
+        engine.dispose()

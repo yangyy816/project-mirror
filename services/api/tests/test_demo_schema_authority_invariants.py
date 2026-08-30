@@ -89,7 +89,7 @@ _LEGACY_DEMO_GRAPH_TABLE_NAMES = set(DEMO_TABLE_NAMES) - {
     "demo_self_transfer_evidence",
 }
 
-DEMO_REVISION = "demo_0013_d07_publish_auth"
+DEMO_REVISION = "demo_0014_d02_r2_e3_versioning"
 D02_RECOVERED_QA_DOWN_REVISION = "demo_0006_d02_private_exec"
 D02_PRIVATE_EXEC_DOWN_REVISION = "demo_0005_d02_quality_auth"
 D02_QUALITY_DOWN_REVISION = "demo_0004_d09_episode_prov"
