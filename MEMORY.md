@@ -802,3 +802,12 @@
   `GET /sessions/{session_id}/context` 与 `GET /traces/{session_id}` 同样缺少显式 `recall_at` 或精确
   `context_compilation_id`，不能用隐式 `utcnow()` 绕过 Profile/Context 的 no-wall-clock authority。下一可执行产品节点为
   不新增 migration 的最小中央读取契约修正：公开请求显式携带 `recall_at`，再接入 owner-bound Context/Trace reads。
+
+- 2026-08-31：D10 Context/Trace read 以本地产品提交
+  `cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd` 接线：两个 GET 都要求显式 timezone-aware
+  `recall_at`，并复用既有 `DemoMemoryService.recall_context` 做 actor/session ownership、Context expiry、Profile、
+  event/Episode lifecycle 与 invalidation 重验；router 不读取 wall clock，也不创建或修改任何 authority。Context 与 Trace
+  映射到同一 Context digest/ID，OpenAPI/generated TypeScript 将该 query 标为 required。D10 定向 30 项、全 API
+  Ruff、175-source strict mypy、contracts lint/typecheck/test 与独立只读审查通过；未执行 push/same-SHA remote CI，
+  D10/P7 final acceptance 继续为 `NOT_VERIFIED`。真实 D11 trace UI 仍需冻结的 Demo credential/session bridge；在此之前
+  只允许明确标记 `UI_CONTRACT_ONLY` 的 trace presentation slice，不向浏览器暴露 Demo Bearer。
