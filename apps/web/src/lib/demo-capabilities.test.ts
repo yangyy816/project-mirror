@@ -20,13 +20,28 @@ describe("demo capabilities server adapter", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(getDemoCapabilities()).resolves.toEqual({
-      track: "DEMO_PROTOTYPE",
-      capabilities: [{ code: "P5_COMPILER", status: "AVAILABLE" }],
+      kind: "AVAILABLE",
+      data: {
+        track: "DEMO_PROTOTYPE",
+        capabilities: [{ code: "P5_COMPILER", status: "AVAILABLE" }],
+      },
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:8000/api/v1/demo/capabilities",
       expect.objectContaining({ cache: "no-store" }),
     );
+    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty("headers");
+  });
+
+  it("reports the tracked bearer boundary without sending a credential", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getDemoCapabilities()).resolves.toEqual({
+      kind: "AUTH_REQUIRED",
+      data: null,
+    });
+    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty("headers");
   });
 
   it.each([
@@ -55,6 +70,9 @@ describe("demo capabilities server adapter", () => {
       ),
     );
 
-    await expect(getDemoCapabilities()).resolves.toBeNull();
+    await expect(getDemoCapabilities()).resolves.toEqual({
+      kind: "UNAVAILABLE",
+      data: null,
+    });
   });
 });

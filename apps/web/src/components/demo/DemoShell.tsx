@@ -1,9 +1,9 @@
 import { Badge } from "@mirror/ui";
 
-import type { DemoCapabilitiesResponse } from "@/lib/demo-capabilities";
+import type { DemoCapabilityReadResult } from "@/lib/demo-capabilities";
 
 type DemoShellProps = Readonly<{
-  data: DemoCapabilitiesResponse | null;
+  result: DemoCapabilityReadResult;
 }>;
 
 const shadowTrace = [
@@ -18,7 +18,15 @@ function capabilityTone(status: string): "success" | "warning" {
   return status === "AVAILABLE" ? "success" : "warning";
 }
 
-export function DemoShell({ data }: DemoShellProps) {
+export function DemoShell({ result }: DemoShellProps) {
+  const data = result.kind === "AVAILABLE" ? result.data : null;
+  const connectionLabel =
+    result.kind === "AVAILABLE"
+      ? "已连接"
+      : result.kind === "AUTH_REQUIRED"
+        ? "DEMO_AUTH_REQUIRED"
+        : "unavailable";
+
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-6 py-8 md:px-10">
       <header className="flex flex-wrap items-center justify-between gap-4">
@@ -49,7 +57,7 @@ export function DemoShell({ data }: DemoShellProps) {
             </p>
           </div>
           <Badge tone={data ? "success" : "warning"}>
-            {data ? "已连接" : "unavailable"}
+            {connectionLabel}
           </Badge>
         </div>
 
@@ -76,6 +84,10 @@ export function DemoShell({ data }: DemoShellProps) {
               </li>
             ))}
           </ul>
+        ) : result.kind === "AUTH_REQUIRED" ? (
+          <p className="mt-6 rounded-2xl border border-dashed border-black/20 p-4 text-sm leading-6 text-black/65">
+            API 已明确要求 Demo Bearer，当前能力状态未验证。此页面不会请求、存储或向浏览器暴露 Demo Bearer。
+          </p>
         ) : (
           <p className="mt-6 rounded-2xl border border-dashed border-black/20 p-4 text-sm leading-6 text-black/65">
             当前无法验证 capability 状态。页面不会以缓存、fixture 或推测结果替代真实 API 响应。

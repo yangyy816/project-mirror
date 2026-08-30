@@ -32,8 +32,12 @@ const responseSchema = z
 
 export type DemoCapability = z.infer<typeof capabilitySchema>;
 export type DemoCapabilitiesResponse = z.infer<typeof responseSchema>;
+export type DemoCapabilityReadResult =
+  | Readonly<{ kind: "AVAILABLE"; data: DemoCapabilitiesResponse }>
+  | Readonly<{ kind: "AUTH_REQUIRED"; data: null }>
+  | Readonly<{ kind: "UNAVAILABLE"; data: null }>;
 
-export async function getDemoCapabilities(): Promise<DemoCapabilitiesResponse | null> {
+export async function getDemoCapabilities(): Promise<DemoCapabilityReadResult> {
   try {
     const response = await fetch(
       `${serverEnv.API_BASE_URL}/api/v1/demo/capabilities`,
@@ -42,9 +46,13 @@ export async function getDemoCapabilities(): Promise<DemoCapabilitiesResponse | 
         signal: AbortSignal.timeout(2_000),
       },
     );
-    if (!response.ok) return null;
-    return responseSchema.parse(await response.json());
+    if (response.status === 401) return { kind: "AUTH_REQUIRED", data: null };
+    if (!response.ok) return { kind: "UNAVAILABLE", data: null };
+    return {
+      kind: "AVAILABLE",
+      data: responseSchema.parse(await response.json()),
+    };
   } catch {
-    return null;
+    return { kind: "UNAVAILABLE", data: null };
   }
 }
