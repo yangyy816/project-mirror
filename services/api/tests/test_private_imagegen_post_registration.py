@@ -261,6 +261,7 @@ def _process(
     *,
     authority_by_platform: Mapping[str, str] | None = None,
     timestamp: str = TIMESTAMP,
+    expected_terminal: post.PostRegistrationHandle | None = None,
 ) -> post.PostRegistrationHandle:
     capabilities = _capabilities()
     return post.process_registered_output(
@@ -278,6 +279,77 @@ def _process(
             else authority_by_platform
         ),
         executor=executor,
+        timestamp=timestamp,
+        expected_existing_terminal_receipt_sha256=(
+            expected_terminal.receipt_sha256 if expected_terminal is not None else None
+        ),
+        expected_existing_terminal_state_sha256=(
+            expected_terminal.state_sha256 if expected_terminal is not None else None
+        ),
+        expected_existing_terminal_event_sha256=(
+            expected_terminal.event_sha256 if expected_terminal is not None else None
+        ),
+    )
+
+
+def _verify_terminal(
+    *,
+    project_root: Path,
+    receipt_path: Path,
+    terminal: post.PostRegistrationHandle,
+    pins: Mapping[str, str],
+    authority_by_platform: Mapping[str, str] | None = None,
+) -> post.PostRegistrationHandle:
+    capabilities = _capabilities()
+    return post.verify_post_registration_terminal(
+        receipt_path=receipt_path,
+        expected_terminal_receipt_sha256=terminal.receipt_sha256,
+        expected_terminal_state_sha256=terminal.state_sha256,
+        expected_terminal_event_sha256=terminal.event_sha256,
+        expected_registered_receipt_sha256=pins["receipt_sha"],
+        expected_registered_state_sha256=pins["state_sha"],
+        expected_registered_event_sha256=pins["event_sha"],
+        expected_capability_authority_sha256_by_platform=(
+            _authority_by_platform(capabilities)
+            if authority_by_platform is None
+            else authority_by_platform
+        ),
+        expected_overlay_controller_sha256=pins["overlay_sha"],
+        expected_post_registration_controller_sha256=pins["post_sha"],
+        project_worktree_root=project_root,
+    )
+
+
+def _rollover(
+    *,
+    project_root: Path,
+    terminal_receipt_path: Path,
+    terminal: post.PostRegistrationHandle,
+    pins: Mapping[str, str],
+    successor_root: Path,
+    successor_overlay_output_id: str,
+    timestamp: str,
+    authority_by_platform: Mapping[str, str] | None = None,
+) -> post.PostRegistrationHandle:
+    capabilities = _capabilities()
+    return post.rollover_post_registration_successor(
+        terminal_receipt_path=terminal_receipt_path,
+        expected_terminal_receipt_sha256=terminal.receipt_sha256,
+        expected_terminal_state_sha256=terminal.state_sha256,
+        expected_terminal_event_sha256=terminal.event_sha256,
+        expected_registered_receipt_sha256=pins["receipt_sha"],
+        expected_registered_state_sha256=pins["state_sha"],
+        expected_registered_event_sha256=pins["event_sha"],
+        expected_capability_authority_sha256_by_platform=(
+            _authority_by_platform(capabilities)
+            if authority_by_platform is None
+            else authority_by_platform
+        ),
+        expected_overlay_controller_sha256=pins["overlay_sha"],
+        expected_post_registration_controller_sha256=pins["post_sha"],
+        project_worktree_root=project_root,
+        successor_root=successor_root,
+        successor_overlay_output_id=successor_overlay_output_id,
         timestamp=timestamp,
     )
 
@@ -329,91 +401,242 @@ def test_terminal_and_successor_reject_missing_or_tampered_evidence(
     )
     terminal_state = cast(dict[str, Any], terminal_context["state"])
     post_state = cast(dict[str, Any], terminal_state["post_registration"])
+    registration = cast(dict[str, Any], terminal_state["output_registration"])
     operation_id = cast(str, post_state["completed_operations"][0])
-    record_names = {
-        "attempt_file": cast(str, post_state["attempt_file"]),
-        "normalization_file": cast(str, post_state["normalization_file"]),
-        "normalized_file": cast(str, post_state["normalized_file"]),
-        "plan": f"post-registration-operation-{operation_id}.plan.json",
-        "result": f"post-registration-operation-{operation_id}.result.json",
+    output_id = cast(str, registration["output_opaque_id"])
+    evidence_paths = {
+        "attempt_file": Path("records") / cast(str, post_state["attempt_file"]),
+        "normalization_file": Path("records") / cast(str, post_state["normalization_file"]),
+        "normalized_file": Path("records") / cast(str, post_state["normalized_file"]),
+        "registration_receipt": Path("records")
+        / cast(str, registration["registration_receipt_file"]),
+        "registration_record": Path("records") / cast(str, registration["record_file"]),
+        "capture_sidecar": Path("records") / cast(str, registration["capture_sidecar_file"]),
+        "staging_raw": Path("staging") / f"{output_id}.raw",
+        "plan": Path("records") / f"post-registration-operation-{operation_id}.plan.json",
+        "result": Path("records") / f"post-registration-operation-{operation_id}.result.json",
     }
-    for record_key, record_name in record_names.items():
+    for record_key, relative_path in evidence_paths.items():
         for mode in ("delete", "tamper"):
-            clone_root = tmp_path.parent / f"{tmp_path.name}-{record_key}-{mode}"
-            shutil.copytree(tmp_path, clone_root)
+            target = terminal.receipt_path.parent / relative_path
+            original_bytes = target.read_bytes()
             try:
-                cloned_receipt = clone_root / terminal.receipt_path.relative_to(tmp_path)
-                target = cloned_receipt.parent / "records" / record_name
                 if mode == "delete":
                     target.unlink()
                 else:
                     target.write_bytes(b"tampered")
                 with pytest.raises(post.PostRegistrationError):
-                    post.verify_post_registration_terminal(
-                        receipt_path=cloned_receipt,
-                        expected_overlay_controller_sha256=pins["overlay_sha"],
-                        expected_post_registration_controller_sha256=pins["post_sha"],
-                        project_worktree_root=clone_root,
+                    _verify_terminal(
+                        project_root=tmp_path,
+                        receipt_path=terminal.receipt_path,
+                        terminal=terminal,
+                        pins=pins,
                     )
                 with pytest.raises(post.PostRegistrationError):
-                    post.rollover_post_registration_successor(
-                        terminal_receipt_path=cloned_receipt,
-                        expected_terminal_receipt_sha256=terminal.receipt_sha256,
-                        expected_terminal_state_sha256=terminal.state_sha256,
-                        expected_terminal_event_sha256=cast(
-                            str, terminal_context["receipt"]["event_sha256"]
-                        ),
-                        expected_overlay_controller_sha256=pins["overlay_sha"],
-                        expected_post_registration_controller_sha256=pins["post_sha"],
-                        project_worktree_root=clone_root,
+                    _rollover(
+                        project_root=tmp_path,
+                        terminal_receipt_path=terminal.receipt_path,
+                        terminal=terminal,
+                        pins=pins,
                         successor_root=(
-                            cloned_receipt.parent.parent / "overlay-cc06-successor-tamper"
+                            terminal.receipt_path.parent.parent
+                            / f"overlay-cc06-{record_key}-{mode}"
                         ),
                         successor_overlay_output_id="OVERLAY-CC06-SUCCESSOR-TAMPER",
                         timestamp=TIMESTAMP,
                     )
             finally:
-                shutil.rmtree(clone_root, ignore_errors=True)
+                target.write_bytes(original_bytes)
 
     for suffix in ("plan.json", "result.json"):
-        clone_root = tmp_path.parent / f"{tmp_path.name}-extra-{suffix}"
-        shutil.copytree(tmp_path, clone_root)
+        records_dir = terminal.receipt_path.parent / "records"
+        source = records_dir / f"post-registration-operation-{operation_id}.{suffix}"
+        extra = records_dir / f"post-registration-operation-unreferenced.{suffix}"
+        shutil.copyfile(source, extra)
         try:
-            cloned_receipt = clone_root / terminal.receipt_path.relative_to(tmp_path)
-            records_dir = cloned_receipt.parent / "records"
-            source = records_dir / f"post-registration-operation-{operation_id}.{suffix}"
-            extra = records_dir / f"post-registration-operation-unreferenced.{suffix}"
-            shutil.copyfile(source, extra)
             with pytest.raises(
                 post.PostRegistrationError,
                 match="POST_REGISTRATION_OPERATION_RECORD_INVENTORY_INVALID",
             ):
-                post.verify_post_registration_terminal(
-                    receipt_path=cloned_receipt,
-                    expected_overlay_controller_sha256=pins["overlay_sha"],
-                    expected_post_registration_controller_sha256=pins["post_sha"],
-                    project_worktree_root=clone_root,
+                _verify_terminal(
+                    project_root=tmp_path,
+                    receipt_path=terminal.receipt_path,
+                    terminal=terminal,
+                    pins=pins,
                 )
             with pytest.raises(
                 post.PostRegistrationError,
                 match="POST_REGISTRATION_OPERATION_RECORD_INVENTORY_INVALID",
             ):
-                post.rollover_post_registration_successor(
-                    terminal_receipt_path=cloned_receipt,
-                    expected_terminal_receipt_sha256=terminal.receipt_sha256,
-                    expected_terminal_state_sha256=terminal.state_sha256,
-                    expected_terminal_event_sha256=cast(
-                        str, terminal_context["receipt"]["event_sha256"]
+                _rollover(
+                    project_root=tmp_path,
+                    terminal_receipt_path=terminal.receipt_path,
+                    terminal=terminal,
+                    pins=pins,
+                    successor_root=(
+                        terminal.receipt_path.parent.parent / f"overlay-cc06-extra-{suffix}"
                     ),
-                    expected_overlay_controller_sha256=pins["overlay_sha"],
-                    expected_post_registration_controller_sha256=pins["post_sha"],
-                    project_worktree_root=clone_root,
-                    successor_root=(cloned_receipt.parent.parent / "overlay-cc06-successor-extra"),
                     successor_overlay_output_id="OVERLAY-CC06-SUCCESSOR-EXTRA",
                     timestamp=TIMESTAMP,
                 )
         finally:
-            shutil.rmtree(clone_root, ignore_errors=True)
+            extra.unlink()
+
+
+def test_terminal_rejects_canonical_registration_record_rehash(tmp_path: Path) -> None:
+    receipt, pins, _image = _registered(tmp_path)
+    terminal = _process(tmp_path, receipt, pins, _Executor())
+    state = _terminal_state(terminal, pins)
+    registration = cast(dict[str, Any], state["output_registration"])
+    record_path = terminal.receipt_path.parent / "records" / cast(str, registration["record_file"])
+    record = overlay._read_json(record_path)
+    record["magic_byte_class"] = "PNG_CANONICAL_REHASH"
+    record_path.write_bytes(overlay.canonical_json_bytes(record))
+
+    with pytest.raises(post.PostRegistrationError):
+        _verify_terminal(
+            project_root=tmp_path,
+            receipt_path=terminal.receipt_path,
+            terminal=terminal,
+            pins=pins,
+        )
+    with pytest.raises(post.PostRegistrationError):
+        _rollover(
+            project_root=tmp_path,
+            terminal_receipt_path=terminal.receipt_path,
+            terminal=terminal,
+            pins=pins,
+            successor_root=receipt.parent.parent / "overlay-r57-registration-rehash",
+            successor_overlay_output_id="OVERLAY-R57-REGISTRATION-REHASH",
+            timestamp=TIMESTAMP,
+        )
+
+
+def test_terminal_requires_external_registered_and_capability_authority(tmp_path: Path) -> None:
+    receipt, pins, _image = _registered(tmp_path)
+    terminal = _process(tmp_path, receipt, pins, _Executor())
+
+    bad_pins = dict(pins)
+    bad_pins["receipt_sha"] = "0" * 64
+    with pytest.raises(post.PostRegistrationError, match="REGISTERED_TIP_MISMATCH"):
+        _verify_terminal(
+            project_root=tmp_path,
+            receipt_path=terminal.receipt_path,
+            terminal=terminal,
+            pins=bad_pins,
+        )
+
+    bad_authority = _authority_by_platform(_capabilities())
+    bad_authority["linux_x86_64_network_none"] = "0" * 64
+    with pytest.raises(post.PostRegistrationError, match="CAPABILITY_AUTHORITY_MISMATCH"):
+        _verify_terminal(
+            project_root=tmp_path,
+            receipt_path=terminal.receipt_path,
+            terminal=terminal,
+            pins=pins,
+            authority_by_platform=bad_authority,
+        )
+    with pytest.raises(post.PostRegistrationError, match="CAPABILITY_AUTHORITY_MISMATCH"):
+        _rollover(
+            project_root=tmp_path,
+            terminal_receipt_path=terminal.receipt_path,
+            terminal=terminal,
+            pins=pins,
+            successor_root=receipt.parent.parent / "overlay-r57-capability-substitution",
+            successor_overlay_output_id="OVERLAY-R57-CAPABILITY-SUBSTITUTION",
+            timestamp=TIMESTAMP,
+            authority_by_platform=bad_authority,
+        )
+
+
+def test_external_registered_tip_rejects_canonical_receipt_rehash(tmp_path: Path) -> None:
+    receipt, pins, _image = _registered(tmp_path)
+    terminal = _process(tmp_path, receipt, pins, _Executor())
+    registered_receipt = overlay._read_json(receipt)
+    registered_receipt["r57_rehash_marker"] = "canonical"
+    receipt.write_bytes(overlay.canonical_json_bytes(registered_receipt))
+
+    with pytest.raises((post.PostRegistrationError, overlay.ExecutionOverlayError)):
+        _verify_terminal(
+            project_root=tmp_path,
+            receipt_path=terminal.receipt_path,
+            terminal=terminal,
+            pins=pins,
+        )
+
+
+def test_persisted_capability_substitution_rejected_by_external_authority(
+    tmp_path: Path,
+) -> None:
+    receipt, pins, _image = _registered(tmp_path)
+    terminal = _process(tmp_path, receipt, pins, _Executor())
+    state = _terminal_state(terminal, pins)
+    post_state = cast(dict[str, Any], state["post_registration"])
+    operation_id = cast(str, post_state["completed_operations"][0])
+    plan_path = (
+        terminal.receipt_path.parent
+        / "records"
+        / f"post-registration-operation-{operation_id}.plan.json"
+    )
+    plan = overlay._read_json(plan_path)
+    capability = cast(dict[str, Any], plan["capability"])
+    capability["zero_egress_evidence_id"] = "zero-egress-r57-substitution"
+    plan["capability_authority_sha256"] = overlay.sha256_bytes(
+        overlay.canonical_json_bytes(capability)
+    )
+    plan_path.write_bytes(overlay.canonical_json_bytes(plan))
+
+    with pytest.raises(post.PostRegistrationError, match="CAPABILITY_AUTHORITY_MISMATCH"):
+        _verify_terminal(
+            project_root=tmp_path,
+            receipt_path=terminal.receipt_path,
+            terminal=terminal,
+            pins=pins,
+        )
+    with pytest.raises(post.PostRegistrationError, match="CAPABILITY_AUTHORITY_MISMATCH"):
+        _rollover(
+            project_root=tmp_path,
+            terminal_receipt_path=terminal.receipt_path,
+            terminal=terminal,
+            pins=pins,
+            successor_root=receipt.parent.parent / "overlay-r57-plan-capability-substitution",
+            successor_overlay_output_id="OVERLAY-R57-PLAN-CAPABILITY-SUBSTITUTION",
+            timestamp=TIMESTAMP,
+        )
+
+
+def test_external_terminal_tip_rejects_canonical_receipt_rehash(tmp_path: Path) -> None:
+    receipt, pins, _image = _registered(tmp_path)
+    terminal = _process(tmp_path, receipt, pins, _Executor())
+    terminal_receipt = overlay._read_json(terminal.receipt_path)
+    terminal_receipt["r57_rehash_marker"] = "canonical"
+    terminal.receipt_path.write_bytes(overlay.canonical_json_bytes(terminal_receipt))
+
+    with pytest.raises(post.PostRegistrationError, match="TERMINAL_TIP_MISMATCH"):
+        _verify_terminal(
+            project_root=tmp_path,
+            receipt_path=terminal.receipt_path,
+            terminal=terminal,
+            pins=pins,
+        )
+
+
+def test_existing_terminal_recovery_requires_exact_external_tip(tmp_path: Path) -> None:
+    receipt, pins, _image = _registered(tmp_path)
+    terminal = _process(tmp_path, receipt, pins, _Executor())
+    executor = _Executor()
+
+    with pytest.raises(post.PostRegistrationError, match="TERMINAL_TIP_AUTHORITY_REQUIRED"):
+        _process(tmp_path, receipt, pins, executor)
+    recovered = _process(
+        tmp_path,
+        receipt,
+        pins,
+        executor,
+        expected_terminal=terminal,
+    )
+    assert recovered == terminal
+    assert executor.calls == []
 
 
 def test_preinvoke_request_failure_is_durable_infra_without_executor_call(
@@ -447,7 +670,13 @@ def test_preinvoke_request_failure_is_durable_infra_without_executor_call(
 
     monkeypatch.undo()
     recovery_executor = _Executor()
-    recovered = _process(tmp_path, receipt, pins, recovery_executor)
+    recovered = _process(
+        tmp_path,
+        receipt,
+        pins,
+        recovery_executor,
+        expected_terminal=terminal,
+    )
     assert recovered.phase == "POST_REGISTRATION_INFRA_FAILURE"
     assert recovery_executor.calls == []
 
@@ -469,11 +698,11 @@ def test_terminal_rejects_canonical_rehashed_result_without_historical_anchor(
     result_path.write_bytes(overlay.canonical_json_bytes(result))
 
     with pytest.raises(post.PostRegistrationError, match="RESULT_HISTORY_MISSING"):
-        post.verify_post_registration_terminal(
+        _verify_terminal(
+            project_root=tmp_path,
             receipt_path=terminal.receipt_path,
-            expected_overlay_controller_sha256=pins["overlay_sha"],
-            expected_post_registration_controller_sha256=pins["post_sha"],
-            project_worktree_root=tmp_path,
+            terminal=terminal,
+            pins=pins,
         )
 
 
@@ -595,12 +824,6 @@ def test_successor_partial_intent_recovers_with_original_timestamp(
 ) -> None:
     receipt, pins, _image = _registered(tmp_path)
     terminal = _process(tmp_path, receipt, pins, _Executor())
-    terminal_receipt = cast(
-        dict[str, Any],
-        overlay.verify_overlay(
-            terminal.receipt_path, expected_controller_sha256=pins["overlay_sha"]
-        )["receipt"],
-    )
     successor_root = receipt.parent.parent / "overlay-cc06-0002"
     original = overlay._commit_transition
 
@@ -611,28 +834,22 @@ def test_successor_partial_intent_recovers_with_original_timestamp(
 
     monkeypatch.setattr(overlay, "_commit_transition", interrupt_successor_commit)
     with pytest.raises(KeyboardInterrupt):
-        post.rollover_post_registration_successor(
+        _rollover(
+            project_root=tmp_path,
             terminal_receipt_path=terminal.receipt_path,
-            expected_terminal_receipt_sha256=terminal.receipt_sha256,
-            expected_terminal_state_sha256=terminal.state_sha256,
-            expected_terminal_event_sha256=cast(str, terminal_receipt["event_sha256"]),
-            expected_overlay_controller_sha256=pins["overlay_sha"],
-            expected_post_registration_controller_sha256=pins["post_sha"],
-            project_worktree_root=tmp_path,
+            terminal=terminal,
+            pins=pins,
             successor_root=successor_root,
             successor_overlay_output_id="OVERLAY-CC06-0002",
             timestamp=TIMESTAMP,
         )
 
     monkeypatch.setattr(overlay, "_commit_transition", original)
-    successor = post.rollover_post_registration_successor(
+    successor = _rollover(
+        project_root=tmp_path,
         terminal_receipt_path=terminal.receipt_path,
-        expected_terminal_receipt_sha256=terminal.receipt_sha256,
-        expected_terminal_state_sha256=terminal.state_sha256,
-        expected_terminal_event_sha256=cast(str, terminal_receipt["event_sha256"]),
-        expected_overlay_controller_sha256=pins["overlay_sha"],
-        expected_post_registration_controller_sha256=pins["post_sha"],
-        project_worktree_root=tmp_path,
+        terminal=terminal,
+        pins=pins,
         successor_root=successor_root,
         successor_overlay_output_id="OVERLAY-CC06-0002",
         timestamp="2026-08-31T00:00:01Z",
@@ -652,12 +869,6 @@ def test_successor_intent_recovers_after_crash_before_root_creation(
 ) -> None:
     receipt, pins, _image = _registered(tmp_path)
     terminal = _process(tmp_path, receipt, pins, _Executor())
-    terminal_receipt = cast(
-        dict[str, Any],
-        overlay.verify_overlay(
-            terminal.receipt_path, expected_controller_sha256=pins["overlay_sha"]
-        )["receipt"],
-    )
     successor_root = receipt.parent.parent / "overlay-cc06-0002"
     original = overlay._create_new_plain_directory
 
@@ -668,14 +879,11 @@ def test_successor_intent_recovers_after_crash_before_root_creation(
 
     monkeypatch.setattr(overlay, "_create_new_plain_directory", interrupt_before_root_creation)
     with pytest.raises(KeyboardInterrupt):
-        post.rollover_post_registration_successor(
+        _rollover(
+            project_root=tmp_path,
             terminal_receipt_path=terminal.receipt_path,
-            expected_terminal_receipt_sha256=terminal.receipt_sha256,
-            expected_terminal_state_sha256=terminal.state_sha256,
-            expected_terminal_event_sha256=cast(str, terminal_receipt["event_sha256"]),
-            expected_overlay_controller_sha256=pins["overlay_sha"],
-            expected_post_registration_controller_sha256=pins["post_sha"],
-            project_worktree_root=tmp_path,
+            terminal=terminal,
+            pins=pins,
             successor_root=successor_root,
             successor_overlay_output_id="OVERLAY-CC06-0002",
             timestamp=TIMESTAMP,
@@ -683,14 +891,11 @@ def test_successor_intent_recovers_after_crash_before_root_creation(
     assert not successor_root.exists()
 
     monkeypatch.setattr(overlay, "_create_new_plain_directory", original)
-    successor = post.rollover_post_registration_successor(
+    successor = _rollover(
+        project_root=tmp_path,
         terminal_receipt_path=terminal.receipt_path,
-        expected_terminal_receipt_sha256=terminal.receipt_sha256,
-        expected_terminal_state_sha256=terminal.state_sha256,
-        expected_terminal_event_sha256=cast(str, terminal_receipt["event_sha256"]),
-        expected_overlay_controller_sha256=pins["overlay_sha"],
-        expected_post_registration_controller_sha256=pins["post_sha"],
-        project_worktree_root=tmp_path,
+        terminal=terminal,
+        pins=pins,
         successor_root=successor_root,
         successor_overlay_output_id="OVERLAY-CC06-0002",
         timestamp="2026-08-31T00:00:01Z",
@@ -710,24 +915,15 @@ def test_content_rejection_advances_only_after_canary_tranche(tmp_path: Path) ->
     canary_root.mkdir()
     receipt, pins, _image = _registered(canary_root)
     canary_terminal = _process(canary_root, receipt, pins, _Executor(variant="no_face"))
-    canary_receipt = cast(
-        dict[str, Any],
-        overlay.verify_overlay(
-            canary_terminal.receipt_path, expected_controller_sha256=pins["overlay_sha"]
-        )["receipt"],
-    )
     with pytest.raises(
         post.PostRegistrationError,
         match="POST_REGISTRATION_SUCCESSOR_TERMINAL_NOT_AUTHORIZED",
     ):
-        post.rollover_post_registration_successor(
+        _rollover(
+            project_root=canary_root,
             terminal_receipt_path=canary_terminal.receipt_path,
-            expected_terminal_receipt_sha256=canary_terminal.receipt_sha256,
-            expected_terminal_state_sha256=canary_terminal.state_sha256,
-            expected_terminal_event_sha256=cast(str, canary_receipt["event_sha256"]),
-            expected_overlay_controller_sha256=pins["overlay_sha"],
-            expected_post_registration_controller_sha256=pins["post_sha"],
-            project_worktree_root=canary_root,
+            terminal=canary_terminal,
+            pins=pins,
             successor_root=receipt.parent.parent / "overlay-cc06-0002",
             successor_overlay_output_id="OVERLAY-CC06-0002",
             timestamp=TIMESTAMP,
@@ -742,21 +938,11 @@ def test_content_rejection_advances_only_after_canary_tranche(tmp_path: Path) ->
         later_pins,
         _Executor(variant="no_face"),
     )
-    later_terminal_receipt = cast(
-        dict[str, Any],
-        overlay.verify_overlay(
-            later_terminal.receipt_path,
-            expected_controller_sha256=later_pins["overlay_sha"],
-        )["receipt"],
-    )
-    successor = post.rollover_post_registration_successor(
+    successor = _rollover(
+        project_root=later_root,
         terminal_receipt_path=later_terminal.receipt_path,
-        expected_terminal_receipt_sha256=later_terminal.receipt_sha256,
-        expected_terminal_state_sha256=later_terminal.state_sha256,
-        expected_terminal_event_sha256=cast(str, later_terminal_receipt["event_sha256"]),
-        expected_overlay_controller_sha256=later_pins["overlay_sha"],
-        expected_post_registration_controller_sha256=later_pins["post_sha"],
-        project_worktree_root=later_root,
+        terminal=later_terminal,
+        pins=later_pins,
         successor_root=later_receipt.parent.parent / "overlay-cc06-0002",
         successor_overlay_output_id="OVERLAY-CC06-0002",
         timestamp=TIMESTAMP,
@@ -792,21 +978,12 @@ def test_concurrent_callers_have_one_operation_winner_and_successor_is_single_us
     terminal = next(
         outcome for outcome in outcomes if isinstance(outcome, post.PostRegistrationHandle)
     )
-    terminal_receipt = cast(
-        dict[str, Any],
-        overlay.verify_overlay(
-            terminal.receipt_path, expected_controller_sha256=pins["overlay_sha"]
-        )["receipt"],
-    )
     successor_root = receipt.parent.parent / "overlay-cc06-0002"
-    successor = post.rollover_post_registration_successor(
+    successor = _rollover(
+        project_root=tmp_path,
         terminal_receipt_path=terminal.receipt_path,
-        expected_terminal_receipt_sha256=terminal.receipt_sha256,
-        expected_terminal_state_sha256=terminal.state_sha256,
-        expected_terminal_event_sha256=cast(str, terminal_receipt["event_sha256"]),
-        expected_overlay_controller_sha256=pins["overlay_sha"],
-        expected_post_registration_controller_sha256=pins["post_sha"],
-        project_worktree_root=tmp_path,
+        terminal=terminal,
+        pins=pins,
         successor_root=successor_root,
         successor_overlay_output_id="OVERLAY-CC06-0002",
         timestamp=TIMESTAMP,
@@ -815,14 +992,11 @@ def test_concurrent_callers_have_one_operation_winner_and_successor_is_single_us
     assert list((successor_root / "staging").iterdir()) == []
     assert list((successor_root / "records").iterdir()) == []
     with pytest.raises(post.PostRegistrationError, match="POST_REGISTRATION_SUCCESSOR"):
-        post.rollover_post_registration_successor(
+        _rollover(
+            project_root=tmp_path,
             terminal_receipt_path=terminal.receipt_path,
-            expected_terminal_receipt_sha256=terminal.receipt_sha256,
-            expected_terminal_state_sha256=terminal.state_sha256,
-            expected_terminal_event_sha256=cast(str, terminal_receipt["event_sha256"]),
-            expected_overlay_controller_sha256=pins["overlay_sha"],
-            expected_post_registration_controller_sha256=pins["post_sha"],
-            project_worktree_root=tmp_path,
+            terminal=terminal,
+            pins=pins,
             successor_root=successor_root,
             successor_overlay_output_id="OVERLAY-CC06-0002",
             timestamp=TIMESTAMP,
@@ -844,7 +1018,13 @@ def test_concurrent_callers_have_one_operation_winner_and_successor_is_single_us
             predecessor_receipt_path=terminal.receipt_path,
             expected_predecessor_receipt_sha256=terminal.receipt_sha256,
             expected_predecessor_state_sha256=terminal.state_sha256,
-            expected_predecessor_event_sha256=cast(str, terminal_receipt["event_sha256"]),
+            expected_predecessor_event_sha256=terminal.event_sha256,
+            expected_registered_receipt_sha256=pins["receipt_sha"],
+            expected_registered_state_sha256=pins["state_sha"],
+            expected_registered_event_sha256=pins["event_sha"],
+            expected_capability_authority_sha256_by_platform=_authority_by_platform(
+                _capabilities()
+            ),
             expected_overlay_controller_sha256=pins["overlay_sha"],
             expected_post_registration_controller_sha256=pins["post_sha"],
             project_worktree_root=tmp_path,

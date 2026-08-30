@@ -14,6 +14,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Final, Literal, Protocol, cast
 
 from mirror_api.image_sanitizer import (
@@ -137,6 +138,26 @@ class PostRegistrationHandle:
     checkpoint_sha256: str
     receipt_sha256: str
     state_sha256: str
+    event_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class _ExternalVerificationAuthority:
+    """Caller-retained anchors that are not reconstructed from the private chain."""
+
+    registered_receipt_sha256: str
+    registered_state_sha256: str
+    registered_event_sha256: str
+    capability_authority_sha256_by_platform: Mapping[str, str]
+
+
+@dataclass(frozen=True, slots=True)
+class _TerminalTipAuthority:
+    """Externally retained exact terminal tip used to reject coherent rehashes."""
+
+    receipt_sha256: str
+    state_sha256: str
+    event_sha256: str
 
 
 def process_registered_output(
@@ -152,6 +173,9 @@ def process_registered_output(
     expected_capability_authority_sha256_by_platform: Mapping[str, str],
     executor: PrivateVisionOperationExecutor,
     timestamp: str,
+    expected_existing_terminal_receipt_sha256: str | None = None,
+    expected_existing_terminal_state_sha256: str | None = None,
+    expected_existing_terminal_event_sha256: str | None = None,
 ) -> PostRegistrationHandle:
     """Qualify one registered output or recover its exact durable result.
 
@@ -161,10 +185,23 @@ def process_registered_output(
     """
     _validate_timestamp(timestamp)
     _assert_module_pin(expected_post_registration_controller_sha256)
+    authority = _external_verification_authority(
+        expected_registered_receipt_sha256=expected_overlay_receipt_sha256,
+        expected_registered_state_sha256=expected_overlay_state_sha256,
+        expected_registered_event_sha256=expected_overlay_event_sha256,
+        expected_capability_authority_sha256_by_platform=(
+            expected_capability_authority_sha256_by_platform
+        ),
+    )
+    existing_terminal_tip = _optional_terminal_tip_authority(
+        expected_receipt_sha256=expected_existing_terminal_receipt_sha256,
+        expected_state_sha256=expected_existing_terminal_state_sha256,
+        expected_event_sha256=expected_existing_terminal_event_sha256,
+    )
     with _overlay._v2_quiescence_lease(receipt_path.parent):
         _validate_capabilities(
             capabilities,
-            expected_capability_authority_sha256_by_platform,
+            authority.capability_authority_sha256_by_platform,
         )
         context = _registered_context(
             receipt_path=receipt_path,
@@ -176,8 +213,12 @@ def process_registered_output(
         )
         state = context["state"]
         if state["phase"] in _TERMINAL_PHASES:
-            return verify_post_registration_terminal(
+            if existing_terminal_tip is None:
+                raise PostRegistrationError("POST_REGISTRATION_TERMINAL_TIP_AUTHORITY_REQUIRED")
+            return _verify_post_registration_terminal_with_authority(
                 receipt_path=_context_path(context),
+                terminal_tip=existing_terminal_tip,
+                authority=authority,
                 expected_overlay_controller_sha256=expected_overlay_controller_sha256,
                 expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
                 project_worktree_root=project_worktree_root,
@@ -190,9 +231,7 @@ def process_registered_output(
                 expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
                 project_worktree_root=project_worktree_root,
                 capabilities=capabilities,
-                expected_capability_authority_sha256_by_platform=(
-                    expected_capability_authority_sha256_by_platform
-                ),
+                authority=authority,
                 timestamp=timestamp,
             )
             if isinstance(recovered, PostRegistrationHandle):
@@ -204,6 +243,7 @@ def process_registered_output(
                 expected_overlay_controller_sha256=expected_overlay_controller_sha256,
                 expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
                 project_worktree_root=project_worktree_root,
+                authority=authority,
                 timestamp=timestamp,
             )
             if isinstance(bound, PostRegistrationHandle):
@@ -221,6 +261,7 @@ def process_registered_output(
                 expected_overlay_controller_sha256=expected_overlay_controller_sha256,
                 expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
                 project_worktree_root=project_worktree_root,
+                authority=authority,
                 timestamp=timestamp,
             )
             if isinstance(resumed, PostRegistrationHandle):
@@ -231,8 +272,12 @@ def process_registered_output(
             current_receipt_path = _context_path(context)
             state = context["state"]
             if state["phase"] in _TERMINAL_PHASES:
-                return verify_post_registration_terminal(
+                if existing_terminal_tip is None:
+                    raise PostRegistrationError("POST_REGISTRATION_TERMINAL_TIP_AUTHORITY_REQUIRED")
+                return _verify_post_registration_terminal_with_authority(
                     receipt_path=current_receipt_path,
+                    terminal_tip=existing_terminal_tip,
+                    authority=authority,
                     expected_overlay_controller_sha256=expected_overlay_controller_sha256,
                     expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
                     project_worktree_root=project_worktree_root,
@@ -249,6 +294,7 @@ def process_registered_output(
                         expected_post_registration_controller_sha256
                     ),
                     project_worktree_root=project_worktree_root,
+                    authority=authority,
                     timestamp=timestamp,
                 )
             if state["phase"] == "POST_REGISTRATION_M3_OPERATION_PLANNED":
@@ -259,9 +305,7 @@ def process_registered_output(
                     expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
                     project_worktree_root=project_worktree_root,
                     capabilities=capabilities,
-                    expected_capability_authority_sha256_by_platform=(
-                        expected_capability_authority_sha256_by_platform
-                    ),
+                    authority=authority,
                     timestamp=timestamp,
                 )
                 if isinstance(recovered, PostRegistrationHandle):
@@ -277,9 +321,7 @@ def process_registered_output(
                     expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
                     project_worktree_root=project_worktree_root,
                     capabilities=capabilities,
-                    expected_capability_authority_sha256_by_platform=(
-                        expected_capability_authority_sha256_by_platform
-                    ),
+                    authority=authority,
                     timestamp=timestamp,
                 )
             planned = _plan_operation(
@@ -290,7 +332,7 @@ def process_registered_output(
                 expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
                 capabilities=capabilities,
                 expected_capability_authority_sha256_by_platform=(
-                    expected_capability_authority_sha256_by_platform
+                    authority.capability_authority_sha256_by_platform
                 ),
                 timestamp=timestamp,
             )
@@ -322,6 +364,7 @@ def process_registered_output(
                         expected_post_registration_controller_sha256
                     ),
                     project_worktree_root=project_worktree_root,
+                    authority=authority,
                     timestamp=timestamp,
                 )
             try:
@@ -340,6 +383,7 @@ def process_registered_output(
                     expected_overlay_controller_sha256=expected_overlay_controller_sha256,
                     expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
                     project_worktree_root=project_worktree_root,
+                    authority=authority,
                     timestamp=timestamp,
                 )
             try:
@@ -365,6 +409,7 @@ def process_registered_output(
                     expected_overlay_controller_sha256=expected_overlay_controller_sha256,
                     expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
                     project_worktree_root=project_worktree_root,
+                    authority=authority,
                     timestamp=timestamp,
                 )
             try:
@@ -390,9 +435,7 @@ def process_registered_output(
                     ),
                     project_worktree_root=project_worktree_root,
                     capabilities=capabilities,
-                    expected_capability_authority_sha256_by_platform=(
-                        expected_capability_authority_sha256_by_platform
-                    ),
+                    authority=authority,
                     timestamp=timestamp,
                 )
                 if isinstance(recovered, PostRegistrationHandle):
@@ -403,15 +446,57 @@ def process_registered_output(
 def verify_post_registration_terminal(
     *,
     receipt_path: Path,
+    expected_terminal_receipt_sha256: str,
+    expected_terminal_state_sha256: str,
+    expected_terminal_event_sha256: str,
+    expected_registered_receipt_sha256: str,
+    expected_registered_state_sha256: str,
+    expected_registered_event_sha256: str,
+    expected_capability_authority_sha256_by_platform: Mapping[str, str],
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
     project_worktree_root: Path,
 ) -> PostRegistrationHandle:
-    """Verify a terminal checkpoint without revealing private file locations."""
+    """Verify a terminal checkpoint against caller-retained immutable anchors."""
+    authority = _external_verification_authority(
+        expected_registered_receipt_sha256=expected_registered_receipt_sha256,
+        expected_registered_state_sha256=expected_registered_state_sha256,
+        expected_registered_event_sha256=expected_registered_event_sha256,
+        expected_capability_authority_sha256_by_platform=(
+            expected_capability_authority_sha256_by_platform
+        ),
+    )
+    terminal_tip = _terminal_tip_authority(
+        expected_receipt_sha256=expected_terminal_receipt_sha256,
+        expected_state_sha256=expected_terminal_state_sha256,
+        expected_event_sha256=expected_terminal_event_sha256,
+    )
+    return _verify_post_registration_terminal_with_authority(
+        receipt_path=receipt_path,
+        terminal_tip=terminal_tip,
+        authority=authority,
+        expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+        expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
+        project_worktree_root=project_worktree_root,
+    )
+
+
+def _verify_post_registration_terminal_with_authority(
+    *,
+    receipt_path: Path,
+    terminal_tip: _TerminalTipAuthority,
+    authority: _ExternalVerificationAuthority,
+    expected_overlay_controller_sha256: str,
+    expected_post_registration_controller_sha256: str,
+    project_worktree_root: Path,
+) -> PostRegistrationHandle:
+    """Internal verifier after exact external authority values are validated."""
     _assert_module_pin(expected_post_registration_controller_sha256)
     _overlay._validate_project_local_private_parent(
         project_worktree_root=project_worktree_root, allowed_parent=receipt_path.parent.parent
     )
+    if _overlay.sha256_file(receipt_path) != terminal_tip.receipt_sha256:
+        raise PostRegistrationError("POST_REGISTRATION_TERMINAL_TIP_MISMATCH")
     context = _current_context(
         receipt_path=receipt_path,
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
@@ -420,6 +505,11 @@ def verify_post_registration_terminal(
     receipt = cast(dict[str, Any], context["receipt"])
     event = cast(dict[str, Any], context["event"])
     state = context["state"]
+    if (
+        receipt.get("state_sha256") != terminal_tip.state_sha256
+        or receipt.get("event_sha256") != terminal_tip.event_sha256
+    ):
+        raise PostRegistrationError("POST_REGISTRATION_TERMINAL_TIP_MISMATCH")
     if state["phase"] not in _TERMINAL_PHASES:
         raise PostRegistrationError("POST_REGISTRATION_TERMINAL_REQUIRED")
     sequence = cast(int, receipt["sequence"])
@@ -491,6 +581,8 @@ def verify_post_registration_terminal(
             expected_post_registration_controller_sha256=(
                 expected_post_registration_controller_sha256
             ),
+            project_worktree_root=project_worktree_root,
+            authority=authority,
         )
     except PostRegistrationError:
         raise
@@ -520,6 +612,7 @@ def verify_post_registration_terminal(
         checkpoint_sha256=checkpoint_sha256,
         receipt_sha256=_overlay.sha256_file(receipt_path),
         state_sha256=cast(str, context["receipt"]["state_sha256"]),
+        event_sha256=cast(str, context["receipt"]["event_sha256"]),
     )
 
 
@@ -529,6 +622,10 @@ def rollover_post_registration_successor(
     expected_terminal_receipt_sha256: str,
     expected_terminal_state_sha256: str,
     expected_terminal_event_sha256: str,
+    expected_registered_receipt_sha256: str,
+    expected_registered_state_sha256: str,
+    expected_registered_event_sha256: str,
+    expected_capability_authority_sha256_by_platform: Mapping[str, str],
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
     project_worktree_root: Path,
@@ -539,12 +636,19 @@ def rollover_post_registration_successor(
     """Create the one zero-work successor of a technically passed canary."""
     _validate_timestamp(timestamp)
     _assert_module_pin(expected_post_registration_controller_sha256)
-    for value, field in (
-        (expected_terminal_receipt_sha256, "EXPECTED_TERMINAL_RECEIPT_SHA256"),
-        (expected_terminal_state_sha256, "EXPECTED_TERMINAL_STATE_SHA256"),
-        (expected_terminal_event_sha256, "EXPECTED_TERMINAL_EVENT_SHA256"),
-    ):
-        _validate_lower_digest(value, field)
+    terminal_tip = _terminal_tip_authority(
+        expected_receipt_sha256=expected_terminal_receipt_sha256,
+        expected_state_sha256=expected_terminal_state_sha256,
+        expected_event_sha256=expected_terminal_event_sha256,
+    )
+    authority = _external_verification_authority(
+        expected_registered_receipt_sha256=expected_registered_receipt_sha256,
+        expected_registered_state_sha256=expected_registered_state_sha256,
+        expected_registered_event_sha256=expected_registered_event_sha256,
+        expected_capability_authority_sha256_by_platform=(
+            expected_capability_authority_sha256_by_platform
+        ),
+    )
     _overlay._validate_project_local_private_parent(
         project_worktree_root=project_worktree_root,
         allowed_parent=terminal_receipt_path.parent.parent,
@@ -562,8 +666,10 @@ def rollover_post_registration_successor(
         successor_overlay_output_id, "POST_REGISTRATION_SUCCESSOR_OUTPUT_ID"
     )
     with _overlay._v2_quiescence_lease(terminal_receipt_path.parent):
-        terminal = verify_post_registration_terminal(
+        terminal = _verify_post_registration_terminal_with_authority(
             receipt_path=terminal_receipt_path,
+            terminal_tip=terminal_tip,
+            authority=authority,
             expected_overlay_controller_sha256=expected_overlay_controller_sha256,
             expected_post_registration_controller_sha256=(
                 expected_post_registration_controller_sha256
@@ -627,6 +733,7 @@ def rollover_post_registration_successor(
                 expected_post_registration_controller_sha256=(
                     expected_post_registration_controller_sha256
                 ),
+                authority=authority,
                 project_worktree_root=project_worktree_root,
                 successor_root=successor_root,
                 successor_overlay_output_id=successor_overlay_output_id,
@@ -641,12 +748,29 @@ def verify_post_registration_successor(
     expected_predecessor_receipt_sha256: str,
     expected_predecessor_state_sha256: str,
     expected_predecessor_event_sha256: str,
+    expected_registered_receipt_sha256: str,
+    expected_registered_state_sha256: str,
+    expected_registered_event_sha256: str,
+    expected_capability_authority_sha256_by_platform: Mapping[str, str],
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
     project_worktree_root: Path,
 ) -> PostRegistrationHandle:
     """Verify one generic READY successor and its exact terminal predecessor."""
     _assert_module_pin(expected_post_registration_controller_sha256)
+    predecessor_tip = _terminal_tip_authority(
+        expected_receipt_sha256=expected_predecessor_receipt_sha256,
+        expected_state_sha256=expected_predecessor_state_sha256,
+        expected_event_sha256=expected_predecessor_event_sha256,
+    )
+    authority = _external_verification_authority(
+        expected_registered_receipt_sha256=expected_registered_receipt_sha256,
+        expected_registered_state_sha256=expected_registered_state_sha256,
+        expected_registered_event_sha256=expected_registered_event_sha256,
+        expected_capability_authority_sha256_by_platform=(
+            expected_capability_authority_sha256_by_platform
+        ),
+    )
     if not successor_receipt_path.is_absolute() or not predecessor_receipt_path.is_absolute():
         raise PostRegistrationError("POST_REGISTRATION_SUCCESSOR_ABSOLUTE_PATH_REQUIRED")
     parent = successor_receipt_path.parent.parent
@@ -673,6 +797,8 @@ def verify_post_registration_successor(
                 expected_post_registration_controller_sha256=(
                     expected_post_registration_controller_sha256
                 ),
+                predecessor_tip=predecessor_tip,
+                authority=authority,
                 project_worktree_root=project_worktree_root,
             )
 
@@ -684,12 +810,16 @@ def _verify_post_registration_successor_unleased(
     expected_predecessor_receipt_sha256: str,
     expected_predecessor_state_sha256: str,
     expected_predecessor_event_sha256: str,
+    predecessor_tip: _TerminalTipAuthority,
+    authority: _ExternalVerificationAuthority,
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
     project_worktree_root: Path,
 ) -> PostRegistrationHandle:
-    predecessor = verify_post_registration_terminal(
+    predecessor = _verify_post_registration_terminal_with_authority(
         receipt_path=predecessor_receipt_path,
+        terminal_tip=predecessor_tip,
+        authority=authority,
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
         expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
         project_worktree_root=project_worktree_root,
@@ -823,6 +953,7 @@ def _verify_post_registration_successor_unleased(
         checkpoint_sha256=predecessor.checkpoint_sha256,
         receipt_sha256=_overlay.sha256_file(successor_receipt_path),
         state_sha256=cast(str, context["receipt"]["state_sha256"]),
+        event_sha256=cast(str, context["receipt"]["event_sha256"]),
     )
 
 
@@ -902,6 +1033,7 @@ def _bind_and_normalize(
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
     project_worktree_root: Path,
+    authority: _ExternalVerificationAuthority,
     timestamp: str,
 ) -> dict[str, Any] | PostRegistrationHandle:
     receipt = context["receipt"]
@@ -946,6 +1078,7 @@ def _bind_and_normalize(
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
         expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
         project_worktree_root=project_worktree_root,
+        authority=authority,
         timestamp=timestamp,
     )
 
@@ -958,6 +1091,7 @@ def _normalize_bound_attempt(
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
     project_worktree_root: Path,
+    authority: _ExternalVerificationAuthority,
     timestamp: str,
 ) -> dict[str, Any] | PostRegistrationHandle:
     root = receipt_path.parent
@@ -991,6 +1125,7 @@ def _normalize_bound_attempt(
             expected_overlay_controller_sha256=expected_overlay_controller_sha256,
             expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
             project_worktree_root=project_worktree_root,
+            authority=authority,
             timestamp=timestamp,
         )
     normalized_name = f"normalized-{output_id}.jpeg"
@@ -1175,7 +1310,7 @@ def _recover_planned_operation(
     expected_post_registration_controller_sha256: str,
     project_worktree_root: Path,
     capabilities: tuple[PrivateVisionCapabilityBinding, ...],
-    expected_capability_authority_sha256_by_platform: Mapping[str, str],
+    authority: _ExternalVerificationAuthority,
     timestamp: str,
 ) -> PostRegistrationHandle | dict[str, Any]:
     post = _post_state(context["state"])
@@ -1185,7 +1320,7 @@ def _recover_planned_operation(
             context=context,
             capabilities=capabilities,
             expected_capability_authority_sha256_by_platform=(
-                expected_capability_authority_sha256_by_platform
+                authority.capability_authority_sha256_by_platform
             ),
             expected_post_registration_controller_sha256=(
                 expected_post_registration_controller_sha256
@@ -1202,6 +1337,7 @@ def _recover_planned_operation(
                 expected_post_registration_controller_sha256
             ),
             project_worktree_root=project_worktree_root,
+            authority=authority,
             timestamp=timestamp,
         )
     operation_id = cast(str, operation["operation_id"])
@@ -1218,6 +1354,7 @@ def _recover_planned_operation(
             expected_overlay_controller_sha256=expected_overlay_controller_sha256,
             expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
             project_worktree_root=project_worktree_root,
+            authority=authority,
             timestamp=timestamp,
         )
     try:
@@ -1252,6 +1389,7 @@ def _recover_planned_operation(
                     expected_post_registration_controller_sha256
                 ),
                 project_worktree_root=project_worktree_root,
+                authority=authority,
                 timestamp=timestamp,
             )
         _verify_operation_result_record(
@@ -1272,6 +1410,7 @@ def _recover_planned_operation(
             expected_overlay_controller_sha256=expected_overlay_controller_sha256,
             expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
             project_worktree_root=project_worktree_root,
+            authority=authority,
             timestamp=timestamp,
         )
     completed = list(cast(list[str], post["completed_operations"]))
@@ -1307,7 +1446,7 @@ def _terminal_from_results(
     expected_post_registration_controller_sha256: str,
     project_worktree_root: Path,
     capabilities: tuple[PrivateVisionCapabilityBinding, ...],
-    expected_capability_authority_sha256_by_platform: Mapping[str, str],
+    authority: _ExternalVerificationAuthority,
     timestamp: str,
 ) -> PostRegistrationHandle:
     result_values: list[dict[str, Any]] = []
@@ -1325,7 +1464,7 @@ def _terminal_from_results(
                     capability=capability,
                     expected_overlay_controller_sha256=(expected_overlay_controller_sha256),
                     expected_capability_authority_sha256_by_platform=(
-                        expected_capability_authority_sha256_by_platform
+                        authority.capability_authority_sha256_by_platform
                     ),
                     expected_post_registration_controller_sha256=(
                         expected_post_registration_controller_sha256
@@ -1343,6 +1482,7 @@ def _terminal_from_results(
                 expected_post_registration_controller_sha256
             ),
             project_worktree_root=project_worktree_root,
+            authority=authority,
             timestamp=timestamp,
         )
     reason = _qa_reason(result_values)
@@ -1360,6 +1500,7 @@ def _terminal_from_results(
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
         expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
         project_worktree_root=project_worktree_root,
+        authority=authority,
         timestamp=timestamp,
     )
 
@@ -1373,6 +1514,7 @@ def _terminal(
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
     project_worktree_root: Path,
+    authority: _ExternalVerificationAuthority,
     timestamp: str,
 ) -> PostRegistrationHandle:
     if phase not in _TERMINAL_PHASES:
@@ -1432,8 +1574,16 @@ def _terminal(
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
         timestamp=effective_timestamp,
     )
-    return verify_post_registration_terminal(
-        receipt_path=_context_path(result_context),
+    terminal_path = _context_path(result_context)
+    terminal_receipt = cast(dict[str, Any], result_context["receipt"])
+    return _verify_post_registration_terminal_with_authority(
+        receipt_path=terminal_path,
+        terminal_tip=_TerminalTipAuthority(
+            receipt_sha256=_overlay.sha256_file(terminal_path),
+            state_sha256=cast(str, terminal_receipt["state_sha256"]),
+            event_sha256=cast(str, terminal_receipt["event_sha256"]),
+        ),
+        authority=authority,
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
         expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
         project_worktree_root=project_worktree_root,
@@ -1448,6 +1598,8 @@ def _verify_terminal_evidence(
     terminal_reason_code: str,
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
+    project_worktree_root: Path,
+    authority: _ExternalVerificationAuthority,
 ) -> None:
     """Close terminal evidence over the actual immutable private records.
 
@@ -1468,6 +1620,8 @@ def _verify_terminal_evidence(
         historical_posts=historical_posts,
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
         expected_post_registration_controller_sha256=(expected_post_registration_controller_sha256),
+        project_worktree_root=project_worktree_root,
+        authority=authority,
     )
     normalization_fields = {
         "normalization_file",
@@ -1527,6 +1681,7 @@ def _verify_terminal_evidence(
                 expected_post_registration_controller_sha256=(
                     expected_post_registration_controller_sha256
                 ),
+                authority=authority,
             )
         )
 
@@ -1583,6 +1738,7 @@ def _verify_terminal_evidence(
         operation=operation_by_id[operation_id],
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
         expected_post_registration_controller_sha256=(expected_post_registration_controller_sha256),
+        authority=authority,
     )
     if _overlay.sha256_file(plan_path) != planned_sha256:
         raise PostRegistrationError("POST_REGISTRATION_PLAN_DIGEST_MISMATCH")
@@ -1648,6 +1804,8 @@ def _verify_attempt_evidence(
     historical_posts: tuple[Mapping[str, Any], ...],
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
+    project_worktree_root: Path,
+    authority: _ExternalVerificationAuthority,
 ) -> None:
     registration = state.get("output_registration")
     if not isinstance(registration, dict):
@@ -1667,9 +1825,18 @@ def _verify_attempt_evidence(
     record_file = _required_text(
         registration, "record_file", "POST_REGISTRATION_ATTEMPT_BINDING_INVALID"
     )
+    registration_record_path = _record_path(root, record_file)
     registration_record = _read_canonical_json(
-        _record_path(root, record_file), "POST_REGISTRATION_REGISTRATION_RECORD_NOT_CANONICAL"
+        registration_record_path, "POST_REGISTRATION_REGISTRATION_RECORD_NOT_CANONICAL"
     )
+    registration_receipt_file = _required_text(
+        registration,
+        "registration_receipt_file",
+        "POST_REGISTRATION_ATTEMPT_BINDING_INVALID",
+    )
+    registration_receipt_path = _record_path(root, registration_receipt_file)
+    actual_registration_record_sha256 = _overlay.sha256_file(registration_record_path)
+    actual_registration_receipt_sha256 = _overlay.sha256_file(registration_receipt_path)
     expected = {
         "schema_version": POST_REGISTRATION_SCHEMA,
         "record_kind": "POST_REGISTRATION_ATTEMPT",
@@ -1688,12 +1855,49 @@ def _verify_attempt_evidence(
     overlay_tip = attempt.get("overlay_tip")
     if not isinstance(overlay_tip, dict):
         raise PostRegistrationError("POST_REGISTRATION_ATTEMPT_BINDING_INVALID")
-    _verify_tip_in_root(
+    expected_registered_tip = {
+        "receipt_sha256": authority.registered_receipt_sha256,
+        "state_sha256": authority.registered_state_sha256,
+        "event_sha256": authority.registered_event_sha256,
+        "controller_sha256": expected_overlay_controller_sha256,
+    }
+    if overlay_tip != expected_registered_tip:
+        raise PostRegistrationError("POST_REGISTRATION_REGISTERED_TIP_MISMATCH")
+    registered_receipt_path = _verify_tip_in_root(
         root=root,
         tip=overlay_tip,
         maximum_sequence=cast(int, state["sequence"]),
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
     )
+    registered_context = _current_context(
+        receipt_path=registered_receipt_path,
+        expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+    )
+    registered_state = cast(dict[str, Any], registered_context["state"])
+    registered_registration = registered_state.get("output_registration")
+    replay = _overlay.verify_registration_before_decode(
+        registered_receipt_path,
+        expected_controller_sha256=expected_overlay_controller_sha256,
+        project_worktree_root=project_worktree_root,
+    )
+    if (
+        not isinstance(registered_registration, dict)
+        or registration != registered_registration
+        or registered_state.get("output_registration_attempt")
+        != state.get("output_registration_attempt")
+        or registered_state.get("current_action_id") != state.get("current_action_id")
+        or registered_state.get("current_ordinal") != state.get("current_ordinal")
+        or registered_state.get("overlay_output_id") != state.get("overlay_output_id")
+        or actual_registration_record_sha256 != registration.get("record_sha256")
+        or actual_registration_record_sha256 != attempt.get("registration_record_sha256")
+        or actual_registration_receipt_sha256 != registration.get("registration_receipt_sha256")
+        or actual_registration_receipt_sha256 != attempt.get("registration_receipt_sha256")
+        or replay.get("output_opaque_id") != output_id
+        or replay.get("source_sha256") != attempt.get("source_sha256")
+        or replay.get("byte_size") != attempt.get("source_byte_size")
+        or replay.get("media_type") != attempt.get("source_media_type")
+    ):
+        raise PostRegistrationError("POST_REGISTRATION_REGISTRATION_REPLAY_INVALID")
     if attempt != expected:
         raise PostRegistrationError("POST_REGISTRATION_ATTEMPT_BINDING_INVALID")
     _require_historical_post_anchor(
@@ -1924,6 +2128,7 @@ def _verify_persisted_operation_plan(
     operation: Mapping[str, Any],
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
+    authority: _ExternalVerificationAuthority,
 ) -> tuple[Mapping[str, Any], PrivateVisionCapabilityBinding]:
     capability = _capability_from_persisted_payload(plan.get("capability"))
     if capability.platform != operation["platform"]:
@@ -1941,8 +2146,9 @@ def _verify_persisted_operation_plan(
         state=state,
         operation=operation,
         capability=capability,
-        capability_authority_sha256=_overlay.sha256_bytes(
-            _overlay.canonical_json_bytes(_capability_payload(capability))
+        capability_authority_sha256=_capability_authority_sha256(
+            capability,
+            authority.capability_authority_sha256_by_platform,
         ),
         overlay_tip=overlay_tip,
         module_sha256=expected_post_registration_controller_sha256,
@@ -1970,6 +2176,7 @@ def _verify_persisted_completed_operation(
     operation: Mapping[str, Any],
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
+    authority: _ExternalVerificationAuthority,
 ) -> dict[str, Any]:
     operation_id = cast(str, operation["operation_id"])
     plan_path = _record_path(root, f"post-registration-operation-{operation_id}.plan.json")
@@ -1983,6 +2190,7 @@ def _verify_persisted_completed_operation(
         operation=operation,
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
         expected_post_registration_controller_sha256=(expected_post_registration_controller_sha256),
+        authority=authority,
     )
     result_path = _record_path(root, f"post-registration-operation-{operation_id}.result.json")
     result = _read_canonical_json(result_path, "POST_REGISTRATION_RESULT_NOT_CANONICAL")
@@ -2071,14 +2279,21 @@ def _commit_successor(
     terminal: PostRegistrationHandle,
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
+    authority: _ExternalVerificationAuthority,
     project_worktree_root: Path,
     successor_root: Path,
     successor_overlay_output_id: str,
     timestamp: str,
 ) -> PostRegistrationHandle:
     parent = terminal_receipt_path.parent.parent
-    locked_terminal = verify_post_registration_terminal(
+    locked_terminal = _verify_post_registration_terminal_with_authority(
         receipt_path=terminal_receipt_path,
+        terminal_tip=_TerminalTipAuthority(
+            receipt_sha256=terminal.receipt_sha256,
+            state_sha256=terminal.state_sha256,
+            event_sha256=terminal.event_sha256,
+        ),
+        authority=authority,
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
         expected_post_registration_controller_sha256=(expected_post_registration_controller_sha256),
         project_worktree_root=project_worktree_root,
@@ -2182,6 +2397,12 @@ def _commit_successor(
         expected_predecessor_receipt_sha256=terminal.receipt_sha256,
         expected_predecessor_state_sha256=terminal.state_sha256,
         expected_predecessor_event_sha256=cast(str, terminal_context["receipt"]["event_sha256"]),
+        predecessor_tip=_TerminalTipAuthority(
+            receipt_sha256=terminal.receipt_sha256,
+            state_sha256=terminal.state_sha256,
+            event_sha256=terminal.event_sha256,
+        ),
+        authority=authority,
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
         expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
         project_worktree_root=project_worktree_root,
@@ -3405,6 +3626,75 @@ def _validate_lower_digest(value: object, field: str) -> None:
         raise PostRegistrationError(f"{field}_INVALID")
 
 
+def _external_verification_authority(
+    *,
+    expected_registered_receipt_sha256: str,
+    expected_registered_state_sha256: str,
+    expected_registered_event_sha256: str,
+    expected_capability_authority_sha256_by_platform: Mapping[str, str],
+) -> _ExternalVerificationAuthority:
+    for value, field in (
+        (expected_registered_receipt_sha256, "EXPECTED_REGISTERED_RECEIPT_SHA256"),
+        (expected_registered_state_sha256, "EXPECTED_REGISTERED_STATE_SHA256"),
+        (expected_registered_event_sha256, "EXPECTED_REGISTERED_EVENT_SHA256"),
+    ):
+        _validate_lower_digest(value, field)
+    if set(expected_capability_authority_sha256_by_platform) != set(_PLATFORMS):
+        raise PostRegistrationError("POST_REGISTRATION_CAPABILITY_SET_INVALID")
+    capability_authority = {
+        platform: expected_capability_authority_sha256_by_platform[platform]
+        for platform in _PLATFORMS
+    }
+    for value in capability_authority.values():
+        _validate_lower_digest(
+            value,
+            "POST_REGISTRATION_EXPECTED_CAPABILITY_AUTHORITY_SHA256",
+        )
+    return _ExternalVerificationAuthority(
+        registered_receipt_sha256=expected_registered_receipt_sha256,
+        registered_state_sha256=expected_registered_state_sha256,
+        registered_event_sha256=expected_registered_event_sha256,
+        capability_authority_sha256_by_platform=MappingProxyType(capability_authority),
+    )
+
+
+def _terminal_tip_authority(
+    *,
+    expected_receipt_sha256: str,
+    expected_state_sha256: str,
+    expected_event_sha256: str,
+) -> _TerminalTipAuthority:
+    for value, field in (
+        (expected_receipt_sha256, "EXPECTED_TERMINAL_RECEIPT_SHA256"),
+        (expected_state_sha256, "EXPECTED_TERMINAL_STATE_SHA256"),
+        (expected_event_sha256, "EXPECTED_TERMINAL_EVENT_SHA256"),
+    ):
+        _validate_lower_digest(value, field)
+    return _TerminalTipAuthority(
+        receipt_sha256=expected_receipt_sha256,
+        state_sha256=expected_state_sha256,
+        event_sha256=expected_event_sha256,
+    )
+
+
+def _optional_terminal_tip_authority(
+    *,
+    expected_receipt_sha256: str | None,
+    expected_state_sha256: str | None,
+    expected_event_sha256: str | None,
+) -> _TerminalTipAuthority | None:
+    values = (expected_receipt_sha256, expected_state_sha256, expected_event_sha256)
+    if values == (None, None, None):
+        return None
+    if any(value is None for value in values):
+        raise PostRegistrationError("POST_REGISTRATION_TERMINAL_TIP_AUTHORITY_PARTIAL")
+    return _terminal_tip_authority(
+        expected_receipt_sha256=cast(str, expected_receipt_sha256),
+        expected_state_sha256=cast(str, expected_state_sha256),
+        expected_event_sha256=cast(str, expected_event_sha256),
+    )
+
+
 def _validate_port_reference(value: object, field: str) -> None:
     if not isinstance(value, str) or _PORT_REFERENCE.fullmatch(value) is None:
         raise PostRegistrationError(f"{field}_INVALID")
@@ -3482,7 +3772,7 @@ def _verify_tip_in_root(
     tip: Mapping[str, Any],
     maximum_sequence: int,
     expected_overlay_controller_sha256: str,
-) -> None:
+) -> Path:
     if set(tip) != {
         "receipt_sha256",
         "state_sha256",
@@ -3513,7 +3803,7 @@ def _verify_tip_in_root(
         )
         if _tip_payload(receipt) != tip:
             raise PostRegistrationError("POST_REGISTRATION_PLAN_TIP_BINDING_INVALID")
-        return
+        return candidate
     raise PostRegistrationError("POST_REGISTRATION_PLAN_TIP_NOT_IN_CHAIN")
 
 
