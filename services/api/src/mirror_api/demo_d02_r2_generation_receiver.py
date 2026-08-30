@@ -49,6 +49,7 @@ class D02R2PngReceiverError(Exception):
 
 
 _RECEIVED_PNG_FACTORY_TOKEN = object()
+_BOUND_PNG_FILE_FACTORY_TOKEN = object()
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -174,6 +175,84 @@ class PreallocatedDestination:
             _best_effort_sync_directory(parent)
             raise
 
+    def bind_published_png(self, *, expected: ReceivedPng) -> BoundPngFile:
+        """Bind the exact file published through this one-name capability."""
+
+        bound = bind_principal_existing_png_file(path=self._path)
+        if bound.validate() != expected:
+            _fail("DESTINATION_REPLAY_FAILED", "published PNG facts changed after materialization")
+        return bound
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class BoundPngFile:
+    """No-follow capability for one exact existing PNG file identity.
+
+    The path remains encapsulated.  A recovery caller may reconstruct the
+    capability only from the exact private checkpoint locator and recorded
+    file identity; the receiver never searches for a replacement file.
+    """
+
+    _path: Path
+    _identity: tuple[int, int]
+    _ancestor_identities: tuple[tuple[Path, tuple[int, int]], ...]
+
+    def __init__(
+        self,
+        *,
+        path: Path,
+        identity: tuple[int, int],
+        ancestor_identities: tuple[tuple[Path, tuple[int, int]], ...],
+        _factory_token: object,
+    ) -> None:
+        if _factory_token is not _BOUND_PNG_FILE_FACTORY_TOKEN:
+            _fail("INVALID_PROVIDER_FILE", "existing PNG capability was not issued by its binder")
+        object.__setattr__(self, "_path", path)
+        object.__setattr__(self, "_identity", identity)
+        object.__setattr__(self, "_ancestor_identities", ancestor_identities)
+
+    @property
+    def file_identity(self) -> tuple[int, int]:
+        """Return non-locator identity facts suitable for the private index."""
+
+        return self._identity
+
+    def validate(self) -> ReceivedPng:
+        """Re-read the bound file and replay its PNG facts without copying it."""
+
+        _validate_ancestor_identities(self._ancestor_identities, code="INVALID_PROVIDER_FILE")
+        data = _read_file_bytes_no_follow(
+            self._path,
+            maximum_bytes=MAXIMUM_BYTES,
+            code="INVALID_PROVIDER_FILE",
+            expected_identity=self._identity,
+        )
+        _require_opened_path_identity(
+            self._path,
+            self._identity,
+            code="INVALID_PROVIDER_FILE",
+        )
+        facts = _validate_png_bytes(data)
+        _validate_ancestor_identities(self._ancestor_identities, code="INVALID_PROVIDER_FILE")
+        return facts
+
+    def copy_create_new(self, *, destination: PreallocatedDestination) -> ReceivedPng:
+        """Copy only this bound identity into a create-new durable destination."""
+
+        _validate_ancestor_identities(self._ancestor_identities, code="INVALID_PROVIDER_FILE")
+        data = _read_file_bytes_no_follow(
+            self._path,
+            maximum_bytes=MAXIMUM_BYTES,
+            code="INVALID_PROVIDER_FILE",
+            expected_identity=self._identity,
+        )
+        facts = _validate_png_bytes(data)
+        replayed = destination.write_create_new_durable(data)
+        if replayed != data or hashlib.sha256(replayed).hexdigest() != facts.sha256:
+            _fail("DESTINATION_REPLAY_FAILED", "published PNG differs from bound source file")
+        _validate_ancestor_identities(self._ancestor_identities, code="INVALID_PROVIDER_FILE")
+        return facts
+
 
 def bind_principal_preallocated_destination(
     *,
@@ -210,6 +289,38 @@ def bind_principal_preallocated_destination(
         path=path,
         ancestor_identities=ancestor_identities,
         _factory_token=_DESTINATION_FACTORY_TOKEN,
+    )
+
+
+def bind_principal_existing_png_file(
+    *,
+    path: Path,
+    expected_identity: tuple[int, int] | None = None,
+) -> BoundPngFile:
+    """Bind one exact existing PNG; never discover or substitute another file."""
+
+    if not isinstance(path, Path) or not path.is_absolute():
+        _fail("INVALID_PROVIDER_FILE", "existing PNG path must be an absolute Path")
+    original = path
+    _require_not_reparse(original, code="INVALID_PROVIDER_FILE")
+    try:
+        resolved = original.resolve(strict=True)
+        parent = original.parent.resolve(strict=True)
+        info = os.lstat(original)
+    except OSError as error:
+        raise D02R2PngReceiverError(
+            "INVALID_PROVIDER_FILE", "existing PNG file is unavailable"
+        ) from error
+    if resolved != original or parent != original.parent or not stat.S_ISREG(info.st_mode):
+        _fail("INVALID_PROVIDER_FILE", "existing PNG is not an exact regular file")
+    identity = info.st_dev, info.st_ino
+    if expected_identity is not None and identity != expected_identity:
+        _fail("INVALID_PROVIDER_FILE", "existing PNG identity differs from private checkpoint")
+    return BoundPngFile(
+        path=original,
+        identity=identity,
+        ancestor_identities=_capture_ancestor_identities(parent),
+        _factory_token=_BOUND_PNG_FILE_FACTORY_TOKEN,
     )
 
 
@@ -258,6 +369,11 @@ def _extract_programmatic_imagegen_reference(
     if isinstance(payload, Mapping):
         item = payload.get("item")
         if isinstance(item, Mapping) and item.get("kind") == "image_gen.generation":
+            if _has_inline_image_reference_field(value):
+                _fail(
+                    "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+                    "ImageGen wrapper and nested item both contain image references",
+                )
             value = item
 
     if value.get("kind") == "image_gen.generation":
@@ -270,17 +386,41 @@ def _extract_programmatic_imagegen_reference(
                 "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
                 "ImageGen extension result is not a completed success",
             )
+        if _has_inline_image_reference_field(value):
+            _fail(
+                "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+                "ImageGen extension mixes result fields with inline image references",
+            )
         raw_result = value.get("result")
-        if isinstance(raw_result, str) and raw_result:
+        saved_path = value.get("savedPath")
+        raw_result_present = isinstance(raw_result, str) and bool(raw_result)
+        saved_path_present = isinstance(saved_path, str) and bool(saved_path)
+        if raw_result is not None and raw_result != "" and not isinstance(raw_result, str):
+            _fail(
+                "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+                "ImageGen extension result bytes have an unsupported type",
+            )
+        if saved_path is not None and saved_path != "" and not isinstance(saved_path, str):
+            _fail(
+                "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+                "ImageGen extension saved path has an unsupported type",
+            )
+        if raw_result_present and saved_path_present:
+            _fail(
+                "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+                "ImageGen extension returned multiple image references",
+            )
+        if raw_result_present:
+            assert isinstance(raw_result, str)
             if raw_result.startswith(DATA_URL_PREFIX):
                 return "DATA_URL", raw_result
             return "DATA_URL", DATA_URL_PREFIX + raw_result
-        saved_path = value.get("savedPath")
-        if not isinstance(saved_path, str) or not saved_path:
+        if not saved_path_present:
             _fail(
                 "RESULT_REFERENCE_NOT_RETURNED",
                 "ImageGen extension returned neither result bytes nor a saved path",
             )
+        assert isinstance(saved_path, str)
         source = Path(saved_path)
         if not source.is_absolute():
             if os.name != "nt" and re.fullmatch(r"[A-Za-z]:[\\/].+", saved_path):
@@ -314,35 +454,71 @@ def _extract_programmatic_imagegen_reference(
             )
         return "LOCAL_FILE", str(resolved_source)
 
-    direct = value.get("image_url")
-    if isinstance(direct, str):
-        return "DATA_URL", direct
+    return "DATA_URL", _extract_unique_inline_png_reference(
+        value,
+        missing_code="RESULT_REFERENCE_NOT_RETURNED",
+        invalid_code="TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
+    )
+
+
+def _has_inline_image_reference_field(value: Mapping[object, object]) -> bool:
+    return any(key in value for key in ("image_url", "structuredContent", "content"))
+
+
+def _extract_unique_inline_png_reference(
+    value: Mapping[object, object],
+    *,
+    missing_code: str,
+    invalid_code: str,
+) -> str:
+    candidates: list[str] = []
+    unsupported = False
+
+    if "image_url" in value:
+        direct = value.get("image_url")
+        if isinstance(direct, str) and direct:
+            candidates.append(direct)
+        else:
+            unsupported = True
+
     structured = value.get("structuredContent")
-    if isinstance(structured, Mapping) and isinstance(structured.get("image_url"), str):
-        return "DATA_URL", cast(str, structured["image_url"])
+    if isinstance(structured, Mapping) and "image_url" in structured:
+        structured_url = structured.get("image_url")
+        if isinstance(structured_url, str) and structured_url:
+            candidates.append(structured_url)
+        else:
+            unsupported = True
+    elif (
+        "structuredContent" in value
+        and structured is not None
+        and not isinstance(structured, Mapping)
+    ):
+        unsupported = True
+
     content = value.get("content")
     if isinstance(content, list):
-        images = [
-            item
-            for item in content
-            if isinstance(item, Mapping)
-            and item.get("type") == "image"
-            and item.get("mimeType") == "image/png"
-            and isinstance(item.get("data"), str)
+        image_items = [
+            item for item in content if isinstance(item, Mapping) and item.get("type") == "image"
         ]
-        if len(images) == 1:
-            return "DATA_URL", DATA_URL_PREFIX + cast(str, images[0]["data"])
-        if len(images) > 1:
-            _fail(
-                "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
-                "ImageGen result contains multiple PNG payloads",
-            )
+        if len(image_items) > 1:
+            _fail(invalid_code, "ImageGen result contains multiple image payloads")
+        if len(image_items) == 1:
+            image_item = image_items[0]
+            data = image_item.get("data")
+            if image_item.get("mimeType") == "image/png" and isinstance(data, str) and data:
+                candidates.append(DATA_URL_PREFIX + data)
+            else:
+                unsupported = True
+    elif "content" in value and content is not None:
+        unsupported = True
+
+    if unsupported or len(candidates) > 1:
+        _fail(invalid_code, "ImageGen result does not contain one unique supported PNG reference")
+    if len(candidates) == 1:
+        return candidates[0]
     if "output_hint" in value:
-        _fail(
-            "TOOL_RESULT_NOT_PROGRAMMATICALLY_MATERIALIZABLE",
-            "free-form output_hint is not a programmatic image reference",
-        )
-    _fail("RESULT_REFERENCE_NOT_RETURNED", "ImageGen result has no supported reference")
+        _fail(invalid_code, "free-form output_hint is not a programmatic image reference")
+    _fail(missing_code, "ImageGen result has no supported reference")
 
 
 def receive_imagegen_png(*, image_url: str, destination: PreallocatedDestination) -> ReceivedPng:
@@ -379,27 +555,9 @@ def receive_imagegen_png_file(
 ) -> ReceivedPng:
     """Consume a built-in ImageGen local-file handoff through the same writer."""
 
-    if not source_file.is_absolute():
-        _fail("INVALID_PROVIDER_FILE", "provider PNG file path must be absolute")
-    try:
-        source_file = source_file.resolve(strict=True)
-    except OSError as error:
-        raise D02R2PngReceiverError(
-            "INVALID_PROVIDER_FILE", "provider PNG file is unavailable"
-        ) from error
-    _require_not_reparse(source_file, code="INVALID_PROVIDER_FILE")
-    identity = _path_identity(source_file, code="INVALID_PROVIDER_FILE")
-    data = _read_file_bytes_no_follow(
-        source_file,
-        maximum_bytes=MAXIMUM_BYTES,
-        code="INVALID_PROVIDER_FILE",
+    return bind_principal_existing_png_file(path=source_file).copy_create_new(
+        destination=destination
     )
-    _require_opened_path_identity(source_file, identity, code="INVALID_PROVIDER_FILE")
-    validated = _validate_png_bytes(data)
-    replayed = destination.write_create_new_durable(data)
-    if replayed != data or hashlib.sha256(replayed).hexdigest() != validated.sha256:
-        _fail("DESTINATION_REPLAY_FAILED", "published PNG differs from provider file")
-    return validated
 
 
 def consume_imagegen_result_file(result_file: Path) -> str:
@@ -418,25 +576,11 @@ def consume_imagegen_result_file(result_file: Path) -> str:
 def _extract_image_url(value: object) -> str:
     if not isinstance(value, dict):
         _fail("INVALID_PROVIDER_RESULT", "provider result must be an object")
-    direct = value.get("image_url")
-    if isinstance(direct, str):
-        return direct
-    structured = value.get("structuredContent")
-    if isinstance(structured, dict) and isinstance(structured.get("image_url"), str):
-        return cast(str, structured["image_url"])
-    content = value.get("content")
-    if isinstance(content, list):
-        images = [
-            item
-            for item in content
-            if isinstance(item, dict)
-            and item.get("type") == "image"
-            and item.get("mimeType") == "image/png"
-            and isinstance(item.get("data"), str)
-        ]
-        if len(images) == 1:
-            return DATA_URL_PREFIX + cast(str, images[0]["data"])
-    _fail("INVALID_PROVIDER_RESULT", "provider result has no unique PNG image")
+    return _extract_unique_inline_png_reference(
+        value,
+        missing_code="INVALID_PROVIDER_RESULT",
+        invalid_code="INVALID_PROVIDER_RESULT",
+    )
 
 
 def _decode_canonical_png_data_url(image_url: str) -> bytes:
@@ -676,6 +820,7 @@ def _consume_provider_result_file(path: Path) -> bytes:
         path,
         maximum_bytes=MAXIMUM_PROVIDER_RESULT_FILE_BYTES,
         code="INVALID_PROVIDER_RESULT",
+        expected_identity=identity,
     )
     _require_opened_path_identity(path, identity, code="INVALID_PROVIDER_RESULT")
     try:
@@ -694,6 +839,7 @@ def _read_file_bytes_no_follow(
     *,
     maximum_bytes: int,
     code: str = "DESTINATION_REPLAY_FAILED",
+    expected_identity: tuple[int, int] | None = None,
 ) -> bytes:
     _require_not_reparse(path, code=code)
     flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
@@ -702,7 +848,15 @@ def _read_file_bytes_no_follow(
     except OSError as error:
         raise D02R2PngReceiverError(code, "no-follow file open failed") from error
     try:
-        opened_identity = _descriptor_identity(descriptor, code=code)
+        try:
+            opened_info = os.fstat(descriptor)
+        except OSError as error:
+            raise D02R2PngReceiverError(code, "descriptor identity lookup failed") from error
+        opened_identity = opened_info.st_dev, opened_info.st_ino
+        if not stat.S_ISREG(opened_info.st_mode):
+            _fail(code, "opened path is not a regular file")
+        if expected_identity is not None and opened_identity != expected_identity:
+            _fail(code, "opened file identity differs from the bound file")
         chunks: list[bytes] = []
         total = 0
         while chunk := os.read(descriptor, 1024 * 1024):
@@ -717,7 +871,10 @@ def _read_file_bytes_no_follow(
     except OSError as error:
         raise D02R2PngReceiverError(code, "no-follow file read failed") from error
     finally:
-        os.close(descriptor)
+        try:
+            os.close(descriptor)
+        except OSError as error:
+            raise D02R2PngReceiverError(code, "no-follow file close failed") from error
 
 
 def _best_effort_unlink_owned(path: Path, identity: tuple[int, int] | None) -> None:
@@ -876,43 +1033,53 @@ def _fail(code: str, message: str) -> NoReturn:
     raise D02R2PngReceiverError(code, message)
 
 
+class _FailClosedArgumentParser(argparse.ArgumentParser):
+    def error(self, _message: str) -> NoReturn:
+        _fail("INVALID_PROVIDER_RESULT", "receiver CLI arguments are invalid")
+
+
 def _run_cli(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
-    source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--result-leaf")
-    source.add_argument("--tool-result-stdin", action="store_true")
-    parser.add_argument("--destination-leaf", required=True)
-    args = parser.parse_args(argv)
     try:
+        parser = _FailClosedArgumentParser()
+        parser.add_argument("--tool-result-stdin", action="store_true")
+        parser.add_argument("--destination-leaf", required=True)
+        args = parser.parse_args(argv)
+        if not bool(args.tool_result_stdin):
+            _fail("INVALID_PROVIDER_RESULT", "typed tool result stdin is required")
+        if sys.stdin.isatty():
+            _fail("INVALID_PROVIDER_RESULT", "typed tool result stdin must be non-TTY")
         parent = Path.cwd().resolve(strict=True)
         destination = bind_principal_preallocated_destination(
             parent=parent,
             leaf_name=cast(str, args.destination_leaf),
         )
-        if bool(args.tool_result_stdin):
-            raw_result = sys.stdin.buffer.read(MAXIMUM_PROVIDER_RESULT_FILE_BYTES + 1)
-            if len(raw_result) > MAXIMUM_PROVIDER_RESULT_FILE_BYTES:
-                _fail("INVALID_PROVIDER_RESULT", "tool result exceeds the frozen maximum")
-            try:
-                result_metadata: object = json.loads(raw_result.decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError) as error:
-                raise D02R2PngReceiverError(
-                    "INVALID_PROVIDER_RESULT", "tool result stdin is not JSON"
-                ) from error
-            result = ImageGenResultMaterializer().receive(
-                result_metadata=result_metadata,
-                destination=destination,
-            )
-        else:
-            image_url = consume_imagegen_result_file(parent / cast(str, args.result_leaf))
-            result = receive_imagegen_png(
-                image_url=image_url,
-                destination=destination,
-            )
+        raw_result = sys.stdin.buffer.read(MAXIMUM_PROVIDER_RESULT_FILE_BYTES + 1)
+        if len(raw_result) > MAXIMUM_PROVIDER_RESULT_FILE_BYTES:
+            _fail("INVALID_PROVIDER_RESULT", "tool result exceeds the frozen maximum")
+        try:
+            result_metadata: object = json.loads(raw_result.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise D02R2PngReceiverError(
+                "INVALID_PROVIDER_RESULT", "tool result stdin is not JSON"
+            ) from error
+        result = ImageGenResultMaterializer().receive(
+            result_metadata=result_metadata,
+            destination=destination,
+        )
     except D02R2PngReceiverError as error:
         print(
             json.dumps(
                 {"status": "FAILED", "code": error.code},
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    except Exception:
+        print(
+            json.dumps(
+                {"status": "FAILED", "code": "INTERNAL_RECEIVER_FAILURE"},
                 sort_keys=True,
                 separators=(",", ":"),
             ),

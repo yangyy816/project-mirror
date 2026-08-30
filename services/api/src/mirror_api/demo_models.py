@@ -178,17 +178,453 @@ class DemoSession(DemoAuthorityMixin, Base):
     )
 
 
+class D02CohortSpec(DemoAuthorityMixin, Base):
+    """Immutable configuration registered for one autonomous D02 acquisition policy."""
+
+    __tablename__ = "demo_d02_cohort_specs"
+
+    generation_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    generation_policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_interface: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_identity_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    runtime_identity_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_identity_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    materializer_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    materializer_policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    m3_prescreen_policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    qa_policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    total_budget: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    tranche_size: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    concurrency: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    same_ordinal_retry: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    target_source_count: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    outputs_per_call: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    spec_state: Mapped[str] = mapped_column(String(16), nullable=False)
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        UniqueConstraint(
+            "generation_policy_digest",
+            "provider_identity_digest",
+            "runtime_identity_digest",
+            "model_identity_digest",
+            "materializer_policy_digest",
+            name="registered_identity",
+        ),
+        UniqueConstraint(
+            "spec_state",
+            name="uq_demo_d02_cohort_specs_bootstrap_singleton",
+        ),
+        CheckConstraint(
+            "generation_policy_digest ~ '^[0-9a-f]{64}$' "
+            "AND provider_identity_digest ~ '^[0-9a-f]{64}$' "
+            "AND runtime_identity_digest ~ '^[0-9a-f]{64}$' "
+            "AND model_identity_digest ~ '^[0-9a-f]{64}$' "
+            "AND materializer_policy_digest ~ '^[0-9a-f]{64}$' "
+            "AND m3_prescreen_policy_digest ~ '^[0-9a-f]{64}$' "
+            "AND qa_policy_digest ~ '^[0-9a-f]{64}$'",
+            name="digest_shapes",
+        ),
+        CheckConstraint(
+            "total_budget = 50 AND tranche_size = 10 AND concurrency = 1 "
+            "AND same_ordinal_retry = 0 AND target_source_count = 4 "
+            "AND outputs_per_call = 1",
+            name="fixed_budget",
+        ),
+        CheckConstraint("spec_state = 'REGISTERED'", name="registered_state"),
+    )
+
+
+class D02SourceAcquisitionRun(DemoAuthorityMixin, Base):
+    """Mutable PostgreSQL projection for one serialized acquisition run."""
+
+    __tablename__ = "demo_d02_source_acquisition_runs"
+
+    cohort_spec_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_d02_cohort_specs.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    run_key_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    run_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    budget_consumed: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    next_ordinal: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    open_call_ordinal: Mapped[int | None] = mapped_column(SmallInteger)
+    open_selector_slot_id: Mapped[str | None] = mapped_column(String(32))
+    accepted_count: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    consecutive_content_rejects: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    calls_without_accept: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    content_review_epoch: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    terminal_reason: Mapped[str | None] = mapped_column(String(64))
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        UniqueConstraint(
+            "run_key_digest",
+            name="uq_demo_d02_source_acquisition_runs_run_key_digest",
+        ),
+        UniqueConstraint(
+            "cohort_spec_id",
+            name="uq_demo_d02_source_acquisition_runs_bootstrap_singleton",
+        ),
+        UniqueConstraint(
+            "id",
+            "cohort_spec_id",
+            name="uq_demo_d02_source_acquisition_runs_id_spec",
+        ),
+        CheckConstraint("run_key_digest ~ '^[0-9a-f]{64}$'", name="run_key_digest_shape"),
+        CheckConstraint(
+            "run_state IN ('ACTIVE','PAUSED_INFRASTRUCTURE','PAUSED_CONTENT_REVIEW',"
+            "'MANIFEST_FINALIZED','ADMITTED','FAILED_CLOSED')",
+            name="run_state",
+        ),
+        CheckConstraint(
+            "budget_consumed BETWEEN 0 AND 50 AND next_ordinal = budget_consumed + 1 "
+            "AND next_ordinal BETWEEN 1 AND 51",
+            name="budget_projection",
+        ),
+        CheckConstraint(
+            "accepted_count BETWEEN 0 AND 4 "
+            "AND consecutive_content_rejects BETWEEN 0 AND 50 "
+            "AND calls_without_accept BETWEEN 0 AND 50 "
+            "AND content_review_epoch BETWEEN 0 AND 50",
+            name="counter_ranges",
+        ),
+        CheckConstraint(
+            "(open_call_ordinal IS NULL AND open_selector_slot_id IS NULL) OR "
+            "(run_state = 'ACTIVE' AND open_call_ordinal = budget_consumed "
+            "AND open_call_ordinal BETWEEN 1 AND 50 "
+            "AND open_selector_slot_id ~ '^[A-Z][A-Z0-9_]{0,31}$')",
+            name="single_open_call",
+        ),
+        CheckConstraint(
+            "run_state = 'ACTIVE' OR open_call_ordinal IS NULL",
+            name="paused_has_no_open_call",
+        ),
+        CheckConstraint(
+            "(run_state IN ('MANIFEST_FINALIZED','ADMITTED') AND accepted_count = 4 "
+            "AND terminal_reason IS NULL) OR "
+            "(run_state = 'FAILED_CLOSED' AND terminal_reason IS NOT NULL) OR "
+            "(run_state NOT IN ('MANIFEST_FINALIZED','ADMITTED','FAILED_CLOSED') "
+            "AND accepted_count < 4 AND terminal_reason IS NULL)",
+            name="terminal_matrix",
+        ),
+    )
+
+
+class D02SourceCandidate(DemoAuthorityMixin, Base):
+    """Durable candidate projection; selection never mutates this row into a source."""
+
+    __tablename__ = "demo_d02_source_candidates"
+
+    acquisition_run_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_d02_source_acquisition_runs.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    cohort_spec_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_d02_cohort_specs.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    provider_ordinal: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    selector_slot_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    call_started_event_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    output_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_result_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    durable_primary_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    durable_backup_sha256: Mapped[str | None] = mapped_column(String(64))
+    durable_byte_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    durable_media_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    durable_width: Mapped[int] = mapped_column(Integer, nullable=False)
+    durable_height: Mapped[int] = mapped_column(Integer, nullable=False)
+    candidate_state: Mapped[str] = mapped_column(String(24), nullable=False)
+    m3_state: Mapped[str] = mapped_column(String(16), nullable=False)
+    m3_evidence_digest: Mapped[str | None] = mapped_column(String(64))
+    qa_state: Mapped[str] = mapped_column(String(16), nullable=False)
+    qa_evidence_digest: Mapped[str | None] = mapped_column(String(64))
+    adult_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    declared_age_band: Mapped[str] = mapped_column(String(16), nullable=False)
+    suspected_minor: Mapped[bool | None] = mapped_column(Boolean)
+    synthetic_only_attested: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    real_person_reference_used: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    identity_family_digest: Mapped[str | None] = mapped_column(String(64))
+    rejection_code: Mapped[str | None] = mapped_column(String(64))
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        ForeignKeyConstraint(
+            ["acquisition_run_id", "cohort_spec_id"],
+            [
+                "demo_d02_source_acquisition_runs.id",
+                "demo_d02_source_acquisition_runs.cohort_spec_id",
+            ],
+            name="fk_demo_d02_source_candidates_run_spec",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "acquisition_run_id",
+            "provider_ordinal",
+            name="uq_demo_d02_source_candidates_run_ordinal",
+        ),
+        UniqueConstraint(
+            "output_id",
+            name="uq_demo_d02_source_candidates_output_id",
+        ),
+        UniqueConstraint(
+            "id",
+            "acquisition_run_id",
+            "cohort_spec_id",
+            name="uq_demo_d02_source_candidates_id_run_spec",
+        ),
+        Index(
+            "uq_demo_d02_source_candidates_accepted_slot",
+            "acquisition_run_id",
+            "selector_slot_id",
+            unique=True,
+            postgresql_where=text("qa_state = 'ACCEPTED'"),
+        ),
+        CheckConstraint("provider_ordinal BETWEEN 1 AND 50", name="provider_ordinal"),
+        CheckConstraint("selector_slot_id ~ '^[A-Z][A-Z0-9_]{0,31}$'", name="selector_slot_id"),
+        CheckConstraint(
+            "output_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'",
+            name="output_id_shape",
+        ),
+        CheckConstraint(
+            "provider_result_digest ~ '^[0-9a-f]{64}$' "
+            "AND call_started_event_digest ~ '^[0-9a-f]{64}$' "
+            "AND durable_primary_sha256 ~ '^[0-9a-f]{64}$' "
+            "AND (durable_backup_sha256 IS NULL "
+            "OR durable_backup_sha256 = durable_primary_sha256) "
+            "AND (m3_evidence_digest IS NULL OR m3_evidence_digest ~ '^[0-9a-f]{64}$') "
+            "AND (qa_evidence_digest IS NULL OR qa_evidence_digest ~ '^[0-9a-f]{64}$') "
+            "AND (identity_family_digest IS NULL OR identity_family_digest ~ '^[0-9a-f]{64}$')",
+            name="digest_shapes",
+        ),
+        CheckConstraint(
+            "durable_byte_size > 0 AND durable_width > 0 AND durable_height > 0 "
+            "AND durable_media_type IN ('image/png','image/jpeg')",
+            name="durable_image",
+        ),
+        CheckConstraint(
+            "declared_age_band IN ('ADULT_18_19','ADULT_20_25') "
+            "AND synthetic_only_attested IS TRUE "
+            "AND real_person_reference_used IS FALSE",
+            name="synthetic_adult_scope",
+        ),
+        CheckConstraint(
+            "candidate_state IN ('PRIMARY_DURABLE','DURABLE','M3_SUPPORTED',"
+            "'QA_ACCEPTED','QA_REJECTED') "
+            "AND m3_state IN ('PENDING','SUPPORTED','UNSUPPORTED') "
+            "AND qa_state IN ('PENDING','ACCEPTED','REJECTED')",
+            name="states",
+        ),
+        CheckConstraint(
+            "(candidate_state = 'PRIMARY_DURABLE' AND durable_backup_sha256 IS NULL "
+            "AND m3_state = 'PENDING' AND m3_evidence_digest IS NULL "
+            "AND qa_state = 'PENDING' AND qa_evidence_digest IS NULL "
+            "AND adult_status = 'UNVERIFIED' AND suspected_minor IS NULL "
+            "AND identity_family_digest IS NULL AND rejection_code IS NULL) OR "
+            "(candidate_state = 'DURABLE' "
+            "AND durable_backup_sha256 = durable_primary_sha256 "
+            "AND m3_state = 'PENDING' "
+            "AND m3_evidence_digest IS NULL AND qa_state = 'PENDING' "
+            "AND qa_evidence_digest IS NULL AND adult_status = 'UNVERIFIED' "
+            "AND identity_family_digest IS NULL AND rejection_code IS NULL) OR "
+            "(candidate_state = 'M3_SUPPORTED' "
+            "AND durable_backup_sha256 = durable_primary_sha256 "
+            "AND m3_state = 'SUPPORTED' "
+            "AND m3_evidence_digest IS NOT NULL AND qa_state = 'PENDING' "
+            "AND qa_evidence_digest IS NULL AND adult_status = 'UNVERIFIED' "
+            "AND identity_family_digest IS NULL AND rejection_code IS NULL) OR "
+            "(candidate_state = 'QA_ACCEPTED' "
+            "AND durable_backup_sha256 = durable_primary_sha256 "
+            "AND m3_state = 'SUPPORTED' "
+            "AND m3_evidence_digest IS NOT NULL AND qa_state = 'ACCEPTED' "
+            "AND qa_evidence_digest IS NOT NULL "
+            "AND adult_status = 'VERIFIED_SYNTHETIC_ADULT' "
+            "AND suspected_minor IS FALSE AND identity_family_digest IS NOT NULL "
+            "AND rejection_code IS NULL) OR "
+            "(candidate_state = 'QA_REJECTED' "
+            "AND durable_backup_sha256 = durable_primary_sha256 "
+            "AND m3_state IN ('SUPPORTED','UNSUPPORTED') "
+            "AND m3_evidence_digest IS NOT NULL AND qa_state = 'REJECTED' "
+            "AND qa_evidence_digest IS NOT NULL AND rejection_code IS NOT NULL)",
+            name="state_matrix",
+        ),
+    )
+
+
+class D02SourceAcquisitionEvent(DemoAuthorityMixin, Base):
+    """Append-only irreversible acquisition event; CALL_STARTED consumes budget."""
+
+    __tablename__ = "demo_d02_source_acquisition_events"
+
+    acquisition_run_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_d02_source_acquisition_runs.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    cohort_spec_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_d02_cohort_specs.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    event_sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    provider_ordinal: Mapped[int | None] = mapped_column(SmallInteger)
+    selector_slot_id: Mapped[str | None] = mapped_column(String(32))
+    tranche_number: Mapped[int | None] = mapped_column(SmallInteger)
+    candidate_id: Mapped[str | None] = mapped_column(
+        ForeignKey("demo_d02_source_candidates.id", ondelete="RESTRICT"), index=True
+    )
+    detail_code: Mapped[str | None] = mapped_column(String(64))
+    evidence_digest: Mapped[str | None] = mapped_column(String(64))
+    call_started_event_digest: Mapped[str | None] = mapped_column(String(64))
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        ForeignKeyConstraint(
+            ["acquisition_run_id", "cohort_spec_id"],
+            [
+                "demo_d02_source_acquisition_runs.id",
+                "demo_d02_source_acquisition_runs.cohort_spec_id",
+            ],
+            name="fk_demo_d02_source_acquisition_events_run_spec",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "acquisition_run_id",
+            "event_sequence",
+            name="uq_demo_d02_source_acquisition_events_run_sequence",
+        ),
+        Index(
+            "uq_demo_d02_source_acquisition_events_call_started",
+            "acquisition_run_id",
+            "provider_ordinal",
+            unique=True,
+            postgresql_where=text("event_kind = 'CALL_STARTED'"),
+        ),
+        Index(
+            "uq_demo_d02_source_acquisition_events_tranche_reconciled",
+            "acquisition_run_id",
+            "tranche_number",
+            unique=True,
+            postgresql_where=text("event_kind = 'TRANCHE_RECONCILED'"),
+        ),
+        Index(
+            "uq_demo_d02_source_acquisition_events_formal_sources_ready",
+            "acquisition_run_id",
+            unique=True,
+            postgresql_where=text("event_kind = 'FORMAL_SOURCES_READY'"),
+        ),
+        CheckConstraint("event_sequence > 0", name="positive_sequence"),
+        CheckConstraint(
+            "event_kind IN ('RUN_CREATED','CALL_STARTED','CALL_CONSUMED_NO_RESULT',"
+            "'PROVIDER_OUTCOME_UNCERTAIN','MATERIALIZATION_FAILED',"
+            "'CANDIDATE_PRIMARY_DURABLE','CANDIDATE_DURABLE',"
+            "'M3_SUPPORTED','M3_UNSUPPORTED','QA_ACCEPTED','QA_REJECTED',"
+            "'INFRASTRUCTURE_PAUSED','INFRASTRUCTURE_RESUMED','CONTENT_REVIEW_PAUSED',"
+            "'CONTENT_REVIEW_RESUMED','TRANCHE_RECONCILED','MANIFEST_FINALIZED',"
+            "'FORMAL_SOURCES_READY','FINAL_GATE_PAUSED','ADMISSION_COMPLETED',"
+            "'RUN_FAILED_CLOSED')",
+            name="event_kind",
+        ),
+        CheckConstraint(
+            "(provider_ordinal IS NULL AND selector_slot_id IS NULL) OR "
+            "(provider_ordinal BETWEEN 1 AND 50 "
+            "AND selector_slot_id ~ '^[A-Z][A-Z0-9_]{0,31}$')",
+            name="ordinal_slot_pair",
+        ),
+        CheckConstraint(
+            "(event_kind = 'TRANCHE_RECONCILED' AND tranche_number BETWEEN 1 AND 5 "
+            "AND provider_ordinal IS NULL AND selector_slot_id IS NULL) OR "
+            "(event_kind <> 'TRANCHE_RECONCILED' AND tranche_number IS NULL)",
+            name="tranche_binding",
+        ),
+        CheckConstraint(
+            "(detail_code IS NULL OR detail_code ~ '^[A-Z][A-Z0-9_]{0,63}$') "
+            "AND (evidence_digest IS NULL OR evidence_digest ~ '^[0-9a-f]{64}$') "
+            "AND (call_started_event_digest IS NULL "
+            "OR call_started_event_digest ~ '^[0-9a-f]{64}$')",
+            name="detail_shapes",
+        ),
+        CheckConstraint(
+            "(provider_ordinal IS NULL AND call_started_event_digest IS NULL) OR "
+            "(event_kind = 'CALL_STARTED' AND call_started_event_digest IS NULL) OR "
+            "(provider_ordinal IS NOT NULL AND event_kind <> 'CALL_STARTED' "
+            "AND call_started_event_digest IS NOT NULL)",
+            name="call_started_binding",
+        ),
+    )
+
+
+class D02SelectedSourceManifest(DemoAuthorityMixin, Base):
+    """Immutable, ordered selection of exactly four QA-accepted candidates."""
+
+    __tablename__ = "demo_d02_selected_source_manifests"
+
+    acquisition_run_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_d02_source_acquisition_runs.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    cohort_spec_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_d02_cohort_specs.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    generation_policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    ordered_candidate_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    source_count: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    manifest_state: Mapped[str] = mapped_column(String(16), nullable=False)
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        ForeignKeyConstraint(
+            ["acquisition_run_id", "cohort_spec_id"],
+            [
+                "demo_d02_source_acquisition_runs.id",
+                "demo_d02_source_acquisition_runs.cohort_spec_id",
+            ],
+            name="fk_demo_d02_selected_source_manifests_run_spec",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "acquisition_run_id",
+            name="uq_demo_d02_selected_source_manifests_acquisition_run_id",
+        ),
+        UniqueConstraint(
+            "id",
+            "acquisition_run_id",
+            "cohort_spec_id",
+            name="uq_demo_d02_selected_source_manifests_id_run_spec",
+        ),
+        CheckConstraint(
+            "generation_policy_digest ~ '^[0-9a-f]{64}$'",
+            name="gen_policy_digest",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(ordered_candidate_ids) = 'array' "
+            "AND jsonb_array_length(ordered_candidate_ids) = 4 "
+            "AND source_count = 4",
+            name="four_candidates",
+        ),
+        CheckConstraint("manifest_state = 'FINALIZED'", name="finalized_state"),
+    )
+
+
 class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
     """Public structural projection of one private D02-R2 source authority."""
 
     __tablename__ = "demo_d02_r2_source_authorities"
 
     execution_contract_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    evidence_root_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    root_name_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    generation_preregistration_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_allocation_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_producer_dispatch_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_root_id: Mapped[str | None] = mapped_column(String(128))
+    root_name_receipt_digest: Mapped[str | None] = mapped_column(String(64))
+    generation_preregistration_digest: Mapped[str | None] = mapped_column(String(64))
+    source_allocation_manifest_digest: Mapped[str | None] = mapped_column(String(64))
+    source_producer_dispatch_digest: Mapped[str | None] = mapped_column(String(64))
     source_ordinal: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     source_output_id: Mapped[str] = mapped_column(String(128), nullable=False)
     source_asset_id: Mapped[str] = mapped_column(
@@ -199,11 +635,11 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
     source_asset_mime_type: Mapped[str] = mapped_column(String(64), nullable=False)
     source_asset_width: Mapped[int] = mapped_column(Integer, nullable=False)
     source_asset_height: Mapped[int] = mapped_column(Integer, nullable=False)
-    source_generation_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    output_name_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    output_seal_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    registry_commit_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    generation_capability_authority_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_generation_receipt_digest: Mapped[str | None] = mapped_column(String(64))
+    output_name_receipt_digest: Mapped[str | None] = mapped_column(String(64))
+    output_seal_receipt_digest: Mapped[str | None] = mapped_column(String(64))
+    registry_commit_receipt_digest: Mapped[str | None] = mapped_column(String(64))
+    generation_capability_authority_digest: Mapped[str | None] = mapped_column(String(64))
     generation_request_policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     generation_request_digest: Mapped[str | None] = mapped_column(String(64))
     execution_epoch: Mapped[str | None] = mapped_column(String(64))
@@ -217,12 +653,10 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
     source_normalization_receipt_digest: Mapped[str | None] = mapped_column(String(64))
     generation_policy_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     source_provenance_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_provenance_output_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    source_provenance_name_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_provenance_seal_receipt_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_provenance_registry_commit_receipt_digest: Mapped[str] = mapped_column(
-        String(64), nullable=False
-    )
+    source_provenance_output_id: Mapped[str | None] = mapped_column(String(128))
+    source_provenance_name_receipt_digest: Mapped[str | None] = mapped_column(String(64))
+    source_provenance_seal_receipt_digest: Mapped[str | None] = mapped_column(String(64))
+    source_provenance_registry_commit_receipt_digest: Mapped[str | None] = mapped_column(String(64))
     source_authority_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     source_authority_key: Mapped[str] = mapped_column(String(64), nullable=False)
     source_qa_snapshot_digest: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -230,6 +664,13 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
     synthetic_only_attested: Mapped[bool] = mapped_column(Boolean, nullable=False)
     real_person_reference_used: Mapped[bool] = mapped_column(Boolean, nullable=False)
     authority_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    acquisition_candidate_id: Mapped[str | None] = mapped_column(
+        ForeignKey("demo_d02_source_candidates.id", ondelete="RESTRICT"), index=True
+    )
+    selected_source_manifest_id: Mapped[str | None] = mapped_column(
+        ForeignKey("demo_d02_selected_source_manifests.id", ondelete="RESTRICT"), index=True
+    )
+    manifest_position: Mapped[int | None] = mapped_column(SmallInteger)
 
     __table_args__ = (
         *_authority_constraints(
@@ -238,7 +679,8 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
                 "schema_version IN ('mirror.demo/D02R2SourceAuthorityRecord/v1',"
                 "'mirror.demo/D02R2Epoch2SourceAuthorityRecord/v1',"
                 "'mirror.demo/D02R2Epoch3SourceAuthorityRecord/v1',"
-                "'mirror.demo/D02R2Epoch4SourceAuthorityRecord/v1')"
+                "'mirror.demo/D02R2Epoch4SourceAuthorityRecord/v1',"
+                "'mirror.demo/D02GenericSourceAuthorityRecord/v1')"
             ),
         ),
         UniqueConstraint("execution_contract_digest", "source_ordinal", name="execution_ordinal"),
@@ -257,6 +699,10 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
         UniqueConstraint("source_authority_key", name="source_authority_key"),
         UniqueConstraint("source_qa_snapshot_digest", name="source_qa_snapshot_digest"),
         UniqueConstraint("generation_request_digest", name="generation_request_digest"),
+        UniqueConstraint("acquisition_candidate_id", name="acquisition_candidate_id"),
+        UniqueConstraint(
+            "selected_source_manifest_id", "manifest_position", name="manifest_position"
+        ),
         UniqueConstraint(
             "source_normalization_receipt_digest", name="source_normalization_receipt_digest"
         ),
@@ -325,7 +771,33 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
             "AND generation_source_asset_width > 0 "
             "AND generation_source_asset_height > 0 "
             "AND source_normalization_receipt_digest ~ '^[0-9a-f]{64}$' "
-            "AND jsonb_typeof(generation_policy_metadata) = 'object')",
+            "AND jsonb_typeof(generation_policy_metadata) = 'object') OR "
+            "(schema_version = 'mirror.demo/D02GenericSourceAuthorityRecord/v1' "
+            "AND evidence_root_id IS NULL AND root_name_receipt_digest IS NULL "
+            "AND generation_preregistration_digest IS NULL "
+            "AND source_allocation_manifest_digest IS NULL "
+            "AND source_producer_dispatch_digest IS NULL "
+            "AND source_generation_receipt_digest IS NULL "
+            "AND output_name_receipt_digest IS NULL AND output_seal_receipt_digest IS NULL "
+            "AND registry_commit_receipt_digest IS NULL "
+            "AND generation_capability_authority_digest IS NULL "
+            "AND generation_request_digest IS NULL "
+            "AND execution_epoch = 'D02_AUTONOMOUS_V1' "
+            "AND producer_task_id IS NULL AND dispatch_epoch IS NULL "
+            "AND generation_source_asset_sha256 IS NULL "
+            "AND generation_source_asset_byte_size IS NULL "
+            "AND generation_source_asset_mime_type IS NULL "
+            "AND generation_source_asset_width IS NULL "
+            "AND generation_source_asset_height IS NULL "
+            "AND source_normalization_receipt_digest IS NULL "
+            "AND generation_policy_metadata IS NULL "
+            "AND source_provenance_output_id IS NULL "
+            "AND source_provenance_name_receipt_digest IS NULL "
+            "AND source_provenance_seal_receipt_digest IS NULL "
+            "AND source_provenance_registry_commit_receipt_digest IS NULL "
+            "AND acquisition_candidate_id IS NOT NULL "
+            "AND selected_source_manifest_id IS NOT NULL "
+            "AND manifest_position BETWEEN 1 AND 4)",
             name="evidence_root",
         ),
         CheckConstraint(
@@ -349,21 +821,32 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
         ),
         CheckConstraint(
             "source_output_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' "
-            "AND source_provenance_output_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'",
+            "AND (source_provenance_output_id IS NULL OR "
+            "source_provenance_output_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$')",
             name="opaque_output_ids",
         ),
         CheckConstraint(
-            "source_asset_sha256 ~ '^[0-9a-f]{64}$' AND source_authority_key ~ '^[0-9a-f]{64}$' "
+            "source_asset_sha256 ~ '^[0-9a-f]{64}$' "
+            "AND source_authority_key ~ '^[0-9a-f]{64}$' "
             "AND execution_contract_digest ~ '^[0-9a-f]{64}$' "
-            "AND root_name_receipt_digest ~ '^[0-9a-f]{64}$' "
-            "AND generation_preregistration_digest ~ '^[0-9a-f]{64}$' "
-            "AND source_allocation_manifest_digest ~ '^[0-9a-f]{64}$' "
-            "AND source_producer_dispatch_digest ~ '^[0-9a-f]{64}$' "
-            "AND source_generation_receipt_digest ~ '^[0-9a-f]{64}$' "
-            "AND output_name_receipt_digest ~ '^[0-9a-f]{64}$' "
-            "AND output_seal_receipt_digest ~ '^[0-9a-f]{64}$' "
-            "AND registry_commit_receipt_digest ~ '^[0-9a-f]{64}$' "
-            "AND generation_capability_authority_digest ~ '^[0-9a-f]{64}$' "
+            "AND (root_name_receipt_digest IS NULL OR "
+            "root_name_receipt_digest ~ '^[0-9a-f]{64}$') "
+            "AND (generation_preregistration_digest IS NULL OR "
+            "generation_preregistration_digest ~ '^[0-9a-f]{64}$') "
+            "AND (source_allocation_manifest_digest IS NULL OR "
+            "source_allocation_manifest_digest ~ '^[0-9a-f]{64}$') "
+            "AND (source_producer_dispatch_digest IS NULL OR "
+            "source_producer_dispatch_digest ~ '^[0-9a-f]{64}$') "
+            "AND (source_generation_receipt_digest IS NULL OR "
+            "source_generation_receipt_digest ~ '^[0-9a-f]{64}$') "
+            "AND (output_name_receipt_digest IS NULL OR "
+            "output_name_receipt_digest ~ '^[0-9a-f]{64}$') "
+            "AND (output_seal_receipt_digest IS NULL OR "
+            "output_seal_receipt_digest ~ '^[0-9a-f]{64}$') "
+            "AND (registry_commit_receipt_digest IS NULL OR "
+            "registry_commit_receipt_digest ~ '^[0-9a-f]{64}$') "
+            "AND (generation_capability_authority_digest IS NULL OR "
+            "generation_capability_authority_digest ~ '^[0-9a-f]{64}$') "
             "AND generation_request_policy_digest ~ '^[0-9a-f]{64}$' "
             "AND (generation_request_digest IS NULL OR "
             "generation_request_digest ~ '^[0-9a-f]{64}$') "
@@ -372,12 +855,25 @@ class DemoD02R2SourceAuthority(DemoAuthorityMixin, Base):
             "AND (source_normalization_receipt_digest IS NULL OR "
             "source_normalization_receipt_digest ~ '^[0-9a-f]{64}$') "
             "AND source_provenance_digest ~ '^[0-9a-f]{64}$' "
-            "AND source_provenance_name_receipt_digest ~ '^[0-9a-f]{64}$' "
-            "AND source_provenance_seal_receipt_digest ~ '^[0-9a-f]{64}$' "
-            "AND source_provenance_registry_commit_receipt_digest ~ '^[0-9a-f]{64}$' "
+            "AND (source_provenance_name_receipt_digest IS NULL OR "
+            "source_provenance_name_receipt_digest ~ '^[0-9a-f]{64}$') "
+            "AND (source_provenance_seal_receipt_digest IS NULL OR "
+            "source_provenance_seal_receipt_digest ~ '^[0-9a-f]{64}$') "
+            "AND (source_provenance_registry_commit_receipt_digest IS NULL OR "
+            "source_provenance_registry_commit_receipt_digest ~ '^[0-9a-f]{64}$') "
             "AND source_authority_digest ~ '^[0-9a-f]{64}$' "
             "AND source_qa_snapshot_digest ~ '^[0-9a-f]{64}$'",
             name="digest_shapes",
+        ),
+        CheckConstraint(
+            "(schema_version = 'mirror.demo/D02GenericSourceAuthorityRecord/v1' "
+            "AND acquisition_candidate_id IS NOT NULL "
+            "AND selected_source_manifest_id IS NOT NULL "
+            "AND manifest_position BETWEEN 1 AND 4) OR "
+            "(schema_version <> 'mirror.demo/D02GenericSourceAuthorityRecord/v1' "
+            "AND acquisition_candidate_id IS NULL "
+            "AND selected_source_manifest_id IS NULL AND manifest_position IS NULL)",
+            name="generic_manifest_binding",
         ),
     )
 
@@ -455,7 +951,8 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
                 "schema_version IN ('mirror.demo/DemoSyntheticIdentity/v1',"
                 "'mirror.demo/DemoSyntheticIdentity/v2',"
                 "'mirror.demo/DemoSyntheticIdentity/v3',"
-                "'mirror.demo/DemoSyntheticIdentity/v4')"
+                "'mirror.demo/DemoSyntheticIdentity/v4',"
+                "'mirror.demo/DemoSyntheticIdentity/v5')"
             ),
         ),
         UniqueConstraint(
@@ -532,6 +1029,24 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
             name="local_json_objects",
         ),
         CheckConstraint(
+            "(schema_version = 'mirror.demo/DemoSyntheticIdentity/v5' "
+            "AND source_authority_kind = 'DEMO_R2_GENERATED_SOURCE' "
+            "AND r2_source_authority_record_id IS NOT NULL "
+            "AND formal_synthetic_identity_id IS NULL "
+            "AND formal_accepted_qa_run_id IS NULL "
+            "AND formal_accepted_qa_snapshot_digest IS NULL "
+            "AND source_output_id IS NOT NULL AND source_receipt_digest IS NULL "
+            "AND source_authority_digest IS NOT NULL "
+            "AND source_qa_snapshot_digest IS NOT NULL "
+            "AND source_landmark_digest IS NOT NULL AND source_measurement_digest IS NOT NULL "
+            "AND source_provenance_digest IS NOT NULL AND source_fact_snapshot IS NOT NULL "
+            "AND source_fact_snapshot_digest IS NOT NULL "
+            "AND source_measurement_projection IS NOT NULL "
+            "AND source_measurement_projection_digest IS NOT NULL "
+            "AND original_formal_identity_id_status = 'NOT_APPLICABLE_D02_GENERIC_SOURCE' "
+            "AND adult_synthetic_attested IS TRUE "
+            "AND importer_version = 'demo-d02-generic-identity-importer-v1' "
+            "AND import_config_digest IS NOT NULL) OR "
             "(schema_version = 'mirror.demo/DemoSyntheticIdentity/v4' "
             "AND source_authority_kind = 'DEMO_R2_GENERATED_SOURCE' "
             "AND r2_source_authority_record_id IS NOT NULL "
@@ -550,7 +1065,8 @@ class DemoSyntheticIdentity(DemoAuthorityMixin, Base):
             "AND adult_synthetic_attested IS TRUE "
             "AND importer_version = 'demo-d02-r2-identity-importer-v1' "
             "AND import_config_digest IS NOT NULL) OR "
-            "(schema_version <> 'mirror.demo/DemoSyntheticIdentity/v4' "
+            "(schema_version NOT IN ('mirror.demo/DemoSyntheticIdentity/v4',"
+            "'mirror.demo/DemoSyntheticIdentity/v5') "
             "AND r2_source_authority_record_id IS NULL AND ("
             "(source_authority_kind = 'FORMAL_REFERENCE' "
             "AND schema_version <> 'mirror.demo/DemoSyntheticIdentity/v3' "
@@ -912,13 +1428,15 @@ class DemoPairScreeningReport(DemoAuthorityMixin, Base):
             schema_version_expression=(
                 "schema_version IN ('mirror.demo/D02PairScreeningReport/v1',"
                 "'mirror.demo/D02PairScreeningReport/v2',"
-                "'mirror.demo/D02PairScreeningReport/v3')"
+                "'mirror.demo/D02PairScreeningReport/v3',"
+                "'mirror.demo/D02GenericPairScreeningReport/v1')"
             ),
         ),
         UniqueConstraint("report_digest", name="uq_demo_pair_screening_reports_report_digest"),
         CheckConstraint(
             "schema_version IN ('mirror.demo/D02PairScreeningReport/v1',"
-            "'mirror.demo/D02PairScreeningReport/v2','mirror.demo/D02PairScreeningReport/v3')",
+            "'mirror.demo/D02PairScreeningReport/v2','mirror.demo/D02PairScreeningReport/v3',"
+            "'mirror.demo/D02GenericPairScreeningReport/v1')",
             name="exact_schema_version",
         ),
         CheckConstraint(
@@ -964,7 +1482,8 @@ class DemoPairScreeningReport(DemoAuthorityMixin, Base):
             "(schema_version IN ('mirror.demo/D02PairScreeningReport/v1',"
             "'mirror.demo/D02PairScreeningReport/v2') AND measurement_gate_count IS NULL "
             "AND decode_structure_record_count IS NULL) OR "
-            "(schema_version = 'mirror.demo/D02PairScreeningReport/v3' "
+            "(schema_version IN ('mirror.demo/D02PairScreeningReport/v3',"
+            "'mirror.demo/D02GenericPairScreeningReport/v1') "
             "AND measurement_gate_count = 48 AND decode_structure_record_count = 48)",
             name="r2_v3_exact_counts",
         ),
@@ -991,7 +1510,8 @@ class DemoQuestionBank(DemoAuthorityMixin, Base):
             __tablename__,
             schema_version_expression=(
                 "schema_version IN ('mirror.demo/DemoQuestionBank/v1',"
-                "'mirror.demo/DemoQuestionBank/v2','mirror.demo/DemoQuestionBank/v3')"
+                "'mirror.demo/DemoQuestionBank/v2','mirror.demo/DemoQuestionBank/v3',"
+                "'mirror.demo/D02GenericQuestionBank/v1')"
             ),
         ),
         UniqueConstraint("version", name="uq_demo_question_banks_version"),
@@ -1008,7 +1528,7 @@ class DemoQuestionBank(DemoAuthorityMixin, Base):
             "AND jsonb_typeof(dimension_manifest) = 'array' "
             "AND screening_report_id IS NULL AND screening_report_digest IS NULL) OR "
             "(schema_version IN ('mirror.demo/DemoQuestionBank/v2',"
-            "'mirror.demo/DemoQuestionBank/v3') "
+            "'mirror.demo/DemoQuestionBank/v3','mirror.demo/D02GenericQuestionBank/v1') "
             "AND jsonb_typeof(dimension_manifest) = 'object' "
             "AND screening_report_id IS NOT NULL AND screening_report_digest IS NOT NULL)",
             name="versioned_dimension_manifest",
@@ -1066,7 +1586,8 @@ class DemoQuestionPair(DemoAuthorityMixin, Base):
             __tablename__,
             schema_version_expression=(
                 "schema_version IN ('mirror.demo/DemoQuestionPair/v1',"
-                "'mirror.demo/DemoQuestionPair/v2','mirror.demo/DemoQuestionPair/v3')"
+                "'mirror.demo/DemoQuestionPair/v2','mirror.demo/DemoQuestionPair/v3',"
+                "'mirror.demo/D02GenericQuestionPair/v1')"
             ),
         ),
         UniqueConstraint(
@@ -1098,7 +1619,7 @@ class DemoQuestionPair(DemoAuthorityMixin, Base):
             "(schema_version = 'mirror.demo/DemoQuestionPair/v1' "
             "AND screening_report_id IS NULL AND screening_report_digest IS NULL) OR "
             "(schema_version IN ('mirror.demo/DemoQuestionPair/v2',"
-            "'mirror.demo/DemoQuestionPair/v3') "
+            "'mirror.demo/DemoQuestionPair/v3','mirror.demo/D02GenericQuestionPair/v1') "
             "AND screening_report_id IS NOT NULL AND screening_report_digest IS NOT NULL)",
             name="versioned_report_binding",
         ),
@@ -1124,7 +1645,10 @@ class DemoD02R2Epoch2Admission(DemoAuthorityMixin, Base):
     idempotency_key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     execution_epoch: Mapped[str] = mapped_column(String(64), nullable=False)
-    evidence_root_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    evidence_root_id: Mapped[str | None] = mapped_column(String(128))
+    selected_source_manifest_id: Mapped[str | None] = mapped_column(
+        ForeignKey("demo_d02_selected_source_manifests.id", ondelete="RESTRICT"), index=True
+    )
     source_manifest_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     screening_report_id: Mapped[str] = mapped_column(
         ForeignKey(
@@ -1162,12 +1686,14 @@ class DemoD02R2Epoch2Admission(DemoAuthorityMixin, Base):
             schema_version_expression=(
                 "schema_version IN ('mirror.demo/D02R2Epoch2Admission/v1',"
                 "'mirror.demo/D02R2Epoch3Admission/v1',"
-                "'mirror.demo/D02R2Epoch4Admission/v1')"
+                "'mirror.demo/D02R2Epoch4Admission/v1',"
+                "'mirror.demo/D02GenericAdmission/v1')"
             ),
         ),
         UniqueConstraint("idempotency_key_hash", name="idempotency_key_hash"),
         UniqueConstraint("screening_report_id", name="screening_report_id"),
         UniqueConstraint("question_bank_id", name="question_bank_id"),
+        UniqueConstraint("selected_source_manifest_id", name="selected_source_manifest_id"),
         CheckConstraint(
             "idempotency_key_hash ~ '^[0-9a-f]{64}$' "
             "AND request_digest ~ '^[0-9a-f]{64}$' "
@@ -1180,13 +1706,19 @@ class DemoD02R2Epoch2Admission(DemoAuthorityMixin, Base):
         CheckConstraint(
             "(schema_version = 'mirror.demo/D02R2Epoch2Admission/v1' "
             "AND execution_epoch = 'D02_R2_EPOCH_02' "
-            "AND evidence_root_id = 'P3_P7_D02_R2_CC08_E2_EVIDENCE_ROOT') OR "
+            "AND evidence_root_id = 'P3_P7_D02_R2_CC08_E2_EVIDENCE_ROOT' "
+            "AND selected_source_manifest_id IS NULL) OR "
             "(schema_version = 'mirror.demo/D02R2Epoch3Admission/v1' "
             "AND execution_epoch = 'D02_R2_EPOCH_03' "
-            "AND evidence_root_id = 'P3_P7_D02_R2_E3_EVIDENCE_ROOT') OR "
+            "AND evidence_root_id = 'P3_P7_D02_R2_E3_EVIDENCE_ROOT' "
+            "AND selected_source_manifest_id IS NULL) OR "
             "(schema_version = 'mirror.demo/D02R2Epoch4Admission/v1' "
             "AND execution_epoch = 'D02_R2_EPOCH_04' "
-            "AND evidence_root_id = 'P3_P7_D02_R2_E4_EVIDENCE_ROOT')",
+            "AND evidence_root_id = 'P3_P7_D02_R2_E4_EVIDENCE_ROOT' "
+            "AND selected_source_manifest_id IS NULL) OR "
+            "(schema_version = 'mirror.demo/D02GenericAdmission/v1' "
+            "AND execution_epoch = 'D02_AUTONOMOUS_V1' "
+            "AND evidence_root_id IS NULL AND selected_source_manifest_id IS NOT NULL)",
             name="epoch_root",
         ),
         CheckConstraint(
@@ -2851,6 +3383,11 @@ DEMO_TABLE_NAMES = frozenset(
     {
         "demo_actors",
         "demo_sessions",
+        "demo_d02_cohort_specs",
+        "demo_d02_source_acquisition_runs",
+        "demo_d02_source_acquisition_events",
+        "demo_d02_source_candidates",
+        "demo_d02_selected_source_manifests",
         "demo_d02_r2_source_authorities",
         "demo_d02_r2_epoch2_admissions",
         "demo_synthetic_identities",
