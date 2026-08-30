@@ -92,6 +92,9 @@ CC06_CONTRACT_PATH = (
 CC06_ADR_PATH = (
     ROOT / "docs" / "adr" / "ADR-054-private-post-registration-and-sequential-successor.md"
 )
+R56_CONTRACT_PATH = (
+    ROOT / "docs" / "operations" / "P2_M5_R56_CC06_TERMINAL_EVIDENCE_CLOSURE_REPAIR.md"
+)
 
 _CC05_A_AUTHORIZED_A0_OVERRIDES = {
     "ASSIGNMENT_LEDGER_VERSION": ("p2-m5-cc05a-calibration-assignment-v3-cal-req-002-forward"),
@@ -440,6 +443,14 @@ def _last_cc06_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-cc06-batched-native-post-registration-eof/v1",
         sentinel="P2_M5_CC06_BATCHED_NATIVE_POST_REGISTRATION_TRUE_EOF",
+    )
+
+
+def _last_r56_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-r56-cc06-terminal-evidence-closure-repair-eof/v1",
+        sentinel="P2_M5_R56_CC06_TERMINAL_EVIDENCE_CLOSURE_REPAIR_TRUE_EOF",
     )
 
 
@@ -3397,8 +3408,12 @@ def test_cc06_batched_post_registration_authority_is_mirrored_and_true_eof() -> 
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_CC06_BATCHED_NATIVE_POST_REGISTRATION_TRUE_EOF",
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    acceptance_text = ACCEPTANCE_PATH.read_text(encoding="utf-8")
+    protocol_text = EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")
+    assert canonical[-1][1] + "\n\n## Current authoritative state — P2-M5-R56" in (acceptance_text)
+    assert mirror[-1][1] + "\n\n## Current authoritative state mirror — P2-M5-R56" in (
+        protocol_text
+    )
 
     contract = CC06_CONTRACT_PATH.read_text(encoding="utf-8")
     adr = CC06_ADR_PATH.read_text(encoding="utf-8")
@@ -3418,6 +3433,94 @@ def test_cc06_batched_post_registration_authority_is_mirrored_and_true_eof() -> 
             EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-28_000:],
             contract,
             adr,
+        )
+    )
+    for forbidden in (
+        "data:image/",
+        "prompt_plaintext",
+        "signed_url",
+        "object_key",
+        "D:\\p-worktrees\\",
+    ):
+        assert forbidden not in tracked
+
+
+def test_r56_terminal_evidence_closure_authority_is_coherent_at_true_eof() -> None:
+    canonical = _last_r56_key_block(ACCEPTANCE_PATH)
+    mirror = _last_r56_key_block(EXECUTION_PROTOCOL_PATH)
+    values = dict(canonical)
+
+    assert canonical == mirror
+    assert len(canonical) == len(values)
+    assert values["CURRENT_STATE_MIRROR_RULE"] == (
+        "MUST_MATCH_CANONICAL_R56_KEY_SET_ORDER_AND_VALUES"
+    )
+    assert values["P2_M5_CC06_PARENT_CANDIDATE_SHA"] == ("7119F6DD05C26AB6AA533B9567C22E22F9515A41")
+    assert values["P2_M5_CC06_PARENT_CI_RUN"] == ("33326809003_ATTEMPT_1_ALL_MANDATORY_JOBS_PASS")
+    assert values["P2_M5_CC06_PARENT_PRINCIPAL_ACCEPTANCE"] == "DENIED_PENDING_R56"
+    assert values["P2_M5_CC06"] == "TASK_ACCEPTED_WITH_R56_ON_AUTHORITY_ACTIVATION"
+    assert values["P2_M5_CC06_PRINCIPAL_ACCEPTANCE"] == ("GRANTED_WITH_R56_ON_AUTHORITY_ACTIVATION")
+    assert values["P2_M5_R56"] == "TASK_ACCEPTED_ON_AUTHORITY_ACTIVATION"
+    assert values["P2_M5_R56_CHANGE_CLASS"] == (
+        "BOUNDED_CC06_INTEGRITY_AND_FAILURE_TAXONOMY_REPAIR"
+    )
+    assert values["P2_M5_R56_TERMINAL_EVIDENCE_CLOSURE"] == (
+        "PASS_CANONICAL_BYTES_DIGEST_AND_HISTORICAL_TRANSITION_ANCHORED"
+    )
+    assert values["P2_M5_R56_PRE_INVOKE_FAILURE_CLASSIFICATION"] == (
+        "PASS_DURABLE_INFRA_FAILURE_BEFORE_EXECUTOR_ZERO_CALLS"
+    )
+    assert values["P2_M5_R56_CONDITIONAL_TRUE_EOF"] == (
+        "PASS_ACCEPTED_STATE_STOP_NONE_AND_ONE_SUCCESSOR"
+    )
+    assert values["P2_M5_R56_IMAGEGEN_CALLS"] == "0"
+    assert values["P2_M5_R56_PRIVATE_CANARY_IMAGE_BYTES_READ"] == "0"
+    assert values["P2_M5_R56_PRIVATE_CANARY_DECODE_CALLS"] == "0"
+    assert values["P2_M5_R56_PRIVATE_CANARY_M3_EXECUTIONS"] == "0"
+    assert values["P2_M5_R56_FOCUSED_TESTS"] == "PASS_16_ZERO_SKIP"
+    assert values["P2_M5_R56_OVERLAY_CAPTURE_CONTROLLER_REGRESSION"] == ("PASS_134_ZERO_SKIP")
+    assert values["P2_M5_R56_FULL_REGRESSION"] == (
+        "PASS_CANONICAL_LF_CHECKOUT_897_TOTAL_735_PASSED_162_ENVIRONMENT_GATED_SKIP_"
+        "ZERO_FAILURE_ERROR"
+    )
+    assert values["P2_M5_R56_PRINCIPAL_ACCEPTANCE"] == "GRANTED_ON_AUTHORITY_ACTIVATION"
+    assert values["CAL_REQ_004_STATUS"] == "OUTPUT_REGISTERED_PRE_DECODE"
+    assert values["CAL_REQ_004_POST_REGISTRATION_EXECUTION_AUTHORIZED"] == (
+        "TRUE_FOR_ONE_EXACT_CANARY_EXECUTION_ON_AUTHORITY_ACTIVATION"
+    )
+    assert values["NEXT_UNUSED_FORMAL_ORDINAL"] == "CAL-REQ-005"
+    assert values["FORMAL_CALLS_REMAINING"] == "28"
+    assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "28"
+    assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "59"
+    assert values["CAL_REQ_005_DISPATCH_AUTHORIZED"] == (
+        "FALSE_PENDING_CAL_REQ_004_TECHNICAL_QA_PASS"
+    )
+    assert values["NEXT_READY_TASK"] == "EXECUTE_CAL_REQ_004_POST_REGISTRATION_CANARY"
+    assert values["POST_ACCEPTANCE_COMMIT_REQUIRED"] == "NO"
+    assert values["STOP_OUTCOME"] == "NONE"
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_R56_CC06_TERMINAL_EVIDENCE_CLOSURE_REPAIR_TRUE_EOF",
+    )
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+
+    contract = R56_CONTRACT_PATH.read_text(encoding="utf-8")
+    normalized_contract = " ".join(contract.split())
+    for required in (
+        "complete, byte-exact replay",
+        "canonical-but-rehashed",
+        "executor call count is exactly zero",
+        "STOP_OUTCOME: NONE",
+        "EXECUTE_CAL_REQ_004_POST_REGISTRATION_CANARY",
+    ):
+        assert required in normalized_contract
+
+    tracked = "\n".join(
+        (
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-32_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-32_000:],
+            contract,
         )
     )
     for forbidden in (

@@ -237,6 +237,20 @@ def process_registered_output(
                     expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
                     project_worktree_root=project_worktree_root,
                 )
+            failure_reason = _durable_failure_reason(_post_state(state))
+            if failure_reason is not None:
+                return _terminal(
+                    receipt_path=current_receipt_path,
+                    context=context,
+                    phase="POST_REGISTRATION_INFRA_FAILURE",
+                    reason_code=failure_reason,
+                    expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+                    expected_post_registration_controller_sha256=(
+                        expected_post_registration_controller_sha256
+                    ),
+                    project_worktree_root=project_worktree_root,
+                    timestamp=timestamp,
+                )
             if state["phase"] == "POST_REGISTRATION_M3_OPERATION_PLANNED":
                 recovered = _recover_planned_operation(
                     receipt_path=current_receipt_path,
@@ -282,8 +296,34 @@ def process_registered_output(
             )
             planned_path = _context_path(planned)
             plan = _planned_operation_record(planned)
-            request = _vision_request(planned_path.parent, planned["state"], plan)
             capability = _capability_for(capabilities, cast(str, operation["platform"]))
+            try:
+                request = _vision_request(planned_path.parent, planned["state"], plan)
+            except (PostRegistrationError, OSError, TypeError, ValueError):
+                failed = _record_operation_failure(
+                    receipt_path=planned_path,
+                    context=planned,
+                    operation=operation,
+                    capability=capability,
+                    reason_code="POST_REGISTRATION_VISION_REQUEST_BUILD_FAILED",
+                    expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+                    expected_post_registration_controller_sha256=(
+                        expected_post_registration_controller_sha256
+                    ),
+                    timestamp=timestamp,
+                )
+                return _terminal(
+                    receipt_path=_context_path(failed),
+                    context=failed,
+                    phase="POST_REGISTRATION_INFRA_FAILURE",
+                    reason_code="POST_REGISTRATION_VISION_REQUEST_BUILD_FAILED",
+                    expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+                    expected_post_registration_controller_sha256=(
+                        expected_post_registration_controller_sha256
+                    ),
+                    project_worktree_root=project_worktree_root,
+                    timestamp=timestamp,
+                )
             try:
                 evidence = executor.inspect_synthetic(
                     request=request,
@@ -305,20 +345,21 @@ def process_registered_output(
             try:
                 _validate_evidence(evidence, capability, operation, request)
             except (PostRegistrationError, TypeError, ValueError):
-                _record_operation_failure(
+                failed = _record_operation_failure(
                     receipt_path=planned_path,
                     context=planned,
                     operation=operation,
                     capability=capability,
                     reason_code="POST_REGISTRATION_OPERATION_EVIDENCE_BINDING_INVALID",
+                    expected_overlay_controller_sha256=expected_overlay_controller_sha256,
                     expected_post_registration_controller_sha256=(
                         expected_post_registration_controller_sha256
                     ),
                     timestamp=timestamp,
                 )
                 return _terminal(
-                    receipt_path=planned_path,
-                    context=planned,
+                    receipt_path=_context_path(failed),
+                    context=failed,
                     phase="POST_REGISTRATION_INFRA_FAILURE",
                     reason_code="POST_REGISTRATION_OPERATION_EVIDENCE_BINDING_INVALID",
                     expected_overlay_controller_sha256=expected_overlay_controller_sha256,
@@ -438,6 +479,29 @@ def verify_post_registration_terminal(
         or state.get("counters") != previous_state.get("counters")
     ):
         raise PostRegistrationError("POST_REGISTRATION_CHECKPOINT_INVALID")
+    try:
+        _verify_terminal_evidence(
+            root=receipt_path.parent,
+            state=previous_state,
+            terminal_phase=cast(str, state["phase"]),
+            terminal_reason_code=_required_text(
+                event, "reason_code", "POST_REGISTRATION_TERMINAL_REASON_MISSING"
+            ),
+            expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+            expected_post_registration_controller_sha256=(
+                expected_post_registration_controller_sha256
+            ),
+        )
+    except PostRegistrationError:
+        raise
+    except (
+        _overlay.ExecutionOverlayError,
+        ImageSanitizationError,
+        OSError,
+        TypeError,
+        ValueError,
+    ):
+        raise PostRegistrationError("POST_REGISTRATION_TERMINAL_EVIDENCE_INVALID") from None
     counters = _counters(state)
     expected_hard_stop = state["phase"] in {
         "POST_REGISTRATION_INFRA_FAILURE",
@@ -648,6 +712,10 @@ def _verify_post_registration_successor_unleased(
     context = _current_context(
         receipt_path=successor_receipt_path,
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+    )
+    _ensure_no_next_receipt(
+        context,
+        error_code="POST_REGISTRATION_SUCCESSOR_STALE_CURRENT_TIP",
     )
     state = context["state"]
     receipt = cast(dict[str, Any], context["receipt"])
@@ -1166,9 +1234,17 @@ def _recover_planned_operation(
                     expected_post_registration_controller_sha256
                 ),
             )
-            return _terminal(
+            failed = _bind_durable_failure(
                 receipt_path=receipt_path,
                 context=context,
+                result_path=result_path,
+                reason_code=cast(str, result["reason_code"]),
+                expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+                timestamp=timestamp,
+            )
+            return _terminal(
+                receipt_path=_context_path(failed),
+                context=failed,
                 phase="POST_REGISTRATION_INFRA_FAILURE",
                 reason_code=cast(str, result["reason_code"]),
                 expected_overlay_controller_sha256=expected_overlay_controller_sha256,
@@ -1362,6 +1438,570 @@ def _terminal(
         expected_post_registration_controller_sha256=expected_post_registration_controller_sha256,
         project_worktree_root=project_worktree_root,
     )
+
+
+def _verify_terminal_evidence(
+    *,
+    root: Path,
+    state: Mapping[str, Any],
+    terminal_phase: str,
+    terminal_reason_code: str,
+    expected_overlay_controller_sha256: str,
+    expected_post_registration_controller_sha256: str,
+) -> None:
+    """Close terminal evidence over the actual immutable private records.
+
+    The checkpoint only carries redacted hashes, so accepting it without
+    reopening the referenced records would permit a later file deletion or
+    replacement to evade both terminal verification and successor rollover.
+    """
+    post = _post_state(state)
+    historical_posts = _historical_post_states(
+        root=root,
+        maximum_sequence=cast(int, state["sequence"]),
+        expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+    )
+    _verify_attempt_evidence(
+        root=root,
+        state=state,
+        post=post,
+        historical_posts=historical_posts,
+        expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+        expected_post_registration_controller_sha256=(expected_post_registration_controller_sha256),
+    )
+    normalization_fields = {
+        "normalization_file",
+        "normalization_sha256",
+        "normalized_file",
+        "normalized_sha256",
+    }
+    has_normalization = normalization_fields <= set(post)
+    if normalization_fields & set(post) and not has_normalization:
+        raise PostRegistrationError("POST_REGISTRATION_NORMALIZATION_EVIDENCE_PARTIAL")
+    completed = post.get("completed_operations")
+    if not isinstance(completed, list) or not all(isinstance(item, str) for item in completed):
+        raise PostRegistrationError("POST_REGISTRATION_COMPLETED_OPERATIONS_INVALID")
+    if len(set(completed)) != len(completed):
+        raise PostRegistrationError("POST_REGISTRATION_COMPLETED_OPERATIONS_INVALID")
+    all_operations = _all_operations(state)
+    operation_by_id = {cast(str, item["operation_id"]): item for item in all_operations}
+    if any(operation_id not in operation_by_id for operation_id in completed):
+        raise PostRegistrationError("POST_REGISTRATION_COMPLETED_OPERATIONS_INVALID")
+
+    if not has_normalization:
+        _verify_operation_record_inventory(root=root, expected_names=set())
+        if (
+            terminal_phase != "POST_REGISTRATION_CONTENT_REJECTED"
+            or not terminal_reason_code.startswith("POST_REGISTRATION_NORMALIZATION_")
+            or post.get("decode_performed") is not False
+            or completed
+            or "planned_operation_file" in post
+            or "planned_operation_sha256" in post
+        ):
+            raise PostRegistrationError("POST_REGISTRATION_TERMINAL_EVIDENCE_INVALID")
+        return
+
+    _verify_normalization_evidence(
+        root=root,
+        post=post,
+        historical_posts=historical_posts,
+        expected_post_registration_controller_sha256=(expected_post_registration_controller_sha256),
+    )
+    completed_results: list[dict[str, Any]] = []
+    expected_operation_record_names: set[str] = set()
+    for operation_id in completed:
+        expected_operation_record_names.update(
+            {
+                f"post-registration-operation-{operation_id}.plan.json",
+                f"post-registration-operation-{operation_id}.result.json",
+            }
+        )
+        completed_results.append(
+            _verify_persisted_completed_operation(
+                root=root,
+                state=state,
+                post=post,
+                historical_posts=historical_posts,
+                operation=operation_by_id[operation_id],
+                expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+                expected_post_registration_controller_sha256=(
+                    expected_post_registration_controller_sha256
+                ),
+            )
+        )
+
+    planned_name = post.get("planned_operation_file")
+    planned_sha256 = post.get("planned_operation_sha256")
+    if (planned_name is None) != (planned_sha256 is None):
+        raise PostRegistrationError("POST_REGISTRATION_TERMINAL_EVIDENCE_INVALID")
+
+    if terminal_phase in {
+        "POST_REGISTRATION_TECHNICAL_QA_PASSED",
+        "POST_REGISTRATION_CONTENT_REJECTED",
+    }:
+        _verify_operation_record_inventory(
+            root=root,
+            expected_names=expected_operation_record_names,
+        )
+        if planned_name is not None or set(completed) != set(operation_by_id):
+            raise PostRegistrationError("POST_REGISTRATION_TERMINAL_EVIDENCE_INCOMPLETE")
+        reason = _qa_reason(completed_results)
+        if (
+            terminal_phase == "POST_REGISTRATION_TECHNICAL_QA_PASSED"
+            and (
+                reason is not None
+                or terminal_reason_code != "POST_REGISTRATION_TECHNICAL_QA_ALL_V01_V03_GATES_PASS"
+            )
+        ) or (
+            terminal_phase == "POST_REGISTRATION_CONTENT_REJECTED"
+            and (reason is None or terminal_reason_code != reason)
+        ):
+            raise PostRegistrationError("POST_REGISTRATION_TERMINAL_QA_DISPOSITION_INVALID")
+        return
+
+    if (
+        terminal_phase
+        not in {
+            "POST_REGISTRATION_INFRA_FAILURE",
+            "POST_REGISTRATION_UNKNOWN_M3_OUTCOME",
+        }
+        or not isinstance(planned_name, str)
+        or not isinstance(planned_sha256, str)
+    ):
+        raise PostRegistrationError("POST_REGISTRATION_TERMINAL_EVIDENCE_INVALID")
+    plan_path = _record_path(root, planned_name)
+    plan = _read_canonical_json(plan_path, "POST_REGISTRATION_PLAN_NOT_CANONICAL")
+    operation_id = plan.get("operation_id")
+    if not isinstance(operation_id, str) or operation_id not in operation_by_id:
+        raise PostRegistrationError("POST_REGISTRATION_PLAN_OPERATION_INVALID")
+    operation, capability = _verify_persisted_operation_plan(
+        root=root,
+        state=state,
+        post=post,
+        historical_posts=historical_posts,
+        plan=plan,
+        operation=operation_by_id[operation_id],
+        expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+        expected_post_registration_controller_sha256=(expected_post_registration_controller_sha256),
+    )
+    if _overlay.sha256_file(plan_path) != planned_sha256:
+        raise PostRegistrationError("POST_REGISTRATION_PLAN_DIGEST_MISMATCH")
+    expected_operation_record_names.add(plan_path.name)
+    result_path = _record_path(
+        root, f"post-registration-operation-{operation['operation_id']}.result.json"
+    )
+    if terminal_phase == "POST_REGISTRATION_UNKNOWN_M3_OUTCOME":
+        _verify_operation_record_inventory(
+            root=root,
+            expected_names=expected_operation_record_names,
+        )
+        if (
+            result_path.exists()
+            or result_path.is_symlink()
+            or terminal_reason_code
+            not in {
+                "POST_REGISTRATION_M3_PLAN_WITHOUT_RESULT",
+                "POST_REGISTRATION_M3_EXECUTOR_RETURN_NOT_DURABLE",
+            }
+        ):
+            raise PostRegistrationError("POST_REGISTRATION_UNKNOWN_EVIDENCE_INVALID")
+        return
+    if not result_path.exists() or result_path.is_symlink():
+        raise PostRegistrationError("POST_REGISTRATION_INFRA_FAILURE_EVIDENCE_MISSING")
+    expected_operation_record_names.add(result_path.name)
+    _verify_operation_record_inventory(
+        root=root,
+        expected_names=expected_operation_record_names,
+    )
+    result = _read_canonical_json(result_path, "POST_REGISTRATION_FAILURE_RESULT_NOT_CANONICAL")
+    _verify_operation_failure_record(
+        result=result,
+        plan=plan,
+        operation=operation,
+        capability=capability,
+        expected_post_registration_controller_sha256=(expected_post_registration_controller_sha256),
+    )
+    if result.get("reason_code") != terminal_reason_code:
+        raise PostRegistrationError("POST_REGISTRATION_INFRA_FAILURE_REASON_INVALID")
+    if (
+        post.get("failure_result_file") != result_path.name
+        or post.get("failure_result_sha256") != _overlay.sha256_file(result_path)
+        or post.get("failure_reason_code") != terminal_reason_code
+    ):
+        raise PostRegistrationError("POST_REGISTRATION_INFRA_FAILURE_EVIDENCE_INVALID")
+    _require_historical_post_anchor(
+        historical_posts,
+        {
+            "failure_result_file": result_path.name,
+            "failure_result_sha256": _overlay.sha256_file(result_path),
+            "failure_reason_code": terminal_reason_code,
+        },
+        "POST_REGISTRATION_INFRA_FAILURE_HISTORY_MISSING",
+    )
+
+
+def _verify_attempt_evidence(
+    *,
+    root: Path,
+    state: Mapping[str, Any],
+    post: Mapping[str, Any],
+    historical_posts: tuple[Mapping[str, Any], ...],
+    expected_overlay_controller_sha256: str,
+    expected_post_registration_controller_sha256: str,
+) -> None:
+    registration = state.get("output_registration")
+    if not isinstance(registration, dict):
+        raise PostRegistrationError("POST_REGISTRATION_ATTEMPT_BINDING_INVALID")
+    output_id = _required_text(
+        registration, "output_opaque_id", "POST_REGISTRATION_OUTPUT_ID_MISSING"
+    )
+    attempt_name = _required_text(post, "attempt_file", "POST_REGISTRATION_ATTEMPT_MISSING")
+    if attempt_name != f"post-registration-attempt-{output_id}.json":
+        raise PostRegistrationError("POST_REGISTRATION_ATTEMPT_BINDING_INVALID")
+    attempt_path = _record_path(root, attempt_name)
+    if attempt_path.is_symlink():
+        raise PostRegistrationError("POST_REGISTRATION_ATTEMPT_SYMLINK_REJECTED")
+    attempt = _read_canonical_json(attempt_path, "POST_REGISTRATION_ATTEMPT_NOT_CANONICAL")
+    if _overlay.sha256_file(attempt_path) != post.get("attempt_sha256"):
+        raise PostRegistrationError("POST_REGISTRATION_ATTEMPT_DIGEST_MISMATCH")
+    record_file = _required_text(
+        registration, "record_file", "POST_REGISTRATION_ATTEMPT_BINDING_INVALID"
+    )
+    registration_record = _read_canonical_json(
+        _record_path(root, record_file), "POST_REGISTRATION_REGISTRATION_RECORD_NOT_CANONICAL"
+    )
+    expected = {
+        "schema_version": POST_REGISTRATION_SCHEMA,
+        "record_kind": "POST_REGISTRATION_ATTEMPT",
+        "module_sha256": expected_post_registration_controller_sha256,
+        "output_opaque_id": output_id,
+        "overlay_tip": attempt.get("overlay_tip"),
+        "registration_receipt_sha256": registration.get("registration_receipt_sha256"),
+        "registration_record_sha256": registration.get("record_sha256"),
+        "source_sha256": registration_record.get("source_sha256"),
+        "source_byte_size": registration_record.get("byte_size"),
+        "source_media_type": registration_record.get("media_type"),
+        "db_mutations": 0,
+        "provider_calls_added": 0,
+        "admission": 0,
+    }
+    overlay_tip = attempt.get("overlay_tip")
+    if not isinstance(overlay_tip, dict):
+        raise PostRegistrationError("POST_REGISTRATION_ATTEMPT_BINDING_INVALID")
+    _verify_tip_in_root(
+        root=root,
+        tip=overlay_tip,
+        maximum_sequence=cast(int, state["sequence"]),
+        expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+    )
+    if attempt != expected:
+        raise PostRegistrationError("POST_REGISTRATION_ATTEMPT_BINDING_INVALID")
+    _require_historical_post_anchor(
+        historical_posts,
+        {"attempt_file": attempt_name, "attempt_sha256": post.get("attempt_sha256")},
+        "POST_REGISTRATION_ATTEMPT_HISTORY_MISSING",
+    )
+
+
+def _historical_post_states(
+    *,
+    root: Path,
+    maximum_sequence: int,
+    expected_overlay_controller_sha256: str,
+) -> tuple[Mapping[str, Any], ...]:
+    """Read every chain-bound post-registration state once for closure anchors."""
+    historical: list[Mapping[str, Any]] = []
+    for sequence in range(maximum_sequence + 1):
+        receipt_path = _overlay._safe_child(root, _overlay._receipt_name(sequence))
+        if receipt_path.is_symlink():
+            raise PostRegistrationError("POST_REGISTRATION_RECEIPT_SYMLINK_REJECTED")
+        if not receipt_path.exists():
+            raise PostRegistrationError("POST_REGISTRATION_HISTORY_RECEIPT_MISSING")
+        _receipt, _event, historical_state = _overlay._verify_receipt(
+            receipt_path,
+            expected_controller_sha256=expected_overlay_controller_sha256,
+        )
+        historical_post = historical_state.get("post_registration")
+        if isinstance(historical_post, dict):
+            historical.append(historical_post)
+    return tuple(historical)
+
+
+def _require_historical_post_anchor(
+    historical_posts: tuple[Mapping[str, Any], ...],
+    expected: Mapping[str, object],
+    code: str,
+) -> None:
+    if not any(
+        all(post.get(key) == value for key, value in expected.items()) for post in historical_posts
+    ):
+        raise PostRegistrationError(code)
+
+
+def _verify_operation_record_inventory(*, root: Path, expected_names: set[str]) -> None:
+    records_dir = root / "records"
+    if records_dir.is_symlink() or not records_dir.is_dir():
+        raise PostRegistrationError("POST_REGISTRATION_OPERATION_RECORD_INVENTORY_INVALID")
+    try:
+        actual_names = {
+            entry.name
+            for entry in records_dir.iterdir()
+            if entry.name.startswith("post-registration-operation-")
+        }
+    except OSError:
+        raise PostRegistrationError(
+            "POST_REGISTRATION_OPERATION_RECORD_INVENTORY_INVALID"
+        ) from None
+    if actual_names != expected_names:
+        raise PostRegistrationError("POST_REGISTRATION_OPERATION_RECORD_INVENTORY_INVALID")
+
+
+def _verify_normalization_evidence(
+    *,
+    root: Path,
+    post: Mapping[str, Any],
+    historical_posts: tuple[Mapping[str, Any], ...],
+    expected_post_registration_controller_sha256: str,
+) -> None:
+    if post.get("decode_performed") is not True:
+        raise PostRegistrationError("POST_REGISTRATION_NORMALIZATION_EVIDENCE_INVALID")
+    normalization_name = _required_text(
+        post, "normalization_file", "POST_REGISTRATION_NORMALIZATION_MISSING"
+    )
+    normalized_name = _required_text(
+        post, "normalized_file", "POST_REGISTRATION_NORMALIZED_FILE_MISSING"
+    )
+    normalization_path = _record_path(root, normalization_name)
+    normalized_path = _record_path(root, normalized_name)
+    if normalization_path.is_symlink() or normalized_path.is_symlink():
+        raise PostRegistrationError("POST_REGISTRATION_NORMALIZATION_SYMLINK_REJECTED")
+    normalization = _read_canonical_json(
+        normalization_path, "POST_REGISTRATION_NORMALIZATION_NOT_CANONICAL"
+    )
+    normalized_bytes = _overlay._read_plain_file_bytes(normalized_path)
+    normalized_sha256 = _overlay.sha256_bytes(normalized_bytes)
+    if (
+        _overlay.sha256_file(normalization_path) != post.get("normalization_sha256")
+        or normalized_sha256 != post.get("normalized_sha256")
+        or normalization.get("normalized_file") != normalized_name
+        or normalization.get("normalized_sha256") != normalized_sha256
+        or normalization.get("normalized_byte_size") != len(normalized_bytes)
+        or normalization.get("normalized_media_type") != "image/jpeg"
+        or normalization.get("module_sha256") != expected_post_registration_controller_sha256
+        or normalization.get("attempt_sha256") != post.get("attempt_sha256")
+        or normalization.get("second_decode") != "PASS"
+        or normalization.get("db_mutations") != 0
+        or normalization.get("provider_calls_added") != 0
+        or normalization.get("admission") != 0
+    ):
+        raise PostRegistrationError("POST_REGISTRATION_NORMALIZATION_EVIDENCE_INVALID")
+    if (
+        set(normalization)
+        != {
+            "schema_version",
+            "record_kind",
+            "module_sha256",
+            "attempt_sha256",
+            "source_sha256",
+            "normalized_file",
+            "normalized_sha256",
+            "normalized_byte_size",
+            "normalized_media_type",
+            "width",
+            "height",
+            "sanitizer_version",
+            "sanitizer_config_sha256",
+            "second_decode",
+            "db_mutations",
+            "provider_calls_added",
+            "admission",
+        }
+        or normalization.get("schema_version") != POST_REGISTRATION_SCHEMA
+        or normalization.get("record_kind") != "NORMALIZATION"
+    ):
+        raise PostRegistrationError("POST_REGISTRATION_NORMALIZATION_EVIDENCE_INVALID")
+    decode_canonical_rgb_image(
+        normalized_bytes,
+        expected_width=cast(int, normalization["width"]),
+        expected_height=cast(int, normalization["height"]),
+    )
+    _require_historical_post_anchor(
+        historical_posts,
+        {
+            "normalization_file": normalization_name,
+            "normalization_sha256": post.get("normalization_sha256"),
+            "normalized_file": normalized_name,
+            "normalized_sha256": normalized_sha256,
+        },
+        "POST_REGISTRATION_NORMALIZATION_HISTORY_MISSING",
+    )
+
+
+def _capability_from_persisted_payload(value: object) -> PrivateVisionCapabilityBinding:
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "capability_id",
+            "platform",
+            "runtime_sha256",
+            "model_sha256",
+            "manifest_version",
+            "manifest_sha256",
+            "qa_policy_version",
+            "qa_policy_sha256",
+            "zero_egress_evidence_id",
+            "zero_egress_evidence_sha256",
+            "approved_scope",
+        }
+        or value.get("platform") not in _PLATFORMS
+    ):
+        raise PostRegistrationError("POST_REGISTRATION_CAPABILITY_BINDING_INVALID")
+    platform = cast(
+        Literal["linux_x86_64_network_none", "windows_amd64_process_specific_outbound_deny"],
+        value["platform"],
+    )
+    capability = PrivateVisionCapabilityBinding(
+        capability_id=_required_text(
+            value, "capability_id", "POST_REGISTRATION_CAPABILITY_BINDING_INVALID"
+        ),
+        platform=platform,
+        runtime_sha256=_required_text(
+            value, "runtime_sha256", "POST_REGISTRATION_CAPABILITY_BINDING_INVALID"
+        ),
+        model_sha256=_required_text(
+            value, "model_sha256", "POST_REGISTRATION_CAPABILITY_BINDING_INVALID"
+        ),
+        manifest_version=_required_text(
+            value, "manifest_version", "POST_REGISTRATION_CAPABILITY_BINDING_INVALID"
+        ),
+        manifest_sha256=_required_text(
+            value, "manifest_sha256", "POST_REGISTRATION_CAPABILITY_BINDING_INVALID"
+        ),
+        qa_policy_version=_required_text(
+            value, "qa_policy_version", "POST_REGISTRATION_CAPABILITY_BINDING_INVALID"
+        ),
+        qa_policy_sha256=_required_text(
+            value, "qa_policy_sha256", "POST_REGISTRATION_CAPABILITY_BINDING_INVALID"
+        ),
+        zero_egress_evidence_id=_required_text(
+            value, "zero_egress_evidence_id", "POST_REGISTRATION_CAPABILITY_BINDING_INVALID"
+        ),
+        zero_egress_evidence_sha256=_required_text(
+            value, "zero_egress_evidence_sha256", "POST_REGISTRATION_CAPABILITY_BINDING_INVALID"
+        ),
+        approved_scope=_required_text(
+            value, "approved_scope", "POST_REGISTRATION_CAPABILITY_BINDING_INVALID"
+        ),
+    )
+    if (
+        capability.runtime_sha256 != RUNTIME_SHA256_BY_PLATFORM[platform]
+        or capability.model_sha256 != MODEL_SHA256
+        or capability.manifest_version != MANIFEST_VERSION
+        or capability.manifest_sha256 != MANIFEST_SHA256
+        or capability.qa_policy_version != QA_POLICY_VERSION
+        or capability.qa_policy_sha256 != QA_POLICY_SHA256
+        or capability.approved_scope != APPROVED_SCOPE
+    ):
+        raise PostRegistrationError("POST_REGISTRATION_CAPABILITY_BINDING_INVALID")
+    _overlay._validate_opaque_id(capability.capability_id, "POST_REGISTRATION_CAPABILITY_ID")
+    _overlay._validate_opaque_id(
+        capability.zero_egress_evidence_id, "POST_REGISTRATION_EGRESS_EVIDENCE_ID"
+    )
+    _validate_lower_digest(
+        capability.zero_egress_evidence_sha256, "POST_REGISTRATION_ZERO_EGRESS_EVIDENCE_SHA256"
+    )
+    return capability
+
+
+def _verify_persisted_operation_plan(
+    *,
+    root: Path,
+    state: Mapping[str, Any],
+    post: Mapping[str, Any],
+    historical_posts: tuple[Mapping[str, Any], ...],
+    plan: Mapping[str, Any],
+    operation: Mapping[str, Any],
+    expected_overlay_controller_sha256: str,
+    expected_post_registration_controller_sha256: str,
+) -> tuple[Mapping[str, Any], PrivateVisionCapabilityBinding]:
+    capability = _capability_from_persisted_payload(plan.get("capability"))
+    if capability.platform != operation["platform"]:
+        raise PostRegistrationError("POST_REGISTRATION_PLAN_BINDING_INVALID")
+    overlay_tip = plan.get("overlay_tip")
+    if not isinstance(overlay_tip, dict):
+        raise PostRegistrationError("POST_REGISTRATION_PLAN_TIP_INVALID")
+    _verify_tip_in_root(
+        root=root,
+        tip=overlay_tip,
+        maximum_sequence=cast(int, state["sequence"]),
+        expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+    )
+    expected = _operation_plan_payload(
+        state=state,
+        operation=operation,
+        capability=capability,
+        capability_authority_sha256=_overlay.sha256_bytes(
+            _overlay.canonical_json_bytes(_capability_payload(capability))
+        ),
+        overlay_tip=overlay_tip,
+        module_sha256=expected_post_registration_controller_sha256,
+    )
+    if plan != expected:
+        raise PostRegistrationError("POST_REGISTRATION_PLAN_BINDING_INVALID")
+    plan_name = f"post-registration-operation-{operation['operation_id']}.plan.json"
+    _require_historical_post_anchor(
+        historical_posts,
+        {
+            "planned_operation_file": plan_name,
+            "planned_operation_sha256": _overlay.sha256_bytes(_overlay.canonical_json_bytes(plan)),
+        },
+        "POST_REGISTRATION_PLAN_HISTORY_MISSING",
+    )
+    return operation, capability
+
+
+def _verify_persisted_completed_operation(
+    *,
+    root: Path,
+    state: Mapping[str, Any],
+    post: Mapping[str, Any],
+    historical_posts: tuple[Mapping[str, Any], ...],
+    operation: Mapping[str, Any],
+    expected_overlay_controller_sha256: str,
+    expected_post_registration_controller_sha256: str,
+) -> dict[str, Any]:
+    operation_id = cast(str, operation["operation_id"])
+    plan_path = _record_path(root, f"post-registration-operation-{operation_id}.plan.json")
+    plan = _read_canonical_json(plan_path, "POST_REGISTRATION_PLAN_NOT_CANONICAL")
+    _operation, capability = _verify_persisted_operation_plan(
+        root=root,
+        state=state,
+        post=post,
+        historical_posts=historical_posts,
+        plan=plan,
+        operation=operation,
+        expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+        expected_post_registration_controller_sha256=(expected_post_registration_controller_sha256),
+    )
+    result_path = _record_path(root, f"post-registration-operation-{operation_id}.result.json")
+    result = _read_canonical_json(result_path, "POST_REGISTRATION_RESULT_NOT_CANONICAL")
+    _verify_operation_result_record(
+        result=result,
+        plan=plan,
+        operation=_operation,
+        capability=capability,
+        expected_post_registration_controller_sha256=(expected_post_registration_controller_sha256),
+    )
+    _require_historical_post_anchor(
+        historical_posts,
+        {
+            "last_operation_result_file": result_path.name,
+            "last_operation_result_sha256": _overlay.sha256_file(result_path),
+        },
+        "POST_REGISTRATION_RESULT_HISTORY_MISSING",
+    )
+    return result
 
 
 def _transition(
@@ -1999,12 +2639,16 @@ def _record_operation_failure(
     operation: Mapping[str, Any],
     capability: PrivateVisionCapabilityBinding,
     reason_code: str,
+    expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
     timestamp: str,
-) -> None:
+) -> dict[str, Any]:
     if receipt_path != _context_path(context):
         raise PostRegistrationError("POST_REGISTRATION_FAILURE_RESULT_STALE_CONTEXT")
-    if reason_code != "POST_REGISTRATION_OPERATION_EVIDENCE_BINDING_INVALID":
+    if reason_code not in {
+        "POST_REGISTRATION_OPERATION_EVIDENCE_BINDING_INVALID",
+        "POST_REGISTRATION_VISION_REQUEST_BUILD_FAILED",
+    }:
         raise PostRegistrationError("POST_REGISTRATION_FAILURE_REASON_INVALID")
     plan = _planned_operation_record(context)
     payload = {
@@ -2028,6 +2672,49 @@ def _record_operation_failure(
         f"post-registration-operation-{operation['operation_id']}.result.json",
     )
     _overlay._write_json_create_or_verify_exact(result_path, payload)
+    return _bind_durable_failure(
+        receipt_path=receipt_path,
+        context=context,
+        result_path=result_path,
+        reason_code=reason_code,
+        expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+        timestamp=timestamp,
+    )
+
+
+def _bind_durable_failure(
+    *,
+    receipt_path: Path,
+    context: Mapping[str, Any],
+    result_path: Path,
+    reason_code: str,
+    expected_overlay_controller_sha256: str,
+    timestamp: str,
+) -> dict[str, Any]:
+    if reason_code == "POST_REGISTRATION_VISION_REQUEST_BUILD_FAILED":
+        event_type = "POST_REGISTRATION_PRE_INVOKE_FAILURE_DURABLE"
+        transition_reason_code = "POST_REGISTRATION_PRE_INVOKE_FAILURE_DURABLE_BEFORE_EXECUTOR"
+    else:
+        event_type = "POST_REGISTRATION_M3_FAILURE_DURABLE"
+        transition_reason_code = "POST_REGISTRATION_M3_FAILURE_DURABLE_AFTER_RETURN"
+    failed_post = dict(_post_state(cast(Mapping[str, Any], context["state"])))
+    failed_post.update(
+        {
+            "failure_result_file": result_path.name,
+            "failure_result_sha256": _overlay.sha256_file(result_path),
+            "failure_reason_code": reason_code,
+        }
+    )
+    return _transition(
+        receipt_path=receipt_path,
+        context=context,
+        phase="POST_REGISTRATION_ATTEMPT_BOUND",
+        event_type=event_type,
+        reason_code=transition_reason_code,
+        post=failed_post,
+        expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+        timestamp=timestamp,
+    )
 
 
 def _planned_operation_record(context: Mapping[str, Any]) -> dict[str, Any]:
@@ -2295,13 +2982,16 @@ def _verify_operation_failure_record(
         "plan_sha256": _overlay.sha256_bytes(_overlay.canonical_json_bytes(plan)),
         "capability": _capability_payload(capability),
         "request_reference": plan["request_reference"],
-        "reason_code": "POST_REGISTRATION_OPERATION_EVIDENCE_BINDING_INVALID",
+        "reason_code": result.get("reason_code"),
         "timestamp": result.get("timestamp"),
         "db_mutations": 0,
         "provider_calls_added": 0,
         "admission": 0,
     }
-    if result != expected:
+    if result != expected or result.get("reason_code") not in {
+        "POST_REGISTRATION_OPERATION_EVIDENCE_BINDING_INVALID",
+        "POST_REGISTRATION_VISION_REQUEST_BUILD_FAILED",
+    }:
         raise PostRegistrationError("POST_REGISTRATION_FAILURE_RESULT_INVALID")
     _validate_timestamp(
         _required_text(
@@ -2626,6 +3316,24 @@ def _post_state(state: Mapping[str, Any]) -> dict[str, Any]:
     return value
 
 
+def _durable_failure_reason(post: Mapping[str, Any]) -> str | None:
+    fields = {"failure_result_file", "failure_result_sha256", "failure_reason_code"}
+    present = fields & set(post)
+    if not present:
+        return None
+    if present != fields:
+        raise PostRegistrationError("POST_REGISTRATION_INFRA_FAILURE_EVIDENCE_INVALID")
+    reason = _required_text(
+        post, "failure_reason_code", "POST_REGISTRATION_INFRA_FAILURE_EVIDENCE_INVALID"
+    )
+    if reason not in {
+        "POST_REGISTRATION_OPERATION_EVIDENCE_BINDING_INVALID",
+        "POST_REGISTRATION_VISION_REQUEST_BUILD_FAILED",
+    }:
+        raise PostRegistrationError("POST_REGISTRATION_INFRA_FAILURE_EVIDENCE_INVALID")
+    return reason
+
+
 def _counters(state: Mapping[str, Any]) -> dict[str, int]:
     counters = state.get("counters")
     if not isinstance(counters, dict):
@@ -2753,7 +3461,11 @@ def _latest_receipt_path(
     return current
 
 
-def _ensure_no_next_receipt(context: Mapping[str, Any]) -> None:
+def _ensure_no_next_receipt(
+    context: Mapping[str, Any],
+    *,
+    error_code: str = "POST_REGISTRATION_STALE_CURRENT_TIP",
+) -> None:
     receipt_path = _context_path(context)
     receipt = cast(dict[str, Any], context["receipt"])
     next_path = _overlay._safe_child(
@@ -2761,7 +3473,7 @@ def _ensure_no_next_receipt(context: Mapping[str, Any]) -> None:
         _overlay._receipt_name(cast(int, receipt["sequence"]) + 1),
     )
     if next_path.exists() or next_path.is_symlink():
-        raise PostRegistrationError("POST_REGISTRATION_STALE_CURRENT_TIP")
+        raise PostRegistrationError(error_code)
 
 
 def _verify_tip_in_root(
@@ -2790,11 +3502,16 @@ def _verify_tip_in_root(
             continue
         if _overlay.sha256_file(candidate) != tip["receipt_sha256"]:
             continue
-        context = _current_context(
-            receipt_path=candidate,
-            expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+        # Every caller has already verified its current receipt chain.  Replaying
+        # that whole chain for each of the 20 persisted plans makes the terminal
+        # verifier needlessly quadratic.  Recheck this exact candidate's
+        # receipt/event/state binding instead; the caller's verified tip anchors
+        # it in the same immutable chain.
+        receipt, _event, _state = _overlay._verify_receipt(
+            candidate,
+            expected_controller_sha256=expected_overlay_controller_sha256,
         )
-        if _tip_payload(cast(dict[str, Any], context["receipt"])) != tip:
+        if _tip_payload(receipt) != tip:
             raise PostRegistrationError("POST_REGISTRATION_PLAN_TIP_BINDING_INVALID")
         return
     raise PostRegistrationError("POST_REGISTRATION_PLAN_TIP_NOT_IN_CHAIN")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import shutil
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
@@ -316,6 +317,164 @@ def test_success_chain_preserves_ledger_and_redacts_private_fixture(tmp_path: Pa
     assert handle.phase == "POST_REGISTRATION_TECHNICAL_QA_PASSED"
     assert len(executor.calls) == 20
     assert state["counters"] == _expected_counters()
+
+
+def test_terminal_and_successor_reject_missing_or_tampered_evidence(
+    tmp_path: Path,
+) -> None:
+    receipt, pins, _image = _registered(tmp_path)
+    terminal = _process(tmp_path, receipt, pins, _Executor())
+    terminal_context = overlay.verify_overlay(
+        terminal.receipt_path, expected_controller_sha256=pins["overlay_sha"]
+    )
+    terminal_state = cast(dict[str, Any], terminal_context["state"])
+    post_state = cast(dict[str, Any], terminal_state["post_registration"])
+    operation_id = cast(str, post_state["completed_operations"][0])
+    record_names = {
+        "attempt_file": cast(str, post_state["attempt_file"]),
+        "normalization_file": cast(str, post_state["normalization_file"]),
+        "normalized_file": cast(str, post_state["normalized_file"]),
+        "plan": f"post-registration-operation-{operation_id}.plan.json",
+        "result": f"post-registration-operation-{operation_id}.result.json",
+    }
+    for record_key, record_name in record_names.items():
+        for mode in ("delete", "tamper"):
+            clone_root = tmp_path.parent / f"{tmp_path.name}-{record_key}-{mode}"
+            shutil.copytree(tmp_path, clone_root)
+            try:
+                cloned_receipt = clone_root / terminal.receipt_path.relative_to(tmp_path)
+                target = cloned_receipt.parent / "records" / record_name
+                if mode == "delete":
+                    target.unlink()
+                else:
+                    target.write_bytes(b"tampered")
+                with pytest.raises(post.PostRegistrationError):
+                    post.verify_post_registration_terminal(
+                        receipt_path=cloned_receipt,
+                        expected_overlay_controller_sha256=pins["overlay_sha"],
+                        expected_post_registration_controller_sha256=pins["post_sha"],
+                        project_worktree_root=clone_root,
+                    )
+                with pytest.raises(post.PostRegistrationError):
+                    post.rollover_post_registration_successor(
+                        terminal_receipt_path=cloned_receipt,
+                        expected_terminal_receipt_sha256=terminal.receipt_sha256,
+                        expected_terminal_state_sha256=terminal.state_sha256,
+                        expected_terminal_event_sha256=cast(
+                            str, terminal_context["receipt"]["event_sha256"]
+                        ),
+                        expected_overlay_controller_sha256=pins["overlay_sha"],
+                        expected_post_registration_controller_sha256=pins["post_sha"],
+                        project_worktree_root=clone_root,
+                        successor_root=(
+                            cloned_receipt.parent.parent / "overlay-cc06-successor-tamper"
+                        ),
+                        successor_overlay_output_id="OVERLAY-CC06-SUCCESSOR-TAMPER",
+                        timestamp=TIMESTAMP,
+                    )
+            finally:
+                shutil.rmtree(clone_root, ignore_errors=True)
+
+    for suffix in ("plan.json", "result.json"):
+        clone_root = tmp_path.parent / f"{tmp_path.name}-extra-{suffix}"
+        shutil.copytree(tmp_path, clone_root)
+        try:
+            cloned_receipt = clone_root / terminal.receipt_path.relative_to(tmp_path)
+            records_dir = cloned_receipt.parent / "records"
+            source = records_dir / f"post-registration-operation-{operation_id}.{suffix}"
+            extra = records_dir / f"post-registration-operation-unreferenced.{suffix}"
+            shutil.copyfile(source, extra)
+            with pytest.raises(
+                post.PostRegistrationError,
+                match="POST_REGISTRATION_OPERATION_RECORD_INVENTORY_INVALID",
+            ):
+                post.verify_post_registration_terminal(
+                    receipt_path=cloned_receipt,
+                    expected_overlay_controller_sha256=pins["overlay_sha"],
+                    expected_post_registration_controller_sha256=pins["post_sha"],
+                    project_worktree_root=clone_root,
+                )
+            with pytest.raises(
+                post.PostRegistrationError,
+                match="POST_REGISTRATION_OPERATION_RECORD_INVENTORY_INVALID",
+            ):
+                post.rollover_post_registration_successor(
+                    terminal_receipt_path=cloned_receipt,
+                    expected_terminal_receipt_sha256=terminal.receipt_sha256,
+                    expected_terminal_state_sha256=terminal.state_sha256,
+                    expected_terminal_event_sha256=cast(
+                        str, terminal_context["receipt"]["event_sha256"]
+                    ),
+                    expected_overlay_controller_sha256=pins["overlay_sha"],
+                    expected_post_registration_controller_sha256=pins["post_sha"],
+                    project_worktree_root=clone_root,
+                    successor_root=(cloned_receipt.parent.parent / "overlay-cc06-successor-extra"),
+                    successor_overlay_output_id="OVERLAY-CC06-SUCCESSOR-EXTRA",
+                    timestamp=TIMESTAMP,
+                )
+        finally:
+            shutil.rmtree(clone_root, ignore_errors=True)
+
+
+def test_preinvoke_request_failure_is_durable_infra_without_executor_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    receipt, pins, _image = _registered(tmp_path)
+    executor = _Executor()
+
+    def fail_request(*_args: Any, **_kwargs: Any) -> SyntheticVisionResult:
+        raise post.PostRegistrationError("POST_REGISTRATION_NORMALIZED_FILE_MISSING")
+
+    monkeypatch.setattr(post, "_vision_request", fail_request)
+    terminal = _process(tmp_path, receipt, pins, executor)
+    assert terminal.phase == "POST_REGISTRATION_INFRA_FAILURE"
+    assert executor.calls == []
+    event = overlay.verify_overlay(
+        terminal.receipt_path, expected_controller_sha256=pins["overlay_sha"]
+    )["event"]
+    assert event["reason_code"] == "POST_REGISTRATION_VISION_REQUEST_BUILD_FAILED"
+    terminal_receipt = overlay._read_json(terminal.receipt_path)
+    durable_failure_path = terminal.receipt_path.parent / cast(
+        str, terminal_receipt["previous_receipt_file"]
+    )
+    durable_failure_event = overlay.verify_overlay(
+        durable_failure_path, expected_controller_sha256=pins["overlay_sha"]
+    )["event"]
+    assert durable_failure_event["event_type"] == ("POST_REGISTRATION_PRE_INVOKE_FAILURE_DURABLE")
+    assert durable_failure_event["reason_code"] == (
+        "POST_REGISTRATION_PRE_INVOKE_FAILURE_DURABLE_BEFORE_EXECUTOR"
+    )
+
+    monkeypatch.undo()
+    recovery_executor = _Executor()
+    recovered = _process(tmp_path, receipt, pins, recovery_executor)
+    assert recovered.phase == "POST_REGISTRATION_INFRA_FAILURE"
+    assert recovery_executor.calls == []
+
+
+def test_terminal_rejects_canonical_rehashed_result_without_historical_anchor(
+    tmp_path: Path,
+) -> None:
+    receipt, pins, _image = _registered(tmp_path)
+    terminal = _process(tmp_path, receipt, pins, _Executor())
+    state = _terminal_state(terminal, pins)
+    operation_id = cast(str, state["post_registration"]["completed_operations"][0])
+    result_path = (
+        terminal.receipt_path.parent
+        / "records"
+        / f"post-registration-operation-{operation_id}.result.json"
+    )
+    result = overlay._read_json(result_path)
+    result["timestamp"] = "2026-08-31T00:00:01Z"
+    result_path.write_bytes(overlay.canonical_json_bytes(result))
+
+    with pytest.raises(post.PostRegistrationError, match="RESULT_HISTORY_MISSING"):
+        post.verify_post_registration_terminal(
+            receipt_path=terminal.receipt_path,
+            expected_overlay_controller_sha256=pins["overlay_sha"],
+            expected_post_registration_controller_sha256=pins["post_sha"],
+            project_worktree_root=tmp_path,
+        )
 
 
 @pytest.mark.parametrize("variant", ("no_face", "pose"))
