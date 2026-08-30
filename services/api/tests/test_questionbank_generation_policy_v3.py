@@ -71,6 +71,9 @@ D0_CHANGE_CONTROL_PATH = (
 R50_CONTRACT_PATH = ROOT / "docs" / "operations" / "P2_M5_R50_IMAGEGEN_OUTPUT_BRIDGE_CONTRACT.md"
 ACCEPTANCE_PATH = ROOT / "docs" / "operations" / "P2_M5_ACCEPTANCE.md"
 EXECUTION_PROTOCOL_PATH = ROOT / "docs" / "operations" / "P2_M5_EXECUTION_PROTOCOL.md"
+R52_CONTRACT_PATH = (
+    ROOT / "docs" / "operations" / "P2_M5_R52_PRIVATE_IMAGEGEN_TRANSPORT_RUNNER_CONTRACT.md"
+)
 
 _CC05_A_AUTHORIZED_A0_OVERRIDES = {
     "ASSIGNMENT_LEDGER_VERSION": ("p2-m5-cc05a-calibration-assignment-v3-cal-req-002-forward"),
@@ -379,6 +382,14 @@ def _last_r51_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-r51-r50-post-acceptance-successor-authority-eof/v1",
         sentinel="P2_M5_R51_R50_POST_ACCEPTANCE_SUCCESSOR_AUTHORITY_REPAIR_TRUE_EOF",
+    )
+
+
+def _last_r52_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-r52-private-imagegen-no-echo-transport-eof/v1",
+        sentinel="P2_M5_R52_PRIVATE_IMAGEGEN_NO_ECHO_TRANSPORT_TRUE_EOF",
     )
 
 
@@ -2983,5 +2994,97 @@ def test_r51_freezes_one_exact_post_acceptance_successor_at_true_eof() -> None:
             "P2_M5_R51_R50_POST_ACCEPTANCE_SUCCESSOR_AUTHORITY_REPAIR_TRUE_EOF"
         ),
     }
+    acceptance_text = ACCEPTANCE_PATH.read_text(encoding="utf-8")
+    execution_text = EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")
+    assert (
+        canonical[-1][1]
+        + "\n\n## Current authoritative state — P2-M5-R52 no-echo private ImageGen transport repair"
+        in acceptance_text
+    )
+    assert (
+        mirror[-1][1] + "\n\n## Current authoritative state mirror — P2-M5-R52 "
+        "no-echo private ImageGen transport repair" in execution_text
+    )
+
+
+def test_r52_records_cal_req_003_failure_and_freezes_exact_post_acceptance_successor() -> None:
+    canonical = _last_r52_key_block(ACCEPTANCE_PATH)
+    mirror = _last_r52_key_block(EXECUTION_PROTOCOL_PATH)
+    values = dict(canonical)
+
+    assert canonical == mirror
+    assert len(canonical) == len(values) == 63
+    assert values["CURRENT_STATE_PRECONDITION_FALLBACK"] == (
+        "CAL_REQ_003_TERMINAL_FAILURE_IS_CURRENT_R52_REPAIR_EXECUTES_ZERO_GENERATION_AND_"
+        "CAL_REQ_004_REMAINS_UNAUTHORIZED_UNTIL_R52_AUTHORITY_CONDITION_IS_SATISFIED"
+    )
+    assert values["P2_M5_R50"] == ("TASK_ACCEPTED_AT_7EA62E9184EA163075043A9AE87BA7284B3F4772")
+    assert values["P2_M5_R51_PRINCIPAL_ACCEPTANCE"] == "GRANTED"
+    assert values["CAL_REQ_003_STATUS"] == "CONSUMED_FAILED_NO_RETRY"
+    assert values["CAL_REQ_003_FAILURE_PHASE"] == ("OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE")
+    assert values["CAL_REQ_003_FAILURE_REASON"] == "IMAGEGEN_DATA_URL_HEADER_INVALID"
+    assert values["CAL_REQ_003_RAW_OUTPUT_CUSTODY"] == "EVIDENCE_LOCATION_LOST"
+    assert values["CAL_REQ_003_RETRY"] == "PROHIBITED"
+    assert values["CAL_REQ_003_DECODE_PERFORMED"] == "FALSE"
+    assert values["CAL_REQ_003_DIMENSIONS_READ"] == "FALSE"
+    assert values["CAL_REQ_003_QA_SCREENING_ADMISSION"] == "0"
+    assert values["NEXT_UNUSED_FORMAL_ORDINAL"] == "CAL-REQ-004"
+    assert values["FORMAL_CALLS_REMAINING"] == "29"
+    assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "29"
+    assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "60"
+    assert values["GLOBAL_NATIVE_OUTPUT_CONSUMED"] == "4"
+    assert values["P2_M5_R52_CHANGE_CLASS"] == ("BOUNDED_PRIVATE_TRANSPORT_ORCHESTRATION_REPAIR")
+    assert values["P2_M5_R52_TRANSPORT"] == ("TTY_REQUIRED_NO_ECHO_BOUNDED_COMPLETE_ASCII_ONE_LINE")
+    assert values["P2_M5_R52_FOCUSED_TESTS"] == "PASS_35_ZERO_SKIP"
+    assert values["P2_M5_R52_FULL_REGRESSION"] == "PASS_CANONICAL_LF_CHECKOUT"
+    assert values["P2_M5_R52_DATA_URL_PLAINTEXT_PERSISTED_OR_LOGGED"] == "FALSE"
+    assert values["P2_M5_R52_GENERATION_CALLS"] == "0"
+    assert values["P2_M5_R52_RAW_OUTPUTS_CREATED"] == "0"
+    assert values["P2_M5_R52_IMAGE_DECODE_CALLS"] == "0"
+    assert values["P2_M5_R52_QA_SCREENING_ADMISSION"] == "0"
+    assert values["P2_M5_R52_PRINCIPAL_ACCEPTANCE"] == "NOT_GRANTED"
+    assert values["P2_M5_R52"] == ("PASS_AFTER_THIS_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE")
+    assert values["CAL_REQ_004_DISPATCH_AUTHORIZED"] == (
+        "TRUE_FOR_ONE_EXACT_CALL_AFTER_THIS_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert values["CC04_B_EXECUTION"] == (
+        "READY_FOR_ONE_EXACT_CAL_REQ_004_CALL_AFTER_THIS_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert values["FORMAL_E01_STATUS"] == (
+        "READY_TO_EXECUTE_CAL_REQ_004_AFTER_THIS_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert values["P2_M5_NEXT_ACTION"] == "EXECUTE_CAL_REQ_004"
+    assert values["NEXT_READY_TASK"] == "EXECUTE_CAL_REQ_004"
+    assert values["STOP_OUTCOME"] == (
+        "NONE_AFTER_R52_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE_ELSE_R52_PENDING_GATES"
+    )
+    assert values["POST_ACCEPTANCE_COMMIT_REQUIRED"] == "NO"
+    contract_text = R52_CONTRACT_PATH.read_text(encoding="utf-8")
+    assert (
+        "CAL_REQ_004_DISPATCH_AUTHORIZED: "
+        "TRUE_FOR_ONE_EXACT_CALL_AFTER_THIS_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+        in contract_text
+    )
+    assert values["P2_M5_TECHNICAL_GATE"] == "NOT_EVALUATED"
+    assert values["P2_MVR_V1_RESULT"] == "NOT_EVALUATED"
+    assert values["P2_M6_ENTRY"] == "CLOSED_PENDING_TECHNICAL_AND_MVR_PASS"
+    assert values["CURRENT_AUTHORITY_TAIL_END"] == (
+        "P2_M5_R52_PRIVATE_IMAGEGEN_NO_ECHO_TRANSPORT_TRUE_EOF"
+    )
     assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
     assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+
+    tracked = "\n".join(
+        (
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-30_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-30_000:],
+        )
+    )
+    for forbidden in (
+        "data:image/",
+        "prompt_plaintext",
+        "signed_url",
+        "object_key",
+        "D:\\p-worktrees\\",
+    ):
+        assert forbidden not in tracked
