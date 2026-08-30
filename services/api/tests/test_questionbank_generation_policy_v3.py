@@ -83,6 +83,15 @@ R55_CONTRACT_PATH = (
     / "operations"
     / "P2_M5_R55_QUIESCENT_CUSTODY_LEASE_AND_ATOMIC_READY_COMMIT_REPAIR.md"
 )
+CC06_CONTRACT_PATH = (
+    ROOT
+    / "docs"
+    / "operations"
+    / "P2_M5_CC06_BATCHED_NATIVE_IMAGEGEN_POST_REGISTRATION_CONTRACT.md"
+)
+CC06_ADR_PATH = (
+    ROOT / "docs" / "adr" / "ADR-054-private-post-registration-and-sequential-successor.md"
+)
 
 _CC05_A_AUTHORIZED_A0_OVERRIDES = {
     "ASSIGNMENT_LEDGER_VERSION": ("p2-m5-cc05a-calibration-assignment-v3-cal-req-002-forward"),
@@ -423,6 +432,14 @@ def _last_r55_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-r55-quiescent-custody-atomic-ready-eof/v1",
         sentinel="P2_M5_R55_QUIESCENT_CUSTODY_ATOMIC_READY_TRUE_EOF",
+    )
+
+
+def _last_cc06_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-cc06-batched-native-post-registration-eof/v1",
+        sentinel="P2_M5_CC06_BATCHED_NATIVE_POST_REGISTRATION_TRUE_EOF",
     )
 
 
@@ -3289,8 +3306,10 @@ def test_r55_quiescent_custody_authority_is_mirrored_at_true_eof() -> None:
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_R55_QUIESCENT_CUSTODY_ATOMIC_READY_TRUE_EOF",
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    acceptance_text = ACCEPTANCE_PATH.read_text(encoding="utf-8")
+    protocol_text = EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")
+    assert canonical[-1][1] + "\n\n## Current authoritative state — P2-M5-CC06" in acceptance_text
+    assert mirror[-1][1] + "\n\n## Current authoritative state mirror — P2-M5-CC06" in protocol_text
 
     contract = R55_CONTRACT_PATH.read_text(encoding="utf-8")
     for required in (
@@ -3307,6 +3326,98 @@ def test_r55_quiescent_custody_authority_is_mirrored_at_true_eof() -> None:
             ACCEPTANCE_PATH.read_text(encoding="utf-8")[-24_000:],
             EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-24_000:],
             contract,
+        )
+    )
+    for forbidden in (
+        "data:image/",
+        "prompt_plaintext",
+        "signed_url",
+        "object_key",
+        "D:\\p-worktrees\\",
+    ):
+        assert forbidden not in tracked
+
+
+def test_cc06_batched_post_registration_authority_is_mirrored_and_true_eof() -> None:
+    canonical = _last_cc06_key_block(ACCEPTANCE_PATH)
+    mirror = _last_cc06_key_block(EXECUTION_PROTOCOL_PATH)
+    values = dict(canonical)
+
+    assert canonical == mirror
+    assert len(canonical) == len(values)
+    assert values["CURRENT_STATE_MIRROR_RULE"] == (
+        "MUST_MATCH_CANONICAL_CC06_KEY_SET_ORDER_AND_VALUES"
+    )
+    assert values["P2_M5_R55"] == "TASK_ACCEPTED_BEFORE_CC06_EXECUTION"
+    assert values["P2_M5_R55_ACCEPTED_SHA"] == ("B0DE4D85C4BA65BE86D2D2795D15A1DE9FEA0ADD")
+    assert values["P2_M5_R55_ACCEPTED_CI_RUN"] == ("33317367476_ATTEMPT_1_ALL_MANDATORY_JOBS_PASS")
+    assert values["P2_M5_CC06_OWNER_DECISION"] == ("OD-P2-M5-IMAGEGEN-BATCH-EXECUTION-001")
+    assert values["P2_M5_CC06_CHANGE_CLASS"] == ("FORWARD_BATCH_LEVEL_EXECUTION_CHANGE_CONTROL")
+    assert values["P2_M5_CC06_LIVE_OVERLAY_AND_CAPTURE_MODULES"] == ("BYTE_UNCHANGED_FROM_R55")
+    assert values["P2_M5_CC06_CAPABILITY_AUTHORITY"] == (
+        "INDEPENDENT_TASK_SCOPED_REGISTRY_DIGEST_REQUIRED_AT_EXECUTION"
+    )
+    assert values["P2_M5_CC06_PLAN_BEFORE_INVOKE"] == "REQUIRED"
+    assert values["P2_M5_CC06_UNKNOWN_OUTCOME_RETRY"] == "PROHIBITED"
+    assert values["P2_M5_CC06_SUCCESSOR_INTENT_ORDER"] == (
+        "DURABLE_PARENT_SCOPED_INTENT_BEFORE_ROOT_CREATE"
+    )
+    assert values["P2_M5_CC06_CANARY_CONTENT_REJECTION"] == "TERMINAL_NO_TRANCHE_2"
+    assert values["P2_M5_CC06_IMAGEGEN_CALLS"] == "0"
+    assert values["P2_M5_CC06_ORDINALS_CONSUMED"] == "0"
+    assert values["P2_M5_CC06_RAW_OUTPUTS_CREATED"] == "0"
+    assert values["P2_M5_CC06_PRIVATE_CANARY_IMAGE_BYTES_READ"] == "0"
+    assert values["P2_M5_CC06_PRIVATE_CANARY_DECODE_CALLS"] == "0"
+    assert values["P2_M5_CC06_PRIVATE_CANARY_M3_EXECUTIONS"] == "0"
+    assert values["P2_M5_CC06_DB_MUTATIONS"] == "0"
+    assert values["P2_M5_CC06_ADMISSION"] == "0"
+    assert values["P2_M5_CC06_FOCUSED_TESTS"] == "PASS_13_ZERO_SKIP"
+    assert values["P2_M5_CC06_OVERLAY_CAPTURE_CONTROLLER_REGRESSION"] == ("PASS_131_ZERO_SKIP")
+    assert values["P2_M5_CC06_STRICT_MYPY"] == "PASS_2_SOURCE_FILES"
+    assert values["P2_M5_CC06_FULL_REGRESSION"] == (
+        "PASS_CANONICAL_LF_CHECKOUT_893_TOTAL_733_PASSED_160_ENVIRONMENT_GATED_SKIP_"
+        "ZERO_FAILURE_ERROR"
+    )
+    assert values["CAL_REQ_004_STATUS"] == "OUTPUT_REGISTERED_PRE_DECODE"
+    assert values["CAL_REQ_004_RETRY"] == "PROHIBITED"
+    assert values["NEXT_UNUSED_FORMAL_ORDINAL"] == "CAL-REQ-005"
+    assert values["FORMAL_CALLS_REMAINING"] == "28"
+    assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "28"
+    assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "59"
+    assert values["GLOBAL_NATIVE_OUTPUT_CONSUMED"] == "5"
+    assert values["CAL_REQ_005_DISPATCH_AUTHORIZED"] == (
+        "FALSE_PENDING_CC06_ACCEPTANCE_AND_CAL_REQ_004_TECHNICAL_QA_PASS"
+    )
+    assert values["NEXT_READY_TASK"] == (
+        "EXECUTE_CAL_REQ_004_POST_REGISTRATION_CANARY_AFTER_CC06_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert values["POST_ACCEPTANCE_COMMIT_REQUIRED"] == "NO"
+    assert values["STOP_OUTCOME"] == "CC06_PENDING_LOCAL_REMOTE_AND_PRINCIPAL_GATES"
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_CC06_BATCHED_NATIVE_POST_REGISTRATION_TRUE_EOF",
+    )
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+
+    contract = CC06_CONTRACT_PATH.read_text(encoding="utf-8")
+    adr = CC06_ADR_PATH.read_text(encoding="utf-8")
+    normalized_contract = " ".join((contract + adr).split())
+    for required in (
+        "OD-P2-M5-IMAGEGEN-BATCH-EXECUTION-001",
+        "independently verified task-scoped registry authority",
+        "Only technical QA PASS",
+        "A durable operation plan without its result",
+        "never per normal output",
+    ):
+        assert required in normalized_contract
+
+    tracked = "\n".join(
+        (
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-28_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-28_000:],
+            contract,
+            adr,
         )
     )
     for forbidden in (
