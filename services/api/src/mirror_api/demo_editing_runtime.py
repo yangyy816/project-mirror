@@ -57,13 +57,14 @@ from mirror_api.demo_operation_graph import (
     OperationSpec,
     parse_operation_spec,
 )
+from mirror_api.demo_tool_registry import (
+    TOOL_REGISTRY_VERSION,
+    DemoToolRegistryError,
+    resolve_tool,
+)
 from mirror_api.models import Asset, AssetVariant, Job, JobAttempt, new_id, utcnow
 
 _TERMINAL: Final = frozenset({"COMPLETED", "REJECTED", "FAILED", "CANCELLED"})
-_ENGINE_VERSION: Final = {
-    OperationEngine.RASTER: "demo-raster-editor-pillow12-fixedpoint-v1",
-    OperationEngine.GEOMETRY: "demo-geometry-injected-v1",
-}
 _REJECTED_CODES: Final = frozenset(
     {
         "CAPABILITY_UNAVAILABLE",
@@ -433,16 +434,6 @@ class DemoEditingRuntime:
 
     async def _execute_plan(self, claim: _Claim, *, parent: _Claim | None = None) -> None:
         command = await self._execution_command(claim, parent=parent)
-        if command.operation.engine in {
-            OperationEngine.MAKEUP,
-            OperationEngine.GENERATIVE,
-        }:
-            code = (
-                "MAKEUP_DEFERRED_NO_APPROVED_ENGINE"
-                if command.operation.engine is OperationEngine.MAKEUP
-                else "GENERATIVE_PROVIDER_UNAVAILABLE"
-            )
-            raise DemoEditingRuntimeError(code, "operation capability is deliberately unavailable")
         if (
             command.operation.engine is OperationEngine.GEOMETRY
             and self._geometry_dispatcher is None
@@ -652,6 +643,10 @@ class DemoEditingRuntime:
                 raise DemoEditingRuntimeError(
                     "PLAN_AUTHORITY_INVALID", "result plan is unavailable"
                 )
+            if plan.tool_registry_version != TOOL_REGISTRY_VERSION:
+                raise DemoEditingRuntimeError(
+                    "TOOL_REGISTRY_MISMATCH", "result plan registry version is invalid"
+                )
             operations = (
                 await session.scalars(
                     select(DemoEditOperation)
@@ -666,6 +661,17 @@ class DemoEditingRuntime:
                 )
             operation = operations[0]
             spec = self._operation_spec(operation)
+            try:
+                descriptor = resolve_tool(spec.engine, spec.operation_type)
+            except DemoToolRegistryError as exc:
+                raise DemoEditingRuntimeError(
+                    "TOOL_REGISTRY_MISMATCH", "operation is not registered"
+                ) from exc
+            if descriptor.unavailable_reason_code is not None:
+                raise DemoEditingRuntimeError(
+                    descriptor.unavailable_reason_code,
+                    "operation capability is deliberately unavailable",
+                )
             image = await session.get(DemoImageVersion, plan.input_image_version_id)
             if image is None or image.editing_session_id != plan.editing_session_id:
                 raise DemoEditingRuntimeError(
@@ -682,8 +688,7 @@ class DemoEditingRuntime:
                 )
             reference = self._reference(source)
         content = await self._asset_loader.load(reference)
-        engine = spec.engine
-        if engine not in _ENGINE_VERSION:
+        if descriptor.engine_version is None:
             raise DemoEditingRuntimeError(
                 "CAPABILITY_UNAVAILABLE", "execution engine is unavailable"
             )
@@ -698,8 +703,8 @@ class DemoEditingRuntime:
             source_asset_sha256=source.sha256,
             source_bytes=content,
             operation=spec,
-            engine_version=_ENGINE_VERSION[engine],
-            engine_digest=self._digest("D07Engine", _ENGINE_VERSION[engine]),
+            engine_version=descriptor.engine_version,
+            engine_digest=self._digest("D07Engine", descriptor.engine_version),
             config_digest=self._digest("D07Config", plan.content_digest, operation.content_digest),
             parent_job_id=None if parent is None else parent.job_id,
             parent_job_attempt_id=None if parent is None else parent.attempt_id,
@@ -850,7 +855,7 @@ class DemoEditingRuntime:
 
     @staticmethod
     def _operation_spec(operation: DemoEditOperation) -> OperationSpec:
-        return parse_operation_spec(
+        spec = parse_operation_spec(
             {
                 "engine": operation.engine,
                 "operation_type": operation.operation_type,
@@ -859,6 +864,13 @@ class DemoEditingRuntime:
                 "expected_effect": operation.expected_effect,
             }
         )
+        try:
+            resolve_tool(spec.engine, spec.operation_type)
+        except DemoToolRegistryError as exc:
+            raise DemoEditingRuntimeError(
+                "TOOL_REGISTRY_MISMATCH", "operation spec is not registered"
+            ) from exc
+        return spec
 
     @staticmethod
     def _id(kind: str, *values: str) -> str:

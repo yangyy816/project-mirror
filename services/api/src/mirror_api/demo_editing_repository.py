@@ -59,6 +59,11 @@ from mirror_api.demo_operation_graph import (
     plan_rollback_transition,
     validate_result_asset_id,
 )
+from mirror_api.demo_tool_registry import (
+    TOOL_REGISTRY_VERSION,
+    DemoToolRegistryError,
+    resolve_persisted_tool,
+)
 from mirror_api.models import Asset, AssetVariant, Job, JobAttempt, new_id, utcnow
 
 DEMO_JOB_BINDING_SCHEMA = "mirror.demo/DemoJobBinding/v1"
@@ -815,6 +820,24 @@ class SqlAlchemyDemoEditingRepository:
             raise DemoEditingRepositoryError(
                 "PLAN_AUTHORITY_UNAVAILABLE", "ToolRun plan authority is unavailable"
             )
+        if plan.tool_registry_version != TOOL_REGISTRY_VERSION:
+            raise DemoEditingRepositoryError(
+                "TOOL_REGISTRY_MISMATCH", "ToolRun plan registry version is invalid"
+            )
+        try:
+            descriptor = resolve_persisted_tool(operation.engine, operation.operation_type)
+        except DemoToolRegistryError as exc:
+            raise DemoEditingRepositoryError(
+                "TOOL_REGISTRY_MISMATCH", "ToolRun operation is not registered"
+            ) from exc
+        if (
+            descriptor.engine_version is None
+            or artifact.engine_version != descriptor.engine_version
+        ):
+            raise DemoEditingRepositoryError(
+                "TOOL_ENGINE_VERSION_MISMATCH",
+                "ToolRun engine version does not match registry",
+            )
         parent = await self._execution_parent(session, plan, operation)
         tool = _authority_row(
             DemoToolRun,
@@ -825,8 +848,8 @@ class SqlAlchemyDemoEditingRepository:
             demo_job_binding_id=binding.id,
             formal_job_attempt_id=artifact.formal_job_attempt_id,
             demo_edit_artifact_id=artifact.id,
-            tool_name=f"demo-{operation.engine.lower()}-{operation.operation_type.lower()}",
-            tool_version=artifact.engine_version,
+            tool_name=descriptor.tool_name,
+            tool_version=descriptor.engine_version,
             input_asset_id=parent.result_asset_id,
             input_asset_sha256=parent.result_asset_sha256,
             output_asset_id=None,

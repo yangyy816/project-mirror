@@ -51,6 +51,7 @@ from mirror_api.demo_operation_graph import (
     OperationType,
     PreserveKey,
 )
+from mirror_api.demo_tool_registry import RASTER_ENGINE_VERSION, TOOL_REGISTRY_VERSION
 from mirror_api.models import Asset, AssetVariant, Job, JobAttempt, new_id, utcnow
 
 pytestmark = pytest.mark.integration
@@ -114,6 +115,8 @@ async def _execution_context(
     postgres_session: Session,
     *,
     restore: bool = False,
+    tool_registry_version: str = TOOL_REGISTRY_VERSION,
+    engine_version: str = RASTER_ENGINE_VERSION,
 ) -> tuple[ExecutionCommand, SqlAlchemyDemoEditingRepository, AsyncEngine]:
     graph = _insert_full_demo_graph(postgres_session)
     actor = graph["actor"]
@@ -134,7 +137,7 @@ async def _execution_context(
             source_image.id,
             (operation_spec,),
             "d07-repository-test-planner-v1",
-            editing_session.tool_registry_version,
+            tool_registry_version,
         )
     )
     operation = postgres_session.scalar(
@@ -195,7 +198,7 @@ async def _execution_context(
             source_asset_sha256=source_asset.sha256,
             source_bytes=b"synthetic-only-repository-test-source",
             operation=operation_spec,
-            engine_version="raster-v1",
+            engine_version=engine_version,
             engine_digest=hashlib.sha256(b"d07-test-engine").hexdigest(),
             config_digest=hashlib.sha256(b"d07-test-config").hexdigest(),
             parent_job_id=parent_job_id,
@@ -400,6 +403,60 @@ async def test_only_publishable_pass_creates_one_terminal_publication(
             )
             == 1
         )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tool_registry_version", "engine_version", "expected_code"),
+    (
+        ("unknown-tool-registry-v0", RASTER_ENGINE_VERSION, "TOOL_REGISTRY_MISMATCH"),
+        (TOOL_REGISTRY_VERSION, "unknown-raster-engine-v0", "TOOL_ENGINE_VERSION_MISMATCH"),
+    ),
+)
+async def test_registry_binding_mismatch_fails_closed_before_publication(
+    postgres_session: Session,
+    tool_registry_version: str,
+    engine_version: str,
+    expected_code: str,
+) -> None:
+    command, repository, engine = await _execution_context(
+        postgres_session,
+        tool_registry_version=tool_registry_version,
+        engine_version=engine_version,
+    )
+    try:
+        before = (
+            _count(postgres_session, Asset),
+            _count(postgres_session, AssetVariant),
+            _count(postgres_session, DemoToolRun),
+            _count(postgres_session, DemoVerificationResult),
+            _count(postgres_session, DemoImageVersion),
+        )
+        key = f"demo-quarantine/{command.actor_id}/{command.execution_job_binding_id}/"
+        artifact = await repository.reserve_execution(
+            command, key + f"{command.operation_id}/{command.formal_job_attempt_id}"
+        )
+        materialized = _materialized(command)
+        materialized_artifact = await repository.append_materialized(artifact, materialized)
+        with pytest.raises(DemoEditingRepositoryError) as error:
+            await repository.promote_pass(
+                materialized_artifact,
+                _verification(command, materialized),
+                materialized,
+                f"demo-published/v1/{artifact.artifact_id}/{materialized.sha256}",
+            )
+        assert error.value.code == expected_code
+        assert (
+            _count(postgres_session, Asset),
+            _count(postgres_session, AssetVariant),
+            _count(postgres_session, DemoToolRun),
+            _count(postgres_session, DemoVerificationResult),
+            _count(postgres_session, DemoImageVersion),
+        ) == before
+        execution_job, execution_attempt = _execution_job_and_attempt(postgres_session, command)
+        assert execution_job.status == execution_attempt.status == "RUNNING"
     finally:
         await engine.dispose()
 

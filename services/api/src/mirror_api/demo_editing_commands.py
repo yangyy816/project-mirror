@@ -49,11 +49,17 @@ from mirror_api.demo_operation_graph import (
     PreserveKey,
     plan_restore_transition,
 )
+from mirror_api.demo_tool_registry import (
+    TOOL_REGISTRY_VERSION,
+    DemoToolRegistryError,
+    require_execution_mode,
+    resolve_persisted_tool,
+    resolve_tool,
+)
 from mirror_api.models import Asset, Job, new_id, utcnow
 
 EDITING_CONTRACT_VERSION = "demo-editing-product-contract-v1"
 PLANNER_VERSION = "demo-edit-planner-v1"
-TOOL_REGISTRY_VERSION = "demo-tool-registry-v1"
 DEMO_JOB_BINDING_SCHEMA = "mirror.demo/DemoJobBinding/v1"
 _ID = re.compile(r"^[0-9a-f]{32}$")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
@@ -538,24 +544,28 @@ class DemoEditingCommandService:
         )
         if plan is None or plan.content_digest != c.expected_plan_digest:
             raise DemoEditingCommandUnavailable("EditPlan is unavailable or stale")
-        engines = {
-            item[0]
-            for item in (
-                await session.execute(
-                    select(DemoEditOperation.engine).where(
-                        DemoEditOperation.edit_plan_id == plan.id
-                    )
-                )
-            ).all()
-        }
-        expected = {
-            "DETERMINISTIC_RASTER": "RASTER",
-            "GEOMETRY": "GEOMETRY",
-            "MAKEUP": "MAKEUP",
-            "GENERATIVE": "GENERATIVE",
-        }[c.execution_mode]
-        if engines != {expected}:
-            raise DemoEditingCommandInputError("execution_mode does not match typed plan engine")
+        operations = (
+            await session.scalars(
+                select(DemoEditOperation)
+                .where(DemoEditOperation.edit_plan_id == plan.id)
+                .order_by(DemoEditOperation.operation_index)
+            )
+        ).all()
+        if len(operations) != 1 or operations[0].operation_index != 0:
+            raise DemoEditingCommandAuthorityCorruption(
+                "result plan does not contain one canonical registered operation"
+            )
+        try:
+            descriptor = resolve_persisted_tool(operations[0].engine, operations[0].operation_type)
+            require_execution_mode(descriptor, c.execution_mode)
+        except DemoToolRegistryError as exc:
+            if exc.code == "EXECUTION_MODE_MISMATCH":
+                raise DemoEditingCommandInputError(
+                    "execution_mode does not match registered tool"
+                ) from exc
+            raise DemoEditingCommandAuthorityCorruption(
+                "persisted plan does not match tool registry"
+            ) from exc
         return plan.id, plan.id
 
     async def _restore(
@@ -699,6 +709,13 @@ class DemoEditingCommandService:
         *,
         deterministic_seed: str | None = None,
     ) -> str:
+        try:
+            for spec in specs:
+                resolve_tool(spec.engine, spec.operation_type)
+        except DemoToolRegistryError as exc:
+            raise DemoEditingCommandAuthorityCorruption(
+                "operation spec does not match tool registry"
+            ) from exc
         existing = await session.scalar(
             select(DemoEditPlan.plan_version)
             .where(DemoEditPlan.input_image_version_id == image.id)
