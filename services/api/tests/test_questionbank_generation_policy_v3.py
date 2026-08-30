@@ -107,6 +107,12 @@ CC07_CONTRACT_PATH = (
     / "operations"
     / "P2_M5_CC07_EXACT_PRIVATE_VISION_CAPABILITY_REQUALIFICATION_CONTRACT.md"
 )
+CC07_EVIDENCE_PATH = (
+    ROOT
+    / "docs"
+    / "operations"
+    / "P2_M5_CC07_EXACT_PRIVATE_VISION_CAPABILITY_REQUALIFICATION_EVIDENCE.json"
+)
 
 _CC05_A_AUTHORIZED_A0_OVERRIDES = {
     "ASSIGNMENT_LEDGER_VERSION": ("p2-m5-cc05a-calibration-assignment-v3-cal-req-002-forward"),
@@ -481,6 +487,14 @@ def _last_cc07_g_key_block(path: Path) -> list[tuple[str, str]]:
             "p2-m5-cc07-g-exact-private-vision-capability-requalification-contract-eof/v1"
         ),
         sentinel=("P2_M5_CC07_G_EXACT_PRIVATE_VISION_CAPABILITY_REQUALIFICATION_CONTRACT_TRUE_EOF"),
+    )
+
+
+def _last_cc07_a_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-cc07-a-exact-input-acquisition-stop-eof/v1",
+        sentinel="P2_M5_CC07_A_EXACT_INPUT_ACQUISITION_STOP_TRUE_EOF",
     )
 
 
@@ -3724,8 +3738,8 @@ def test_cc07_g_exact_private_vision_capability_contract_is_coherent_at_true_eof
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_CC07_G_EXACT_PRIVATE_VISION_CAPABILITY_REQUALIFICATION_CONTRACT_TRUE_EOF",
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    assert canonical[-1][1] in ACCEPTANCE_PATH.read_text(encoding="utf-8")
+    assert mirror[-1][1] in EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")
 
     contract = CC07_CONTRACT_PATH.read_text(encoding="utf-8")
     normalized_contract = " ".join(contract.split())
@@ -3751,5 +3765,105 @@ def test_cc07_g_exact_private_vision_capability_contract_is_coherent_at_true_eof
         "signed_url",
         "object_key",
         "D:\\p-worktrees\\",
+    ):
+        assert forbidden not in tracked
+
+
+def test_cc07_a_acquisition_stop_is_truthful_and_coherent_at_true_eof() -> None:
+    canonical = _last_cc07_a_key_block(ACCEPTANCE_PATH)
+    mirror = _last_cc07_a_key_block(EXECUTION_PROTOCOL_PATH)
+    values = dict(canonical)
+
+    assert canonical == mirror
+    assert len(canonical) == len(values)
+    assert values["CURRENT_STATE_MIRROR_RULE"] == (
+        "MUST_MATCH_CANONICAL_CC07_A_KEY_SET_ORDER_AND_VALUES"
+    )
+    assert values["P2_M5_CC07_G"] == ("TASK_ACCEPTED_AT_FE11F883582294AFC5394F731FE9837D16F9E583")
+    assert values["P2_M5_CC07_G_CI_RUN"] == ("33337761558_ATTEMPT_1_ALL_MANDATORY_JOBS_PASS")
+    assert values["P2_M5_CC07_G_PRINCIPAL_ACCEPTANCE"] == "GRANTED"
+    assert values["P2_M5_CC07_A"] == (
+        "BLOCKED_EXACT_BUILD_INPUT_AUTHORITY_UNAVAILABLE_ON_AUTHORITY_ACTIVATION"
+    )
+    assert values["P2_M5_CC07_A_SOURCE_COMMIT"] == ("F8EF212D5C962C0E853DB7E59D217056B187084B")
+    assert values["P2_M5_CC07_A_SOURCE_INTEGRITY"] == ("PASS_GIT_FSCK_AND_CANONICAL_LF")
+    assert values["P2_M5_CC07_A_FROZEN_PATCHES"] == ("PASS_12_EXACT_BYTES_AND_APPLY_REPLAY")
+    assert values["P2_M5_CC07_A_MODEL"] == ("PASS_EXACT_GCS_GENERATION_SIZE_MD5_CRC32C_AND_SHA256")
+    assert values["P2_M5_CC07_A_MODEL_CARDS"] == "PASS_3_OF_3_EXACT_SHA256"
+    assert values["P2_M5_CC07_A_BAZEL_LINUX"] == "PASS_EXACT_SHA256"
+    assert values["P2_M5_CC07_A_OPENCV_SOURCE"] == "PASS_EXACT_SHA256"
+    assert values["P2_M5_CC07_A_OFFICIAL_WHEELS"] == (
+        "NOT_REACQUIRED_REJECTED_RUNTIME_NEGATIVE_CONTROL"
+    )
+    assert values["P2_M5_CC07_A_EFFECTIVE_BUILD_INPUT_MANIFEST_BYTES"] == (
+        "NOT_RECOVERABLE_FROM_TRACKED_OR_TASK_SCOPED_AUTHORITY"
+    )
+    assert values["P2_M5_CC07_A_EFFECTIVE_BUILD_INPUT_MANIFEST_ALGORITHM"] == (
+        "NOT_RECOVERABLE_FROM_TRACKED_OR_TASK_SCOPED_AUTHORITY"
+    )
+    assert values["P2_M5_CC07_A_BUILDER_INVENTORY_BYTES"] == (
+        "NOT_RECOVERABLE_FROM_TRACKED_OR_TASK_SCOPED_AUTHORITY"
+    )
+    assert values["P2_M5_CC07_A_BUILDER_HANDLE"] == ("NOT_RECOVERABLE_FROM_TASK_SCOPED_AUTHORITY")
+    assert values["P2_M5_CC07_A_REPOSITORY_CACHE_HANDLE"] == (
+        "NOT_RECOVERABLE_FROM_TASK_SCOPED_AUTHORITY"
+    )
+    assert values["P2_M5_CC07_A_BROAD_SEARCH"] == "PROHIBITED_AND_NOT_PERFORMED"
+    for key in (
+        "P2_M5_CC07_A_RUNTIME_BUILDS",
+        "P2_M5_CC07_A_MODEL_LOADS",
+        "P2_M5_CC07_A_VISION_CALLS",
+        "P2_M5_CC07_A_CANARY_READS",
+        "P2_M5_CC07_A_DECODE_CALLS",
+        "P2_M5_CC07_A_M3_CALLS",
+        "P2_M5_CC07_A_IMAGEGEN_CALLS",
+        "P2_M5_CC07_A_DB_MUTATIONS",
+    ):
+        assert values[key] == "0"
+    assert values["P2_M5_CC07_B"] == ("CLOSED_EXACT_BUILD_INPUT_AUTHORITY_UNAVAILABLE")
+    assert values["CAL_REQ_004_STATUS"] == "OUTPUT_REGISTERED_PRE_DECODE"
+    assert values["CAL_REQ_004_POST_REGISTRATION_EXECUTION_AUTHORIZED"] == (
+        "FALSE_PENDING_NEW_ACCEPTED_RUNTIME_AUTHORITY_AND_CC07_D"
+    )
+    assert values["FORMAL_CALLS_REMAINING"] == "28"
+    assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "28"
+    assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "59"
+    assert values["CAL_REQ_005_DISPATCH_AUTHORIZED"] == (
+        "FALSE_PENDING_CAL_REQ_004_TECHNICAL_QA_PASS"
+    )
+    assert values["NEXT_READY_TASK"] == (
+        "P2-M5-CC07-E_PREPARE_SUPERSEDING_RUNTIME_VERSION_DECISION_PACKET"
+    )
+    assert values["POST_ACCEPTANCE_COMMIT_REQUIRED"] == "NO"
+    assert values["STOP_OUTCOME"] == "BLOCKED_EXACT_BUILD_INPUT_AUTHORITY_UNAVAILABLE"
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_CC07_A_EXACT_INPUT_ACQUISITION_STOP_TRUE_EOF",
+    )
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+
+    evidence = json.loads(CC07_EVIDENCE_PATH.read_text(encoding="utf-8"))
+    assert evidence["outcome"] == "BLOCKED_EXACT_BUILD_INPUT_AUTHORITY_UNAVAILABLE"
+    assert evidence["acquired_authority"]["frozen_patch_count"] == 12
+    assert evidence["acquired_authority"]["official_wheels_reacquired"] is False
+    assert evidence["unavailable_authority"]["broad_search_performed"] is False
+    assert all(value == 0 for value in evidence["operations"].values())
+    assert evidence["cc07_b_authorized"] is False
+
+    tracked = "\n".join(
+        (
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-28_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-28_000:],
+            CC07_EVIDENCE_PATH.read_text(encoding="utf-8"),
+        )
+    )
+    for forbidden in (
+        "data:image/",
+        "prompt_plaintext",
+        "signed_url",
+        "object_key",
+        "D:\\p-worktrees\\",
+        "cc07a-d761637e4c0147cc",
     ):
         assert forbidden not in tracked

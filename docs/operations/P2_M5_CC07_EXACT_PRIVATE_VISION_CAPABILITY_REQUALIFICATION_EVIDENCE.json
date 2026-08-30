@@ -1,0 +1,61 @@
+{
+  "schema_version": "mirror.p2-m5/cc07-a-redacted-acquisition-evidence/v1",
+  "task_id": "P2-M5-CC07-A_REACQUIRE_EXACT_PUBLIC_BUILD_INPUTS_AND_MODEL",
+  "change_control_id": "CC-P2-M5-07",
+  "baseline_sha": "fe11f883582294afc5394f731fe9837d16f9e583",
+  "private_acquisition_manifest_sha256": "4268b1a313c725fabc429fa7dd5fb081ebf8c0d71d408f44781d8746b819cd1b",
+  "acquired_authority": {
+    "upstream_source_commit": "f8ef212d5c962c0e853db7e59d217056b187084b",
+    "git_integrity": "PASS",
+    "canonical_lf_checkout": "PASS",
+    "frozen_patch_count": 12,
+    "frozen_patch_replay": "PASS_EXACT_BYTES",
+    "face_landmarker_model_bytes": 3758596,
+    "face_landmarker_model_sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+    "model_card_count": 3,
+    "model_cards_sha256": [
+      "cd335c06fc0de7807cd815a0777a697932598bcdb28fa98adaaabf847485f758",
+      "c8e9cf60a39998f4b341740623917590e050d1c97004e2de4568d84e026445ae",
+      "c6add060f4ebfb37b2690136b6c711c7e5fcb7038baa2649ae3338b83979565a"
+    ],
+    "bazel_linux_sha256": "c97f02133adce63f0c28678ac1f21d65fa8255c80429b588aeeba8a1fac6202b",
+    "bazel_windows_sha256": "4a76eddf6c5115e1d93355fd11db5ac2fc20e58f197f5d65d3f21da92aa0925b",
+    "opencv_3_4_11_sha256": "10898a0268d8f8cbaf0354ddd1d9de6abaac84e3d9a6c9754f56a0aa3383d73b",
+    "official_wheels_reacquired": false,
+    "official_wheels_disposition": "REJECTED_RUNTIME_NEGATIVE_CONTROL_NO_REINSTALL_REQUIRED"
+  },
+  "unavailable_authority": {
+    "expected_effective_build_input_manifest_sha256": "5c4f74bc4dd661582d397e5d1c66d22548d103e70d75cd7a2062cc6f0958a224",
+    "effective_build_input_manifest_bytes": "NOT_RECOVERABLE_FROM_TRACKED_OR_TASK_SCOPED_AUTHORITY",
+    "effective_build_input_manifest_algorithm": "NOT_RECOVERABLE_FROM_TRACKED_OR_TASK_SCOPED_AUTHORITY",
+    "expected_builder_inventory_sha256": "3e1b20f7a0da2a214f204e94fc9f4fc26aa9432058d2693ffd8016483084a405",
+    "builder_inventory_bytes": "NOT_RECOVERABLE_FROM_TRACKED_OR_TASK_SCOPED_AUTHORITY",
+    "builder_handle": "NOT_RECOVERABLE_FROM_TASK_SCOPED_AUTHORITY",
+    "repository_cache_handle": "NOT_RECOVERABLE_FROM_TASK_SCOPED_AUTHORITY",
+    "broad_search_performed": false
+  },
+  "operations": {
+    "runtime_builds": 0,
+    "model_loads": 0,
+    "vision_calls": 0,
+    "canary_reads": 0,
+    "decode_calls": 0,
+    "m3_calls": 0,
+    "imagegen_calls": 0,
+    "database_mutations": 0
+  },
+  "outcome": "BLOCKED_EXACT_BUILD_INPUT_AUTHORITY_UNAVAILABLE",
+  "cc07_b_authorized": false,
+  "cal_req_004_status": "OUTPUT_REGISTERED_PRE_DECODE",
+  "cal_req_005_dispatch_authorized": false,
+  "next_ready_task": "P2-M5-CC07-E_PREPARE_SUPERSEDING_RUNTIME_VERSION_DECISION_PACKET",
+  "boundaries": {
+    "synthetic_only": true,
+    "private_locator_in_tracked_evidence": false,
+    "runtime_or_model_bytes_in_git": false,
+    "dependency_change": false,
+    "schema_or_api_change": false,
+    "production_or_real_user_authority": false,
+    "question_bank_release_authorized": false
+  }
+}
