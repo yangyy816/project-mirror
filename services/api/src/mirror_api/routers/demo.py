@@ -42,6 +42,15 @@ from mirror_api.demo_job_service import (
     DemoJobStatus,
     DemoJobUnavailable,
 )
+from mirror_api.demo_memory_coordinator import DemoMemoryCoordinator
+from mirror_api.demo_memory_dependencies import get_demo_memory_coordinator
+from mirror_api.demo_memory_service import (
+    DemoMemoryAuthorityCorruption,
+    DemoMemoryConflict,
+    DemoMemoryInputError,
+    DemoMemoryUnavailable,
+    RebuildDemoAestheticProfile,
+)
 from mirror_api.demo_models import DemoActor
 from mirror_api.demo_operation_graph import OperationType
 from mirror_api.demo_posterior import PairwiseChoice
@@ -331,6 +340,36 @@ def _raise_profile_error(error: Exception) -> NoReturn:
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         code="DEMO_PROFILE_AUTHORITY_CORRUPT",
         message="Profile authority 无法安全读取。",
+        details={"track": "DEMO_PROTOTYPE"},
+    ) from error
+
+
+def _raise_memory_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoMemoryConflict):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
+            message="幂等键已绑定到不同的 Profile rebuild 请求。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, (DemoMemoryInputError, DemoIdempotencyInputError)):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="DEMO_MEMORY_REQUEST_INVALID",
+            message="Memory rebuild 请求不符合 Demo authority 约束。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, (DemoMemoryUnavailable, DemoJobUnavailable)):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_MEMORY_AUTHORITY_UNAVAILABLE",
+            message="Memory authority 不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise APIError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="DEMO_MEMORY_AUTHORITY_CORRUPT",
+        message="Memory authority 无法安全读取。",
         details={"track": "DEMO_PROTOTYPE"},
     ) from error
 
@@ -1078,10 +1117,32 @@ async def restore_image_version(
     responses=DEMO_ERRORS,
 )
 async def rebuild_profiles(
-    payload: DemoProfileRebuildRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del payload, idempotency_key
-    _not_implemented("profile_rebuild", "D10")
+    payload: DemoProfileRebuildRequest,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoMemoryCoordinator = Depends(get_demo_memory_coordinator),
+) -> DemoJobAcceptedResponse:
+    try:
+        result = await coordinator.create(
+            RebuildDemoAestheticProfile(
+                demo_actor_id=actor.id,
+                reason=payload.reason,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+    except (
+        DemoMemoryInputError,
+        DemoMemoryUnavailable,
+        DemoMemoryConflict,
+        DemoMemoryAuthorityCorruption,
+        DemoIdempotencyInputError,
+        DemoJobUnavailable,
+        DemoJobAuthorityCorruption,
+    ) as exc:
+        _raise_memory_error(exc)
+    return _job_accepted(result.job)
 
 
 @router.get(
