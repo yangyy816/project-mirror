@@ -24,9 +24,11 @@ from mirror_api.synthetic_dataset.private_execution_overlay import (
     register_output_before_decode,
     render_private_prompt,
     rollover_terminal_overlay,
+    rollover_terminal_overlay_v2,
     verify_overlay,
     verify_registration_before_decode,
     verify_rollover_successor,
+    verify_rollover_successor_v2,
 )
 
 CONTROLLER_SHA256 = "a" * 64
@@ -50,6 +52,31 @@ def _binding() -> GenesisBinding:
         prompt_template_version="prompt-v3",
         prompt_template_sha256="6" * 64,
         policy_digest=POLICY_DIGEST,
+    )
+
+
+def _binding_v2() -> GenesisBinding:
+    return GenesisBinding(
+        genesis_output_id="GENESIS-EPOCH4-0001",
+        genesis_bootstrap_sha256="1" * 64,
+        genesis_receipt_sha256="2" * 64,
+        private_registry_sha256="3" * 64,
+        generation_specification_version="generation-v3",
+        generation_specification_sha256="4" * 64,
+        assignment_manifest_version="assignment-v3",
+        assignment_manifest_sha256="5" * 64,
+        prompt_template_version="prompt-v3",
+        prompt_template_sha256="6" * 64,
+        policy_digest=POLICY_DIGEST,
+        request_call_count=2,
+        requested_output_count=2,
+        returned_output_count=2,
+        raw_output_count=2,
+        formal_calls_remaining=30,
+        formal_raw_capacity_remaining=30,
+        global_native_output_capacity_remaining=61,
+        global_native_output_consumed=3,
+        next_unused_ordinal="CAL-REQ-003",
     )
 
 
@@ -138,6 +165,78 @@ def _terminal_registration_failure(tmp_path: Path) -> tuple[Path, Path]:
         timestamp="2026-08-29T00:00:04Z",
     )
     return root, failed.receipt_path
+
+
+def _terminal_registration_failure_v2(tmp_path: Path) -> tuple[Path, Path]:
+    private_parent = _project_private_parent(tmp_path)
+    root = private_parent / "overlay-task-owned-0103"
+    initial = initialize_overlay(
+        allowed_parent=private_parent,
+        root=root,
+        overlay_output_id="OVERLAY-EPOCH4-0103",
+        controller_sha256=CONTROLLER_SHA256,
+        binding=_binding_v2(),
+        timestamp=TIMESTAMP_0,
+    )
+    prepared = prepare_dispatch(
+        receipt_path=initial.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        ordinal="CAL-REQ-003",
+        action_id="ACTION-CAL-REQ-003",
+        expected_output_opaque_id="OUTPUT-CAL-REQ-003",
+        timestamp=TIMESTAMP_1,
+    )
+    consumed = consume_dispatch(
+        receipt_path=prepared.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-003",
+        timestamp=TIMESTAMP_2,
+    )
+    returned = record_output_returned(
+        receipt_path=consumed.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-003",
+        timestamp=TIMESTAMP_3,
+        returned_output_count=1,
+        exact_generated_artifact_receipt="not-a-data-url",
+    )
+    failed = register_imagegen_data_url_before_decode(
+        receipt_path=returned.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-003",
+        project_worktree_root=tmp_path,
+        imagegen_data_url="not-a-data-url",
+        timestamp=TIMESTAMP_3,
+    )
+    return root, failed.receipt_path
+
+
+def _rollover_v2_fixture(
+    tmp_path: Path,
+) -> tuple[Path, Path, dict[str, Any]]:
+    predecessor_root, predecessor_receipt = _terminal_registration_failure_v2(tmp_path)
+    predecessor = verify_overlay(
+        predecessor_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )
+    receipt = cast(dict[str, Any], predecessor["receipt"])
+    private_parent = predecessor_root.parent
+    return (
+        predecessor_root,
+        predecessor_receipt,
+        {
+            "predecessor_receipt_path": predecessor_receipt,
+            "expected_predecessor_receipt_sha256": overlay_module.sha256_file(predecessor_receipt),
+            "expected_predecessor_state_sha256": receipt["state_sha256"],
+            "expected_predecessor_event_sha256": receipt["event_sha256"],
+            "expected_controller_sha256": CONTROLLER_SHA256,
+            "project_worktree_root": tmp_path,
+            "allowed_parent": private_parent,
+            "successor_root": private_parent / "overlay-task-owned-0104",
+            "successor_overlay_output_id": "OVERLAY-EPOCH4-0104",
+            "timestamp": "2026-08-30T00:00:00Z",
+        },
+    )
 
 
 def _fresh_process_environment() -> tuple[Path, dict[str, str]]:
@@ -1908,6 +2007,338 @@ def test_terminal_rollover_rejects_nonterminal_wrong_controller_and_tampering(
             expected_controller_sha256=CONTROLLER_SHA256,
             project_worktree_root=intent_parent,
         )
+
+
+def test_terminal_rollover_v2_pins_cal_req_003_and_recovers_one_ready_successor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    predecessor_root, predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    private_parent = predecessor_root.parent
+    predecessor_bytes = {
+        path.name: path.read_bytes()
+        for path in (
+            predecessor_root / "event-000006.json",
+            predecessor_root / "state-000006.json",
+            predecessor_root / "receipt-000006.json",
+        )
+    }
+    with monkeypatch.context() as patch_context:
+        patch_context.setattr(
+            overlay_module,
+            "sha256_file",
+            lambda _path: pytest.fail("out-of-scope predecessor was read"),
+        )
+        with pytest.raises(
+            ExecutionOverlayError,
+            match="V2_ROLLOVER_PREDECESSOR_ROOT_OUTSIDE_ALLOWED_PARENT",
+        ):
+            verify_rollover_successor_v2(
+                private_parent / "not-created" / "receipt-000000.json",
+                predecessor_receipt_path=(
+                    tmp_path / "outside-private-parent" / "receipt-000006.json"
+                ),
+                expected_predecessor_receipt_sha256=kwargs["expected_predecessor_receipt_sha256"],
+                expected_predecessor_state_sha256=kwargs["expected_predecessor_state_sha256"],
+                expected_predecessor_event_sha256=kwargs["expected_predecessor_event_sha256"],
+                expected_controller_sha256=CONTROLLER_SHA256,
+                project_worktree_root=tmp_path,
+            )
+    for pin_name, expected_error in (
+        ("expected_predecessor_receipt_sha256", "V2_PREDECESSOR_RECEIPT_DIGEST_MISMATCH"),
+        ("expected_predecessor_state_sha256", "V2_PREDECESSOR_CHILD_DIGEST_MISMATCH"),
+        ("expected_predecessor_event_sha256", "V2_PREDECESSOR_CHILD_DIGEST_MISMATCH"),
+        ("expected_controller_sha256", "CONTROLLER_DIGEST_MISMATCH"),
+    ):
+        with pytest.raises(ExecutionOverlayError, match=expected_error):
+            rollover_terminal_overlay_v2(**{**kwargs, pin_name: "b" * 64})
+        assert not kwargs["successor_root"].exists()
+        assert not list(private_parent.glob("rollover-v2-intent-*.json"))
+    successor = rollover_terminal_overlay_v2(**kwargs)
+    assert verify_rollover_successor_v2(
+        successor.receipt_path,
+        predecessor_receipt_path=predecessor_receipt,
+        expected_predecessor_receipt_sha256=kwargs["expected_predecessor_receipt_sha256"],
+        expected_predecessor_state_sha256=kwargs["expected_predecessor_state_sha256"],
+        expected_predecessor_event_sha256=kwargs["expected_predecessor_event_sha256"],
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=tmp_path,
+    ) == {
+        "status": "TERMINAL_OVERLAY_ROLLOVER_V2_PASS",
+        "successor_overlay_output_id": "OVERLAY-EPOCH4-0104",
+        "predecessor_overlay_output_id": "OVERLAY-EPOCH4-0103",
+        "next_unused_ordinal": "CAL-REQ-004",
+        "formal_calls_remaining": 29,
+        "formal_raw_capacity_remaining": 29,
+        "global_native_output_capacity_remaining": 60,
+        "global_native_output_consumed": 4,
+        "decode_authorized": False,
+    }
+    assert rollover_terminal_overlay_v2(**kwargs) == successor
+    with pytest.raises(ExecutionOverlayError, match="CREATE_NEW_EXISTING_CONTENT_CONFLICT"):
+        rollover_terminal_overlay_v2(
+            **{**kwargs, "successor_root": private_parent / "overlay-task-owned-0105"}
+        )
+    for changed in (
+        {"successor_overlay_output_id": "OVERLAY-EPOCH4-0105"},
+        {"timestamp": "2026-08-30T00:00:01Z"},
+    ):
+        with pytest.raises(ExecutionOverlayError, match="CREATE_NEW_EXISTING_CONTENT_CONFLICT"):
+            rollover_terminal_overlay_v2(**{**kwargs, **changed})
+    parameters = inspect.signature(rollover_terminal_overlay_v2).parameters
+    for forbidden in (
+        "counters",
+        "next_unused_ordinal",
+        "rollover_intent_id",
+        "phase",
+        "reason_code",
+    ):
+        assert forbidden not in parameters
+    state = cast(
+        dict[str, Any],
+        verify_overlay(successor.receipt_path, expected_controller_sha256=CONTROLLER_SHA256)[
+            "state"
+        ],
+    )
+    assert state["phase"] == "READY"
+    assert state["next_unused_ordinal"] == "CAL-REQ-004"
+    assert state["output_registration"] is None
+    assert not (successor.receipt_path.parent / "receipt-000001.json").exists()
+    assert not any((successor.receipt_path.parent / "staging").iterdir())
+    assert not any((successor.receipt_path.parent / "records").iterdir())
+    assert {
+        path.name: path.read_bytes()
+        for path in (
+            predecessor_root / "event-000006.json",
+            predecessor_root / "state-000006.json",
+            predecessor_root / "receipt-000006.json",
+        )
+    } == predecessor_bytes
+
+
+@pytest.mark.parametrize(
+    ("mutation", "field"),
+    [
+        (("event", "reason_code", "OTHER"), "reason"),
+        (("state", "current_ordinal", "CAL-REQ-004"), "ordinal"),
+        (("state", "counters", {}), "counters"),
+        (("state", "output_registration_attempt", {"source_kind": "OTHER"}), "native"),
+    ],
+)
+def test_terminal_rollover_v2_rejects_semantic_predecessor_tamper(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: tuple[str, str, Any],
+    field: str,
+) -> None:
+    root, predecessor_receipt = _terminal_registration_failure_v2(tmp_path)
+    verified = verify_overlay(predecessor_receipt, expected_controller_sha256=CONTROLLER_SHA256)
+    forged = json.loads(json.dumps(verified))
+    forged[mutation[0]][mutation[1]] = mutation[2]
+    monkeypatch.setattr(overlay_module, "verify_overlay", lambda *_args, **_kwargs: forged)
+    receipt = cast(dict[str, Any], verified["receipt"])
+    with pytest.raises(ExecutionOverlayError, match="V2_ROLLOVER_TERMINAL_PREDECESSOR_INVALID"):
+        overlay_module._verified_terminal_rollover_predecessor_v2(
+            predecessor_receipt,
+            expected_predecessor_receipt_sha256=overlay_module.sha256_file(predecessor_receipt),
+            expected_predecessor_state_sha256=receipt["state_sha256"],
+            expected_predecessor_event_sha256=receipt["event_sha256"],
+            expected_controller_sha256=CONTROLLER_SHA256,
+            project_worktree_root=tmp_path,
+            allowed_parent=root.parent,
+        )
+    assert field in {"reason", "ordinal", "counters", "native"}
+
+
+@pytest.mark.parametrize(
+    "crash_point",
+    ["intent", "directories", "event", "state", "receipt"],
+)
+def test_terminal_rollover_v2_partial_root_recovers_in_fresh_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    crash_point: str,
+) -> None:
+    _predecessor_root, predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    original_json_write = overlay_module._write_json_create_or_verify_exact
+    original_directory = overlay_module._create_or_verify_plain_directory
+
+    def injected_json_crash(path: Path, value: dict[str, Any]) -> tuple[str, int]:
+        result = original_json_write(path, value)
+        targets = {
+            "event": "event-000000.json",
+            "state": "state-000000.json",
+            "receipt": "receipt-000000.json",
+        }
+        if targets.get(crash_point) == path.name or (
+            crash_point == "intent" and path.name.startswith("rollover-v2-intent-")
+        ):
+            raise RuntimeError(f"INJECTED_V2_ROLLOVER_{crash_point.upper()}_CRASH")
+        return result
+
+    def injected_directory_crash(path: Path) -> None:
+        original_directory(path)
+        if crash_point == "directories" and path.name == "records":
+            raise RuntimeError("INJECTED_V2_ROLLOVER_DIRECTORIES_CRASH")
+
+    monkeypatch.setattr(
+        overlay_module,
+        "_write_json_create_or_verify_exact",
+        injected_json_crash,
+    )
+    monkeypatch.setattr(
+        overlay_module,
+        "_create_or_verify_plain_directory",
+        injected_directory_crash,
+    )
+    with pytest.raises(RuntimeError, match="INJECTED_V2_ROLLOVER_"):
+        rollover_terminal_overlay_v2(**kwargs)
+    monkeypatch.setattr(
+        overlay_module,
+        "_write_json_create_or_verify_exact",
+        original_json_write,
+    )
+    monkeypatch.setattr(
+        overlay_module,
+        "_create_or_verify_plain_directory",
+        original_directory,
+    )
+
+    api_src, environment = _fresh_process_environment()
+    script = """
+import sys
+from pathlib import Path
+from mirror_api.synthetic_dataset.private_execution_overlay import rollover_terminal_overlay_v2
+
+handle = rollover_terminal_overlay_v2(
+    predecessor_receipt_path=Path(sys.argv[1]),
+    expected_predecessor_receipt_sha256=sys.argv[2],
+    expected_predecessor_state_sha256=sys.argv[3],
+    expected_predecessor_event_sha256=sys.argv[4],
+    expected_controller_sha256=sys.argv[5],
+    project_worktree_root=Path(sys.argv[6]),
+    allowed_parent=Path(sys.argv[7]),
+    successor_root=Path(sys.argv[8]),
+    successor_overlay_output_id=sys.argv[9],
+    timestamp=sys.argv[10],
+)
+print(handle.receipt_path)
+"""
+    recovered = subprocess.run(  # noqa: S603 - fixed interpreter and inline test probe
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(predecessor_receipt),
+            cast(str, kwargs["expected_predecessor_receipt_sha256"]),
+            cast(str, kwargs["expected_predecessor_state_sha256"]),
+            cast(str, kwargs["expected_predecessor_event_sha256"]),
+            CONTROLLER_SHA256,
+            str(tmp_path),
+            str(kwargs["allowed_parent"]),
+            str(kwargs["successor_root"]),
+            cast(str, kwargs["successor_overlay_output_id"]),
+            cast(str, kwargs["timestamp"]),
+        ],
+        cwd=api_src.parent,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert recovered.returncode == 0, recovered.stderr
+    recovered_receipt = Path(recovered.stdout.strip())
+    result = verify_rollover_successor_v2(
+        recovered_receipt,
+        predecessor_receipt_path=predecessor_receipt,
+        expected_predecessor_receipt_sha256=cast(
+            str, kwargs["expected_predecessor_receipt_sha256"]
+        ),
+        expected_predecessor_state_sha256=cast(str, kwargs["expected_predecessor_state_sha256"]),
+        expected_predecessor_event_sha256=cast(str, kwargs["expected_predecessor_event_sha256"]),
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=tmp_path,
+    )
+    assert recovered_receipt == cast(Path, kwargs["successor_root"]) / "receipt-000000.json"
+    assert result["next_unused_ordinal"] == "CAL-REQ-004"
+    assert result["formal_calls_remaining"] == 29
+
+
+@pytest.mark.parametrize(
+    ("target", "expected_error"),
+    [
+        ("predecessor-event", "OVERLAY_EVENT_DIGEST_MISMATCH"),
+        ("intent", "V2_ROLLOVER_INTENT_DIGEST_MISMATCH"),
+        ("successor-event", "OVERLAY_EVENT_DIGEST_MISMATCH"),
+        ("successor-state", "OVERLAY_STATE_DIGEST_MISMATCH"),
+        ("successor-receipt", "V2_ROLLOVER_SUCCESSOR_RECEIPT_NOT_CANONICAL"),
+    ],
+)
+def test_terminal_rollover_v2_rejects_predecessor_intent_and_successor_tamper(
+    tmp_path: Path,
+    target: str,
+    expected_error: str,
+) -> None:
+    predecessor_root, predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor = rollover_terminal_overlay_v2(**kwargs)
+    successor_state = verify_overlay(
+        successor.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )["state"]
+    paths = {
+        "predecessor-event": predecessor_root / "event-000006.json",
+        "intent": predecessor_root.parent
+        / cast(dict[str, Any], successor_state["rollover_predecessor"])["rollover_intent_file"],
+        "successor-event": successor.receipt_path.parent / "event-000000.json",
+        "successor-state": successor.receipt_path.parent / "state-000000.json",
+        "successor-receipt": successor.receipt_path,
+    }
+    paths[target].write_bytes(paths[target].read_bytes() + b" ")
+    with pytest.raises(ExecutionOverlayError, match=expected_error):
+        verify_rollover_successor_v2(
+            successor.receipt_path,
+            predecessor_receipt_path=predecessor_receipt,
+            expected_predecessor_receipt_sha256=cast(
+                str, kwargs["expected_predecessor_receipt_sha256"]
+            ),
+            expected_predecessor_state_sha256=cast(
+                str, kwargs["expected_predecessor_state_sha256"]
+            ),
+            expected_predecessor_event_sha256=cast(
+                str, kwargs["expected_predecessor_event_sha256"]
+            ),
+            expected_controller_sha256=CONTROLLER_SHA256,
+            project_worktree_root=tmp_path,
+        )
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX v2 rollover reparse race probe")
+def test_terminal_rollover_v2_rejects_private_parent_reparse_after_intent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    predecessor_root, _predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    private_parent = predecessor_root.parent
+    held_parent = tmp_path / ".private-handoff-held-v2"
+    outside = tmp_path / "outside-v2"
+    outside.mkdir()
+    original_create = overlay_module._create_new_plain_directory
+
+    def replace_parent_before_directory_create(path: Path) -> None:
+        private_parent.rename(held_parent)
+        private_parent.symlink_to(outside, target_is_directory=True)
+        original_create(path)
+
+    monkeypatch.setattr(
+        overlay_module,
+        "_create_new_plain_directory",
+        replace_parent_before_directory_create,
+    )
+    with pytest.raises(ExecutionOverlayError, match="PRIVATE_OVERLAY_DIRECTORY_INVALID"):
+        rollover_terminal_overlay_v2(**kwargs)
+    assert not any(outside.iterdir())
+    assert not (held_parent / cast(Path, kwargs["successor_root"]).name).exists()
 
 
 def test_private_prompt_rendering_is_deterministic_and_requires_prohibition() -> None:

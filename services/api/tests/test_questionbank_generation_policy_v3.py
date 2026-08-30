@@ -393,6 +393,14 @@ def _last_r52_key_block(path: Path) -> list[tuple[str, str]]:
     )
 
 
+def _last_r53_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-r53-cal-req-004-ready-rollover-eof/v1",
+        sentinel="P2_M5_R53_CAL_REQ_004_READY_ROLLOVER_TRUE_EOF",
+    )
+
+
 def test_policy_v3_has_canonical_digest_and_forward_only_scope() -> None:
     value = _policy()
 
@@ -3071,13 +3079,71 @@ def test_r52_records_cal_req_003_failure_and_freezes_exact_post_acceptance_succe
     assert values["CURRENT_AUTHORITY_TAIL_END"] == (
         "P2_M5_R52_PRIVATE_IMAGEGEN_NO_ECHO_TRANSPORT_TRUE_EOF"
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    acceptance_text = ACCEPTANCE_PATH.read_text(encoding="utf-8")
+    protocol_text = EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")
+    assert canonical[-1][1] + "\n\n## Current authoritative state — P2-M5-R53" in acceptance_text
+    assert mirror[-1][1] + "\n\n## Current authoritative state mirror — P2-M5-R53" in protocol_text
 
     tracked = "\n".join(
         (
             ACCEPTANCE_PATH.read_text(encoding="utf-8")[-30_000:],
             EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-30_000:],
+        )
+    )
+    for forbidden in (
+        "data:image/",
+        "prompt_plaintext",
+        "signed_url",
+        "object_key",
+        "D:\\p-worktrees\\",
+    ):
+        assert forbidden not in tracked
+
+
+def test_r53_v2_rollover_authority_is_mirrored_at_true_eof_without_private_data() -> None:
+    canonical = _last_r53_key_block(ACCEPTANCE_PATH)
+    mirror = _last_r53_key_block(EXECUTION_PROTOCOL_PATH)
+    values = dict(canonical)
+
+    assert canonical == mirror
+    assert len(canonical) == len(values)
+    assert values["CURRENT_STATE_PRECONDITION_FALLBACK"] == (
+        "CAL_REQ_003_TERMINAL_FAILURE_REMAINS_CURRENT_CAL_REQ_004_READY_OVERLAY_IS_NON_"
+        "AUTHORIZING_AND_CAL_REQ_004_DISPATCH_REMAINS_UNAUTHORIZED_UNTIL_R53_AUTHORITY_"
+        "CONDITION_IS_SATISFIED"
+    )
+    assert values["P2_M5_R52"] == (
+        "TASK_ACCEPTED_WITH_R53_AFTER_R53_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert values["P2_M5_R52_PARENT_CANDIDATE_SHA"] == ("ACFA47D9DACFA76C38EADB11D5882F5D9A72B3BA")
+    assert values["P2_M5_R52_PARENT_CI_ARTIFACTS_SECURITY"] == "PASS"
+    assert values["P2_M5_R52_PARENT_SOL_HIGH_FINAL_REVIEW"] == (
+        "FAIL_POST_ACCEPTANCE_PRE_READY_AUTHORITY"
+    )
+    assert values["P2_M5_R53_FOCUSED_TESTS"] == "PASS_119_ZERO_SKIP"
+    assert values["P2_M5_R53_FULL_REGRESSION"] == (
+        "PASS_CANONICAL_LF_851_TOTAL_689_PASS_162_ENVIRONMENT_GATED_SKIP_ZERO_FAILURE_ERROR"
+    )
+    assert values["P2_M5_R53_GENERATION_CALLS"] == "0"
+    assert values["P2_M5_R53_ORDINALS_CONSUMED"] == "0"
+    assert values["P2_M5_R53_IMAGE_BYTES_READ"] == "0"
+    assert values["P2_M5_R53_IMAGE_DECODE_CALLS"] == "0"
+    assert values["P2_M5_R53_QA_SCREENING_ADMISSION"] == "0"
+    assert values["NEXT_UNUSED_FORMAL_ORDINAL"] == "CAL-REQ-004"
+    assert values["CAL_REQ_004_STATUS"] == "NOT_CONSUMED"
+    assert values["CAL_REQ_004_DISPATCH_AUTHORIZED"] == (
+        "TRUE_FOR_ONE_EXACT_CALL_AFTER_THIS_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_R53_CAL_REQ_004_READY_ROLLOVER_TRUE_EOF",
+    )
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    tracked = "\n".join(
+        (
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-20_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-20_000:],
         )
     )
     for forbidden in (

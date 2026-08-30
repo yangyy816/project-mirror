@@ -22,6 +22,8 @@ OUTPUT_RECORD_SCHEMA: Final = "mirror.p2-m5/PreDecodeOutputRecord/v1"
 REGISTRATION_RECEIPT_SCHEMA: Final = "mirror.p2-m5/RegistrationCommitReceipt/v1"
 IMAGEGEN_CAPTURE_SIDECAR_SCHEMA: Final = "mirror.p2-m5/ImageGenDataUrlCapture/v1"
 ROLLOVER_INTENT_SCHEMA: Final = "mirror.p2-m5/TerminalOverlayRolloverIntent/v1"
+TERMINAL_ROLLOVER_CONTRACT_V2: Final = "p2-m5-cal-req-003-to-004-ready-rollover/v2"
+ROLLOVER_INTENT_SCHEMA_V2: Final = "mirror.p2-m5/TerminalOverlayRolloverIntent/v2"
 MAX_RETURNED_BYTES: Final = 16 * 1024 * 1024
 MAX_DATA_URL_ENCODED_BYTES: Final = ((MAX_RETURNED_BYTES + 2) // 3) * 4
 MAX_PRIVATE_OVERLAY_FILE_BYTES: Final = MAX_RETURNED_BYTES + (1024 * 1024)
@@ -3118,6 +3120,425 @@ def verify_rollover_successor(
         "successor_overlay_output_id": successor_state["overlay_output_id"],
         "predecessor_overlay_output_id": predecessor_binding["predecessor_overlay_output_id"],
         "next_unused_ordinal": successor_state["next_unused_ordinal"],
+        "formal_calls_remaining": counters["formal_calls_remaining"],
+        "formal_raw_capacity_remaining": counters["formal_raw_capacity_remaining"],
+        "global_native_output_capacity_remaining": counters[
+            "global_native_output_capacity_remaining"
+        ],
+        "global_native_output_consumed": counters["global_native_output_consumed"],
+        "decode_authorized": False,
+    }
+
+
+def _verified_terminal_rollover_predecessor_v2(
+    receipt_path: Path,
+    *,
+    expected_predecessor_receipt_sha256: str,
+    expected_predecessor_state_sha256: str,
+    expected_predecessor_event_sha256: str,
+    expected_controller_sha256: str,
+    project_worktree_root: Path,
+    allowed_parent: Path,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Verify the only terminal receipt which may create a CAL-REQ-004 overlay."""
+    for value, field in (
+        (expected_predecessor_receipt_sha256, "EXPECTED_PREDECESSOR_RECEIPT_SHA256"),
+        (expected_predecessor_state_sha256, "EXPECTED_PREDECESSOR_STATE_SHA256"),
+        (expected_predecessor_event_sha256, "EXPECTED_PREDECESSOR_EVENT_SHA256"),
+        (expected_controller_sha256, "EXPECTED_CONTROLLER_SHA256"),
+    ):
+        _validate_digest(value, field)
+    parent_sha256 = _validate_project_local_private_parent(
+        project_worktree_root=project_worktree_root,
+        allowed_parent=allowed_parent,
+    )
+    if not receipt_path.is_absolute() or _normalized_path_value(
+        receipt_path.parent.parent
+    ) != _normalized_path_value(allowed_parent):
+        raise ExecutionOverlayError("V2_ROLLOVER_PREDECESSOR_ROOT_OUTSIDE_ALLOWED_PARENT")
+    _require_plain_directory(receipt_path.parent)
+    if sha256_file(receipt_path) != expected_predecessor_receipt_sha256:
+        raise ExecutionOverlayError("V2_PREDECESSOR_RECEIPT_DIGEST_MISMATCH")
+    verified = verify_overlay(receipt_path, expected_controller_sha256=expected_controller_sha256)
+    receipt = cast(dict[str, Any], verified["receipt"])
+    event = cast(dict[str, Any], verified["event"])
+    state = cast(dict[str, Any], verified["state"])
+    if (
+        receipt.get("state_sha256") != expected_predecessor_state_sha256
+        or receipt.get("event_sha256") != expected_predecessor_event_sha256
+    ):
+        raise ExecutionOverlayError("V2_PREDECESSOR_CHILD_DIGEST_MISMATCH")
+    expected_counters = {
+        "request_call_count": 3,
+        "requested_output_count": 3,
+        "returned_output_count": 3,
+        "raw_output_count": 3,
+        "failed_call_count": 0,
+        "rejected_output_count": 0,
+        "admitted_identity_count": 0,
+        "formal_calls_remaining": 29,
+        "formal_raw_capacity_remaining": 29,
+        "global_native_output_capacity_remaining": 60,
+        "global_native_output_consumed": 4,
+        "active_calls": 0,
+    }
+    attempt = state.get("output_registration_attempt")
+    returned = state.get("returned_output_binding")
+    action_id = state.get("current_action_id")
+    if (
+        receipt.get("sequence") != 6
+        or state.get("sequence") != 6
+        or state.get("phase") != "OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE"
+        or event.get("event_type") != "OUTPUT_REGISTRATION_FAILED_BEFORE_DECODE"
+        or event.get("reason_code") != "IMAGEGEN_DATA_URL_HEADER_INVALID"
+        or state.get("hard_stop") is not True
+        or state.get("decode_authorized") is not False
+        or state.get("output_registration") is not None
+        or state.get("current_ordinal") != "CAL-REQ-003"
+        or state.get("next_unused_ordinal") != "CAL-REQ-004"
+        or state.get("counters") != expected_counters
+        or not isinstance(action_id, str)
+        or not isinstance(attempt, dict)
+        or not isinstance(returned, dict)
+        or attempt.get("source_delivery_class") != "CODEX_NATIVE_IMAGEGEN_DATA_URL"
+        or attempt.get("source_kind") != "CODEX_NATIVE_IMAGEGEN"
+        or state.get("expected_output_opaque_id") != attempt.get("output_opaque_id")
+        or any(
+            attempt.get(field) != returned.get(field)
+            for field in (
+                "output_opaque_id",
+                "request_ordinal",
+                "action_id",
+                "exact_generated_artifact_receipt_sha256",
+            )
+        )
+        or attempt.get("request_ordinal") != "CAL-REQ-003"
+        or attempt.get("action_id") != action_id
+        or event.get("action_id") != action_id
+        or event.get("request_ordinal") != "CAL-REQ-003"
+        or attempt.get("project_private_parent_sha256") != parent_sha256
+    ):
+        raise ExecutionOverlayError("V2_ROLLOVER_TERMINAL_PREDECESSOR_INVALID")
+    binding = {
+        "predecessor_overlay_output_id": state["overlay_output_id"],
+        "predecessor_terminal_receipt_sha256": expected_predecessor_receipt_sha256,
+        "predecessor_terminal_state_sha256": expected_predecessor_state_sha256,
+        "predecessor_terminal_event_sha256": expected_predecessor_event_sha256,
+        "predecessor_terminal_sequence": 6,
+        "predecessor_terminal_phase": state["phase"],
+        "predecessor_terminal_reason_code": event["reason_code"],
+        "predecessor_current_ordinal": state["current_ordinal"],
+        "predecessor_next_unused_ordinal": state["next_unused_ordinal"],
+        "predecessor_project_private_parent_sha256": parent_sha256,
+    }
+    return receipt, event, state, binding
+
+
+def _rollover_derived_ledger_v2(state: Mapping[str, Any]) -> dict[str, Any]:
+    counters = state.get("counters")
+    if not isinstance(counters, dict):
+        raise ExecutionOverlayError("V2_ROLLOVER_PREDECESSOR_COUNTERS_MISSING")
+    _validate_counters(counters)
+    return {
+        "next_unused_ordinal": "CAL-REQ-004",
+        "counters": dict(cast(dict[str, int], counters)),
+        "cal_req_003_status": "CONSUMED_FAILED_NO_RETRY",
+        "generation_calls": 0,
+        "ordinals_consumed": 0,
+        "decode_performed": False,
+        "dimensions_read": False,
+    }
+
+
+def rollover_terminal_overlay_v2(
+    *,
+    predecessor_receipt_path: Path,
+    expected_predecessor_receipt_sha256: str,
+    expected_predecessor_state_sha256: str,
+    expected_predecessor_event_sha256: str,
+    expected_controller_sha256: str,
+    project_worktree_root: Path,
+    allowed_parent: Path,
+    successor_root: Path,
+    successor_overlay_output_id: str,
+    timestamp: str,
+) -> OverlayHandle:
+    """Create or recover the zero-work CAL-REQ-004 successor exactly once."""
+    _validate_timestamp(timestamp)
+    _validate_opaque_id(successor_overlay_output_id, "SUCCESSOR_OVERLAY_OUTPUT_ID")
+    parent_sha256 = _validate_project_local_private_parent(
+        project_worktree_root=project_worktree_root, allowed_parent=allowed_parent
+    )
+    if not allowed_parent.is_absolute() or not successor_root.is_absolute():
+        raise ExecutionOverlayError("V2_ROLLOVER_ABSOLUTE_PATH_REQUIRED")
+    if successor_root.parent.resolve() != allowed_parent.resolve():
+        raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_ROOT_OUTSIDE_ALLOWED_PARENT")
+    if predecessor_receipt_path.parent.parent.resolve() != allowed_parent.resolve():
+        raise ExecutionOverlayError("V2_ROLLOVER_PREDECESSOR_ROOT_OUTSIDE_ALLOWED_PARENT")
+    if predecessor_receipt_path.parent.resolve() == successor_root.resolve():
+        raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_MUST_BE_NEW_ROOT")
+    _validate_opaque_id(successor_root.name, "V2_ROLLOVER_SUCCESSOR_ROOT_NAME")
+    _receipt, _event, predecessor_state, predecessor_binding = (
+        _verified_terminal_rollover_predecessor_v2(
+            predecessor_receipt_path,
+            expected_predecessor_receipt_sha256=expected_predecessor_receipt_sha256,
+            expected_predecessor_state_sha256=expected_predecessor_state_sha256,
+            expected_predecessor_event_sha256=expected_predecessor_event_sha256,
+            expected_controller_sha256=expected_controller_sha256,
+            project_worktree_root=project_worktree_root,
+            allowed_parent=allowed_parent,
+        )
+    )
+    if successor_overlay_output_id == predecessor_state["overlay_output_id"]:
+        raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_OVERLAY_ID_MUST_BE_NEW")
+    ledger = _rollover_derived_ledger_v2(predecessor_state)
+    intent_id = (
+        "ROLLOVER-V2-"
+        + sha256_bytes(
+            (TERMINAL_ROLLOVER_CONTRACT_V2 + "\n" + expected_predecessor_receipt_sha256).encode(
+                "ascii"
+            )
+        ).upper()
+    )
+    _validate_opaque_id(intent_id, "V2_ROLLOVER_INTENT_ID")
+    intent_name = f"rollover-v2-intent-{intent_id}.json"
+    intent_path = _safe_child(allowed_parent, intent_name)
+    intent = {
+        "schema_version": ROLLOVER_INTENT_SCHEMA_V2,
+        "contract": TERMINAL_ROLLOVER_CONTRACT_V2,
+        "rollover_intent_id": intent_id,
+        "controller_sha256": expected_controller_sha256,
+        "successor_overlay_output_id": successor_overlay_output_id,
+        "successor_root_name": successor_root.name,
+        "predecessor": predecessor_binding,
+        "derived_ledger": ledger,
+        "project_private_parent_sha256": parent_sha256,
+        "create_mode": "CREATE_NEW_OR_RECOVER_EXACT_PARTIAL_ROOT",
+        "generation_calls": 0,
+        "ordinals_consumed": 0,
+        "decode_performed": False,
+        "dimensions_read": False,
+        "timestamp": timestamp,
+    }
+    intent_preexisted = intent_path.exists() or intent_path.is_symlink()
+    if not intent_preexisted and (successor_root.exists() or successor_root.is_symlink()):
+        raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_ROOT_PREEXISTS_WITHOUT_INTENT")
+    intent_sha256, _ = _write_json_create_or_verify_exact(intent_path, intent)
+    if intent_preexisted:
+        _create_or_verify_plain_directory(successor_root)
+    else:
+        try:
+            _create_new_plain_directory(successor_root)
+        except ExecutionOverlayError as error:
+            if str(error) == "CREATE_NEW_TARGET_PREEXISTS":
+                raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_ROOT_CREATE_RACE") from error
+            raise
+    _create_or_verify_plain_directory(successor_root / "staging")
+    _create_or_verify_plain_directory(successor_root / "records")
+    if (
+        _validate_project_local_private_parent(
+            project_worktree_root=project_worktree_root, allowed_parent=allowed_parent
+        )
+        != parent_sha256
+        or sha256_file(intent_path) != intent_sha256
+    ):
+        raise ExecutionOverlayError("V2_ROLLOVER_INTENT_PARENT_BINDING_CHANGED")
+    cross_root = {
+        **predecessor_binding,
+        "rollover_intent_id": intent_id,
+        "rollover_intent_file": intent_name,
+        "rollover_intent_sha256": intent_sha256,
+        "project_private_parent_sha256": parent_sha256,
+    }
+    event = {
+        "schema_version": EVENT_SCHEMA,
+        "overlay_output_id": successor_overlay_output_id,
+        "sequence": 0,
+        "event_type": "TERMINAL_OVERLAY_ROLLED_FORWARD_V2",
+        "timestamp": timestamp,
+        "previous_event_sha256": None,
+        "action_id": None,
+        "request_ordinal": None,
+        "reason_code": "TERMINAL_OVERLAY_ROLLED_FORWARD_V2_NO_GENERATION",
+        "rollover_predecessor": cross_root,
+    }
+    state = {
+        "schema_version": STATE_SCHEMA,
+        "overlay_schema_version": OVERLAY_SCHEMA,
+        "overlay_output_id": successor_overlay_output_id,
+        "sequence": 0,
+        "phase": "READY",
+        "timestamp": timestamp,
+        "previous_state_sha256": None,
+        "last_event_sha256": sha256_bytes(canonical_json_bytes(event)),
+        "binding": dict(cast(dict[str, Any], predecessor_state["binding"])),
+        "rollover_predecessor": cross_root,
+        "counters": dict(cast(dict[str, int], predecessor_state["counters"])),
+        "next_unused_ordinal": "CAL-REQ-004",
+        "current_action_id": None,
+        "current_ordinal": None,
+        "expected_output_opaque_id": None,
+        "returned_output_binding": None,
+        "output_registration_attempt": None,
+        "output_registration": None,
+        "decode_authorized": False,
+        "hard_stop": False,
+    }
+    handle = _commit_transition(
+        root=successor_root,
+        sequence=0,
+        controller_sha256=expected_controller_sha256,
+        event=event,
+        state=state,
+        previous_receipt=None,
+    )
+    verify_rollover_successor_v2(
+        handle.receipt_path,
+        predecessor_receipt_path=predecessor_receipt_path,
+        expected_predecessor_receipt_sha256=expected_predecessor_receipt_sha256,
+        expected_predecessor_state_sha256=expected_predecessor_state_sha256,
+        expected_predecessor_event_sha256=expected_predecessor_event_sha256,
+        expected_controller_sha256=expected_controller_sha256,
+        project_worktree_root=project_worktree_root,
+    )
+    return handle
+
+
+def verify_rollover_successor_v2(
+    successor_receipt_path: Path,
+    *,
+    predecessor_receipt_path: Path,
+    expected_predecessor_receipt_sha256: str,
+    expected_predecessor_state_sha256: str,
+    expected_predecessor_event_sha256: str,
+    expected_controller_sha256: str,
+    project_worktree_root: Path,
+) -> dict[str, Any]:
+    _receipt, _event, predecessor_state, predecessor_binding = (
+        _verified_terminal_rollover_predecessor_v2(
+            predecessor_receipt_path,
+            expected_predecessor_receipt_sha256=expected_predecessor_receipt_sha256,
+            expected_predecessor_state_sha256=expected_predecessor_state_sha256,
+            expected_predecessor_event_sha256=expected_predecessor_event_sha256,
+            expected_controller_sha256=expected_controller_sha256,
+            project_worktree_root=project_worktree_root,
+            allowed_parent=successor_receipt_path.parent.parent,
+        )
+    )
+    successor = verify_overlay(
+        successor_receipt_path, expected_controller_sha256=expected_controller_sha256
+    )
+    receipt = cast(dict[str, Any], successor["receipt"])
+    event = cast(dict[str, Any], successor["event"])
+    state = cast(dict[str, Any], successor["state"])
+    if _read_plain_file_bytes(successor_receipt_path) != canonical_json_bytes(receipt):
+        raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_RECEIPT_NOT_CANONICAL")
+    if (
+        successor_receipt_path.parent.parent.resolve()
+        != predecessor_receipt_path.parent.parent.resolve()
+    ):
+        raise ExecutionOverlayError("V2_ROLLOVER_ROOT_PARENT_MISMATCH")
+    if successor_receipt_path.parent.resolve() == predecessor_receipt_path.parent.resolve():
+        raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_MUST_BE_NEW_ROOT")
+    parent = successor_receipt_path.parent.parent
+    parent_sha256 = _validate_project_local_private_parent(
+        project_worktree_root=project_worktree_root, allowed_parent=parent
+    )
+    cross_root = state.get("rollover_predecessor")
+    if not isinstance(cross_root, dict) or event.get("rollover_predecessor") != cross_root:
+        raise ExecutionOverlayError("V2_ROLLOVER_CROSS_ROOT_BINDING_MISSING")
+    intent_id = cross_root.get("rollover_intent_id")
+    intent_file = cross_root.get("rollover_intent_file")
+    intent_sha256 = cross_root.get("rollover_intent_sha256")
+    if (
+        not isinstance(intent_id, str)
+        or not isinstance(intent_file, str)
+        or not isinstance(intent_sha256, str)
+        or intent_file != f"rollover-v2-intent-{intent_id}.json"
+    ):
+        raise ExecutionOverlayError("V2_ROLLOVER_INTENT_BINDING_INVALID")
+    _validate_opaque_id(intent_id, "V2_ROLLOVER_INTENT_ID")
+    _validate_digest(intent_sha256, "V2_ROLLOVER_INTENT_SHA256")
+    _require_plain_directory(successor_receipt_path.parent / "staging")
+    _require_plain_directory(successor_receipt_path.parent / "records")
+    intent_path = _safe_child(parent, intent_file)
+    if sha256_file(intent_path) != intent_sha256:
+        raise ExecutionOverlayError("V2_ROLLOVER_INTENT_DIGEST_MISMATCH")
+    ledger = _rollover_derived_ledger_v2(predecessor_state)
+    expected_intent_id = (
+        "ROLLOVER-V2-"
+        + sha256_bytes(
+            (TERMINAL_ROLLOVER_CONTRACT_V2 + "\n" + expected_predecessor_receipt_sha256).encode(
+                "ascii"
+            )
+        ).upper()
+    )
+    if intent_id != expected_intent_id:
+        raise ExecutionOverlayError("V2_ROLLOVER_INTENT_ID_INVALID")
+    expected_cross_root = {
+        **predecessor_binding,
+        "rollover_intent_id": intent_id,
+        "rollover_intent_file": intent_file,
+        "rollover_intent_sha256": intent_sha256,
+        "project_private_parent_sha256": parent_sha256,
+    }
+    intent = _read_json(intent_path)
+    expected_intent = {
+        "schema_version": ROLLOVER_INTENT_SCHEMA_V2,
+        "contract": TERMINAL_ROLLOVER_CONTRACT_V2,
+        "rollover_intent_id": intent_id,
+        "controller_sha256": expected_controller_sha256,
+        "successor_overlay_output_id": state.get("overlay_output_id"),
+        "successor_root_name": successor_receipt_path.parent.name,
+        "predecessor": predecessor_binding,
+        "derived_ledger": ledger,
+        "project_private_parent_sha256": parent_sha256,
+        "create_mode": "CREATE_NEW_OR_RECOVER_EXACT_PARTIAL_ROOT",
+        "generation_calls": 0,
+        "ordinals_consumed": 0,
+        "decode_performed": False,
+        "dimensions_read": False,
+        "timestamp": state.get("timestamp"),
+    }
+    if cross_root != expected_cross_root:
+        raise ExecutionOverlayError("V2_ROLLOVER_CROSS_ROOT_BINDING_INVALID")
+    if intent != expected_intent:
+        raise ExecutionOverlayError("V2_ROLLOVER_INTENT_CONTENT_INVALID")
+    if (
+        receipt.get("sequence") != 0
+        or state.get("sequence") != 0
+        or state.get("phase") != "READY"
+        or event.get("event_type") != "TERMINAL_OVERLAY_ROLLED_FORWARD_V2"
+        or event.get("reason_code") != "TERMINAL_OVERLAY_ROLLED_FORWARD_V2_NO_GENERATION"
+        or event.get("timestamp") != state.get("timestamp")
+        or event.get("action_id") is not None
+        or event.get("request_ordinal") is not None
+        or receipt.get("phase") != "READY"
+        or state.get("binding") != predecessor_state.get("binding")
+        or state.get("counters") != predecessor_state.get("counters")
+        or state.get("next_unused_ordinal") != "CAL-REQ-004"
+        or any(
+            state.get(key) is not None
+            for key in (
+                "current_action_id",
+                "current_ordinal",
+                "expected_output_opaque_id",
+                "returned_output_binding",
+                "output_registration_attempt",
+                "output_registration",
+            )
+        )
+        or state.get("decode_authorized") is not False
+        or state.get("hard_stop") is not False
+        or (successor_receipt_path.parent / "receipt-000001.json").exists()
+    ):
+        raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_BINDING_INVALID")
+    counters = cast(dict[str, int], state["counters"])
+    return {
+        "status": "TERMINAL_OVERLAY_ROLLOVER_V2_PASS",
+        "successor_overlay_output_id": state["overlay_output_id"],
+        "predecessor_overlay_output_id": predecessor_binding["predecessor_overlay_output_id"],
+        "next_unused_ordinal": "CAL-REQ-004",
         "formal_calls_remaining": counters["formal_calls_remaining"],
         "formal_raw_capacity_remaining": counters["formal_raw_capacity_remaining"],
         "global_native_output_capacity_remaining": counters[
