@@ -282,12 +282,12 @@ def load_capture_session(
         raise PrivateImageGenCaptureError("CAPTURE_SESSION_HANDLE_SHAPE_INVALID")
     schema_version = handle.get("schema_version")
     if schema_version == CAPTURE_SESSION_SCHEMA:
-        expected_handle_keys = _EXPECTED_HANDLE_KEYS_V1
+        expected_handle_fields = _EXPECTED_HANDLE_KEYS_V1
     elif schema_version == CAPTURE_SESSION_SCHEMA_V2:
-        expected_handle_keys = _EXPECTED_HANDLE_KEYS_V2
+        expected_handle_fields = _EXPECTED_HANDLE_KEYS_V2
     else:
         raise PrivateImageGenCaptureError("CAPTURE_SESSION_HANDLE_AUTHORITY_INVALID")
-    if frozenset(handle) != expected_handle_keys:
+    if frozenset(handle) != expected_handle_fields:
         raise PrivateImageGenCaptureError("CAPTURE_SESSION_HANDLE_SHAPE_INVALID")
     if handle_bytes != _canonical_json_bytes(handle):
         raise PrivateImageGenCaptureError("CAPTURE_SESSION_HANDLE_NOT_CANONICAL")
