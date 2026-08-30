@@ -77,6 +77,12 @@ R52_CONTRACT_PATH = (
 R54_CONTRACT_PATH = (
     ROOT / "docs" / "operations" / "P2_M5_R54_ROLLOVER_EMPTY_DIRECTORY_INTEGRITY_CONTRACT.md"
 )
+R55_CONTRACT_PATH = (
+    ROOT
+    / "docs"
+    / "operations"
+    / "P2_M5_R55_QUIESCENT_CUSTODY_LEASE_AND_ATOMIC_READY_COMMIT_REPAIR.md"
+)
 
 _CC05_A_AUTHORIZED_A0_OVERRIDES = {
     "ASSIGNMENT_LEDGER_VERSION": ("p2-m5-cc05a-calibration-assignment-v3-cal-req-002-forward"),
@@ -409,6 +415,14 @@ def _last_r54_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-r54-rollover-empty-directory-integrity-eof/v1",
         sentinel="P2_M5_R54_ROLLOVER_EMPTY_DIRECTORY_INTEGRITY_TRUE_EOF",
+    )
+
+
+def _last_r55_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-r55-quiescent-custody-atomic-ready-eof/v1",
+        sentinel="P2_M5_R55_QUIESCENT_CUSTODY_ATOMIC_READY_TRUE_EOF",
     )
 
 
@@ -3207,12 +3221,87 @@ def test_r54_empty_directory_integrity_authority_is_mirrored_at_true_eof() -> No
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_R54_ROLLOVER_EMPTY_DIRECTORY_INTEGRITY_TRUE_EOF",
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    acceptance_text = ACCEPTANCE_PATH.read_text(encoding="utf-8")
+    protocol_text = EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")
+    assert canonical[-1][1] + "\n\n## Current authoritative state — P2-M5-R55" in acceptance_text
+    assert mirror[-1][1] + "\n\n## Current authoritative state mirror — P2-M5-R55" in protocol_text
 
     contract = R54_CONTRACT_PATH.read_text(encoding="utf-8")
     assert "never reads `DirEntry.name`, returns, logs or includes the" in contract
     assert "no post-acceptance status commit is required" in contract
+    tracked = "\n".join(
+        (
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-24_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-24_000:],
+            contract,
+        )
+    )
+    for forbidden in (
+        "data:image/",
+        "prompt_plaintext",
+        "signed_url",
+        "object_key",
+        "D:\\p-worktrees\\",
+    ):
+        assert forbidden not in tracked
+
+
+def test_r55_quiescent_custody_authority_is_mirrored_at_true_eof() -> None:
+    canonical = _last_r55_key_block(ACCEPTANCE_PATH)
+    mirror = _last_r55_key_block(EXECUTION_PROTOCOL_PATH)
+    values = dict(canonical)
+
+    assert canonical == mirror
+    assert len(canonical) == len(values)
+    assert values["P2_M5_R54_PARENT_CANDIDATE_SHA"] == ("30F7DAD7F46067075E35B8DFE9404EEA80D3ADA4")
+    assert values["P2_M5_R54"] == (
+        "CANDIDATE_NOT_ACCEPTED_AT_30F7DAD7F46067075E35B8DFE9404EEA80D3ADA4_"
+        "SOL_HIGH_FINAL_PROBE_TO_RETURN_RACE"
+    )
+    assert values["P2_M5_R54_PARENT_SECURITY_REVIEW"] == "PASS"
+    assert values["P2_M5_R54_PARENT_SOL_HIGH_FINAL_REVIEW"] == (
+        "FAIL_FINAL_STAGING_PROBE_TO_RETURN_TOCTOU"
+    )
+    assert values["P2_M5_R55_OWNER_DECISION"] == "OD-P2-M5-R55-QUIESCENT-CUSTODY-001"
+    assert values["P2_M5_R55_AUTHORITY_CONDITION"] == (
+        "EFFECTIVE_ONLY_AFTER_THIS_COMMIT_SAME_SHA_CI_ALL_EIGHT_ARTIFACT_CONTENT_"
+        "CHECKS_SECURITY_PRIVACY_LICENSE_RESEARCH_SOL_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert values["P2_M5_R55_REPAIR_SCOPE"] == (
+        "QUIESCENCE_LEASE_ATOMIC_READY_COMMIT_AND_STALE_HANDLE_PROTECTION_ONLY"
+    )
+    assert values["P2_M5_R55_QUIESCENCE_LEASE_VERSION"] == (
+        "p2-m5-private-overlay-quiescence-lease-v1"
+    )
+    assert values["P2_M5_R55_LEASE_BUSY_RESULT"] == "QUIESCENCE_LEASE_BUSY"
+    assert values["P2_M5_R55_SEQUENTIAL_PROBE_ONLY_FIX"] == "PROHIBITED"
+    assert values["P2_M5_R55_IMAGEGEN_CALLS"] == "0"
+    assert values["P2_M5_R55_ORDINALS_CONSUMED"] == "0"
+    assert values["P2_M5_R55_RAW_OUTPUTS"] == "0"
+    assert values["NEXT_UNUSED_FORMAL_ORDINAL"] == "CAL-REQ-004"
+    assert values["CAL_REQ_004_STATUS"] == "NOT_CONSUMED_BEFORE_R55_ACCEPTANCE"
+    assert values["CAL_REQ_004_DISPATCH_AUTHORIZED"] == (
+        "TRUE_FOR_ONE_EXACT_CALL_AFTER_R55_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert values["NEXT_READY_TASK"] == "EXECUTE_CAL_REQ_004"
+    assert values["POST_ACCEPTANCE_COMMIT_REQUIRED"] == "NO"
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_R55_QUIESCENT_CUSTODY_ATOMIC_READY_TRUE_EOF",
+    )
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+
+    contract = R55_CONTRACT_PATH.read_text(encoding="utf-8")
+    for required in (
+        "OD-P2-M5-R55-QUIESCENT-CUSTODY-001",
+        "p2-m5-private-overlay-quiescence-lease-v1",
+        "QUIESCENCE_LEASE_BUSY",
+        "exact receipt and state digests",
+        "OUTSIDE_GUARANTEE_REQUIRES_EXCLUSIVE_CUSTODY",
+        "no post-acceptance status commit",
+    ):
+        assert required in contract
     tracked = "\n".join(
         (
             ACCEPTANCE_PATH.read_text(encoding="utf-8")[-24_000:],

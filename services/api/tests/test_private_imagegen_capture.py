@@ -14,7 +14,12 @@ from mirror_api.synthetic_dataset.private_execution_overlay import (
     GenesisBinding,
     consume_dispatch,
     initialize_overlay,
+    mark_dispatch_failed,
     prepare_dispatch,
+    record_output_returned,
+    register_imagegen_data_url_before_decode,
+    rollover_terminal_overlay_v2,
+    sha256_file,
     verify_overlay,
 )
 from mirror_api.synthetic_dataset.private_imagegen_capture import (
@@ -47,6 +52,31 @@ def _binding() -> GenesisBinding:
         prompt_template_version="prompt-v3",
         prompt_template_sha256="6" * 64,
         policy_digest="7" * 64,
+    )
+
+
+def _binding_v2() -> GenesisBinding:
+    return GenesisBinding(
+        genesis_output_id="GENESIS-R55-0001",
+        genesis_bootstrap_sha256="1" * 64,
+        genesis_receipt_sha256="2" * 64,
+        private_registry_sha256="3" * 64,
+        generation_specification_version="generation-v3",
+        generation_specification_sha256="4" * 64,
+        assignment_manifest_version="assignment-v3",
+        assignment_manifest_sha256="5" * 64,
+        prompt_template_version="prompt-v3",
+        prompt_template_sha256="6" * 64,
+        policy_digest="7" * 64,
+        request_call_count=2,
+        requested_output_count=2,
+        returned_output_count=2,
+        raw_output_count=2,
+        formal_calls_remaining=30,
+        formal_raw_capacity_remaining=30,
+        global_native_output_capacity_remaining=61,
+        global_native_output_consumed=3,
+        next_unused_ordinal="CAL-REQ-003",
     )
 
 
@@ -93,6 +123,101 @@ def _create_handle(tmp_path: Path) -> Path:
         expected_output_opaque_id="OUTPUT-CAL-REQ-002",
         returned_timestamp=TIMESTAMP_3,
         registration_timestamp=TIMESTAMP_4,
+    )
+
+
+def _consumed_v2(tmp_path: Path) -> Path:
+    (tmp_path / ".git").write_text("gitdir: synthetic-test-worktree\n", encoding="utf-8")
+    (tmp_path / ".gitignore").write_text(".private-handoff/\n", encoding="utf-8")
+    private_parent = tmp_path / ".private-handoff"
+    private_parent.mkdir()
+    predecessor = initialize_overlay(
+        allowed_parent=private_parent,
+        root=private_parent / "overlay-r55-predecessor-0001",
+        overlay_output_id="OVERLAY-R55-PREDECESSOR-0001",
+        controller_sha256=CONTROLLER_SHA256,
+        binding=_binding_v2(),
+        timestamp=TIMESTAMP_0,
+    )
+    prepared = prepare_dispatch(
+        receipt_path=predecessor.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        ordinal="CAL-REQ-003",
+        action_id="ACTION-CAL-REQ-003",
+        expected_output_opaque_id="OUTPUT-CAL-REQ-003",
+        timestamp=TIMESTAMP_1,
+    )
+    consumed = consume_dispatch(
+        receipt_path=prepared.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-003",
+        timestamp=TIMESTAMP_2,
+    )
+    returned = record_output_returned(
+        receipt_path=consumed.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-003",
+        timestamp=TIMESTAMP_3,
+        returned_output_count=1,
+        exact_generated_artifact_receipt="not-a-data-url",
+    )
+    failed = register_imagegen_data_url_before_decode(
+        receipt_path=returned.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-003",
+        project_worktree_root=tmp_path,
+        imagegen_data_url="not-a-data-url",
+        timestamp=TIMESTAMP_4,
+    )
+    terminal = verify_overlay(
+        failed.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )
+    terminal_receipt = terminal["receipt"]
+    successor = rollover_terminal_overlay_v2(
+        predecessor_receipt_path=failed.receipt_path,
+        expected_predecessor_receipt_sha256=sha256_file(failed.receipt_path),
+        expected_predecessor_state_sha256=terminal_receipt["state_sha256"],
+        expected_predecessor_event_sha256=terminal_receipt["event_sha256"],
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=tmp_path,
+        allowed_parent=private_parent,
+        successor_root=private_parent / "overlay-r55-successor-0001",
+        successor_overlay_output_id="OVERLAY-R55-SUCCESSOR-0001",
+        timestamp="2026-08-30T00:00:05Z",
+    )
+    next_prepared = prepare_dispatch(
+        receipt_path=successor.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        ordinal="CAL-REQ-004",
+        action_id="ACTION-CAL-REQ-004",
+        expected_output_opaque_id="OUTPUT-CAL-REQ-004",
+        timestamp="2026-08-30T00:00:06Z",
+        expected_ready_receipt_sha256=successor.receipt_sha256,
+        expected_ready_state_sha256=successor.state_sha256,
+    )
+    next_consumed = consume_dispatch(
+        receipt_path=next_prepared.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-004",
+        timestamp="2026-08-30T00:00:07Z",
+    )
+    return next_consumed.receipt_path
+
+
+def _create_v2_handle(tmp_path: Path, handle_id: str = "capture-session-r55-0001") -> Path:
+    receipt_path = _consumed_v2(tmp_path)
+    return create_capture_session_handle(
+        project_worktree_root=tmp_path,
+        handle_id=handle_id,
+        task_id="P2-M5-R55-TEST",
+        receipt_path=receipt_path,
+        controller_sha256=CONTROLLER_SHA256,
+        ordinal="CAL-REQ-004",
+        action_id="ACTION-CAL-REQ-004",
+        expected_output_opaque_id="OUTPUT-CAL-REQ-004",
+        returned_timestamp="2026-08-30T00:00:08Z",
+        registration_timestamp="2026-08-30T00:00:09Z",
     )
 
 
@@ -171,6 +296,115 @@ def test_capture_session_handle_is_create_or_verify_exact(tmp_path: Path) -> Non
     )
     assert replayed == first
     assert replayed.read_bytes() == first_bytes
+
+
+def test_v1_capture_handle_bytes_and_schema_remain_unchanged(tmp_path: Path) -> None:
+    handle_path = _create_handle(tmp_path)
+    receipt_path = (
+        tmp_path / ".private-handoff" / "overlay-r52-task-owned-0001" / "receipt-000002.json"
+    )
+    expected = {
+        "schema_version": "mirror.p2-m5/PrivateImageGenCaptureSession/v1",
+        "handle_id": "capture-session-r52-0001",
+        "task_id": "P2-M5-R52-TEST",
+        "ordinal": "CAL-REQ-002",
+        "action_id": "ACTION-CAL-REQ-002",
+        "expected_output_opaque_id": "OUTPUT-CAL-REQ-002",
+        "receipt_relative": "overlay-r52-task-owned-0001/receipt-000002.json",
+        "receipt_sha256": sha256_file(receipt_path),
+        "controller_sha256": CONTROLLER_SHA256,
+        "returned_timestamp": TIMESTAMP_3,
+        "registration_timestamp": TIMESTAMP_4,
+        "allowed_use": "ONE_EXACT_CODEX_NATIVE_IMAGEGEN_DATA_URL_CAPTURE",
+        "plaintext_persistence": "PROHIBITED",
+        "upload_to_github": False,
+    }
+    expected_bytes = (
+        json.dumps(expected, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+
+    assert handle_path.read_bytes() == expected_bytes
+    assert "state_sha256" not in expected
+
+
+def test_v2_capture_handle_binds_state_and_completes_under_shared_lease(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handle_path = _create_v2_handle(tmp_path)
+    handle, receipt_path = load_capture_session(
+        project_worktree_root=tmp_path,
+        handle_id="capture-session-r55-0001",
+    )
+    consumed = verify_overlay(
+        receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+    )
+    assert handle["schema_version"] == "mirror.p2-m5/PrivateImageGenCaptureSession/v2"
+    assert handle["state_sha256"] == consumed["receipt"]["state_sha256"]
+    assert handle_path.parent == tmp_path / ".private-handoff"
+
+    data_url = _data_url(b"\x89PNG\r\n\x1a\nprivate-r55-transport-fixture")
+    monkeypatch.setattr(capture_module, "no_echo_terminal_input", _no_echo_fixture)
+    ready_stream = io.StringIO()
+    result = capture_active_session(
+        project_worktree_root=tmp_path,
+        handle_id="capture-session-r55-0001",
+        input_stream=io.BytesIO((data_url + "\n").encode("ascii")),
+        ready_stream=ready_stream,
+    )
+
+    assert ready_stream.getvalue() == "READY_NO_ECHO\n"
+    assert result["status"] == "REGISTER_BEFORE_DECODE_PASS"
+    assert result["decode_performed"] is False
+    assert result["dimensions_read"] is False
+    assert data_url.encode("ascii") not in b"".join(
+        path.read_bytes() for path in (tmp_path / ".private-handoff").rglob("*.json")
+    )
+
+
+def test_v2_capture_rejects_state_digest_tamper(tmp_path: Path) -> None:
+    handle_path = _create_v2_handle(tmp_path)
+    handle = json.loads(handle_path.read_text(encoding="utf-8"))
+    handle["state_sha256"] = "b" * 64
+    handle_path.write_bytes(
+        (json.dumps(handle, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    )
+
+    with pytest.raises(PrivateImageGenCaptureError, match="CAPTURE_STATE_DIGEST_MISMATCH"):
+        load_capture_session(
+            project_worktree_root=tmp_path,
+            handle_id="capture-session-r55-0001",
+        )
+
+
+def test_v2_stale_capture_session_fails_before_ready_no_echo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _create_v2_handle(tmp_path)
+    _handle, receipt_path = load_capture_session(
+        project_worktree_root=tmp_path,
+        handle_id="capture-session-r55-0001",
+    )
+    mark_dispatch_failed(
+        receipt_path=receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        action_id="ACTION-CAL-REQ-004",
+        timestamp="2026-08-30T00:00:08Z",
+        reason_code="SYNTHETIC_POST_HANDLE_ADVANCE",
+    )
+    monkeypatch.setattr(capture_module, "no_echo_terminal_input", _no_echo_fixture)
+    ready_stream = io.StringIO()
+
+    with pytest.raises(PrivateImageGenCaptureError, match="CAPTURE_SESSION_STALE_RECEIPT"):
+        capture_active_session(
+            project_worktree_root=tmp_path,
+            handle_id="capture-session-r55-0001",
+            input_stream=io.BytesIO(b"not-read\n"),
+            ready_stream=ready_stream,
+        )
+    assert ready_stream.getvalue() == ""
 
 
 @pytest.mark.parametrize(

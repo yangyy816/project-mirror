@@ -6,6 +6,10 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import time
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, cast
 
@@ -18,6 +22,7 @@ from mirror_api.synthetic_dataset.private_execution_overlay import (
     consume_dispatch,
     initialize_overlay,
     mark_dispatch_failed,
+    mark_registration_failed,
     prepare_dispatch,
     record_output_returned,
     register_imagegen_data_url_before_decode,
@@ -2262,6 +2267,546 @@ def test_terminal_rollover_v2_rechecks_empty_directories_before_verification_ret
             expected_controller_sha256=CONTROLLER_SHA256,
             project_worktree_root=tmp_path,
         )
+
+
+def test_terminal_rollover_v2_active_writer_between_final_probes_is_outside_guarantee(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Preserve the ADR-048 counterexample; this is not an implementation PASS."""
+    _predecessor_root, predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor = rollover_terminal_overlay_v2(**kwargs)
+    original_scandir = overlay_module.os.scandir
+    injected = successor.receipt_path.parent / "staging" / "active-writer-counterexample.bin"
+    scan_count = 0
+
+    def inject_between_final_probes(
+        path: str | bytes | int | os.PathLike[str] | os.PathLike[bytes],
+    ):
+        nonlocal scan_count
+        scan_count += 1
+        if scan_count == 4:
+            injected.write_bytes(b"synthetic-active-writer-counterexample")
+        return original_scandir(path)
+
+    monkeypatch.setattr(overlay_module.os, "scandir", inject_between_final_probes)
+    result = verify_rollover_successor_v2(
+        successor.receipt_path,
+        predecessor_receipt_path=predecessor_receipt,
+        expected_predecessor_receipt_sha256=cast(
+            str, kwargs["expected_predecessor_receipt_sha256"]
+        ),
+        expected_predecessor_state_sha256=cast(str, kwargs["expected_predecessor_state_sha256"]),
+        expected_predecessor_event_sha256=cast(str, kwargs["expected_predecessor_event_sha256"]),
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=tmp_path,
+    )
+
+    assert scan_count == 4
+    assert result["status"] == "TERMINAL_OVERLAY_ROLLOVER_V2_PASS"
+    assert injected.exists()
+
+
+def test_v2_cooperative_lease_blocks_subprocess_and_rejects_stale_ready_handle(
+    tmp_path: Path,
+) -> None:
+    """The lease covers process writers; the retained hostile test is separate."""
+    _predecessor_root, _predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor = rollover_terminal_overlay_v2(**kwargs)
+    _api_src, environment = _fresh_process_environment()
+    holder = """
+import sys, time
+from pathlib import Path
+from mirror_api.synthetic_dataset.private_execution_overlay import _v2_quiescence_lease
+with _v2_quiescence_lease(Path(sys.argv[1])):
+    print('HELD', flush=True)
+    time.sleep(2)
+"""
+    process = subprocess.Popen(  # noqa: S603 - fixed interpreter and inline lease probe
+        [sys.executable, "-c", holder, str(successor.receipt_path.parent)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=environment,
+    )
+    assert process.stdout is not None
+    assert process.stdout.readline().strip() == "HELD"
+    with pytest.raises(ExecutionOverlayError, match="QUIESCENCE_LEASE_BUSY"):
+        prepare_dispatch(
+            receipt_path=successor.receipt_path,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            ordinal="CAL-REQ-004",
+            action_id="ACTION-CAL-REQ-004",
+            expected_output_opaque_id="OUTPUT-CAL-REQ-004",
+            timestamp="2026-08-30T00:00:01Z",
+            expected_ready_receipt_sha256=successor.receipt_sha256,
+            expected_ready_state_sha256=successor.state_sha256,
+        )
+    assert process.wait(timeout=10) == 0
+    prepared = prepare_dispatch(
+        receipt_path=successor.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        ordinal="CAL-REQ-004",
+        action_id="ACTION-CAL-REQ-004",
+        expected_output_opaque_id="OUTPUT-CAL-REQ-004",
+        timestamp="2026-08-30T00:00:01Z",
+        expected_ready_receipt_sha256=successor.receipt_sha256,
+        expected_ready_state_sha256=successor.state_sha256,
+    )
+    assert prepared.phase == "DISPATCH_PREPARED"
+    with pytest.raises(ExecutionOverlayError, match="V2_DISPATCH_STALE_READY_HANDLE"):
+        prepare_dispatch(
+            receipt_path=successor.receipt_path,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            ordinal="CAL-REQ-004",
+            action_id="ACTION-CAL-REQ-004",
+            expected_output_opaque_id="OUTPUT-CAL-REQ-004",
+            timestamp="2026-08-30T00:00:01Z",
+            expected_ready_receipt_sha256=successor.receipt_sha256,
+            expected_ready_state_sha256=successor.state_sha256,
+        )
+
+
+def test_v1_rollover_prepare_remains_compatible_without_ready_digests(
+    tmp_path: Path,
+) -> None:
+    predecessor_root, predecessor_receipt = _terminal_registration_failure(tmp_path)
+    successor = rollover_terminal_overlay(
+        predecessor_receipt_path=predecessor_receipt,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        project_worktree_root=tmp_path,
+        allowed_parent=predecessor_root.parent,
+        successor_root=predecessor_root.parent / "overlay-task-owned-v1-compat",
+        successor_overlay_output_id="OVERLAY-EPOCH4-V1-COMPAT",
+        timestamp="2026-08-30T00:00:00Z",
+    )
+
+    prepared = prepare_dispatch(
+        receipt_path=successor.receipt_path,
+        expected_controller_sha256=CONTROLLER_SHA256,
+        ordinal="CAL-REQ-003",
+        action_id="ACTION-CAL-REQ-003-V1-COMPAT",
+        expected_output_opaque_id="OUTPUT-CAL-REQ-003-V1-COMPAT",
+        timestamp="2026-08-30T00:00:01Z",
+    )
+
+    assert prepared.phase == "DISPATCH_PREPARED"
+    assert prepared.sequence == 1
+
+
+@pytest.mark.parametrize(
+    ("receipt_digest", "state_digest", "expected_error"),
+    [
+        (None, None, "V2_DISPATCH_READY_RECEIPT_DIGEST_REQUIRED"),
+        ("valid", None, "V2_DISPATCH_READY_STATE_DIGEST_REQUIRED"),
+        ("mismatch", "valid", "V2_DISPATCH_READY_RECEIPT_DIGEST_MISMATCH"),
+        ("valid", "mismatch", "V2_DISPATCH_READY_STATE_DIGEST_MISMATCH"),
+    ],
+)
+def test_v2_prepare_requires_exact_ready_receipt_and_state_digests(
+    tmp_path: Path,
+    receipt_digest: str | None,
+    state_digest: str | None,
+    expected_error: str,
+) -> None:
+    _predecessor_root, _predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor = rollover_terminal_overlay_v2(**kwargs)
+    receipt_value = {
+        None: None,
+        "valid": successor.receipt_sha256,
+        "mismatch": "b" * 64,
+    }[receipt_digest]
+    state_value = {
+        None: None,
+        "valid": successor.state_sha256,
+        "mismatch": "b" * 64,
+    }[state_digest]
+
+    with pytest.raises(ExecutionOverlayError, match=expected_error):
+        prepare_dispatch(
+            receipt_path=successor.receipt_path,
+            expected_controller_sha256=CONTROLLER_SHA256,
+            ordinal="CAL-REQ-004",
+            action_id="ACTION-CAL-REQ-004",
+            expected_output_opaque_id="OUTPUT-CAL-REQ-004",
+            timestamp="2026-08-30T00:00:01Z",
+            expected_ready_receipt_sha256=receipt_value,
+            expected_ready_state_sha256=state_value,
+        )
+    assert not (successor.receipt_path.parent / "receipt-000001.json").exists()
+
+
+def test_v2_lease_same_process_other_thread_has_bounded_busy_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _predecessor_root, _predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor = rollover_terminal_overlay_v2(**kwargs)
+    acquired = threading.Event()
+    release = threading.Event()
+    holder_errors: list[BaseException] = []
+
+    def hold_lease() -> None:
+        try:
+            with overlay_module._v2_quiescence_lease(successor.receipt_path.parent):
+                acquired.set()
+                if not release.wait(timeout=5):
+                    raise AssertionError("lease holder release timeout")
+        except BaseException as error:
+            holder_errors.append(error)
+
+    holder = threading.Thread(target=hold_lease, name="r55-same-process-holder")
+    holder.start()
+    assert acquired.wait(timeout=5)
+    monkeypatch.setattr(overlay_module, "QUIESCENCE_LEASE_TIMEOUT_SECONDS", 0.1)
+    started = time.monotonic()
+    try:
+        with pytest.raises(ExecutionOverlayError, match="QUIESCENCE_LEASE_BUSY"):
+            prepare_dispatch(
+                receipt_path=successor.receipt_path,
+                expected_controller_sha256=CONTROLLER_SHA256,
+                ordinal="CAL-REQ-004",
+                action_id="ACTION-CAL-REQ-004",
+                expected_output_opaque_id="OUTPUT-CAL-REQ-004",
+                timestamp="2026-08-30T00:00:01Z",
+                expected_ready_receipt_sha256=successor.receipt_sha256,
+                expected_ready_state_sha256=successor.state_sha256,
+            )
+        assert time.monotonic() - started < 1.0
+        assert not (successor.receipt_path.parent / "receipt-000001.json").exists()
+    finally:
+        release.set()
+        holder.join(timeout=5)
+    assert not holder.is_alive()
+    assert holder_errors == []
+
+
+def test_all_v2_public_mutators_fail_before_write_when_lease_is_busy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _predecessor_root, _predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor = rollover_terminal_overlay_v2(**kwargs)
+    successor_root = successor.receipt_path.parent
+    generated_root = tmp_path / "generated-artifacts"
+    generated_root.mkdir()
+    acquired = threading.Event()
+    release = threading.Event()
+    holder_errors: list[BaseException] = []
+
+    def hold_lease() -> None:
+        try:
+            with overlay_module._v2_quiescence_lease(successor_root):
+                acquired.set()
+                if not release.wait(timeout=5):
+                    raise AssertionError("lease holder release timeout")
+        except BaseException as error:
+            holder_errors.append(error)
+
+    holder = threading.Thread(target=hold_lease, name="r55-all-mutator-holder")
+    holder.start()
+    assert acquired.wait(timeout=5)
+    monkeypatch.setattr(overlay_module, "QUIESCENCE_LEASE_TIMEOUT_SECONDS", 0.05)
+    before = {
+        path.relative_to(successor_root).as_posix(): path.read_bytes()
+        for path in successor_root.rglob("*")
+        if path.is_file() and path.name != overlay_module.QUIESCENCE_LEASE_FILENAME
+    }
+    mutators: list[tuple[str, Callable[[], object]]] = [
+        (
+            "prepare_dispatch",
+            lambda: prepare_dispatch(
+                receipt_path=successor.receipt_path,
+                expected_controller_sha256=CONTROLLER_SHA256,
+                ordinal="CAL-REQ-004",
+                action_id="ACTION-CAL-REQ-004",
+                expected_output_opaque_id="OUTPUT-CAL-REQ-004",
+                timestamp="2026-08-30T00:00:01Z",
+                expected_ready_receipt_sha256=successor.receipt_sha256,
+                expected_ready_state_sha256=successor.state_sha256,
+            ),
+        ),
+        (
+            "consume_dispatch",
+            lambda: consume_dispatch(
+                receipt_path=successor.receipt_path,
+                expected_controller_sha256=CONTROLLER_SHA256,
+                action_id="ACTION-CAL-REQ-004",
+                timestamp="2026-08-30T00:00:02Z",
+            ),
+        ),
+        (
+            "mark_dispatch_failed",
+            lambda: mark_dispatch_failed(
+                receipt_path=successor.receipt_path,
+                expected_controller_sha256=CONTROLLER_SHA256,
+                action_id="ACTION-CAL-REQ-004",
+                timestamp="2026-08-30T00:00:02Z",
+                reason_code="SYNTHETIC_FAILURE",
+            ),
+        ),
+        (
+            "record_output_returned",
+            lambda: record_output_returned(
+                receipt_path=successor.receipt_path,
+                expected_controller_sha256=CONTROLLER_SHA256,
+                action_id="ACTION-CAL-REQ-004",
+                timestamp="2026-08-30T00:00:02Z",
+                returned_output_count=1,
+                exact_generated_artifact_receipt="synthetic-receipt",
+            ),
+        ),
+        (
+            "mark_registration_failed",
+            lambda: mark_registration_failed(
+                receipt_path=successor.receipt_path,
+                expected_controller_sha256=CONTROLLER_SHA256,
+                action_id="ACTION-CAL-REQ-004",
+                timestamp="2026-08-30T00:00:02Z",
+                reason_code="SYNTHETIC_FAILURE",
+            ),
+        ),
+        (
+            "register_output_before_decode",
+            lambda: register_output_before_decode(
+                receipt_path=successor.receipt_path,
+                expected_controller_sha256=CONTROLLER_SHA256,
+                action_id="ACTION-CAL-REQ-004",
+                allowed_generated_artifact_root=generated_root,
+                exact_generated_artifact_receipt="synthetic-receipt",
+                timestamp="2026-08-30T00:00:02Z",
+            ),
+        ),
+        (
+            "register_imagegen_data_url_before_decode",
+            lambda: register_imagegen_data_url_before_decode(
+                receipt_path=successor.receipt_path,
+                expected_controller_sha256=CONTROLLER_SHA256,
+                action_id="ACTION-CAL-REQ-004",
+                project_worktree_root=tmp_path,
+                imagegen_data_url="not-a-data-url",
+                timestamp="2026-08-30T00:00:02Z",
+            ),
+        ),
+    ]
+    try:
+        for name, mutate in mutators:
+            with pytest.raises(ExecutionOverlayError, match="QUIESCENCE_LEASE_BUSY"):
+                mutate()
+            assert name
+    finally:
+        release.set()
+        holder.join(timeout=5)
+    after = {
+        path.relative_to(successor_root).as_posix(): path.read_bytes()
+        for path in successor_root.rglob("*")
+        if path.is_file() and path.name != overlay_module.QUIESCENCE_LEASE_FILENAME
+    }
+    assert not holder.is_alive()
+    assert holder_errors == []
+    assert after == before
+
+
+def test_v2_crashed_subprocess_holder_releases_os_lease(
+    tmp_path: Path,
+) -> None:
+    _predecessor_root, _predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor = rollover_terminal_overlay_v2(**kwargs)
+    _api_src, environment = _fresh_process_environment()
+    crash_holder = """
+import os, sys
+from pathlib import Path
+from mirror_api.synthetic_dataset.private_execution_overlay import _v2_quiescence_lease
+with _v2_quiescence_lease(Path(sys.argv[1])):
+    print('HELD', flush=True)
+    os._exit(23)
+"""
+    process = subprocess.Popen(  # noqa: S603 - fixed interpreter and inline crash probe
+        [sys.executable, "-c", crash_holder, str(successor.receipt_path.parent)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=environment,
+    )
+    assert process.stdout is not None
+    assert process.stdout.readline().strip() == "HELD"
+    assert process.wait(timeout=10) == 23
+
+    with overlay_module._v2_quiescence_lease(successor.receipt_path.parent):
+        assert not (successor.receipt_path.parent / "receipt-000001.json").exists()
+
+
+def test_v2_lease_rejects_escape_and_invalid_lock_node_without_path_echo(
+    tmp_path: Path,
+) -> None:
+    _predecessor_root, _predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor = rollover_terminal_overlay_v2(**kwargs)
+    outside_root = tmp_path / "outside-control-root"
+    outside_root.mkdir()
+
+    with pytest.raises(ExecutionOverlayError) as escape_error:
+        with overlay_module._v2_quiescence_lease(outside_root):
+            pytest.fail("escaped control root acquired a lease")
+    assert str(outside_root) not in str(escape_error.value)
+    assert not (outside_root / overlay_module.QUIESCENCE_LEASE_FILENAME).exists()
+
+    lock_path = successor.receipt_path.parent / overlay_module.QUIESCENCE_LEASE_FILENAME
+    lock_path.unlink()
+    lock_path.mkdir()
+    with pytest.raises(ExecutionOverlayError) as invalid_error:
+        with overlay_module._v2_quiescence_lease(successor.receipt_path.parent):
+            pytest.fail("invalid lock node acquired a lease")
+    assert str(lock_path) not in str(invalid_error.value)
+    assert lock_path.is_dir()
+
+
+def test_v2_lease_rejects_reparse_lock_without_touching_target(tmp_path: Path) -> None:
+    _predecessor_root, _predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor = rollover_terminal_overlay_v2(**kwargs)
+    lock_path = successor.receipt_path.parent / overlay_module.QUIESCENCE_LEASE_FILENAME
+    outside_target = tmp_path / "outside-lock-target.bin"
+    outside_target.write_bytes(b"outside-sentinel")
+    lock_path.unlink()
+    try:
+        lock_path.symlink_to(outside_target)
+    except OSError:
+        pytest.skip("platform cannot create test-only file symlink")
+
+    with pytest.raises(ExecutionOverlayError) as reparse_error:
+        with overlay_module._v2_quiescence_lease(successor.receipt_path.parent):
+            pytest.fail("reparse lock acquired a lease")
+    assert str(lock_path) not in str(reparse_error.value)
+    assert outside_target.read_bytes() == b"outside-sentinel"
+
+
+@pytest.mark.parametrize(
+    "hook",
+    [
+        "after_first_staging_probe",
+        "after_records_probe",
+        "before_ready_commit",
+        "after_ready_commit_before_return",
+    ],
+)
+def test_v2_cooperative_writer_is_blocked_across_ready_commit_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    hook: str,
+) -> None:
+    _predecessor_root, _predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor_root = cast(Path, kwargs["successor_root"])
+    original_probe = overlay_module._require_empty_rollover_directory_v2
+    original_commit = overlay_module._commit_transition
+    injected = False
+
+    def assert_writer_blocked() -> None:
+        nonlocal injected
+        if injected:
+            return
+        injected = True
+        writer_errors: list[str] = []
+
+        def cooperative_writer() -> None:
+            try:
+                with overlay_module._v2_quiescence_lease(successor_root):
+                    (successor_root / "staging" / "cooperative-writer.bin").write_bytes(
+                        b"synthetic"
+                    )
+            except ExecutionOverlayError as error:
+                writer_errors.append(str(error))
+
+        writer = threading.Thread(target=cooperative_writer, name=f"r55-writer-{hook}")
+        writer.start()
+        writer.join(timeout=2)
+        assert not writer.is_alive()
+        assert writer_errors == ["QUIESCENCE_LEASE_BUSY"]
+
+    probe_count = 0
+
+    def probe(path: Path) -> None:
+        nonlocal probe_count
+        original_probe(path)
+        probe_count += 1
+        if hook == "after_first_staging_probe" and probe_count == 1:
+            assert_writer_blocked()
+        if hook == "after_records_probe" and probe_count == 2:
+            assert_writer_blocked()
+
+    def commit(**commit_kwargs: Any):
+        if hook == "before_ready_commit" and commit_kwargs.get("sequence") == 0:
+            assert_writer_blocked()
+        result = original_commit(**commit_kwargs)
+        if hook == "after_ready_commit_before_return" and commit_kwargs.get("sequence") == 0:
+            assert_writer_blocked()
+        return result
+
+    monkeypatch.setattr(overlay_module, "QUIESCENCE_LEASE_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(overlay_module, "_require_empty_rollover_directory_v2", probe)
+    monkeypatch.setattr(overlay_module, "_commit_transition", commit)
+    successor = rollover_terminal_overlay_v2(**kwargs)
+
+    assert injected
+    assert successor.phase == "READY"
+    assert not (successor_root / "staging" / "cooperative-writer.bin").exists()
+    assert not (successor_root / "receipt-000001.json").exists()
+
+
+def test_v2_verifier_serializes_other_verifier_and_legal_writer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _predecessor_root, predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor = rollover_terminal_overlay_v2(**kwargs)
+    entered = threading.Event()
+    release = threading.Event()
+    original_verify = overlay_module._verify_rollover_successor_v2_unleased
+    first_thread_id: list[int] = []
+
+    def paused_verify(*args: Any, **verify_kwargs: Any) -> dict[str, Any]:
+        current = threading.get_ident()
+        if not first_thread_id:
+            first_thread_id.append(current)
+        if current == first_thread_id[0] and not entered.is_set():
+            entered.set()
+            assert release.wait(timeout=5)
+        return original_verify(*args, **verify_kwargs)
+
+    verify_kwargs = {
+        "predecessor_receipt_path": predecessor_receipt,
+        "expected_predecessor_receipt_sha256": kwargs["expected_predecessor_receipt_sha256"],
+        "expected_predecessor_state_sha256": kwargs["expected_predecessor_state_sha256"],
+        "expected_predecessor_event_sha256": kwargs["expected_predecessor_event_sha256"],
+        "expected_controller_sha256": CONTROLLER_SHA256,
+        "project_worktree_root": tmp_path,
+    }
+    monkeypatch.setattr(overlay_module, "QUIESCENCE_LEASE_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(overlay_module, "_verify_rollover_successor_v2_unleased", paused_verify)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        first = executor.submit(
+            verify_rollover_successor_v2,
+            successor.receipt_path,
+            **verify_kwargs,
+        )
+        assert entered.wait(timeout=5)
+        with pytest.raises(ExecutionOverlayError, match="QUIESCENCE_LEASE_BUSY"):
+            verify_rollover_successor_v2(
+                successor.receipt_path,
+                **verify_kwargs,
+            )
+        with pytest.raises(ExecutionOverlayError, match="QUIESCENCE_LEASE_BUSY"):
+            prepare_dispatch(
+                receipt_path=successor.receipt_path,
+                expected_controller_sha256=CONTROLLER_SHA256,
+                ordinal="CAL-REQ-004",
+                action_id="ACTION-CAL-REQ-004",
+                expected_output_opaque_id="OUTPUT-CAL-REQ-004",
+                timestamp="2026-08-30T00:00:01Z",
+                expected_ready_receipt_sha256=successor.receipt_sha256,
+                expected_ready_state_sha256=successor.state_sha256,
+            )
+        release.set()
+        assert first.result(timeout=5)["status"] == "TERMINAL_OVERLAY_ROLLOVER_V2_PASS"
+    assert not (successor.receipt_path.parent / "receipt-000001.json").exists()
 
 
 @pytest.mark.parametrize(

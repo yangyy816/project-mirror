@@ -3,14 +3,18 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import importlib
 import json
 import os
 import re
 import stat
 import string
-from collections.abc import Iterator, Mapping
+import threading
+import time
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
+from functools import wraps
 from pathlib import Path
 from typing import Any, BinaryIO, Final, cast
 
@@ -28,6 +32,9 @@ MAX_RETURNED_BYTES: Final = 16 * 1024 * 1024
 MAX_DATA_URL_ENCODED_BYTES: Final = ((MAX_RETURNED_BYTES + 2) // 3) * 4
 MAX_PRIVATE_OVERLAY_FILE_BYTES: Final = MAX_RETURNED_BYTES + (1024 * 1024)
 PROJECT_PRIVATE_NAMESPACE: Final = ".private-handoff"
+QUIESCENCE_LEASE_FILENAME: Final = ".p2-m5-private-overlay-quiescence-lease-v1.lock"
+QUIESCENCE_LEASE_TIMEOUT_SECONDS: Final = 1.0
+QUIESCENCE_LEASE_RETRY_SECONDS: Final = 0.025
 _OPAQUE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$")
 _ORDINAL = re.compile(r"^CAL-REQ-(\d{3})$")
 _STRICT_BASE64_PAYLOAD = re.compile(r"^[A-Za-z0-9+/]+={0,2}$")
@@ -46,6 +53,9 @@ _ALLOWED_PRIVATE_PROMPT_FIELDS: Final = frozenset(
         "STYLE_DESCRIPTOR",
     }
 )
+_LEASE_GUARD = threading.RLock()
+_LEASES: dict[str, tuple[int, int, int]] = {}
+_LEASE_PENDING: set[str] = set()
 
 
 class ExecutionOverlayError(RuntimeError):
@@ -84,6 +94,8 @@ class OverlayHandle:
     receipt_path: Path
     sequence: int
     phase: str
+    receipt_sha256: str
+    state_sha256: str
 
 
 def canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
@@ -113,6 +125,353 @@ def _require_plain_directory(path: Path) -> None:
 def _require_plain_file(path: Path) -> None:
     if not path.is_file() or path.is_symlink() or _is_reparse(path):
         raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_INVALID")
+
+
+def _lease_path(allowed_parent: Path) -> Path:
+    _require_plain_directory(allowed_parent)
+    return _safe_child(allowed_parent, QUIESCENCE_LEASE_FILENAME)
+
+
+def _validate_v2_control_root(control_root: Path) -> None:
+    if not control_root.is_absolute():
+        raise ExecutionOverlayError("V2_QUIESCENCE_CONTROL_ROOT_INVALID")
+    _validate_opaque_id(control_root.name, "V2_QUIESCENCE_CONTROL_ROOT_NAME")
+    allowed_parent = control_root.parent
+    _validate_project_local_private_parent(
+        project_worktree_root=allowed_parent.parent,
+        allowed_parent=allowed_parent,
+    )
+    _require_plain_directory(control_root)
+
+
+def _open_quiescence_lease_file(control_root: Path) -> int:
+    """Open or create the fixed lease file without following reparse nodes."""
+    lock_path = _lease_path(control_root)
+    if os.name == "nt":
+        handles = _open_windows_directory_chain(control_root)
+        file_handle: int | None = None
+        try:
+            _assert_windows_plain_directory_handle(handles[-1], control_root)
+            file_handle = _open_windows_relative_plain_file(
+                parent_handle=handles[-1],
+                file_name=lock_path.name,
+                expected_path=lock_path,
+                create_new=False,
+                open_if=True,
+                share_access=0x00000007,
+                write_access=True,
+            )
+            _assert_windows_plain_file_handle(file_handle, lock_path)
+            result = file_handle
+            file_handle = None
+            return result
+        finally:
+            if file_handle is not None:
+                _close_windows_handles([file_handle])
+            _close_windows_handles(handles)
+
+    _directory_flag, no_follow_flag = _posix_safe_open_flags()
+    descriptors = _open_posix_directory_chain(control_root)
+    descriptor: int | None = None
+    try:
+        _assert_posix_plain_directory_identity(control_root, descriptors[-1])
+        descriptor = os.open(
+            lock_path.name,
+            os.O_RDWR | os.O_CREAT | no_follow_flag | getattr(os, "O_CLOEXEC", 0),
+            0o600,
+            dir_fd=descriptors[-1],
+        )
+        os.set_inheritable(descriptor, False)
+        _assert_posix_named_file_identity(descriptor, descriptors[-1], lock_path.name)
+        _assert_posix_plain_directory_identity(control_root, descriptors[-1])
+        result = descriptor
+        descriptor = None
+        return result
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        for parent_descriptor in reversed(descriptors):
+            os.close(parent_descriptor)
+
+
+def _acquire_platform_lease(descriptor: int) -> bool:
+    """Acquire one advisory process lease without creating a second lock object."""
+    if os.name == "nt":
+        import ctypes
+
+        win_dll = getattr(ctypes, "WinDLL", None)
+        if not callable(win_dll):
+            raise ExecutionOverlayError("QUIESCENCE_LEASE_UNAVAILABLE")
+        kernel32 = win_dll("kernel32", use_last_error=True)
+
+        class Overlapped(ctypes.Structure):
+            _fields_ = [
+                ("Internal", ctypes.c_size_t),
+                ("InternalHigh", ctypes.c_size_t),
+                ("Offset", ctypes.c_uint32),
+                ("OffsetHigh", ctypes.c_uint32),
+                ("hEvent", ctypes.c_void_p),
+            ]
+
+        overlapped = Overlapped()
+        lock_file_ex = kernel32.LockFileEx
+        lock_file_ex.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.POINTER(Overlapped),
+        ]
+        lock_file_ex.restype = ctypes.c_int
+        if lock_file_ex(
+            ctypes.c_void_p(descriptor),
+            0x00000002 | 0x00000001,
+            0,
+            1,
+            0,
+            ctypes.byref(overlapped),
+        ):
+            return True
+        error_code = ctypes.get_last_error()
+        if error_code in {32, 33}:
+            return False
+        raise OSError(error_code, "LockFileEx failed")
+
+    fcntl = cast(Any, importlib.import_module("fcntl"))
+
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return False
+    return True
+
+
+def _release_platform_lease(descriptor: int) -> None:
+    if os.name == "nt":
+        import ctypes
+
+        win_dll = getattr(ctypes, "WinDLL", None)
+        if not callable(win_dll):
+            raise ExecutionOverlayError("QUIESCENCE_LEASE_UNAVAILABLE")
+        kernel32 = win_dll("kernel32", use_last_error=True)
+
+        class Overlapped(ctypes.Structure):
+            _fields_ = [
+                ("Internal", ctypes.c_size_t),
+                ("InternalHigh", ctypes.c_size_t),
+                ("Offset", ctypes.c_uint32),
+                ("OffsetHigh", ctypes.c_uint32),
+                ("hEvent", ctypes.c_void_p),
+            ]
+
+        overlapped = Overlapped()
+        unlock_file_ex = kernel32.UnlockFileEx
+        unlock_file_ex.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.POINTER(Overlapped),
+        ]
+        unlock_file_ex.restype = ctypes.c_int
+        if not unlock_file_ex(ctypes.c_void_p(descriptor), 0, 1, 0, ctypes.byref(overlapped)):
+            raise OSError(ctypes.get_last_error(), "UnlockFileEx failed")
+        return
+
+    fcntl = cast(Any, importlib.import_module("fcntl"))
+
+    fcntl.flock(descriptor, fcntl.LOCK_UN)
+
+
+def _close_platform_lease(descriptor: int) -> None:
+    if os.name == "nt":
+        _close_windows_handles([descriptor])
+        return
+    os.close(descriptor)
+
+
+def _read_platform_lease_bytes(descriptor: int) -> bytes:
+    if os.name == "nt":
+        return _read_windows_file_handle(descriptor)
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    return os.read(descriptor, 2)
+
+
+def _initialize_platform_lease_file(descriptor: int) -> None:
+    actual = _read_platform_lease_bytes(descriptor)
+    if actual == b"\0":
+        return
+    if actual:
+        raise ExecutionOverlayError("QUIESCENCE_LEASE_FILE_INVALID")
+    if os.name == "nt":
+        import ctypes
+
+        win_dll = getattr(ctypes, "WinDLL", None)
+        if not callable(win_dll):
+            raise ExecutionOverlayError("QUIESCENCE_LEASE_UNAVAILABLE")
+        kernel32 = win_dll("kernel32", use_last_error=True)
+        set_pointer = kernel32.SetFilePointerEx
+        set_pointer.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_longlong,
+            ctypes.POINTER(ctypes.c_longlong),
+            ctypes.c_uint32,
+        ]
+        set_pointer.restype = ctypes.c_int
+        write_file = kernel32.WriteFile
+        write_file.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.POINTER(ctypes.c_uint32),
+            ctypes.c_void_p,
+        ]
+        write_file.restype = ctypes.c_int
+        flush_file = kernel32.FlushFileBuffers
+        flush_file.argtypes = [ctypes.c_void_p]
+        flush_file.restype = ctypes.c_int
+        if not set_pointer(ctypes.c_void_p(descriptor), 0, None, 0):
+            raise ExecutionOverlayError("QUIESCENCE_LEASE_FILE_INVALID")
+        payload = ctypes.create_string_buffer(b"\0")
+        written = ctypes.c_uint32()
+        if (
+            not write_file(ctypes.c_void_p(descriptor), payload, 1, ctypes.byref(written), None)
+            or written.value != 1
+        ):
+            raise ExecutionOverlayError("QUIESCENCE_LEASE_FILE_INVALID")
+        if not flush_file(ctypes.c_void_p(descriptor)):
+            raise ExecutionOverlayError("QUIESCENCE_LEASE_FILE_INVALID")
+    else:
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        if os.write(descriptor, b"\0") != 1:
+            raise ExecutionOverlayError("QUIESCENCE_LEASE_FILE_INVALID")
+        os.fsync(descriptor)
+    if _read_platform_lease_bytes(descriptor) != b"\0":
+        raise ExecutionOverlayError("QUIESCENCE_LEASE_FILE_INVALID")
+
+
+@contextmanager
+def _v2_quiescence_lease(control_root: Path) -> Iterator[None]:
+    """Serialize cooperative v2 writers for one private-control namespace.
+
+    The file is intentionally persistent.  Its held descriptor, rather than a
+    directory probe or a delete/recreate convention, is the cross-process
+    exclusion authority.  A crashed holder releases the OS lock automatically.
+    """
+    _validate_v2_control_root(control_root)
+    lock_path = _lease_path(control_root)
+    key = _normalized_path_value(lock_path)
+    owner = threading.get_ident()
+    reentrant = False
+    with _LEASE_GUARD:
+        held = _LEASES.get(key)
+        if held is not None and held[0] == owner:
+            _LEASES[key] = (owner, held[1] + 1, held[2])
+            reentrant = True
+    if reentrant:
+        try:
+            yield
+        finally:
+            with _LEASE_GUARD:
+                current = _LEASES.get(key)
+                if current is None or current[0] != owner or current[1] <= 1:
+                    raise ExecutionOverlayError("QUIESCENCE_LEASE_OWNERSHIP_LOST")
+                _LEASES[key] = (owner, current[1] - 1, current[2])
+        return
+
+    descriptor: int | None = None
+    deadline = time.monotonic() + QUIESCENCE_LEASE_TIMEOUT_SECONDS
+    while descriptor is None:
+        with _LEASE_GUARD:
+            held = _LEASES.get(key)
+            local_busy = held is not None or key in _LEASE_PENDING
+            if not local_busy:
+                _LEASE_PENDING.add(key)
+        if not local_busy:
+            try:
+                candidate = _open_quiescence_lease_file(control_root)
+                try:
+                    _require_plain_file(lock_path)
+                    if _acquire_platform_lease(candidate):
+                        _require_plain_file(lock_path)
+                        _initialize_platform_lease_file(candidate)
+                        with _LEASE_GUARD:
+                            _LEASES[key] = (owner, 1, candidate)
+                            descriptor = candidate
+                            candidate = -1
+                finally:
+                    if candidate >= 0:
+                        _close_platform_lease(candidate)
+            except OSError as error:
+                raise ExecutionOverlayError("QUIESCENCE_LEASE_UNAVAILABLE") from error
+            finally:
+                with _LEASE_GUARD:
+                    _LEASE_PENDING.discard(key)
+        if descriptor is None:
+            if time.monotonic() >= deadline:
+                raise ExecutionOverlayError("QUIESCENCE_LEASE_BUSY")
+            time.sleep(QUIESCENCE_LEASE_RETRY_SECONDS)
+    try:
+        yield
+    finally:
+        with _LEASE_GUARD:
+            current = cast(tuple[int, int, int], _LEASES.get(key))
+            if current is None or current[0] != owner:
+                raise ExecutionOverlayError("QUIESCENCE_LEASE_OWNERSHIP_LOST")
+            if current[1] == 1:
+                del _LEASES[key]
+                _release_platform_lease(current[2])
+                _close_platform_lease(current[2])
+            else:
+                _LEASES[key] = (owner, current[1] - 1, current[2])
+
+
+def _is_v2_successor_state(state: Mapping[str, Any]) -> bool:
+    cross_root = state.get("rollover_predecessor")
+    if not isinstance(cross_root, dict):
+        return False
+    intent_id = cross_root.get("rollover_intent_id")
+    intent_file = cross_root.get("rollover_intent_file")
+    return (
+        isinstance(intent_id, str)
+        and intent_id.startswith("ROLLOVER-V2-")
+        and isinstance(intent_file, str)
+        and intent_file == f"rollover-v2-intent-{intent_id}.json"
+    )
+
+
+def _is_v2_successor_receipt(receipt_path: Path, controller_sha256: str) -> bool:
+    verified = verify_overlay(receipt_path, expected_controller_sha256=controller_sha256)
+    state = cast(dict[str, Any], verified["state"])
+    return _is_v2_successor_state(state)
+
+
+@contextmanager
+def v2_quiescence_lease_for_receipt(
+    *, receipt_path: Path, expected_controller_sha256: str
+) -> Iterator[None]:
+    """Internal capture/dispatch bridge; v1 retains its original semantics."""
+    if _is_v2_successor_receipt(receipt_path, expected_controller_sha256):
+        with _v2_quiescence_lease(receipt_path.parent):
+            yield
+        return
+    yield
+
+
+def _guard_v2_mutation[**P, T](function: Callable[P, T]) -> Callable[P, T]:
+    """Require the shared lease before any public successor state mutation."""
+
+    @wraps(function)
+    def guarded(*args: P.args, **kwargs: P.kwargs) -> T:
+        receipt_path = cast(Path, kwargs["receipt_path"])
+        controller_sha256 = cast(str, kwargs["expected_controller_sha256"])
+        with v2_quiescence_lease_for_receipt(
+            receipt_path=receipt_path, expected_controller_sha256=controller_sha256
+        ):
+            return function(*args, **kwargs)
+
+    return guarded
 
 
 def _validate_digest(value: str, field: str) -> None:
@@ -391,6 +750,8 @@ def _commit_transition(
         receipt_path=receipt_path,
         sequence=sequence,
         phase=cast(str, verified["state"]["phase"]),
+        receipt_sha256=sha256_file(receipt_path),
+        state_sha256=cast(str, receipt["state_sha256"]),
     )
 
 
@@ -585,6 +946,7 @@ def _previous_receipt_binding(receipt_path: Path, receipt: Mapping[str, Any]) ->
     }
 
 
+@_guard_v2_mutation
 def prepare_dispatch(
     *,
     receipt_path: Path,
@@ -593,6 +955,8 @@ def prepare_dispatch(
     action_id: str,
     expected_output_opaque_id: str,
     timestamp: str,
+    expected_ready_receipt_sha256: str | None = None,
+    expected_ready_state_sha256: str | None = None,
 ) -> OverlayHandle:
     _validate_opaque_id(action_id, "ACTION_ID")
     _validate_opaque_id(expected_output_opaque_id, "EXPECTED_OUTPUT_OPAQUE_ID")
@@ -602,6 +966,23 @@ def prepare_dispatch(
         receipt_path,
         expected_controller_sha256=expected_controller_sha256,
     )
+    is_v2 = _is_v2_successor_state(state)
+    if is_v2:
+        if expected_ready_receipt_sha256 is None:
+            raise ExecutionOverlayError("V2_DISPATCH_READY_RECEIPT_DIGEST_REQUIRED")
+        if expected_ready_state_sha256 is None:
+            raise ExecutionOverlayError("V2_DISPATCH_READY_STATE_DIGEST_REQUIRED")
+        _validate_digest(expected_ready_receipt_sha256, "EXPECTED_READY_RECEIPT_SHA256")
+        _validate_digest(expected_ready_state_sha256, "EXPECTED_READY_STATE_SHA256")
+        if sha256_file(receipt_path) != expected_ready_receipt_sha256:
+            raise ExecutionOverlayError("V2_DISPATCH_READY_RECEIPT_DIGEST_MISMATCH")
+        if receipt.get("state_sha256") != expected_ready_state_sha256:
+            raise ExecutionOverlayError("V2_DISPATCH_READY_STATE_DIGEST_MISMATCH")
+        next_receipt = _safe_child(root, _receipt_name(cast(int, receipt["sequence"]) + 1))
+        if next_receipt.exists() or next_receipt.is_symlink():
+            raise ExecutionOverlayError("V2_DISPATCH_STALE_READY_HANDLE")
+    elif expected_ready_receipt_sha256 is not None or expected_ready_state_sha256 is not None:
+        raise ExecutionOverlayError("V1_DISPATCH_READY_RECEIPT_DIGEST_UNSUPPORTED")
     if state["phase"] != "READY" or state["hard_stop"] is not False:
         raise ExecutionOverlayError("DISPATCH_PREPARE_STATE_INVALID")
     if state["next_unused_ordinal"] != ordinal:
@@ -652,6 +1033,7 @@ def prepare_dispatch(
     )
 
 
+@_guard_v2_mutation
 def consume_dispatch(
     *,
     receipt_path: Path,
@@ -712,6 +1094,7 @@ def consume_dispatch(
     )
 
 
+@_guard_v2_mutation
 def mark_dispatch_failed(
     *,
     receipt_path: Path,
@@ -768,6 +1151,7 @@ def mark_dispatch_failed(
     )
 
 
+@_guard_v2_mutation
 def record_output_returned(
     *,
     receipt_path: Path,
@@ -875,6 +1259,7 @@ def record_output_returned(
     )
 
 
+@_guard_v2_mutation
 def mark_registration_failed(
     *,
     receipt_path: Path,
@@ -1636,7 +2021,14 @@ def _assert_windows_plain_directory_handle(handle: int, expected_path: Path) -> 
 
 
 def _open_windows_relative_plain_file(
-    *, parent_handle: int, file_name: str, expected_path: Path, create_new: bool
+    *,
+    parent_handle: int,
+    file_name: str,
+    expected_path: Path,
+    create_new: bool,
+    open_if: bool = False,
+    share_access: int = 0x00000001,
+    write_access: bool = False,
 ) -> int:
     import ctypes
 
@@ -1702,7 +2094,9 @@ def _open_windows_relative_plain_file(
         ctypes.c_ulong,
     ]
     nt_create_file.restype = ctypes.c_long
-    desired_access = (0xC0000000 if create_new else 0x80000000) | 0x00100000
+    if create_new and open_if:
+        raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_MODE_INVALID")
+    desired_access = (0xC0000000 if create_new or write_access else 0x80000000) | 0x00100000
     status = nt_create_file(
         ctypes.byref(output_handle),
         desired_access,
@@ -1710,8 +2104,8 @@ def _open_windows_relative_plain_file(
         ctypes.byref(io_status),
         None,
         0x00000080,
-        0x00000001,
-        2 if create_new else 1,
+        share_access,
+        3 if open_if else (2 if create_new else 1),
         0x00200000 | 0x00000040 | 0x00000020,
         None,
         0,
@@ -2538,6 +2932,7 @@ def _commit_output_registration(
     )
 
 
+@_guard_v2_mutation
 def register_output_before_decode(
     *,
     receipt_path: Path,
@@ -2609,6 +3004,7 @@ def register_output_before_decode(
             ) from terminal_error
 
 
+@_guard_v2_mutation
 def register_imagegen_data_url_before_decode(
     *,
     receipt_path: Path,
@@ -3293,6 +3689,48 @@ def rollover_terminal_overlay_v2(
     successor_overlay_output_id: str,
     timestamp: str,
 ) -> OverlayHandle:
+    """Create or recover a v2 successor under the shared custody lease."""
+    _validate_timestamp(timestamp)
+    _validate_opaque_id(successor_overlay_output_id, "SUCCESSOR_OVERLAY_OUTPUT_ID")
+    _validate_project_local_private_parent(
+        project_worktree_root=project_worktree_root, allowed_parent=allowed_parent
+    )
+    if not allowed_parent.is_absolute() or not successor_root.is_absolute():
+        raise ExecutionOverlayError("V2_ROLLOVER_ABSOLUTE_PATH_REQUIRED")
+    if successor_root.parent.resolve() != allowed_parent.resolve():
+        raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_ROOT_OUTSIDE_ALLOWED_PARENT")
+    if predecessor_receipt_path.parent.parent.resolve() != allowed_parent.resolve():
+        raise ExecutionOverlayError("V2_ROLLOVER_PREDECESSOR_ROOT_OUTSIDE_ALLOWED_PARENT")
+    if predecessor_receipt_path.parent.resolve() == successor_root.resolve():
+        raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_MUST_BE_NEW_ROOT")
+    _validate_opaque_id(successor_root.name, "V2_ROLLOVER_SUCCESSOR_ROOT_NAME")
+    return _rollover_terminal_overlay_v2_unleased(
+        predecessor_receipt_path=predecessor_receipt_path,
+        expected_predecessor_receipt_sha256=expected_predecessor_receipt_sha256,
+        expected_predecessor_state_sha256=expected_predecessor_state_sha256,
+        expected_predecessor_event_sha256=expected_predecessor_event_sha256,
+        expected_controller_sha256=expected_controller_sha256,
+        project_worktree_root=project_worktree_root,
+        allowed_parent=allowed_parent,
+        successor_root=successor_root,
+        successor_overlay_output_id=successor_overlay_output_id,
+        timestamp=timestamp,
+    )
+
+
+def _rollover_terminal_overlay_v2_unleased(
+    *,
+    predecessor_receipt_path: Path,
+    expected_predecessor_receipt_sha256: str,
+    expected_predecessor_state_sha256: str,
+    expected_predecessor_event_sha256: str,
+    expected_controller_sha256: str,
+    project_worktree_root: Path,
+    allowed_parent: Path,
+    successor_root: Path,
+    successor_overlay_output_id: str,
+    timestamp: str,
+) -> OverlayHandle:
     """Create or recover the zero-work CAL-REQ-004 successor exactly once."""
     _validate_timestamp(timestamp)
     _validate_opaque_id(successor_overlay_output_id, "SUCCESSOR_OVERLAY_OUTPUT_ID")
@@ -3361,8 +3799,63 @@ def rollover_terminal_overlay_v2(
             _create_new_plain_directory(successor_root)
         except ExecutionOverlayError as error:
             if str(error) == "CREATE_NEW_TARGET_PREEXISTS":
-                raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_ROOT_CREATE_RACE") from error
-            raise
+                _create_or_verify_plain_directory(successor_root)
+            else:
+                raise
+    with _v2_quiescence_lease(successor_root):
+        return _commit_rollover_successor_v2_locked(
+            predecessor_receipt_path=predecessor_receipt_path,
+            expected_predecessor_receipt_sha256=expected_predecessor_receipt_sha256,
+            expected_predecessor_state_sha256=expected_predecessor_state_sha256,
+            expected_predecessor_event_sha256=expected_predecessor_event_sha256,
+            expected_controller_sha256=expected_controller_sha256,
+            project_worktree_root=project_worktree_root,
+            allowed_parent=allowed_parent,
+            successor_root=successor_root,
+            successor_overlay_output_id=successor_overlay_output_id,
+            timestamp=timestamp,
+            parent_sha256=parent_sha256,
+            predecessor_state=predecessor_state,
+            predecessor_binding=predecessor_binding,
+            intent_id=intent_id,
+            intent_name=intent_name,
+            intent_path=intent_path,
+            intent_sha256=intent_sha256,
+        )
+
+
+def _commit_rollover_successor_v2_locked(
+    *,
+    predecessor_receipt_path: Path,
+    expected_predecessor_receipt_sha256: str,
+    expected_predecessor_state_sha256: str,
+    expected_predecessor_event_sha256: str,
+    expected_controller_sha256: str,
+    project_worktree_root: Path,
+    allowed_parent: Path,
+    successor_root: Path,
+    successor_overlay_output_id: str,
+    timestamp: str,
+    parent_sha256: str,
+    predecessor_state: Mapping[str, Any],
+    predecessor_binding: Mapping[str, Any],
+    intent_id: str,
+    intent_name: str,
+    intent_path: Path,
+    intent_sha256: str,
+) -> OverlayHandle:
+    """Revalidate zero work and durably commit READY while holding the lease."""
+    _receipt, _event, locked_state, locked_binding = _verified_terminal_rollover_predecessor_v2(
+        predecessor_receipt_path,
+        expected_predecessor_receipt_sha256=expected_predecessor_receipt_sha256,
+        expected_predecessor_state_sha256=expected_predecessor_state_sha256,
+        expected_predecessor_event_sha256=expected_predecessor_event_sha256,
+        expected_controller_sha256=expected_controller_sha256,
+        project_worktree_root=project_worktree_root,
+        allowed_parent=allowed_parent,
+    )
+    if locked_state != predecessor_state or locked_binding != predecessor_binding:
+        raise ExecutionOverlayError("V2_ROLLOVER_PREDECESSOR_CHANGED_UNDER_LEASE")
     _create_or_verify_plain_directory(successor_root / "staging")
     _create_or_verify_plain_directory(successor_root / "records")
     _require_empty_rollover_directory_v2(successor_root / "staging")
@@ -3424,7 +3917,7 @@ def rollover_terminal_overlay_v2(
         state=state,
         previous_receipt=None,
     )
-    verify_rollover_successor_v2(
+    _verify_rollover_successor_v2_unleased(
         handle.receipt_path,
         predecessor_receipt_path=predecessor_receipt_path,
         expected_predecessor_receipt_sha256=expected_predecessor_receipt_sha256,
@@ -3437,6 +3930,39 @@ def rollover_terminal_overlay_v2(
 
 
 def verify_rollover_successor_v2(
+    successor_receipt_path: Path,
+    *,
+    predecessor_receipt_path: Path,
+    expected_predecessor_receipt_sha256: str,
+    expected_predecessor_state_sha256: str,
+    expected_predecessor_event_sha256: str,
+    expected_controller_sha256: str,
+    project_worktree_root: Path,
+) -> dict[str, Any]:
+    """Verify the successor under the same cooperative custody lease."""
+    if not successor_receipt_path.is_absolute():
+        raise ExecutionOverlayError("V2_ROLLOVER_ABSOLUTE_PATH_REQUIRED")
+    allowed_parent = successor_receipt_path.parent.parent
+    _validate_project_local_private_parent(
+        project_worktree_root=project_worktree_root,
+        allowed_parent=allowed_parent,
+    )
+    if predecessor_receipt_path.parent.parent.resolve() != allowed_parent.resolve():
+        raise ExecutionOverlayError("V2_ROLLOVER_PREDECESSOR_ROOT_OUTSIDE_ALLOWED_PARENT")
+    _require_plain_directory(successor_receipt_path.parent)
+    with _v2_quiescence_lease(successor_receipt_path.parent):
+        return _verify_rollover_successor_v2_unleased(
+            successor_receipt_path,
+            predecessor_receipt_path=predecessor_receipt_path,
+            expected_predecessor_receipt_sha256=expected_predecessor_receipt_sha256,
+            expected_predecessor_state_sha256=expected_predecessor_state_sha256,
+            expected_predecessor_event_sha256=expected_predecessor_event_sha256,
+            expected_controller_sha256=expected_controller_sha256,
+            project_worktree_root=project_worktree_root,
+        )
+
+
+def _verify_rollover_successor_v2_unleased(
     successor_receipt_path: Path,
     *,
     predecessor_receipt_path: Path,

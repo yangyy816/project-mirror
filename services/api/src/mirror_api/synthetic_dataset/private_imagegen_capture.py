@@ -17,20 +17,23 @@ from typing import Any, BinaryIO, Final, Protocol, TextIO, cast
 from mirror_api.synthetic_dataset.private_execution_overlay import (
     MAX_DATA_URL_ENCODED_BYTES,
     ExecutionOverlayError,
+    _is_v2_successor_state,
     _validate_project_local_private_parent,
     _write_json_create_or_verify_exact,
     record_output_returned,
     register_imagegen_data_url_before_decode,
+    v2_quiescence_lease_for_receipt,
     verify_overlay,
     verify_registration_before_decode,
 )
 
 CAPTURE_SESSION_SCHEMA: Final = "mirror.p2-m5/PrivateImageGenCaptureSession/v1"
+CAPTURE_SESSION_SCHEMA_V2: Final = "mirror.p2-m5/PrivateImageGenCaptureSession/v2"
 CAPTURE_COMPLETION_SCHEMA: Final = "mirror.p2-m5/PrivateImageGenCaptureCompletion/v1"
 MAX_CAPTURE_HANDLE_BYTES: Final = 64 * 1024
 MAX_DATA_URL_LINE_BYTES: Final = MAX_DATA_URL_ENCODED_BYTES + 64
 _HANDLE_ID: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$")
-_EXPECTED_HANDLE_KEYS: Final = frozenset(
+_EXPECTED_HANDLE_KEYS_V1: Final = frozenset(
     {
         "schema_version",
         "handle_id",
@@ -48,6 +51,7 @@ _EXPECTED_HANDLE_KEYS: Final = frozenset(
         "upload_to_github",
     }
 )
+_EXPECTED_HANDLE_KEYS_V2: Final = _EXPECTED_HANDLE_KEYS_V1 | {"state_sha256"}
 
 
 class PrivateImageGenCaptureError(RuntimeError):
@@ -130,7 +134,7 @@ def _verified_consumed_state(
     ordinal: str,
     action_id: str,
     expected_output_opaque_id: str,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     try:
         verified = verify_overlay(
             receipt_path,
@@ -138,6 +142,7 @@ def _verified_consumed_state(
         )
     except ExecutionOverlayError as error:
         raise PrivateImageGenCaptureError("CAPTURE_SESSION_OVERLAY_INVALID") from error
+    receipt = cast(dict[str, Any], verified["receipt"])
     state = cast(dict[str, Any], verified["state"])
     if (
         state.get("phase") != "DISPATCH_STARTED_CONSUMED"
@@ -151,10 +156,52 @@ def _verified_consumed_state(
         or state.get("output_registration") is not None
     ):
         raise PrivateImageGenCaptureError("CAPTURE_SESSION_OVERLAY_NOT_CONSUMED")
-    return state
+    sequence = receipt.get("sequence")
+    if not isinstance(sequence, int) or sequence < 0 or state.get("sequence") != sequence:
+        raise PrivateImageGenCaptureError("CAPTURE_SESSION_OVERLAY_INVALID")
+    for prefix in ("event", "state", "receipt"):
+        successor_path = receipt_path.parent / f"{prefix}-{sequence + 1:06d}.json"
+        try:
+            successor_path.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            raise PrivateImageGenCaptureError("CAPTURE_SESSION_TIP_CHECK_FAILED") from error
+        raise PrivateImageGenCaptureError("CAPTURE_SESSION_STALE_RECEIPT")
+    return state, receipt
 
 
 def create_capture_session_handle(
+    *,
+    project_worktree_root: Path,
+    handle_id: str,
+    task_id: str,
+    receipt_path: Path,
+    controller_sha256: str,
+    ordinal: str,
+    action_id: str,
+    expected_output_opaque_id: str,
+    returned_timestamp: str,
+    registration_timestamp: str,
+) -> Path:
+    with v2_quiescence_lease_for_receipt(
+        receipt_path=receipt_path, expected_controller_sha256=controller_sha256
+    ):
+        return _create_capture_session_handle_unleased(
+            project_worktree_root=project_worktree_root,
+            handle_id=handle_id,
+            task_id=task_id,
+            receipt_path=receipt_path,
+            controller_sha256=controller_sha256,
+            ordinal=ordinal,
+            action_id=action_id,
+            expected_output_opaque_id=expected_output_opaque_id,
+            returned_timestamp=returned_timestamp,
+            registration_timestamp=registration_timestamp,
+        )
+
+
+def _create_capture_session_handle_unleased(
     *,
     project_worktree_root: Path,
     handle_id: str,
@@ -177,15 +224,16 @@ def create_capture_session_handle(
     except ValueError as error:
         raise PrivateImageGenCaptureError("CAPTURE_RECEIPT_OUTSIDE_PRIVATE_PARENT") from error
     _require_plain_file(resolved_receipt)
-    _verified_consumed_state(
+    state, receipt = _verified_consumed_state(
         resolved_receipt,
         controller_sha256=controller_sha256,
         ordinal=ordinal,
         action_id=action_id,
         expected_output_opaque_id=expected_output_opaque_id,
     )
-    handle = {
-        "schema_version": CAPTURE_SESSION_SCHEMA,
+    is_v2 = _is_v2_successor_state(state)
+    handle: dict[str, Any] = {
+        "schema_version": CAPTURE_SESSION_SCHEMA_V2 if is_v2 else CAPTURE_SESSION_SCHEMA,
         "handle_id": handle_id,
         "task_id": task_id,
         "ordinal": ordinal,
@@ -200,6 +248,8 @@ def create_capture_session_handle(
         "plaintext_persistence": "PROHIBITED",
         "upload_to_github": False,
     }
+    if is_v2:
+        handle["state_sha256"] = _validate_digest(receipt.get("state_sha256"), "STATE_SHA256")
     handle_path = private_parent / f"{handle_id}.json"
     try:
         _write_json_create_or_verify_exact(handle_path, handle)
@@ -228,13 +278,21 @@ def load_capture_session(
         handle = json.loads(handle_bytes.decode("utf-8"))
     except (UnicodeError, json.JSONDecodeError) as error:
         raise PrivateImageGenCaptureError("CAPTURE_SESSION_HANDLE_JSON_INVALID") from error
-    if not isinstance(handle, dict) or frozenset(handle) != _EXPECTED_HANDLE_KEYS:
+    if not isinstance(handle, dict):
+        raise PrivateImageGenCaptureError("CAPTURE_SESSION_HANDLE_SHAPE_INVALID")
+    schema_version = handle.get("schema_version")
+    if schema_version == CAPTURE_SESSION_SCHEMA:
+        expected_handle_keys = _EXPECTED_HANDLE_KEYS_V1
+    elif schema_version == CAPTURE_SESSION_SCHEMA_V2:
+        expected_handle_keys = _EXPECTED_HANDLE_KEYS_V2
+    else:
+        raise PrivateImageGenCaptureError("CAPTURE_SESSION_HANDLE_AUTHORITY_INVALID")
+    if frozenset(handle) != expected_handle_keys:
         raise PrivateImageGenCaptureError("CAPTURE_SESSION_HANDLE_SHAPE_INVALID")
     if handle_bytes != _canonical_json_bytes(handle):
         raise PrivateImageGenCaptureError("CAPTURE_SESSION_HANDLE_NOT_CANONICAL")
     if (
-        handle.get("schema_version") != CAPTURE_SESSION_SCHEMA
-        or handle.get("handle_id") != handle_id
+        handle.get("handle_id") != handle_id
         or handle.get("allowed_use") != "ONE_EXACT_CODEX_NATIVE_IMAGEGEN_DATA_URL_CAPTURE"
         or handle.get("plaintext_persistence") != "PROHIBITED"
         or handle.get("upload_to_github") is not False
@@ -291,13 +349,20 @@ def load_capture_session(
     for field in ("task_id", "ordinal", "action_id", "expected_output_opaque_id"):
         if not isinstance(handle.get(field), str) or not handle[field]:
             raise PrivateImageGenCaptureError(f"CAPTURE_{field.upper()}_INVALID")
-    _verified_consumed_state(
+    state, receipt = _verified_consumed_state(
         receipt_path,
         controller_sha256=controller_sha256,
         ordinal=cast(str, handle["ordinal"]),
         action_id=cast(str, handle["action_id"]),
         expected_output_opaque_id=cast(str, handle["expected_output_opaque_id"]),
     )
+    state_is_v2 = _is_v2_successor_state(state)
+    if state_is_v2 != (schema_version == CAPTURE_SESSION_SCHEMA_V2):
+        raise PrivateImageGenCaptureError("CAPTURE_SESSION_HANDLE_VERSION_MISMATCH")
+    if state_is_v2:
+        state_sha256 = _validate_digest(handle.get("state_sha256"), "STATE_SHA256")
+        if receipt.get("state_sha256") != state_sha256:
+            raise PrivateImageGenCaptureError("CAPTURE_STATE_DIGEST_MISMATCH")
     return cast(dict[str, Any], handle), receipt_path
 
 
@@ -355,6 +420,28 @@ def no_echo_terminal_input(stream: BinaryIO) -> Iterator[None]:
 
 
 def capture_active_session(
+    *,
+    project_worktree_root: Path,
+    handle_id: str,
+    input_stream: BinaryIO,
+    ready_stream: TextIO,
+) -> dict[str, Any]:
+    _handle, receipt_path = load_capture_session(
+        project_worktree_root=project_worktree_root, handle_id=handle_id
+    )
+    with v2_quiescence_lease_for_receipt(
+        receipt_path=receipt_path,
+        expected_controller_sha256=cast(str, _handle["controller_sha256"]),
+    ):
+        return _capture_active_session_unleased(
+            project_worktree_root=project_worktree_root,
+            handle_id=handle_id,
+            input_stream=input_stream,
+            ready_stream=ready_stream,
+        )
+
+
+def _capture_active_session_unleased(
     *,
     project_worktree_root: Path,
     handle_id: str,
