@@ -233,7 +233,10 @@ def _acquire_platform_lease(descriptor: int) -> bool:
             ctypes.byref(overlapped),
         ):
             return True
-        error_code = ctypes.get_last_error()
+        get_last_error = getattr(ctypes, "get_last_error", None)
+        if not callable(get_last_error):
+            raise ExecutionOverlayError("QUIESCENCE_LEASE_UNAVAILABLE")
+        error_code = cast(int, get_last_error())
         if error_code in {32, 33}:
             return False
         raise OSError(error_code, "LockFileEx failed")
@@ -276,7 +279,10 @@ def _release_platform_lease(descriptor: int) -> None:
         ]
         unlock_file_ex.restype = ctypes.c_int
         if not unlock_file_ex(ctypes.c_void_p(descriptor), 0, 1, 0, ctypes.byref(overlapped)):
-            raise OSError(ctypes.get_last_error(), "UnlockFileEx failed")
+            get_last_error = getattr(ctypes, "get_last_error", None)
+            if not callable(get_last_error):
+                raise ExecutionOverlayError("QUIESCENCE_LEASE_UNAVAILABLE")
+            raise OSError(cast(int, get_last_error()), "UnlockFileEx failed")
         return
 
     fcntl = cast(Any, importlib.import_module("fcntl"))
