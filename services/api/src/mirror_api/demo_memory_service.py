@@ -30,6 +30,7 @@ from mirror_api.demo_models import (
     DemoContextCompilation,
     DemoDesiredDeltaProfile,
     DemoIdentityConstraints,
+    DemoImageVersion,
     DemoJobBinding,
     DemoPreferenceEvent,
     DemoReferenceProfile,
@@ -58,6 +59,7 @@ _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _REQUEST_ID = re.compile(r"^[^\r\n\x00]{8,128}$")
 _PROFILE_REASONS: Final = frozenset({"USER_REQUEST", "RESET", "ROLLBACK", "TOMBSTONE_PROPAGATION"})
 _CONTEXT_TTL: Final = timedelta(minutes=30)
+_NON_EVENT_SEQUENCE: Final = 0
 _CONTEXT_BUDGETS: Final[dict[str, int]] = {
     "accepted_visual_episodes": 4,
     "current_session_events": 8,
@@ -198,10 +200,21 @@ class _ProfileSources:
     style: DemoStyleProfile | None
     constraints: DemoIdentityConstraints | None
     reference: DemoReferenceProfile | None
+    reference_dependencies: _ReferenceDependencies | None
     episodes: tuple[tuple[DemoAcceptedVisualEpisode, DemoPreferenceEvent], ...]
     controls: tuple[DemoPreferenceEvent, ...]
     negative_feedback: tuple[DemoPreferenceEvent, ...]
     excluded_acceptance: tuple[DemoPreferenceEvent, ...]
+
+
+@dataclass(frozen=True)
+class _ReferenceDependencies:
+    style_profile_id: str | None
+    identity_constraints_id: str | None
+    source_asset_ids: tuple[str, ...]
+    source_image_version_ids: tuple[str, ...]
+    source_image_version_digests: tuple[str, ...]
+    dependency_event_digests: tuple[str, ...]
 
 
 class DemoMemoryService:
@@ -212,9 +225,11 @@ class DemoMemoryService:
         *,
         session_factory: async_sessionmaker[AsyncSession],
         now: Callable[[], datetime] = utcnow,
+        post_write_probe: Callable[[Literal["PROFILE", "CONTEXT"]], None] | None = None,
     ) -> None:
         self._sessions = session_factory
         self._now = now
+        self._post_write_probe = post_write_probe
 
     async def rebuild_profile(
         self, command: RebuildDemoAestheticProfile
@@ -329,6 +344,7 @@ class DemoMemoryService:
                 )
                 session.add(profile)
                 await session.flush()
+                self._run_post_write_probe("PROFILE")
                 _finish_execution(
                     job,
                     attempt,
@@ -492,6 +508,7 @@ class DemoMemoryService:
                 )
                 session.add(context)
                 await session.flush()
+                self._run_post_write_probe("CONTEXT")
                 _finish_execution(
                     job,
                     attempt,
@@ -549,11 +566,34 @@ class DemoMemoryService:
                 ).all()
             )
             profiles_by_id = {profile.id: profile for profile in profiles}
+            events_by_digest = {event.content_digest: event for event in projection.events}
+            episode_rows = tuple(
+                (
+                    await session.execute(
+                        select(DemoAcceptedVisualEpisode, DemoPreferenceEvent)
+                        .join(
+                            DemoPreferenceEvent,
+                            DemoPreferenceEvent.id == DemoAcceptedVisualEpisode.acceptance_event_id,
+                        )
+                        .where(DemoAcceptedVisualEpisode.demo_actor_id == demo_actor_id)
+                    )
+                ).all()
+            )
+            episodes_by_digest = {
+                episode.content_digest: (episode, event) for episode, event in episode_rows
+            }
             for context in contexts:
                 profile = profiles_by_id.get(context.aesthetic_profile_id)
                 if (
                     profile is not None
                     and _profile_is_active(profile, projection)
+                    and _context_selected_evidence_is_active(
+                        context,
+                        profile=profile,
+                        projection=projection,
+                        events_by_digest=events_by_digest,
+                        episodes_by_digest=episodes_by_digest,
+                    )
                     and (
                         "CONTEXT_COMPILATION",
                         context.id,
@@ -573,6 +613,10 @@ class DemoMemoryService:
         if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
             raise DemoMemoryAuthorityCorruption("D10 audit clock must be timezone-aware")
         return value.astimezone(UTC)
+
+    def _run_post_write_probe(self, stage: Literal["PROFILE", "CONTEXT"]) -> None:
+        if self._post_write_probe is not None:
+            self._post_write_probe(stage)
 
 
 async def _acquire_actor_lock(session: AsyncSession, actor_id: str) -> None:
@@ -813,17 +857,75 @@ async def _profile_sources(
             )
         ).all()
     )
-    reference = next(
-        (
-            item
-            for item in reference_rows
-            if desired is not None
-            and item.desired_delta_profile_id == desired.id
-            and ("REFERENCE_PROFILE", item.id) not in projection.invalidated_targets
-            and _event_evidence_is_active(item.evidence_digests, projection)
-        ),
-        None,
-    )
+    image_versions_by_result_asset = {
+        item.result_asset_id: item
+        for item in (
+            await session.scalars(
+                select(DemoImageVersion).where(DemoImageVersion.demo_actor_id == actor_id)
+            )
+        ).all()
+    }
+    styles_by_id = {item.id: item for item in style_rows}
+    constraints_by_id = {item.id: item for item in constraint_rows}
+    reference: DemoReferenceProfile | None = None
+    reference_dependencies: _ReferenceDependencies | None = None
+    for item in reference_rows:
+        if (
+            desired is None
+            or item.desired_delta_profile_id != desired.id
+            or ("REFERENCE_PROFILE", item.id) in projection.invalidated_targets
+            or not _event_evidence_is_active(item.evidence_digests, projection)
+        ):
+            continue
+        linked_style = (
+            None if item.style_profile_id is None else styles_by_id.get(item.style_profile_id)
+        )
+        if item.style_profile_id is not None and (
+            linked_style is None
+            or not _source_is_active(
+                target_type="STYLE_PROFILE",
+                target_id=linked_style.id,
+                as_of_event_sequence=linked_style.as_of_event_sequence,
+                evidence_digests=linked_style.evidence_digests,
+                projection=projection,
+            )
+        ):
+            continue
+        linked_constraints = (
+            None
+            if item.identity_constraints_id is None
+            else constraints_by_id.get(item.identity_constraints_id)
+        )
+        if item.identity_constraints_id is not None and (
+            linked_constraints is None
+            or not _event_evidence_is_active(linked_constraints.source_event_digests, projection)
+            or (
+                linked_constraints.self_state_id is not None
+                and ("SELF_STATE", linked_constraints.self_state_id)
+                in projection.invalidated_targets
+            )
+        ):
+            continue
+        expected_dependency_digests = {desired.content_digest}
+        if linked_style is not None:
+            expected_dependency_digests.add(linked_style.content_digest)
+        if linked_constraints is not None:
+            expected_dependency_digests.add(linked_constraints.content_digest)
+        if not expected_dependency_digests.issubset(set(item.evidence_digests)):
+            continue
+        candidate_dependencies = _reference_dependencies(
+            item,
+            desired=desired,
+            style=linked_style,
+            constraints=linked_constraints,
+            image_versions_by_result_asset=image_versions_by_result_asset,
+            projection=projection,
+        )
+        if candidate_dependencies is None:
+            continue
+        reference = item
+        reference_dependencies = candidate_dependencies
+        break
 
     episodes = tuple(
         (
@@ -871,6 +973,7 @@ async def _profile_sources(
         style=style,
         constraints=constraints,
         reference=reference,
+        reference_dependencies=reference_dependencies,
         episodes=active_episodes,
         controls=controls,
         negative_feedback=negative_feedback,
@@ -900,6 +1003,97 @@ def _event_evidence_is_active(digests: Sequence[str], projection: _LifecycleProj
         if digest in projection.all_event_digests and digest not in projection.active_event_digests:
             return False
     return True
+
+
+def _reference_dependencies(
+    reference: DemoReferenceProfile,
+    *,
+    desired: DemoDesiredDeltaProfile,
+    style: DemoStyleProfile | None,
+    constraints: DemoIdentityConstraints | None,
+    image_versions_by_result_asset: Mapping[str, DemoImageVersion],
+    projection: _LifecycleProjection,
+) -> _ReferenceDependencies | None:
+    source_assets = reference.source_assets
+    source_views = reference.structured_profile.get("source_views")
+    if (
+        not isinstance(source_assets, list)
+        or not source_assets
+        or not isinstance(source_views, list)
+        or len(source_views) != len(source_assets)
+    ):
+        return None
+
+    views_by_asset: dict[str, Mapping[str, object]] = {}
+    for raw_view in source_views:
+        if not isinstance(raw_view, dict):
+            return None
+        asset_id = raw_view.get("asset_id")
+        image_digest = raw_view.get("image_version_digest")
+        sha256 = raw_view.get("sha256")
+        if (
+            not isinstance(asset_id, str)
+            or _ID.fullmatch(asset_id) is None
+            or not isinstance(image_digest, str)
+            or _DIGEST.fullmatch(image_digest) is None
+            or not isinstance(sha256, str)
+            or _DIGEST.fullmatch(sha256) is None
+            or asset_id in views_by_asset
+        ):
+            return None
+        views_by_asset[asset_id] = raw_view
+
+    source_asset_ids: list[str] = []
+    image_version_ids: list[str] = []
+    image_version_digests: list[str] = []
+    for raw_source in source_assets:
+        if not isinstance(raw_source, dict):
+            return None
+        asset_id = raw_source.get("asset_id")
+        sha256 = raw_source.get("sha256")
+        if (
+            not isinstance(asset_id, str)
+            or _ID.fullmatch(asset_id) is None
+            or not isinstance(sha256, str)
+            or _DIGEST.fullmatch(sha256) is None
+            or asset_id in source_asset_ids
+        ):
+            return None
+        source_view = views_by_asset.get(asset_id)
+        image_version = image_versions_by_result_asset.get(asset_id)
+        if (
+            source_view is None
+            or image_version is None
+            or image_version.content_digest != source_view.get("image_version_digest")
+            or image_version.result_asset_sha256 != sha256
+            or source_view.get("sha256") != sha256
+            or image_version.content_digest not in reference.evidence_digests
+            or ("IMAGE_VERSION", image_version.id) in projection.invalidated_targets
+        ):
+            return None
+        source_asset_ids.append(asset_id)
+        image_version_ids.append(image_version.id)
+        image_version_digests.append(image_version.content_digest)
+
+    if set(views_by_asset) != set(source_asset_ids):
+        return None
+    dependency_event_digests = sorted(
+        {
+            *desired.evidence_digests,
+            *(style.evidence_digests if style is not None else ()),
+            *(constraints.source_event_digests if constraints is not None else ()),
+        }
+    )
+    if not _event_evidence_is_active(dependency_event_digests, projection):
+        return None
+    return _ReferenceDependencies(
+        style_profile_id=None if style is None else style.id,
+        identity_constraints_id=None if constraints is None else constraints.id,
+        source_asset_ids=tuple(source_asset_ids),
+        source_image_version_ids=tuple(image_version_ids),
+        source_image_version_digests=tuple(image_version_digests),
+        dependency_event_digests=tuple(dependency_event_digests),
+    )
 
 
 def _profile_source_manifest(sources: _ProfileSources) -> list[dict[str, object]]:
@@ -932,11 +1126,22 @@ def _profile_source_manifest(sources: _ProfileSources) -> list[dict[str, object]
             }
         )
     if sources.reference is not None:
+        dependencies = sources.reference_dependencies
+        if dependencies is None:
+            raise DemoMemoryAuthorityCorruption(
+                "active ReferenceProfile has no validated dependency manifest"
+            )
         values.append(
             {
+                "dependency_event_digests": list(dependencies.dependency_event_digests),
                 "digest": sources.reference.content_digest,
                 "id": sources.reference.id,
+                "identity_constraints_id": dependencies.identity_constraints_id,
                 "kind": "REFERENCE_PROFILE",
+                "source_asset_ids": list(dependencies.source_asset_ids),
+                "source_image_version_digests": list(dependencies.source_image_version_digests),
+                "source_image_version_ids": list(dependencies.source_image_version_ids),
+                "style_profile_id": dependencies.style_profile_id,
                 "version": sources.reference.version,
             }
         )
@@ -1089,6 +1294,7 @@ async def _context_evidence(
     selected: list[dict[str, object]] = [
         {
             "digest": profile.content_digest,
+            "event_sequence": _NON_EVENT_SEQUENCE,
             "kind": "AESTHETIC_PROFILE",
             "priority": 2,
             "source_session_id": None,
@@ -1171,7 +1377,10 @@ async def _context_evidence(
     for episode, _event in eligible_episodes[:episode_limit]:
         selected.append(
             {
+                "acceptance_event_digest": _event.content_digest,
+                "accepted_image_version_id": episode.accepted_image_version_id,
                 "digest": episode.content_digest,
+                "event_sequence": _event.event_sequence,
                 "kind": "ACCEPTED_VISUAL_EPISODE",
                 "priority": 4,
                 "source_session_id": episode.demo_session_id,
@@ -1205,6 +1414,7 @@ async def _context_evidence(
     selected.sort(
         key=lambda item: (
             cast(int, item["priority"]),
+            cast(int, item["event_sequence"]),
             cast(str, item["kind"]),
             cast(str, item["digest"]),
         )
@@ -1325,6 +1535,8 @@ def _profile_is_active(profile: DemoAestheticProfile, projection: _LifecycleProj
             and (target_type, target_id) in projection.invalidated_targets
         ):
             return False
+        if kind == "REFERENCE_PROFILE" and not _reference_manifest_is_active(item, projection):
+            return False
         image_version_id = item.get("accepted_image_version_id")
         if (
             isinstance(image_version_id, str)
@@ -1340,6 +1552,129 @@ def _profile_is_active(profile: DemoAestheticProfile, projection: _LifecycleProj
         ):
             return False
     return True
+
+
+def _context_selected_evidence_is_active(
+    context: DemoContextCompilation,
+    *,
+    profile: DemoAestheticProfile,
+    projection: _LifecycleProjection,
+    events_by_digest: Mapping[str, DemoPreferenceEvent],
+    episodes_by_digest: Mapping[str, tuple[DemoAcceptedVisualEpisode, DemoPreferenceEvent]],
+) -> bool:
+    entries = context.selected_evidence
+    if not isinstance(entries, list) or not entries:
+        return False
+    profile_entries = 0
+    for entry in entries:
+        if not isinstance(entry, dict):
+            return False
+        digest = entry.get("digest")
+        kind = entry.get("kind")
+        event_sequence = entry.get("event_sequence")
+        if (
+            not isinstance(digest, str)
+            or _DIGEST.fullmatch(digest) is None
+            or not isinstance(kind, str)
+            or type(event_sequence) is not int
+            or event_sequence < 0
+        ):
+            return False
+        if kind == "AESTHETIC_PROFILE":
+            profile_entries += 1
+            if digest != profile.content_digest or event_sequence != _NON_EVENT_SEQUENCE:
+                return False
+            continue
+        if kind in {"CURRENT_SESSION_EVENT", "PERSISTENT_CONTROL_EVENT"}:
+            event = events_by_digest.get(digest)
+            expected_types = (
+                _CURRENT_SESSION_EVENT_TYPES
+                if kind == "CURRENT_SESSION_EVENT"
+                else _PERSISTENT_EVENT_TYPES
+            )
+            if (
+                event is None
+                or event.content_digest not in projection.active_event_digests
+                or event.event_sequence != event_sequence
+                or event.event_type not in expected_types
+                or (
+                    kind == "CURRENT_SESSION_EVENT"
+                    and event.demo_session_id != context.demo_session_id
+                )
+            ):
+                return False
+            continue
+        if kind == "ACCEPTED_VISUAL_EPISODE":
+            episode_row = episodes_by_digest.get(digest)
+            if episode_row is None:
+                return False
+            episode, event = episode_row
+            if (
+                event.content_digest not in projection.active_event_digests
+                or not projection.learning_at_event.get(event.id, False)
+                or event.event_sequence != event_sequence
+                or entry.get("acceptance_event_digest") != event.content_digest
+                or entry.get("accepted_image_version_id") != episode.accepted_image_version_id
+                or entry.get("source_session_id") != episode.demo_session_id
+                or ("IMAGE_VERSION", episode.accepted_image_version_id)
+                in projection.invalidated_targets
+            ):
+                return False
+            continue
+        return False
+    return profile_entries == 1
+
+
+def _reference_manifest_is_active(
+    item: Mapping[str, object], projection: _LifecycleProjection
+) -> bool:
+    style_profile_id = item.get("style_profile_id")
+    identity_constraints_id = item.get("identity_constraints_id")
+    source_asset_ids = item.get("source_asset_ids")
+    source_image_version_ids = item.get("source_image_version_ids")
+    source_image_version_digests = item.get("source_image_version_digests")
+    dependency_event_digests = item.get("dependency_event_digests")
+    if (
+        (style_profile_id is not None and not _valid_id_value(style_profile_id))
+        or (identity_constraints_id is not None and not _valid_id_value(identity_constraints_id))
+        or not _valid_unique_values(source_asset_ids, _ID)
+        or not _valid_unique_values(source_image_version_ids, _ID)
+        or not _valid_unique_values(source_image_version_digests, _DIGEST)
+        or not _valid_unique_values(dependency_event_digests, _DIGEST, allow_empty=True)
+        or len(cast(list[object], source_asset_ids))
+        != len(cast(list[object], source_image_version_ids))
+        or len(cast(list[object], source_asset_ids))
+        != len(cast(list[object], source_image_version_digests))
+    ):
+        return False
+    if (
+        isinstance(style_profile_id, str)
+        and ("STYLE_PROFILE", style_profile_id) in projection.invalidated_targets
+    ):
+        return False
+    if any(
+        ("IMAGE_VERSION", cast(str, image_version_id)) in projection.invalidated_targets
+        for image_version_id in cast(list[object], source_image_version_ids)
+    ):
+        return False
+    return _event_evidence_is_active(cast(list[str], dependency_event_digests), projection)
+
+
+def _valid_id_value(value: object) -> bool:
+    return isinstance(value, str) and _ID.fullmatch(value) is not None
+
+
+def _valid_unique_values(
+    value: object, pattern: re.Pattern[str], *, allow_empty: bool = False
+) -> bool:
+    if not isinstance(value, list) or (not allow_empty and not value):
+        return False
+    typed_values = [item for item in value if isinstance(item, str)]
+    return (
+        len(typed_values) == len(value)
+        and len(set(typed_values)) == len(typed_values)
+        and all(pattern.fullmatch(item) is not None for item in typed_values)
+    )
 
 
 async def _binding_for_key(

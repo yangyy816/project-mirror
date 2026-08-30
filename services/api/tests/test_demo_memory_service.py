@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal, cast
 
 import pytest
 from sqlalchemy import create_engine, func, select
@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import Session
 from test_demo_schema_authority_invariants import (
+    _insert_demo_row,
     _insert_full_demo_graph,
     _insert_session,
     _truncate_demo_authority,
@@ -34,6 +35,7 @@ from mirror_api.demo_models import (
     DemoContextCompilation,
     DemoJobBinding,
     DemoPreferenceEvent,
+    DemoReferenceProfile,
 )
 from mirror_api.demo_preference_ledger import (
     AppendDemoPreferenceEvent,
@@ -41,6 +43,7 @@ from mirror_api.demo_preference_ledger import (
     DemoPreferenceSourceType,
     DemoPreferenceTargetType,
     append_demo_preference_event,
+    preference_event_content_digest,
 )
 from mirror_api.models import Job, JobAttempt
 
@@ -65,10 +68,19 @@ def postgres_session() -> Generator[Session]:
     engine.dispose()
 
 
-def _service() -> tuple[DemoMemoryService, async_sessionmaker[AsyncSession], AsyncEngine]:
+def _service(
+    *, post_write_probe: Callable[[Literal["PROFILE", "CONTEXT"]], None] | None = None
+) -> tuple[DemoMemoryService, async_sessionmaker[AsyncSession], AsyncEngine]:
     engine = create_async_engine(os.environ["TEST_DATABASE_URL"])
     sessions = async_sessionmaker(engine, expire_on_commit=False)
-    return DemoMemoryService(session_factory=sessions), sessions, engine
+    return (
+        DemoMemoryService(
+            session_factory=sessions,
+            post_write_probe=post_write_probe,
+        ),
+        sessions,
+        engine,
+    )
 
 
 def _rebuild(
@@ -133,6 +145,54 @@ async def _append(
                 ),
             )
             return result.event
+
+
+def _insert_valid_reference(session: Session, graph: dict[str, Any]) -> DemoReferenceProfile:
+    return _insert_demo_row(
+        session,
+        DemoReferenceProfile,
+        demo_actor_id=graph["actor"].id,
+        demo_session_id=graph["session"].id,
+        desired_delta_profile_id=graph["desired_delta"].id,
+        style_profile_id=graph["style"].id,
+        identity_constraints_id=None,
+        version=2,
+        source_assets=[
+            {
+                "asset_id": graph["image1_asset"].id,
+                "sha256": graph["image1_asset"].sha256,
+                "view": "FRONT",
+            }
+        ],
+        analysis_version="fixture-d10-reference-v1",
+        compiler_version="fixture-d10-reference-compiler-v1",
+        structured_profile={
+            "dimensions": {"jaw_width": {"evidence_kind": "ACCEPTED_SELF_TRANSFER"}},
+            "identity_constraints_digest": None,
+            "identity_reference_frame": "SELF_STATE_ANCHORED",
+            "profile_schema_version": "mirror.demo/DemoReferenceStructure/v1",
+            "source_views": [
+                {
+                    "asset_id": graph["image1_asset"].id,
+                    "image_version_digest": graph["image1"].content_digest,
+                    "self_transfer_run_digest": graph["transfer_result"].content_digest,
+                    "sha256": graph["image1_asset"].sha256,
+                    "verifier_digest": graph["verification"].content_digest,
+                    "view": "FRONT",
+                }
+            ],
+            "style_profile_digest": graph["style"].content_digest,
+        },
+        evidence_digests=sorted(
+            {
+                graph["desired_delta"].content_digest,
+                graph["style"].content_digest,
+                graph["image1"].content_digest,
+                graph["transfer_result"].content_digest,
+                graph["verification"].content_digest,
+            }
+        ),
+    )
 
 
 @pytest.mark.asyncio
@@ -317,6 +377,72 @@ async def test_reset_and_rollback_rebuild_without_mutating_history(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "lifecycle_type",
+    [DemoPreferenceEventType.RESET, DemoPreferenceEventType.ROLLBACK],
+)
+async def test_recall_rejects_context_with_lifecycle_stale_session_evidence(
+    postgres_session: Session,
+    lifecycle_type: DemoPreferenceEventType,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    service, sessions, engine = _service()
+    try:
+        profile = await service.rebuild_profile(_rebuild(graph))
+        override = await _append(
+            sessions,
+            graph,
+            event_type=DemoPreferenceEventType.TEMPORARY_SESSION_OVERRIDE,
+            demo_session_id=graph["session"].id,
+            signal={"dimension_key": "jaw_width", "value_ppm": 1_000},
+        )
+        context = await service.compile_context(_context(graph, profile.aesthetic_profile_id))
+        async with sessions() as session:
+            stored = await session.get(DemoContextCompilation, context.context_compilation_id)
+            assert stored is not None
+            assert override.content_digest in {
+                entry["digest"] for entry in stored.selected_evidence
+            }
+        assert (
+            await service.recall_context(
+                demo_actor_id=graph["actor"].id,
+                demo_session_id=graph["session"].id,
+                recall_at=AS_OF + timedelta(minutes=1),
+            )
+        ).context_compilation_id == context.context_compilation_id
+
+        await _append(
+            sessions,
+            graph,
+            event_type=lifecycle_type,
+            source_type=DemoPreferenceSourceType.SYSTEM_LIFECYCLE,
+            target_type=(
+                DemoPreferenceTargetType.DEMO_ACTOR
+                if lifecycle_type is DemoPreferenceEventType.RESET
+                else DemoPreferenceTargetType.AESTHETIC_PROFILE
+            ),
+            target_id=(
+                graph["actor"].id
+                if lifecycle_type is DemoPreferenceEventType.RESET
+                else profile.aesthetic_profile_id
+            ),
+            signal=(
+                {"reset_watermark": graph["accepted_event"].event_sequence}
+                if lifecycle_type is DemoPreferenceEventType.RESET
+                else {}
+            ),
+        )
+        with pytest.raises(DemoMemoryUnavailable, match="no active unexpired Context"):
+            await service.recall_context(
+                demo_actor_id=graph["actor"].id,
+                demo_session_id=graph["session"].id,
+                recall_at=AS_OF + timedelta(minutes=2),
+            )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_reset_to_genesis_materializes_an_empty_rebuildable_profile(
     postgres_session: Session,
 ) -> None:
@@ -401,6 +527,62 @@ async def test_tombstone_and_delete_propagate_without_deleting_authority(
             )
         async with sessions() as session:
             assert await session.get(DemoAestheticProfile, profile.aesthetic_profile_id)
+            assert await session.get(DemoContextCompilation, context.context_compilation_id)
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("target_type", "target_key"),
+    [
+        (DemoPreferenceTargetType.STYLE_PROFILE, "style"),
+        (DemoPreferenceTargetType.IMAGE_VERSION, "image1"),
+    ],
+)
+async def test_reference_dependencies_invalidate_profiles_contexts_and_new_rebuilds(
+    postgres_session: Session,
+    target_type: DemoPreferenceTargetType,
+    target_key: str,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    reference = _insert_valid_reference(postgres_session, graph)
+    service, sessions, engine = _service()
+    try:
+        profile = await service.rebuild_profile(_rebuild(graph))
+        context = await service.compile_context(_context(graph, profile.aesthetic_profile_id))
+        async with sessions() as session:
+            stored = await session.get(DemoAestheticProfile, profile.aesthetic_profile_id)
+            assert stored is not None
+            assert stored.profile_payload["reference_profile"]["id"] == reference.id
+
+        await _append(
+            sessions,
+            graph,
+            event_type=DemoPreferenceEventType.DELETE,
+            source_type=DemoPreferenceSourceType.SYSTEM_LIFECYCLE,
+            target_type=target_type,
+            target_id=graph[target_key].id,
+        )
+        with pytest.raises(DemoMemoryUnavailable, match="no active unexpired Context"):
+            await service.recall_context(
+                demo_actor_id=graph["actor"].id,
+                demo_session_id=graph["session"].id,
+                recall_at=AS_OF + timedelta(minutes=1),
+            )
+
+        rebuilt = await service.rebuild_profile(
+            _rebuild(
+                graph,
+                key=f"d10-reference-invalidation-{target_key}",
+                reason="TOMBSTONE_PROPAGATION",
+            )
+        )
+        async with sessions() as session:
+            stored = await session.get(DemoAestheticProfile, rebuilt.aesthetic_profile_id)
+            assert stored is not None
+            assert stored.profile_payload["reference_profile"] is None
+            assert await session.get(DemoReferenceProfile, reference.id) is not None
             assert await session.get(DemoContextCompilation, context.context_compilation_id)
     finally:
         await engine.dispose()
@@ -518,6 +700,77 @@ async def test_context_budget_is_fixed_and_overflow_is_traced(
 
 
 @pytest.mark.asyncio
+async def test_context_selected_evidence_uses_frozen_event_sequence_order(
+    postgres_session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    service, sessions, engine = _service()
+    occurred_at = AS_OF - timedelta(minutes=20)
+    try:
+        first = await _append(
+            sessions,
+            graph,
+            event_type=DemoPreferenceEventType.FEATURE_LOCKED,
+            signal={"dimension_key": "ordering_first"},
+            occurred_at=occurred_at,
+        )
+        second_signal: dict[str, Any] | None = None
+        second_digest: str | None = None
+        for candidate in range(1_000):
+            signal = {"dimension_key": f"ordering_second_{candidate}"}
+            payload = {
+                "demo_actor_id": graph["actor"].id,
+                "demo_session_id": None,
+                "event_sequence": first.event_sequence + 1,
+                "event_type": DemoPreferenceEventType.FEATURE_LOCKED.value,
+                "occurred_at": occurred_at.isoformat(timespec="microseconds").replace(
+                    "+00:00", "Z"
+                ),
+                "previous_event_digest": first.content_digest,
+                "signal": signal,
+                "source_type": DemoPreferenceSourceType.EXPLICIT_USER_ACTION.value,
+                "target_id": None,
+                "target_type": None,
+            }
+            candidate_digest = preference_event_content_digest(payload)
+            if candidate_digest < first.content_digest:
+                second_signal = signal
+                second_digest = candidate_digest
+                break
+        assert second_signal is not None
+        assert second_digest is not None
+        second = await _append(
+            sessions,
+            graph,
+            event_type=DemoPreferenceEventType.FEATURE_LOCKED,
+            signal=second_signal,
+            occurred_at=occurred_at,
+        )
+        assert second.content_digest == second_digest
+        assert second.content_digest < first.content_digest
+
+        profile = await service.rebuild_profile(_rebuild(graph))
+        context = await service.compile_context(_context(graph, profile.aesthetic_profile_id))
+        async with sessions() as session:
+            stored = await session.get(DemoContextCompilation, context.context_compilation_id)
+            assert stored is not None
+            ordered_pair = [
+                entry
+                for entry in stored.selected_evidence
+                if entry["digest"] in {first.content_digest, second.content_digest}
+            ]
+            assert [entry["event_sequence"] for entry in ordered_pair] == [
+                first.event_sequence,
+                second.event_sequence,
+            ]
+            assert [entry["digest"] for entry in ordered_pair] != sorted(
+                [entry["digest"] for entry in ordered_pair]
+            )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_idempotency_collision_concurrency_and_failure_have_zero_partial_rows(
     postgres_session: Session,
 ) -> None:
@@ -580,5 +833,101 @@ async def test_idempotency_collision_concurrency_and_failure_have_zero_partial_r
                 await session.scalar(select(func.count()).select_from(DemoContextCompilation))
                 == contexts_before
             )
+
+        async def d10_row_counts() -> tuple[int, int, int, int, int]:
+            async with sessions() as session:
+                jobs = cast(
+                    int,
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(Job)
+                        .where(
+                            Job.job_type.in_(
+                                (
+                                    "demo_p3_p7.profile.rebuild",
+                                    "demo_p3_p7.context.compile",
+                                )
+                            )
+                        )
+                    ),
+                )
+                attempts = cast(
+                    int,
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(JobAttempt)
+                        .join(Job, Job.id == JobAttempt.job_id)
+                        .where(
+                            Job.job_type.in_(
+                                (
+                                    "demo_p3_p7.profile.rebuild",
+                                    "demo_p3_p7.context.compile",
+                                )
+                            )
+                        )
+                    ),
+                )
+                bindings = cast(
+                    int,
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(DemoJobBinding)
+                        .where(
+                            DemoJobBinding.endpoint_operation.in_(
+                                ("profile.rebuild", "context.compile")
+                            )
+                        )
+                    ),
+                )
+                profiles = cast(
+                    int,
+                    await session.scalar(select(func.count()).select_from(DemoAestheticProfile)),
+                )
+                contexts = cast(
+                    int,
+                    await session.scalar(select(func.count()).select_from(DemoContextCompilation)),
+                )
+                return jobs, attempts, bindings, profiles, contexts
+
+        def fail_profile_after_write(stage: Literal["PROFILE", "CONTEXT"]) -> None:
+            if stage == "PROFILE":
+                raise RuntimeError("injected profile post-write failure")
+
+        await _append(
+            sessions,
+            graph,
+            event_type=DemoPreferenceEventType.EXPLICIT_STYLE_SELECTION,
+            signal={"style_key": "post_write_rollback"},
+        )
+        before_profile_failure = await d10_row_counts()
+        profile_fault_service = DemoMemoryService(
+            session_factory=sessions,
+            post_write_probe=fail_profile_after_write,
+        )
+        with pytest.raises(RuntimeError, match="profile post-write"):
+            await profile_fault_service.rebuild_profile(
+                _rebuild(graph, key="d10-profile-post-write-failure")
+            )
+        assert await d10_row_counts() == before_profile_failure
+
+        def fail_context_after_write(stage: Literal["PROFILE", "CONTEXT"]) -> None:
+            if stage == "CONTEXT":
+                raise RuntimeError("injected context post-write failure")
+
+        before_context_failure = await d10_row_counts()
+        context_fault_service = DemoMemoryService(
+            session_factory=sessions,
+            post_write_probe=fail_context_after_write,
+        )
+        with pytest.raises(RuntimeError, match="context post-write"):
+            await context_fault_service.compile_context(
+                _context(
+                    graph,
+                    first.aesthetic_profile_id,
+                    key="d10-context-post-write-failure",
+                    as_of=AS_OF + timedelta(minutes=2),
+                )
+            )
+        assert await d10_row_counts() == before_context_failure
     finally:
         await engine.dispose()

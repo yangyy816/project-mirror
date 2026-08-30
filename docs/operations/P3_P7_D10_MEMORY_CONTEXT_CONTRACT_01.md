@@ -57,13 +57,17 @@ ACCEPTED_VISUAL_EPISODES: 4
 TOTAL_SELECTED_EVIDENCE: 21
 ```
 
-Stable ordering is priority, event sequence, authority kind and digest. Overflow remains present in
+Stable ordering is priority, ascending event sequence, authority kind and digest; non-event Profile authority uses the
+fixed event-sequence sentinel `0`. Overflow remains present in
 `rejected_evidence` with a non-sensitive reason. Previous-session temporary overrides are rejected and never recalled
 into a new session. The current instruction is always first in the trace priority but is represented only by its
 caller-supplied digest.
 
 Recall requires the same actor/session ownership, an active non-invalidated AestheticProfile, an unexpired Context and
-an explicit timezone-aware recall time. It never returns a tombstoned/deleted Context or Profile.
+an explicit timezone-aware recall time. Recall revalidates every selected event and accepted-episode dependency against
+the current effective ledger before returning. It never returns a tombstoned/deleted or lifecycle-stale Context or
+Profile. A Reference Profile is active only while its linked Style/Constraints evidence and every accepted source
+ImageVersion dependency remain active.
 
 ## Implementation boundary
 
