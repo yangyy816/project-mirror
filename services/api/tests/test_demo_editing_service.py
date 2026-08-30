@@ -150,7 +150,11 @@ class _Repository:
         return self.artifact
 
     async def append_rejected(
-        self, artifact: EditArtifact, verification: object, materialized: MaterializedObject
+        self,
+        artifact: EditArtifact,
+        verification: object,
+        materialized: MaterializedObject,
+        **_: str | None,
     ) -> EditArtifact:
         self.rejections += 1
         self.artifact = replace(artifact, state=ArtifactState.REJECTED)
@@ -162,6 +166,7 @@ class _Repository:
         verification: object,
         materialized: MaterializedObject,
         published_storage_key: str,
+        **_: str | None,
     ) -> Promotion:
         assert published_storage_key.startswith("demo-published/v1/")
         self.promotions += 1
@@ -223,8 +228,72 @@ class _Verifier:
         )
 
 
-def _service(repo: _Repository, storage: _Storage, verifier: _Verifier) -> DemoEditingService:
-    return DemoEditingService(repository=repo, storage=storage, verifier=verifier)
+def _service(
+    repo: _Repository,
+    storage: _Storage,
+    verifier: _Verifier,
+    transition_dispatcher: object | None = None,
+) -> DemoEditingService:
+    return DemoEditingService(
+        repository=repo,
+        storage=storage,
+        verifier=verifier,
+        transition_dispatcher=transition_dispatcher,
+    )
+
+
+def _restore_command() -> ExecutionCommand:
+    source = _source()
+    target_id, target_digest = _id("7"), _digest("8")
+    parameters = {
+        "target_image_version_id": target_id,
+        "target_image_version_digest": target_digest,
+    }
+    return ExecutionCommand(
+        actor_id=_id("a"),
+        session_id=_id("b"),
+        operation_id=_id("c"),
+        operation_digest=_digest("d"),
+        execution_job_binding_id=_id("e"),
+        formal_job_attempt_id=_id("f"),
+        source_asset_id=_id("1"),
+        source_asset_sha256=hashlib.sha256(source).hexdigest(),
+        source_bytes=source,
+        operation=OperationSpec(
+            engine=OperationEngine.RASTER,
+            operation_type=OperationType.RESTORE,
+            parameters=parameters,
+            preserve=(PreserveKey.TARGET_VERSION_BYTES,),
+            expected_effect={
+                "effect_type": "RESTORE",
+                "target_region": "VERSION_CONTENT",
+                "target_image_version_digest": target_digest,
+            },
+        ),
+        engine_version="restore-v1",
+        engine_digest=_digest("2"),
+        config_digest=_digest("3"),
+        parent_job_id=_id("4"),
+        parent_job_attempt_id=_id("5"),
+    )
+
+
+class _TransitionDispatcher:
+    def __init__(self) -> None:
+        self.commands: list[ExecutionCommand] = []
+
+    async def __call__(self, command: ExecutionCommand) -> MaterializedObject:
+        self.commands.append(command)
+        content = b"synthetic-only-restored-bytes"
+        return MaterializedObject(
+            content=content,
+            sha256=hashlib.sha256(content).hexdigest(),
+            width=12,
+            height=10,
+            mime_type="image/png",
+            engine_digest=command.engine_digest,
+            config_digest=command.config_digest,
+        )
 
 
 @pytest.mark.asyncio
@@ -272,6 +341,25 @@ async def test_conflicting_preexisting_object_fails_closed() -> None:
     with pytest.raises(DemoEditingServiceError) as error:
         await _service(repo, storage, _Verifier()).execute(command)
     assert error.value.code == "QUARANTINE_OBJECT_CONFLICT"
+
+
+@pytest.mark.asyncio
+async def test_restore_execution_fails_closed_without_transition_dispatcher() -> None:
+    repo, storage = _Repository(), _Storage()
+    with pytest.raises(DemoEditingServiceError) as error:
+        await _service(repo, storage, _Verifier()).execute(_restore_command())
+    assert error.value.code == "TRANSITION_RUNTIME_UNAVAILABLE"
+    assert repo.promotions == 0 and repo.rejections == 0
+
+
+@pytest.mark.asyncio
+async def test_restore_execution_only_uses_injected_transition_dispatcher() -> None:
+    repo, storage, dispatcher = _Repository(), _Storage(), _TransitionDispatcher()
+    command = _restore_command()
+    result = await _service(repo, storage, _Verifier(), dispatcher).execute(command)
+    assert result.state is ArtifactState.PROMOTED
+    assert dispatcher.commands == [command]
+    assert repo.promotions == 1 and repo.rejections == 0
 
 
 @pytest.mark.asyncio

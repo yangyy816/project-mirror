@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, cast
 
 from mirror_api.account_deletion.service import AccountDeletionService
 from mirror_api.asset_deletion.service import AssetDeletionService
@@ -20,6 +20,16 @@ from mirror_api.demo_analysis_task_contract import (
     DemoAnalysisDispatcher,
     DemoAnalysisTaskMessage,
 )
+from mirror_api.demo_editing_asset_loader import LocalDemoAssetByteLoader
+from mirror_api.demo_editing_commands import DemoEditingCommandService
+from mirror_api.demo_editing_runtime import DemoEditingRuntime as DemoEditingApplication
+from mirror_api.demo_editing_storage import DemoLocalPrivateObjectStorage
+from mirror_api.demo_editing_task_contract import (
+    DemoEditingDispatcher,
+    DemoEditingOperation,
+    DemoEditingTaskMessage,
+)
+from mirror_api.demo_editing_verifier_adapter import DemoDeterministicEditVerifier
 from mirror_api.demo_profile_commands import DemoProfileCommandService
 from mirror_api.demo_profile_service import DemoProfileCompilationService
 from mirror_api.demo_profile_task_contract import (
@@ -125,6 +135,13 @@ class DemoProfileRuntime:
     engine: AsyncEngine
     application: DemoProfileCompilationService
     commands: DemoProfileCommandService
+
+
+@dataclass(frozen=True)
+class DemoEditingRuntime:
+    engine: AsyncEngine
+    application: DemoEditingApplication
+    commands: DemoEditingCommandService
 
 
 def _requirement(settings: Settings) -> ConsentRequirement:
@@ -281,6 +298,36 @@ def create_demo_profile_runtime(settings: Settings) -> DemoProfileRuntime:
     )
 
 
+def create_demo_editing_runtime(settings: Settings) -> DemoEditingRuntime:
+    """Compose the local synthetic D07 runtime without a Provider or public network."""
+
+    if settings.storage_provider != "local" or settings.app_env not in {
+        "development",
+        "test",
+        "ci",
+    }:
+        raise RuntimeError("Demo editing requires the local private Demo storage boundary")
+    engine = create_async_engine(settings.database_url)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    loader = LocalDemoAssetByteLoader(root=settings.local_storage_root)
+    storage = DemoLocalPrivateObjectStorage(root=settings.local_storage_root)
+    verifier = DemoDeterministicEditVerifier(
+        session_factory=sessions,
+        asset_loader=loader,
+    )
+    return DemoEditingRuntime(
+        engine=engine,
+        application=DemoEditingApplication(
+            session_factory=sessions,
+            asset_loader=loader,
+            storage=storage,
+            verifier=verifier,
+            geometry_dispatcher=None,
+        ),
+        commands=DemoEditingCommandService(session_factory=sessions),
+    )
+
+
 async def run_ingestion_message(
     message: dict[str, Any], *, settings: Settings | None = None
 ) -> dict[str, str]:
@@ -359,6 +406,40 @@ async def run_demo_profile_reconciliation(
                 request_id=candidate.request_id,
             )
             dispatcher.dispatch_demo_profile(message)
+            dispatched.append(candidate.job_id)
+        return tuple(dispatched)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_demo_editing_message(
+    message: dict[str, Any], *, settings: Settings | None = None
+) -> dict[str, str | bool | None]:
+    runtime = create_demo_editing_runtime(settings or get_settings())
+    try:
+        result = await runtime.application.run(DemoEditingTaskMessage.from_message(message))
+        return asdict(result)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_demo_editing_reconciliation(
+    *,
+    dispatcher: DemoEditingDispatcher,
+    limit: int = 100,
+    settings: Settings | None = None,
+) -> tuple[str, ...]:
+    runtime = create_demo_editing_runtime(settings or get_settings())
+    try:
+        dispatched: list[str] = []
+        for candidate in await runtime.commands.reconciliation_candidates(limit=limit):
+            message = DemoEditingTaskMessage(
+                demo_actor_id=candidate.demo_actor_id,
+                job_id=candidate.job_id,
+                operation=cast(DemoEditingOperation, candidate.endpoint_operation),
+                request_id=candidate.request_id,
+            )
+            dispatcher.dispatch_demo_editing(message)
             dispatched.append(candidate.job_id)
         return tuple(dispatched)
     finally:

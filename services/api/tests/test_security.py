@@ -144,3 +144,15 @@ def test_request_validation_details_do_not_echo_sensitive_input() -> None:
         [{"type": "string_too_short", "loc": ["body", "phone"], "input": "phone-sentinel"}]
     )
     assert details == [{"type": "string_too_short", "loc": ["body", "phone"]}]
+
+    model_error = sanitize_request_validation_details(
+        [
+            {
+                "type": "value_error",
+                "loc": ["body"],
+                "input": {"source_asset_id": "private-sentinel"},
+                "ctx": {"error": ValueError("private-sentinel"), "reason": "xor"},
+            }
+        ]
+    )
+    assert model_error == [{"type": "value_error", "loc": ["body"]}]

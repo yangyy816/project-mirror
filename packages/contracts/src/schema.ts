@@ -1141,7 +1141,9 @@ export interface components {
             /** Session Id */
             session_id: string;
             /** Source Image Version Id */
-            source_image_version_id: string;
+            source_image_version_id?: string | null;
+            /** Source Asset Id */
+            source_asset_id?: string | null;
         };
         /** DemoExecutionEvidenceResponse */
         DemoExecutionEvidenceResponse: {

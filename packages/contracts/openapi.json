@@ -5451,16 +5451,34 @@
             "title": "Session Id"
           },
           "source_image_version_id": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{32}$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Source Image Version Id"
+          },
+          "source_asset_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Asset Id"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "session_id",
-          "source_image_version_id"
+          "session_id"
         ],
         "title": "DemoEditingSessionCreateRequest"
       },

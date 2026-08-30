@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from mirror_api.schemas import StrictContractModel
 
@@ -250,7 +250,14 @@ class DemoIdentityConstraintsResponse(StrictContractModel):
 
 class DemoEditingSessionCreateRequest(StrictContractModel):
     session_id: DemoId
-    source_image_version_id: DemoId
+    source_image_version_id: DemoId | None = None
+    source_asset_id: DemoId | None = None
+
+    @model_validator(mode="after")
+    def require_exactly_one_source(self) -> Self:
+        if (self.source_image_version_id is None) == (self.source_asset_id is None):
+            raise ValueError("exactly one editing source selector is required")
+        return self
 
 
 class DemoEditPlanCreateRequest(StrictContractModel):

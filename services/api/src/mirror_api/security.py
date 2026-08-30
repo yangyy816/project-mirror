@@ -260,4 +260,7 @@ def refresh_cookie_policy(
 
 def sanitize_request_validation_details(errors: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Remove framework-supplied input echoes before a validation error is serialized."""
-    return [{key: value for key, value in error.items() if key != "input"} for error in errors]
+    return [
+        {key: value for key, value in error.items() if key not in {"ctx", "input"}}
+        for error in errors
+    ]

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Any, NoReturn
+from typing import Annotated, Any, NoReturn, cast
 
 from fastapi import APIRouter, Depends, Header, Request, status
 
@@ -17,6 +17,17 @@ from mirror_api.demo_analysis_service import (
     DemoAnalysisUnavailable,
 )
 from mirror_api.demo_dependencies import get_demo_actor
+from mirror_api.demo_editing_commands import (
+    CreateDemoEditingSession,
+    CreateDemoEditPlan,
+    DemoEditingCommandAuthorityCorruption,
+    DemoEditingCommandInputError,
+    DemoEditingCommandUnavailable,
+    ExecuteDemoEditPlan,
+    RestoreDemoImageVersion,
+)
+from mirror_api.demo_editing_coordinator import DemoEditingCoordinator
+from mirror_api.demo_editing_dependencies import get_demo_editing_coordinator
 from mirror_api.demo_idempotency import (
     DemoIdempotencyAuthorityCorruption,
     DemoIdempotencyInputError,
@@ -28,9 +39,11 @@ from mirror_api.demo_job_service import (
     DemoJobService,
     DemoJobSnapshot,
     DemoJobStateConflict,
+    DemoJobStatus,
     DemoJobUnavailable,
 )
 from mirror_api.demo_models import DemoActor
+from mirror_api.demo_operation_graph import OperationType
 from mirror_api.demo_posterior import PairwiseChoice
 from mirror_api.demo_preference_ledger import (
     DemoPreferenceActorUnavailable,
@@ -318,6 +331,36 @@ def _raise_profile_error(error: Exception) -> NoReturn:
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         code="DEMO_PROFILE_AUTHORITY_CORRUPT",
         message="Profile authority 无法安全读取。",
+        details={"track": "DEMO_PROTOTYPE"},
+    ) from error
+
+
+def _raise_editing_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoIdempotencyPayloadConflict):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
+            message="幂等键已绑定到不同的编辑命令。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, (DemoEditingCommandInputError, DemoIdempotencyInputError)):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="DEMO_EDITING_REQUEST_INVALID",
+            message="编辑命令不符合 Demo authority 约束。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, (DemoEditingCommandUnavailable, DemoJobUnavailable)):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_EDITING_AUTHORITY_UNAVAILABLE",
+            message="编辑 authority 不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise APIError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="DEMO_EDITING_AUTHORITY_CORRUPT",
+        message="编辑 authority 无法安全读取。",
         details={"track": "DEMO_PROTOTYPE"},
     ) from error
 
@@ -826,10 +869,35 @@ async def create_constraints(
     responses=DEMO_ERRORS,
 )
 async def create_editing_session(
-    payload: DemoEditingSessionCreateRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del payload, idempotency_key
-    _not_implemented("editing_session", "D07")
+    payload: DemoEditingSessionCreateRequest,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoEditingCoordinator = Depends(get_demo_editing_coordinator),
+) -> DemoJobAcceptedResponse:
+    try:
+        result = await coordinator.create_editing_session(
+            CreateDemoEditingSession(
+                demo_actor_id=actor.id,
+                demo_session_id=payload.session_id,
+                source_asset_id=payload.source_asset_id,
+                source_image_version_id=payload.source_image_version_id,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+    except (
+        DemoEditingCommandInputError,
+        DemoEditingCommandUnavailable,
+        DemoEditingCommandAuthorityCorruption,
+        DemoIdempotencyInputError,
+        DemoIdempotencyPayloadConflict,
+        DemoIdempotencyAuthorityCorruption,
+        DemoJobUnavailable,
+        DemoJobAuthorityCorruption,
+    ) as exc:
+        _raise_editing_error(exc)
+    return _job_accepted(result.job)
 
 
 @router.post(
@@ -841,10 +909,36 @@ async def create_editing_session(
     responses=DEMO_ERRORS,
 )
 async def create_edit_plan(
-    editing_session_id: DemoId, payload: DemoEditPlanCreateRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del editing_session_id, payload, idempotency_key
-    _not_implemented("edit_plan", "D07")
+    editing_session_id: DemoId,
+    payload: DemoEditPlanCreateRequest,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoEditingCoordinator = Depends(get_demo_editing_coordinator),
+) -> DemoJobAcceptedResponse:
+    try:
+        result = await coordinator.create_edit_plan(
+            CreateDemoEditPlan(
+                demo_actor_id=actor.id,
+                editing_session_id=editing_session_id,
+                operation=OperationType(payload.operation),
+                value_ppm=payload.value_ppm,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+    except (
+        DemoEditingCommandInputError,
+        DemoEditingCommandUnavailable,
+        DemoEditingCommandAuthorityCorruption,
+        DemoIdempotencyInputError,
+        DemoIdempotencyPayloadConflict,
+        DemoIdempotencyAuthorityCorruption,
+        DemoJobUnavailable,
+        DemoJobAuthorityCorruption,
+    ) as exc:
+        _raise_editing_error(exc)
+    return _job_accepted(result.job)
 
 
 @router.post(
@@ -856,10 +950,36 @@ async def create_edit_plan(
     responses=DEMO_ERRORS,
 )
 async def execute_edit_plan(
-    edit_plan_id: DemoId, payload: DemoEditPlanExecuteRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del edit_plan_id, payload, idempotency_key
-    _not_implemented("edit_execution", "D07")
+    edit_plan_id: DemoId,
+    payload: DemoEditPlanExecuteRequest,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoEditingCoordinator = Depends(get_demo_editing_coordinator),
+) -> DemoJobAcceptedResponse:
+    try:
+        result = await coordinator.execute_edit_plan(
+            ExecuteDemoEditPlan(
+                demo_actor_id=actor.id,
+                edit_plan_id=edit_plan_id,
+                execution_mode=payload.execution_mode,
+                expected_plan_digest=payload.expected_plan_digest,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+    except (
+        DemoEditingCommandInputError,
+        DemoEditingCommandUnavailable,
+        DemoEditingCommandAuthorityCorruption,
+        DemoIdempotencyInputError,
+        DemoIdempotencyPayloadConflict,
+        DemoIdempotencyAuthorityCorruption,
+        DemoJobUnavailable,
+        DemoJobAuthorityCorruption,
+    ) as exc:
+        _raise_editing_error(exc)
+    return _job_accepted(result.job)
 
 
 @router.get(
@@ -869,9 +989,28 @@ async def execute_edit_plan(
     openapi_extra=DEMO_OPENAPI,
     responses=DEMO_ERRORS,
 )
-async def get_tool_run(tool_run_id: DemoId) -> NoReturn:
-    del tool_run_id
-    _not_implemented("tool_run", "D07")
+async def get_tool_run(
+    tool_run_id: DemoId,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoEditingCoordinator = Depends(get_demo_editing_coordinator),
+) -> DemoToolRunResponse:
+    try:
+        result = await coordinator.get_tool_run(
+            demo_actor_id=actor.id,
+            tool_run_id=tool_run_id,
+        )
+    except (
+        DemoEditingCommandInputError,
+        DemoEditingCommandUnavailable,
+        DemoEditingCommandAuthorityCorruption,
+    ) as exc:
+        _raise_editing_error(exc)
+    return DemoToolRunResponse(
+        tool_run_id=result.tool_run_id,
+        tool_name=result.tool_name,
+        status=cast(DemoJobStatus, result.job_status),
+        output_digest=result.output_digest,
+    )
 
 
 @router.post(
@@ -898,10 +1037,36 @@ async def create_image_version_feedback(
     responses=DEMO_ERRORS,
 )
 async def restore_image_version(
-    image_version_id: DemoId, payload: DemoRestoreRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del image_version_id, payload, idempotency_key
-    _not_implemented("image_restore", "D07")
+    image_version_id: DemoId,
+    payload: DemoRestoreRequest,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoEditingCoordinator = Depends(get_demo_editing_coordinator),
+) -> DemoJobAcceptedResponse:
+    try:
+        result = await coordinator.restore_image_version(
+            RestoreDemoImageVersion(
+                demo_actor_id=actor.id,
+                target_image_version_id=image_version_id,
+                expected_current_image_version_id=payload.expected_current_image_version_id,
+                expected_current_image_version_digest=payload.expected_current_image_version_digest,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+    except (
+        DemoEditingCommandInputError,
+        DemoEditingCommandUnavailable,
+        DemoEditingCommandAuthorityCorruption,
+        DemoIdempotencyInputError,
+        DemoIdempotencyPayloadConflict,
+        DemoIdempotencyAuthorityCorruption,
+        DemoJobUnavailable,
+        DemoJobAuthorityCorruption,
+    ) as exc:
+        _raise_editing_error(exc)
+    return _job_accepted(result.job)
 
 
 @router.post(

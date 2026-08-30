@@ -538,8 +538,8 @@ async def _lock_and_validate_image_execution(
             DemoToolRun.outcome == "COMPLETED",
             DemoToolRun.input_asset_id == parent.result_asset_id,
             DemoToolRun.input_asset_sha256 == parent.result_asset_sha256,
-            DemoToolRun.output_asset_id == image.result_asset_id,
-            DemoToolRun.output_asset_sha256 == image.result_asset_sha256,
+            DemoToolRun.output_asset_id.is_(None),
+            DemoToolRun.output_asset_sha256.is_(None),
         )
         .with_for_update()
     )

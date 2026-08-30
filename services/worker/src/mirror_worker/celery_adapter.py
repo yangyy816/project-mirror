@@ -15,6 +15,7 @@ from mirror_api.data_rights.task_contract import (
     DataExportTaskMessage,
 )
 from mirror_api.demo_analysis_task_contract import DemoAnalysisTaskMessage
+from mirror_api.demo_editing_task_contract import DemoEditingTaskMessage
 from mirror_api.demo_profile_task_contract import DemoProfileTaskMessage
 from mirror_api.ingestion.task_contract import IngestionTaskMessage
 from mirror_api.synthetic_dataset.task_contract import (
@@ -35,6 +36,8 @@ from mirror_worker.runtime import (
     run_data_rights_reconciliation,
     run_demo_analysis_message,
     run_demo_analysis_reconciliation,
+    run_demo_editing_message,
+    run_demo_editing_reconciliation,
     run_demo_profile_message,
     run_demo_profile_reconciliation,
     run_ingestion_message,
@@ -80,6 +83,8 @@ celery_app.conf.update(
         "mirror.synthetic_m4.reconcile": {"queue": "mirror.maintenance"},
         "mirror.demo_analysis.process": {"queue": "mirror.demo"},
         "mirror.demo_analysis.reconcile": {"queue": "mirror.maintenance"},
+        "mirror.demo_editing.process": {"queue": "mirror.demo"},
+        "mirror.demo_editing.reconcile": {"queue": "mirror.maintenance"},
         "mirror.demo_profile.compile": {"queue": "mirror.demo"},
         "mirror.demo_profile.reconcile": {"queue": "mirror.maintenance"},
     },
@@ -131,6 +136,35 @@ def reconcile_demo_analysis(*, limit: int = 100) -> list[str]:
     return list(
         asyncio.run(
             run_demo_analysis_reconciliation(
+                dispatcher=CeleryTaskDispatcher(),
+                limit=limit,
+            )
+        )
+    )
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.demo_editing.process",
+    acks_late=True,
+    reject_on_worker_lost=True,
+    soft_time_limit=120,
+    time_limit=150,
+)
+def process_demo_editing(message: dict[str, Any]) -> dict[str, str | bool | None]:
+    return asyncio.run(run_demo_editing_message(message))
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="mirror.demo_editing.reconcile",
+    autoretry_for=(RuntimeError,),
+    acks_late=True,
+    reject_on_worker_lost=True,
+    **INGESTION_RETRY_POLICY,
+)
+def reconcile_demo_editing(*, limit: int = 100) -> list[str]:
+    return list(
+        asyncio.run(
+            run_demo_editing_reconciliation(
                 dispatcher=CeleryTaskDispatcher(),
                 limit=limit,
             )
@@ -466,6 +500,16 @@ class CeleryTaskDispatcher:
     def dispatch_demo_profile(self, message: DemoProfileTaskMessage) -> str:
         message.validate()
         compile_demo_profile.apply_async(
+            args=[message.to_message()],
+            task_id=secrets.token_hex(16),
+            headers={"request_id": message.request_id, "job_id": message.job_id},
+            queue="mirror.demo",
+        )
+        return message.job_id
+
+    def dispatch_demo_editing(self, message: DemoEditingTaskMessage) -> str:
+        message.validate()
+        process_demo_editing.apply_async(
             args=[message.to_message()],
             task_id=secrets.token_hex(16),
             headers={"request_id": message.request_id, "job_id": message.job_id},

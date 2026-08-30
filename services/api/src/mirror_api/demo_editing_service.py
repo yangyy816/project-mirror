@@ -16,7 +16,7 @@ from enum import StrEnum
 from typing import Protocol
 
 from mirror_api.demo_effect_verifier import EffectVerificationResult, VerificationStatus
-from mirror_api.demo_operation_graph import OperationEngine, OperationSpec
+from mirror_api.demo_operation_graph import OperationEngine, OperationSpec, OperationType
 from mirror_api.demo_raster_editor import RasterEditError, execute_raster_operation
 
 _ID = re.compile(r"^[0-9a-f]{32}$")
@@ -80,6 +80,8 @@ class ExecutionCommand:
     engine_version: str
     engine_digest: str
     config_digest: str
+    parent_job_id: str | None = None
+    parent_job_attempt_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +148,10 @@ class GeometryDispatcher(Protocol):
     async def __call__(self, command: ExecutionCommand) -> MaterializedObject: ...
 
 
+class TransitionDispatcher(Protocol):
+    async def __call__(self, command: ExecutionCommand) -> MaterializedObject: ...
+
+
 class EditVerifier(Protocol):
     async def __call__(
         self, command: ExecutionCommand, materialized: MaterializedObject
@@ -172,6 +178,9 @@ class DemoEditingRepository(Protocol):
         artifact: EditArtifact,
         verification: EffectVerificationResult,
         materialized: MaterializedObject,
+        *,
+        parent_job_id: str | None = None,
+        parent_job_attempt_id: str | None = None,
     ) -> EditArtifact: ...
 
     async def promote_pass(
@@ -180,6 +189,9 @@ class DemoEditingRepository(Protocol):
         verification: EffectVerificationResult,
         materialized: MaterializedObject,
         published_storage_key: str,
+        *,
+        parent_job_id: str | None = None,
+        parent_job_attempt_id: str | None = None,
     ) -> Promotion: ...
 
     async def create_transition(
@@ -203,11 +215,13 @@ class DemoEditingService:
         storage: PrivateObjectStorage,
         verifier: EditVerifier,
         geometry_dispatcher: GeometryDispatcher | None = None,
+        transition_dispatcher: TransitionDispatcher | None = None,
     ) -> None:
         self._repository = repository
         self._storage = storage
         self._verifier = verifier
         self._geometry_dispatcher = geometry_dispatcher
+        self._transition_dispatcher = transition_dispatcher
 
     async def create_editing_session(self, command: EditingSessionCommand) -> str:
         _validate_session_command(command)
@@ -250,20 +264,39 @@ class DemoEditingService:
                 artifact_id=artifact.artifact_id,
                 sha256=materialized.sha256,
             )
-            promotion = await self._repository.promote_pass(
-                artifact,
-                verification,
-                materialized,
-                published_storage_key,
-            )
+            if command.parent_job_id is None:
+                promotion = await self._repository.promote_pass(
+                    artifact,
+                    verification,
+                    materialized,
+                    published_storage_key,
+                )
+            else:
+                promotion = await self._repository.promote_pass(
+                    artifact,
+                    verification,
+                    materialized,
+                    published_storage_key,
+                    parent_job_id=command.parent_job_id,
+                    parent_job_attempt_id=command.parent_job_attempt_id,
+                )
             return ExecutionResult(
                 artifact.artifact_id, ArtifactState.PROMOTED, verification.status, promotion, False
             )
-        rejected = await self._repository.append_rejected(
-            artifact,
-            verification,
-            materialized,
-        )
+        if command.parent_job_id is None:
+            rejected = await self._repository.append_rejected(
+                artifact,
+                verification,
+                materialized,
+            )
+        else:
+            rejected = await self._repository.append_rejected(
+                artifact,
+                verification,
+                materialized,
+                parent_job_id=command.parent_job_id,
+                parent_job_attempt_id=command.parent_job_attempt_id,
+            )
         return ExecutionResult(
             rejected.artifact_id, rejected.state, verification.status, None, False
         )
@@ -371,6 +404,16 @@ class DemoEditingService:
         return materialized
 
     async def _dispatch(self, command: ExecutionCommand) -> MaterializedObject:
+        if command.operation.operation_type in {
+            OperationType.RESTORE,
+            OperationType.ROLLBACK,
+        }:
+            if self._transition_dispatcher is None:
+                raise DemoEditingServiceError(
+                    "TRANSITION_RUNTIME_UNAVAILABLE",
+                    "transition byte materializer is unavailable",
+                )
+            return await self._transition_dispatcher(command)
         if command.operation.engine is OperationEngine.RASTER:
             try:
                 result = execute_raster_operation(command.source_bytes, command.operation)
@@ -463,6 +506,21 @@ def _validate_execution_command(command: ExecutionCommand) -> None:
         raise DemoEditingServiceError(
             "SOURCE_DIGEST_MISMATCH", "source bytes do not bind source authority"
         )
+    if (command.parent_job_id is None) != (command.parent_job_attempt_id is None):
+        raise DemoEditingServiceError(
+            "INVALID_EXECUTION", "parent Job authority must be provided as a complete pair"
+        )
+    if command.parent_job_id is not None:
+        _require_id(command.parent_job_id, "parent_job_id")
+        assert command.parent_job_attempt_id is not None
+        _require_id(command.parent_job_attempt_id, "parent_job_attempt_id")
+        if command.operation.operation_type not in {
+            OperationType.RESTORE,
+            OperationType.ROLLBACK,
+        }:
+            raise DemoEditingServiceError(
+                "INVALID_EXECUTION", "only a transition may carry a parent Job"
+            )
 
 
 def _validate_materialized(materialized: MaterializedObject, command: ExecutionCommand) -> None:

@@ -143,3 +143,24 @@ async def test_private_quarantine_storage_rejects_promotion_digest_mismatch(
     with pytest.raises(DemoEditingStorageError) as rejected:
         await storage.promote_from_quarantine(key=_key(), artifact_id="e" * 32, sha256="0" * 64)
     assert rejected.value.code == "STORAGE_DIGEST_MISMATCH"
+
+
+@pytest.mark.asyncio
+async def test_private_storage_creates_idempotent_original_snapshot(tmp_path: Path) -> None:
+    storage = DemoLocalPrivateObjectStorage(root=tmp_path)
+    content = b"immutable-synthetic-original"
+    digest = hashlib.sha256(content).hexdigest()
+
+    first = await storage.store_original_snapshot(
+        editing_session_id="f" * 32,
+        content=content,
+        sha256=digest,
+    )
+    second = await storage.store_original_snapshot(
+        editing_session_id="f" * 32,
+        content=content,
+        sha256=digest,
+    )
+
+    assert first == second == f"demo-original/v1/{'f' * 32}/{digest}"
+    assert await storage.read(key=first) == content

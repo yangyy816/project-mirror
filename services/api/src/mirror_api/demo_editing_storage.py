@@ -21,6 +21,7 @@ _QUARANTINE_KEY: Final = re.compile(
     rf"demo-quarantine/{_KEY_COMPONENT}/{_KEY_COMPONENT}/{_KEY_COMPONENT}/{_KEY_COMPONENT}\Z"
 )
 _PUBLISHED_KEY: Final = re.compile(rf"demo-published/v1/{_KEY_COMPONENT}/[0-9a-f]{{64}}\Z")
+_ORIGINAL_KEY: Final = re.compile(rf"demo-original/v1/{_KEY_COMPONENT}/[0-9a-f]{{64}}\Z")
 
 
 class DemoEditingStorageError(RuntimeError):
@@ -79,6 +80,21 @@ class DemoLocalPrivateObjectStorage:
                 sha256,
             )
         return published_key
+
+    async def store_original_snapshot(
+        self, *, editing_session_id: str, content: bytes, sha256: str
+    ) -> str:
+        """Persist one immutable sequence-0 snapshot in its own private namespace."""
+        if re.fullmatch(_KEY_COMPONENT, editing_session_id) is None:
+            raise DemoEditingStorageError(
+                "STORAGE_EDITING_SESSION_ID_INVALID",
+                "editing Session identifier is invalid",
+            )
+        key = f"demo-original/v1/{editing_session_id}/{sha256}"
+        self._validate_original_write(key=key, content=content, sha256=sha256)
+        async with self._lock:
+            await asyncio.to_thread(self._put_if_absent_sync, key, content, sha256)
+        return key
 
     def _put_if_absent_sync(self, key: str, content: bytes, sha256: str) -> None:
         target = self._payload_path(key, create_parent=True)
@@ -188,6 +204,16 @@ class DemoLocalPrivateObjectStorage:
     @staticmethod
     def _validate_write(*, key: str, content: bytes, sha256: str) -> None:
         DemoLocalPrivateObjectStorage._validate_quarantine_key(key)
+        DemoLocalPrivateObjectStorage._validate_content(content=content, sha256=sha256)
+
+    @staticmethod
+    def _validate_original_write(*, key: str, content: bytes, sha256: str) -> None:
+        if not isinstance(key, str) or _ORIGINAL_KEY.fullmatch(key) is None:
+            raise DemoEditingStorageError("STORAGE_KEY_INVALID", "private storage key is invalid")
+        DemoLocalPrivateObjectStorage._validate_content(content=content, sha256=sha256)
+
+    @staticmethod
+    def _validate_content(*, content: bytes, sha256: str) -> None:
         if type(content) is not bytes:
             raise DemoEditingStorageError("STORAGE_CONTENT_INVALID", "private content is invalid")
         if not isinstance(sha256, str) or re.fullmatch(r"[0-9a-f]{64}", sha256) is None:
@@ -210,7 +236,9 @@ class DemoLocalPrivateObjectStorage:
     @staticmethod
     def _validate_object_key(key: str) -> None:
         if not isinstance(key, str) or (
-            _QUARANTINE_KEY.fullmatch(key) is None and _PUBLISHED_KEY.fullmatch(key) is None
+            _QUARANTINE_KEY.fullmatch(key) is None
+            and _PUBLISHED_KEY.fullmatch(key) is None
+            and _ORIGINAL_KEY.fullmatch(key) is None
         ):
             raise DemoEditingStorageError("STORAGE_KEY_INVALID", "private storage key is invalid")
         if "\\" in key or key.startswith("/") or "//" in key or "/../" in key:

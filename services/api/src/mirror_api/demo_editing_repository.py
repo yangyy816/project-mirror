@@ -50,7 +50,15 @@ from mirror_api.demo_models import (
     DemoToolRun,
     DemoVerificationResult,
 )
-from mirror_api.demo_operation_graph import OperationType
+from mirror_api.demo_operation_graph import (
+    ImageVersionReference,
+    OperationLineageError,
+    OperationType,
+    TransitionIntent,
+    plan_restore_transition,
+    plan_rollback_transition,
+    validate_result_asset_id,
+)
 from mirror_api.models import Asset, AssetVariant, Job, JobAttempt, new_id, utcnow
 
 DEMO_JOB_BINDING_SCHEMA = "mirror.demo/DemoJobBinding/v1"
@@ -321,6 +329,9 @@ class SqlAlchemyDemoEditingRepository:
         artifact: EditArtifact,
         verification: EffectVerificationResult,
         materialized: MaterializedObject,
+        *,
+        parent_job_id: str | None = None,
+        parent_job_attempt_id: str | None = None,
     ) -> EditArtifact:
         if verification.status is VerificationStatus.PASS:
             raise DemoEditingRepositoryError(
@@ -328,6 +339,17 @@ class SqlAlchemyDemoEditingRepository:
             )
         async with self._sessions() as session:
             async with session.begin():
+                (
+                    execution_job,
+                    execution_attempt,
+                    parent_job,
+                    parent_attempt,
+                ) = await self._lock_execution_terminal_context(
+                    session,
+                    artifact,
+                    parent_job_id=parent_job_id,
+                    parent_job_attempt_id=parent_job_attempt_id,
+                )
                 row = await self._lock_artifact(session, artifact)
                 current = await self._artifact_dto(session, row)
                 if current.state in {
@@ -335,11 +357,17 @@ class SqlAlchemyDemoEditingRepository:
                     ArtifactState.CANCELLED,
                     ArtifactState.CLEANED,
                 }:
+                    _validate_terminal_execution(current.state, execution_job, execution_attempt)
+                    if parent_job is not None and parent_attempt is not None:
+                        _validate_terminal_execution(current.state, parent_job, parent_attempt)
                     return current
                 if current.state is ArtifactState.PROMOTED:
                     raise DemoEditingRepositoryError(
                         "TERMINAL_ARTIFACT_CONFLICT", "published artifact cannot be rejected"
                     )
+                _require_running_execution(execution_job, execution_attempt)
+                if parent_job is not None and parent_attempt is not None:
+                    _require_running_execution(parent_job, parent_attempt)
                 _validate_materialized_replay(current, materialized)
                 tool = await self._ensure_tool_run(session, row)
                 verification_row, verifier_job, verifier_attempt = await self._ensure_verification(
@@ -377,6 +405,19 @@ class SqlAlchemyDemoEditingRepository:
                     status="REJECTED",
                     result_code=f"VERIFICATION_{verification.status.value}",
                 )
+                _finish_job(
+                    execution_job,
+                    execution_attempt,
+                    status="REJECTED",
+                    result_code=f"VERIFICATION_{verification.status.value}",
+                )
+                if parent_job is not None and parent_attempt is not None:
+                    _finish_job(
+                        parent_job,
+                        parent_attempt,
+                        status="REJECTED",
+                        result_code=f"RESTORE_VERIFICATION_{verification.status.value}",
+                    )
                 await session.flush()
                 return await self._artifact_dto(session, row)
 
@@ -386,6 +427,9 @@ class SqlAlchemyDemoEditingRepository:
         verification: EffectVerificationResult,
         materialized: MaterializedObject,
         published_storage_key: str,
+        *,
+        parent_job_id: str | None = None,
+        parent_job_attempt_id: str | None = None,
     ) -> Promotion:
         if verification.status is not VerificationStatus.PASS or not verification.publishable:
             raise DemoEditingRepositoryError(
@@ -397,18 +441,51 @@ class SqlAlchemyDemoEditingRepository:
             )
         async with self._sessions() as session:
             async with session.begin():
+                (
+                    execution_job,
+                    execution_attempt,
+                    parent_job,
+                    parent_attempt,
+                ) = await self._lock_execution_terminal_context(
+                    session,
+                    artifact,
+                    parent_job_id=parent_job_id,
+                    parent_job_attempt_id=parent_job_attempt_id,
+                )
                 row = await self._lock_artifact(session, artifact)
                 current = await self._artifact_dto(session, row)
                 if current.state is ArtifactState.PROMOTED:
+                    _validate_terminal_execution(current.state, execution_job, execution_attempt)
+                    if parent_job is not None and parent_attempt is not None:
+                        _validate_terminal_execution(current.state, parent_job, parent_attempt)
                     return await self._promotion_for_artifact(session, row.id)
                 if current.state is not ArtifactState.MATERIALIZED:
                     raise DemoEditingRepositoryError(
                         "ARTIFACT_NOT_MATERIALIZED", "artifact is not publishable"
                     )
+                _require_running_execution(execution_job, execution_attempt)
+                if parent_job is not None and parent_attempt is not None:
+                    _require_running_execution(parent_job, parent_attempt)
                 _validate_materialized_replay(current, materialized)
                 tool = await self._ensure_tool_run(session, row)
                 parent, plan, operation = await self._publication_context(session, row, tool)
                 result_asset_id = _deterministic_id("D07ResultAsset", row.id, materialized.sha256)
+                transition_intent = await self._transition_intent(
+                    session,
+                    parent=parent,
+                    plan=plan,
+                    operation=operation,
+                )
+                if transition_intent is not None:
+                    if materialized.sha256 != transition_intent.expected_result_asset_sha256:
+                        raise DemoEditingRepositoryError(
+                            "TRANSITION_RESULT_DIGEST_MISMATCH",
+                            "transition bytes do not match the bound historical target",
+                        )
+                    try:
+                        validate_result_asset_id(transition_intent, result_asset_id)
+                    except OperationLineageError as exc:
+                        raise DemoEditingRepositoryError(exc.code, str(exc)) from exc
                 result_asset = await session.get(Asset, result_asset_id)
                 if result_asset is None:
                     source_asset = await session.get(Asset, tool.input_asset_id)
@@ -503,6 +580,19 @@ class SqlAlchemyDemoEditingRepository:
                     status="COMPLETED",
                     result_code="VERIFICATION_PASS",
                 )
+                _finish_job(
+                    execution_job,
+                    execution_attempt,
+                    status="COMPLETED",
+                    result_code="EDIT_EXECUTION_COMPLETED",
+                )
+                if parent_job is not None and parent_attempt is not None:
+                    _finish_job(
+                        parent_job,
+                        parent_attempt,
+                        status="COMPLETED",
+                        result_code="IMAGE_VERSION_RESTORED",
+                    )
                 await session.flush()
                 return Promotion(result_asset.id, variant.id, image.id, verification_row.id)
 
@@ -539,7 +629,12 @@ class SqlAlchemyDemoEditingRepository:
             .where(JobAttempt.id == command.formal_job_attempt_id)
             .with_for_update()
         )
-        if operation is None or binding is None or attempt is None:
+        job = None
+        if binding is not None:
+            job = await session.scalar(
+                select(Job).where(Job.id == binding.job_id).with_for_update()
+            )
+        if operation is None or binding is None or job is None or attempt is None:
             raise DemoEditingRepositoryError(
                 "EXECUTION_AUTHORITY_UNAVAILABLE", "execution authority is unavailable"
             )
@@ -561,11 +656,143 @@ class SqlAlchemyDemoEditingRepository:
             or binding.target_type != "EDIT_PLAN"
             or binding.target_id != plan.id
             or attempt.job_id != binding.job_id
+            or attempt.attempt != job.attempt_count
+            or job.status != "RUNNING"
             or attempt.status != "RUNNING"
         ):
             raise DemoEditingRepositoryError(
                 "EXECUTION_AUTHORITY_MISMATCH", "execution authority does not match command"
             )
+        if (command.parent_job_id is None) != (command.parent_job_attempt_id is None):
+            raise DemoEditingRepositoryError(
+                "PARENT_EXECUTION_AUTHORITY_MISMATCH",
+                "parent restore Job authority must be a complete pair",
+            )
+        if command.parent_job_id is not None:
+            assert command.parent_job_attempt_id is not None
+            target_id = operation.parameters.get("target_image_version_id")
+            parent_binding = await session.scalar(
+                select(DemoJobBinding)
+                .where(DemoJobBinding.job_id == command.parent_job_id)
+                .with_for_update()
+            )
+            parent_job = await session.scalar(
+                select(Job).where(Job.id == command.parent_job_id).with_for_update()
+            )
+            parent_attempt = await session.scalar(
+                select(JobAttempt)
+                .where(JobAttempt.id == command.parent_job_attempt_id)
+                .with_for_update()
+            )
+            if (
+                operation.operation_type
+                not in {OperationType.RESTORE.value, OperationType.ROLLBACK.value}
+                or not isinstance(target_id, str)
+                or parent_binding is None
+                or parent_job is None
+                or parent_attempt is None
+                or parent_binding.demo_actor_id != command.actor_id
+                or parent_binding.demo_session_id != command.session_id
+                or parent_binding.endpoint_operation != "image_version.restore"
+                or parent_binding.target_type != "IMAGE_VERSION"
+                or parent_binding.target_id != target_id
+                or parent_attempt.job_id != parent_job.id
+                or parent_attempt.attempt != parent_job.attempt_count
+                or parent_job.status != "RUNNING"
+                or parent_attempt.status != "RUNNING"
+            ):
+                raise DemoEditingRepositoryError(
+                    "PARENT_EXECUTION_AUTHORITY_MISMATCH",
+                    "parent restore Job authority does not match execution",
+                )
+
+    async def _lock_execution_terminal_context(
+        self,
+        session: AsyncSession,
+        artifact: EditArtifact,
+        *,
+        parent_job_id: str | None,
+        parent_job_attempt_id: str | None,
+    ) -> tuple[Job, JobAttempt, Job | None, JobAttempt | None]:
+        """Lock child/parent Jobs, attempts, then the caller locks the artifact."""
+        if (parent_job_id is None) != (parent_job_attempt_id is None):
+            raise DemoEditingRepositoryError(
+                "PARENT_EXECUTION_AUTHORITY_MISMATCH",
+                "parent restore Job authority must be a complete pair",
+            )
+        binding = await session.get(DemoJobBinding, artifact.execution_job_binding_id)
+        if (
+            binding is None
+            or binding.demo_actor_id != artifact.actor_id
+            or binding.demo_session_id != artifact.session_id
+            or binding.endpoint_operation != "edit_plan.execute"
+            or binding.target_type != "EDIT_PLAN"
+        ):
+            raise DemoEditingRepositoryError(
+                "EXECUTION_AUTHORITY_UNAVAILABLE", "execution Job binding is unavailable"
+            )
+        job_ids = [binding.job_id]
+        attempt_ids = [artifact.formal_job_attempt_id]
+        parent_binding = None
+        if parent_job_id is not None:
+            parent_binding = await session.scalar(
+                select(DemoJobBinding).where(DemoJobBinding.job_id == parent_job_id)
+            )
+            assert parent_job_attempt_id is not None
+            job_ids.append(parent_job_id)
+            attempt_ids.append(parent_job_attempt_id)
+        jobs = {
+            row.id: row
+            for row in (
+                await session.scalars(
+                    select(Job).where(Job.id.in_(job_ids)).order_by(Job.id).with_for_update()
+                )
+            ).all()
+        }
+        attempts = {
+            row.id: row
+            for row in (
+                await session.scalars(
+                    select(JobAttempt)
+                    .where(JobAttempt.id.in_(attempt_ids))
+                    .order_by(JobAttempt.id)
+                    .with_for_update()
+                )
+            ).all()
+        }
+        job = jobs.get(binding.job_id)
+        attempt = attempts.get(artifact.formal_job_attempt_id)
+        if (
+            job is None
+            or attempt is None
+            or attempt.job_id != binding.job_id
+            or attempt.attempt != job.attempt_count
+        ):
+            raise DemoEditingRepositoryError(
+                "EXECUTION_AUTHORITY_MISMATCH",
+                "execution Job and current attempt do not match artifact authority",
+            )
+        if parent_job_id is None:
+            return job, attempt, None, None
+        assert parent_job_attempt_id is not None
+        parent_job = jobs.get(parent_job_id)
+        parent_attempt = attempts.get(parent_job_attempt_id)
+        if (
+            parent_binding is None
+            or parent_job is None
+            or parent_attempt is None
+            or parent_binding.demo_actor_id != artifact.actor_id
+            or parent_binding.demo_session_id != artifact.session_id
+            or parent_binding.endpoint_operation != "image_version.restore"
+            or parent_binding.target_type != "IMAGE_VERSION"
+            or parent_attempt.job_id != parent_job.id
+            or parent_attempt.attempt != parent_job.attempt_count
+        ):
+            raise DemoEditingRepositoryError(
+                "PARENT_EXECUTION_AUTHORITY_MISMATCH",
+                "parent restore Job authority does not match execution",
+            )
+        return job, attempt, parent_job, parent_attempt
 
     async def _ensure_tool_run(
         self, session: AsyncSession, artifact: DemoEditArtifact
@@ -796,6 +1023,44 @@ class SqlAlchemyDemoEditingRepository:
                 "EXECUTION_PARENT_UNAVAILABLE", "operation input ImageVersion is unavailable"
             )
         return parent
+
+    async def _transition_intent(
+        self,
+        session: AsyncSession,
+        *,
+        parent: DemoImageVersion,
+        plan: DemoEditPlan,
+        operation: DemoEditOperation,
+    ) -> TransitionIntent | None:
+        if operation.operation_type not in {
+            OperationType.RESTORE.value,
+            OperationType.ROLLBACK.value,
+        }:
+            return None
+        target_id = operation.parameters.get("target_image_version_id")
+        target_digest = operation.parameters.get("target_image_version_digest")
+        if not isinstance(target_id, str) or not isinstance(target_digest, str):
+            raise DemoEditingRepositoryError(
+                "TRANSITION_TARGET_INVALID", "transition target binding is invalid"
+            )
+        rows = tuple(
+            (
+                await session.scalars(
+                    select(DemoImageVersion)
+                    .where(DemoImageVersion.editing_session_id == plan.editing_session_id)
+                    .order_by(DemoImageVersion.sequence, DemoImageVersion.id)
+                    .with_for_update()
+                )
+            ).all()
+        )
+        history = tuple(_image_version_reference(row) for row in rows)
+        current = _image_version_reference(parent)
+        try:
+            if operation.operation_type == OperationType.RESTORE.value:
+                return plan_restore_transition(current, history, target_id, target_digest)
+            return plan_rollback_transition(current, history, target_id, target_digest)
+        except OperationLineageError as exc:
+            raise DemoEditingRepositoryError(exc.code, str(exc)) from exc
 
     async def _artifact_dto(self, session: AsyncSession, row: DemoEditArtifact) -> EditArtifact:
         events = tuple(
@@ -1061,6 +1326,21 @@ def _validate_published_asset(
         )
 
 
+def _image_version_reference(row: DemoImageVersion) -> ImageVersionReference:
+    return ImageVersionReference(
+        image_version_id=row.id,
+        image_version_digest=row.content_digest,
+        actor_id=row.demo_actor_id,
+        demo_session_id=row.demo_session_id,
+        editing_session_id=row.editing_session_id,
+        result_asset_id=row.result_asset_id,
+        result_asset_sha256=row.result_asset_sha256,
+        sequence=row.sequence,
+        parent_image_version_id=row.parent_version_id,
+        quarantined=row.version_kind == "QUARANTINED",
+    )
+
+
 def _finish_job(job: Job, attempt: JobAttempt, *, status: str, result_code: str) -> None:
     now = utcnow()
     attempt.status = status
@@ -1071,6 +1351,46 @@ def _finish_job(job: Job, attempt: JobAttempt, *, status: str, result_code: str)
     job.finalized_at = now
     job.result_code = result_code
     job.updated_at = now
+
+
+def _require_running_execution(job: Job, attempt: JobAttempt) -> None:
+    if job.status != "RUNNING" or attempt.status != "RUNNING":
+        raise DemoEditingRepositoryError(
+            "EXECUTION_NOT_RUNNING",
+            "execution Job is no longer eligible for publication",
+        )
+    if job.finalized_at is not None or attempt.finished_at is not None:
+        raise DemoEditingRepositoryError(
+            "EXECUTION_AUTHORITY_MISMATCH",
+            "RUNNING execution authority already has terminal timestamps",
+        )
+
+
+def _validate_terminal_execution(
+    artifact_state: ArtifactState, job: Job, attempt: JobAttempt
+) -> None:
+    expected = {
+        ArtifactState.PROMOTED: "COMPLETED",
+        ArtifactState.REJECTED: "REJECTED",
+        ArtifactState.CANCELLED: "CANCELLED",
+    }.get(artifact_state)
+    if expected is None:
+        if job.status not in {"COMPLETED", "REJECTED", "FAILED", "CANCELLED"}:
+            raise DemoEditingRepositoryError(
+                "TERMINAL_EXECUTION_MISMATCH",
+                "terminal artifact has a non-terminal execution Job",
+            )
+        return
+    if (
+        job.status != expected
+        or attempt.status != expected
+        or job.finalized_at is None
+        or attempt.finished_at is None
+    ):
+        raise DemoEditingRepositoryError(
+            "TERMINAL_EXECUTION_MISMATCH",
+            "terminal artifact and execution Job authority disagree",
+        )
 
 
 def _formal_job_key_hash(actor_id: str, operation: str, key_hash: str) -> str:
