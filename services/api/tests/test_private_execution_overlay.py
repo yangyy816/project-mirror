@@ -2117,6 +2117,154 @@ def test_terminal_rollover_v2_pins_cal_req_003_and_recovers_one_ready_successor(
 
 
 @pytest.mark.parametrize(
+    ("directory_name", "entry_kind"),
+    [("staging", "file"), ("records", "directory")],
+)
+def test_terminal_rollover_v2_verification_rejects_any_successor_work_entry_without_echo(
+    tmp_path: Path,
+    directory_name: str,
+    entry_kind: str,
+) -> None:
+    _predecessor_root, predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor = rollover_terminal_overlay_v2(**kwargs)
+    injected = successor.receipt_path.parent / directory_name / "untrusted-entry-token.bin"
+    if entry_kind == "file":
+        injected.write_bytes(b"synthetic-private-placeholder")
+    else:
+        injected.mkdir()
+
+    with pytest.raises(
+        ExecutionOverlayError,
+        match="V2_ROLLOVER_SUCCESSOR_DIRECTORY_NOT_EMPTY",
+    ) as error:
+        verify_rollover_successor_v2(
+            successor.receipt_path,
+            predecessor_receipt_path=predecessor_receipt,
+            expected_predecessor_receipt_sha256=cast(
+                str, kwargs["expected_predecessor_receipt_sha256"]
+            ),
+            expected_predecessor_state_sha256=cast(
+                str, kwargs["expected_predecessor_state_sha256"]
+            ),
+            expected_predecessor_event_sha256=cast(
+                str, kwargs["expected_predecessor_event_sha256"]
+            ),
+            expected_controller_sha256=CONTROLLER_SHA256,
+            project_worktree_root=tmp_path,
+        )
+    assert injected.name not in str(error.value)
+
+
+def test_terminal_rollover_v2_partial_recovery_rejects_prepopulated_work_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _predecessor_root, _predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    original_directory = overlay_module._create_or_verify_plain_directory
+
+    def crash_after_directories(path: Path) -> None:
+        original_directory(path)
+        if path.name == "records":
+            raise RuntimeError("INJECTED_V2_ROLLOVER_DIRECTORIES_CRASH")
+
+    monkeypatch.setattr(
+        overlay_module,
+        "_create_or_verify_plain_directory",
+        crash_after_directories,
+    )
+    with pytest.raises(RuntimeError, match="INJECTED_V2_ROLLOVER_DIRECTORIES_CRASH"):
+        rollover_terminal_overlay_v2(**kwargs)
+    monkeypatch.setattr(
+        overlay_module,
+        "_create_or_verify_plain_directory",
+        original_directory,
+    )
+    successor_root = cast(Path, kwargs["successor_root"])
+    injected = successor_root / "staging" / "untrusted-partial-recovery.bin"
+    injected.write_bytes(b"synthetic-private-placeholder")
+
+    with pytest.raises(
+        ExecutionOverlayError,
+        match="V2_ROLLOVER_SUCCESSOR_DIRECTORY_NOT_EMPTY",
+    ) as error:
+        rollover_terminal_overlay_v2(**kwargs)
+    assert injected.name not in str(error.value)
+    assert not (successor_root / "event-000000.json").exists()
+    assert not (successor_root / "state-000000.json").exists()
+    assert not (successor_root / "receipt-000000.json").exists()
+
+
+def test_terminal_rollover_v2_rejects_entry_race_before_initial_empty_proof(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _predecessor_root, _predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor_root = cast(Path, kwargs["successor_root"])
+    original_scandir = overlay_module.os.scandir
+    injected = False
+
+    def inject_before_scan(path: str | bytes | int | os.PathLike[str] | os.PathLike[bytes]):
+        nonlocal injected
+        if not injected:
+            (successor_root / "records" / "untrusted-race-entry.bin").write_bytes(
+                b"synthetic-private-placeholder"
+            )
+            injected = True
+        return original_scandir(path)
+
+    monkeypatch.setattr(overlay_module.os, "scandir", inject_before_scan)
+    with pytest.raises(
+        ExecutionOverlayError,
+        match="V2_ROLLOVER_SUCCESSOR_DIRECTORY_NOT_EMPTY",
+    ):
+        rollover_terminal_overlay_v2(**kwargs)
+    assert not (successor_root / "event-000000.json").exists()
+    assert not (successor_root / "state-000000.json").exists()
+    assert not (successor_root / "receipt-000000.json").exists()
+
+
+def test_terminal_rollover_v2_rechecks_empty_directories_before_verification_returns(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _predecessor_root, predecessor_receipt, kwargs = _rollover_v2_fixture(tmp_path)
+    successor = rollover_terminal_overlay_v2(**kwargs)
+    original_read_json = overlay_module._read_json
+    injected = False
+
+    def inject_after_initial_empty_proof(path: Path) -> dict[str, Any]:
+        nonlocal injected
+        value = original_read_json(path)
+        if not injected and path.name.startswith("rollover-v2-intent-"):
+            (successor.receipt_path.parent / "records" / "untrusted-verify-race.bin").write_bytes(
+                b"synthetic-private-placeholder"
+            )
+            injected = True
+        return value
+
+    monkeypatch.setattr(overlay_module, "_read_json", inject_after_initial_empty_proof)
+    with pytest.raises(
+        ExecutionOverlayError,
+        match="V2_ROLLOVER_SUCCESSOR_DIRECTORY_NOT_EMPTY",
+    ):
+        verify_rollover_successor_v2(
+            successor.receipt_path,
+            predecessor_receipt_path=predecessor_receipt,
+            expected_predecessor_receipt_sha256=cast(
+                str, kwargs["expected_predecessor_receipt_sha256"]
+            ),
+            expected_predecessor_state_sha256=cast(
+                str, kwargs["expected_predecessor_state_sha256"]
+            ),
+            expected_predecessor_event_sha256=cast(
+                str, kwargs["expected_predecessor_event_sha256"]
+            ),
+            expected_controller_sha256=CONTROLLER_SHA256,
+            project_worktree_root=tmp_path,
+        )
+
+
+@pytest.mark.parametrize(
     ("mutation", "field"),
     [
         (("event", "reason_code", "OTHER"), "reason"),

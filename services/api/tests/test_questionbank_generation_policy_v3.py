@@ -74,6 +74,9 @@ EXECUTION_PROTOCOL_PATH = ROOT / "docs" / "operations" / "P2_M5_EXECUTION_PROTOC
 R52_CONTRACT_PATH = (
     ROOT / "docs" / "operations" / "P2_M5_R52_PRIVATE_IMAGEGEN_TRANSPORT_RUNNER_CONTRACT.md"
 )
+R54_CONTRACT_PATH = (
+    ROOT / "docs" / "operations" / "P2_M5_R54_ROLLOVER_EMPTY_DIRECTORY_INTEGRITY_CONTRACT.md"
+)
 
 _CC05_A_AUTHORIZED_A0_OVERRIDES = {
     "ASSIGNMENT_LEDGER_VERSION": ("p2-m5-cc05a-calibration-assignment-v3-cal-req-002-forward"),
@@ -398,6 +401,14 @@ def _last_r53_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-r53-cal-req-004-ready-rollover-eof/v1",
         sentinel="P2_M5_R53_CAL_REQ_004_READY_ROLLOVER_TRUE_EOF",
+    )
+
+
+def _last_r54_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-r54-rollover-empty-directory-integrity-eof/v1",
+        sentinel="P2_M5_R54_ROLLOVER_EMPTY_DIRECTORY_INTEGRITY_TRUE_EOF",
     )
 
 
@@ -3138,12 +3149,75 @@ def test_r53_v2_rollover_authority_is_mirrored_at_true_eof_without_private_data(
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_R53_CAL_REQ_004_READY_ROLLOVER_TRUE_EOF",
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    acceptance_text = ACCEPTANCE_PATH.read_text(encoding="utf-8")
+    protocol_text = EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")
+    assert canonical[-1][1] + "\n\n## Current authoritative state — P2-M5-R54" in acceptance_text
+    assert mirror[-1][1] + "\n\n## Current authoritative state mirror — P2-M5-R54" in protocol_text
     tracked = "\n".join(
         (
             ACCEPTANCE_PATH.read_text(encoding="utf-8")[-20_000:],
             EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-20_000:],
+        )
+    )
+    for forbidden in (
+        "data:image/",
+        "prompt_plaintext",
+        "signed_url",
+        "object_key",
+        "D:\\p-worktrees\\",
+    ):
+        assert forbidden not in tracked
+
+
+def test_r54_empty_directory_integrity_authority_is_mirrored_at_true_eof() -> None:
+    canonical = _last_r54_key_block(ACCEPTANCE_PATH)
+    mirror = _last_r54_key_block(EXECUTION_PROTOCOL_PATH)
+    values = dict(canonical)
+
+    assert canonical == mirror
+    assert len(canonical) == len(values)
+    assert values["P2_M5_R53_PARENT_CANDIDATE_SHA"] == ("89136D12CB6C3666680C3128AEF2FD55C978CC8D")
+    assert values["P2_M5_R53_PARENT_SECURITY_REVIEW"] == (
+        "FAIL_SUCCESSOR_WORK_DIRECTORIES_NOT_PROVEN_EMPTY"
+    )
+    assert values["P2_M5_R53_PARENT_SOL_HIGH_FINAL_REVIEW"] == "PASS"
+    assert values["P2_M5_R54_REPAIR_SCOPE"] == (
+        "STAGING_RECORDS_BOUNDED_ZERO_ENTRY_PROOF_CREATE_RECOVER_VERIFY_AND_TRUE_EOF_ONLY"
+    )
+    assert values["P2_M5_R54_DIRECTORY_PROBE"] == (
+        "BOUNDED_FIRST_ENTRY_EXISTENCE_ONLY_NO_NAME_ATTRIBUTE_OR_PAYLOAD_ACCESS"
+    )
+    assert values["P2_M5_R54_PREPOPULATED_PARTIAL_RECOVERY"] == ("REJECTED_BEFORE_SEQUENCE_ZERO")
+    assert values["P2_M5_R54_GENERATION_CALLS"] == "0"
+    assert values["P2_M5_R54_ORDINALS_CONSUMED"] == "0"
+    assert values["P2_M5_R54_IMAGE_BYTES_READ"] == "0"
+    assert values["P2_M5_R54_DIRECTORY_PAYLOAD_BYTES_READ"] == "0"
+    assert values["P2_M5_R54_FOCUSED_TESTS"] == "PASS_125_ZERO_SKIP"
+    assert values["P2_M5_R54_FULL_REGRESSION"] == (
+        "PASS_CANONICAL_LF_857_TOTAL_695_PASS_162_ENVIRONMENT_GATED_SKIP_ZERO_FAILURE_ERROR"
+    )
+    assert values["NEXT_UNUSED_FORMAL_ORDINAL"] == "CAL-REQ-004"
+    assert values["CAL_REQ_004_STATUS"] == "NOT_CONSUMED"
+    assert values["CAL_REQ_004_DISPATCH_AUTHORIZED"] == (
+        "TRUE_FOR_ONE_EXACT_CALL_AFTER_THIS_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert values["NEXT_READY_TASK"] == "EXECUTE_CAL_REQ_004"
+    assert values["POST_ACCEPTANCE_COMMIT_REQUIRED"] == "NO"
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_R54_ROLLOVER_EMPTY_DIRECTORY_INTEGRITY_TRUE_EOF",
+    )
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+
+    contract = R54_CONTRACT_PATH.read_text(encoding="utf-8")
+    assert "never reads `DirEntry.name`, returns, logs or includes the" in contract
+    assert "no post-acceptance status commit is required" in contract
+    tracked = "\n".join(
+        (
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-24_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-24_000:],
+            contract,
         )
     )
     for forbidden in (

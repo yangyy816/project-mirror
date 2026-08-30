@@ -3250,6 +3250,36 @@ def _rollover_derived_ledger_v2(state: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _require_empty_rollover_directory_v2(path: Path) -> None:
+    """Prove zero entries without reading or exposing an entry name or payload."""
+    try:
+        if os.name == "nt":
+            handles = _open_windows_directory_chain(path)
+            try:
+                _assert_windows_plain_directory_handle(handles[-1], path)
+                with os.scandir(path) as entries:
+                    has_entry = next(entries, None) is not None
+                _assert_windows_plain_directory_handle(handles[-1], path)
+            finally:
+                _close_windows_handles(handles)
+        else:
+            descriptors = _open_posix_directory_chain(path)
+            try:
+                _assert_posix_plain_directory_identity(path, descriptors[-1])
+                with os.scandir(descriptors[-1]) as entries:
+                    has_entry = next(entries, None) is not None
+                _assert_posix_plain_directory_identity(path, descriptors[-1])
+            finally:
+                for descriptor in reversed(descriptors):
+                    os.close(descriptor)
+    except ExecutionOverlayError:
+        raise
+    except OSError as error:
+        raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_DIRECTORY_INSPECTION_FAILED") from error
+    if has_entry:
+        raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_DIRECTORY_NOT_EMPTY")
+
+
 def rollover_terminal_overlay_v2(
     *,
     predecessor_receipt_path: Path,
@@ -3335,6 +3365,8 @@ def rollover_terminal_overlay_v2(
             raise
     _create_or_verify_plain_directory(successor_root / "staging")
     _create_or_verify_plain_directory(successor_root / "records")
+    _require_empty_rollover_directory_v2(successor_root / "staging")
+    _require_empty_rollover_directory_v2(successor_root / "records")
     if (
         _validate_project_local_private_parent(
             project_worktree_root=project_worktree_root, allowed_parent=allowed_parent
@@ -3459,8 +3491,10 @@ def verify_rollover_successor_v2(
         raise ExecutionOverlayError("V2_ROLLOVER_INTENT_BINDING_INVALID")
     _validate_opaque_id(intent_id, "V2_ROLLOVER_INTENT_ID")
     _validate_digest(intent_sha256, "V2_ROLLOVER_INTENT_SHA256")
-    _require_plain_directory(successor_receipt_path.parent / "staging")
-    _require_plain_directory(successor_receipt_path.parent / "records")
+    staging_path = successor_receipt_path.parent / "staging"
+    records_path = successor_receipt_path.parent / "records"
+    _require_empty_rollover_directory_v2(staging_path)
+    _require_empty_rollover_directory_v2(records_path)
     intent_path = _safe_child(parent, intent_file)
     if sha256_file(intent_path) != intent_sha256:
         raise ExecutionOverlayError("V2_ROLLOVER_INTENT_DIGEST_MISMATCH")
@@ -3533,6 +3567,8 @@ def verify_rollover_successor_v2(
         or (successor_receipt_path.parent / "receipt-000001.json").exists()
     ):
         raise ExecutionOverlayError("V2_ROLLOVER_SUCCESSOR_BINDING_INVALID")
+    _require_empty_rollover_directory_v2(staging_path)
+    _require_empty_rollover_directory_v2(records_path)
     counters = cast(dict[str, int], state["counters"])
     return {
         "status": "TERMINAL_OVERLAY_ROLLOVER_V2_PASS",
