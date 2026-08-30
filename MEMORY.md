@@ -788,3 +788,17 @@
   已发布 D07 ImageVersion 和显式用户 outcome。D02 autonomy 持有 migration lease 期间不得借用
   `SELF_TRANSFER_RUN` 或伪造终态；该 wiring 延后，产品主线转向已有 `context.compile` authority 的 D10 Context
   queued compiler。
+
+- 2026-08-31：D09 ImageVersion feedback / Final Save HTTP wiring 以本地产品提交
+  `32cb1e9d62c99d33f898357617264b23c6f7d06d` 收口。`EVENT_ONLY` 只追加 `IMAGE_ACCEPTED`，
+  `FINAL_SAVE` 独占调用原子 event-plus-episode authority；`REJECT`/`ADJUST` 不创建 Episode。owner-bound
+  authorization、command-binding idempotency、payload collision、同/异 key 并发和 zero-partial rollback 均由真实
+  PostgreSQL 定向测试覆盖，OpenAPI/generated TypeScript 同步，独立只读审查为 `PASS_FINDINGS_NONE`。本地验证
+  通过，但未执行 push 或 same-SHA remote CI，因此这里只记录产品实现 checkpoint，不提升 D09/P7 最终 Gate。
+
+- 2026-08-31：D10 Context queued compiler 不是当前可执行节点：现有 compile command 缺少 durable
+  profile/instruction/explicit-as-of request authority，`DemoJobBinding` 只保存 request digest，formal Job payload 必须保持
+  `{}`；该异步 authority 等待 D02 migration lease 释放。现有
+  `GET /sessions/{session_id}/context` 与 `GET /traces/{session_id}` 同样缺少显式 `recall_at` 或精确
+  `context_compilation_id`，不能用隐式 `utcnow()` 绕过 Profile/Context 的 no-wall-clock authority。下一可执行产品节点为
+  不新增 migration 的最小中央读取契约修正：公开请求显式携带 `recall_at`，再接入 owner-bound Context/Trace reads。
