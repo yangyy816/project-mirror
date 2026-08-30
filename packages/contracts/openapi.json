@@ -5631,6 +5631,21 @@
             ],
             "title": "Feedback"
           },
+          "acceptance_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "EVENT_ONLY",
+                  "FINAL_SAVE"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceptance Kind"
+          },
           "intensity_ppm": {
             "anyOf": [
               {

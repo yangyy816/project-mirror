@@ -289,7 +289,26 @@ class DemoToolRunResponse(StrictContractModel):
 
 class DemoImageFeedbackRequest(StrictContractModel):
     feedback: Literal["ACCEPT", "REJECT", "ADJUST"]
+    acceptance_kind: Literal["EVENT_ONLY", "FINAL_SAVE"] | None = None
     intensity_ppm: Annotated[int, Field(ge=0, le=1_000_000)] | None = None
+
+    @model_validator(mode="after")
+    def validate_feedback_intent(self) -> Self:
+        if self.feedback == "ACCEPT":
+            if self.acceptance_kind is None or self.intensity_ppm is not None:
+                raise ValueError(
+                    "ACCEPT requires an explicit acceptance_kind and forbids intensity_ppm"
+                )
+            return self
+        if self.acceptance_kind is not None:
+            raise ValueError("acceptance_kind is valid only for ACCEPT feedback")
+        if self.feedback == "ADJUST":
+            if self.intensity_ppm is None:
+                raise ValueError("ADJUST requires intensity_ppm")
+            return self
+        if self.intensity_ppm is not None:
+            raise ValueError("REJECT forbids intensity_ppm")
+        return self
 
 
 class DemoRestoreRequest(StrictContractModel):

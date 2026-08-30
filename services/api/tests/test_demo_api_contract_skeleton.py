@@ -14,6 +14,7 @@ from mirror_api.demo_models import DemoActor
 from mirror_api.demo_schemas import (
     DemoCapability,
     DemoEditPlanExecuteRequest,
+    DemoImageFeedbackRequest,
     DemoJobAcceptedResponse,
     DemoJobCancelRequest,
     DemoJobResponse,
@@ -258,6 +259,30 @@ def test_frozen_demo_mutation_contracts_require_explicit_intent_and_precondition
                 "maximum_intensity_ppm": 300_000,
             }
         )
+
+    assert (
+        DemoImageFeedbackRequest(feedback="ACCEPT", acceptance_kind="EVENT_ONLY").acceptance_kind
+        == "EVENT_ONLY"
+    )
+    assert (
+        DemoImageFeedbackRequest(feedback="ACCEPT", acceptance_kind="FINAL_SAVE").acceptance_kind
+        == "FINAL_SAVE"
+    )
+    assert DemoImageFeedbackRequest(feedback="REJECT").intensity_ppm is None
+    assert (
+        DemoImageFeedbackRequest(feedback="ADJUST", intensity_ppm=250_000).intensity_ppm == 250_000
+    )
+    invalid_image_feedback = (
+        {"feedback": "ACCEPT"},
+        {"feedback": "ACCEPT", "acceptance_kind": "FINAL_SAVE", "intensity_ppm": 1},
+        {"feedback": "REJECT", "acceptance_kind": "EVENT_ONLY"},
+        {"feedback": "REJECT", "intensity_ppm": 1},
+        {"feedback": "ADJUST"},
+        {"feedback": "ADJUST", "acceptance_kind": "EVENT_ONLY", "intensity_ppm": 1},
+    )
+    for invalid_payload in invalid_image_feedback:
+        with pytest.raises(ValidationError):
+            DemoImageFeedbackRequest.model_validate(invalid_payload)
 
     assert DemoJobCancelRequest(expected_status="RUNNING").reason == "USER_REQUEST"
     assert (

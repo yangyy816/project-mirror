@@ -1202,6 +1202,8 @@ export interface components {
              * @enum {string}
              */
             feedback: "ACCEPT" | "REJECT" | "ADJUST";
+            /** Acceptance Kind */
+            acceptance_kind?: ("EVENT_ONLY" | "FINAL_SAVE") | null;
             /** Intensity Ppm */
             intensity_ppm?: number | null;
         };

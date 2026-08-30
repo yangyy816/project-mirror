@@ -33,6 +33,17 @@ from mirror_api.demo_idempotency import (
     DemoIdempotencyInputError,
     DemoIdempotencyPayloadConflict,
 )
+from mirror_api.demo_image_feedback_dependencies import (
+    get_demo_image_feedback_service,
+)
+from mirror_api.demo_image_feedback_service import (
+    CreateDemoImageFeedback,
+    DemoImageFeedbackAuthorityCorruption,
+    DemoImageFeedbackConflict,
+    DemoImageFeedbackInputError,
+    DemoImageFeedbackService,
+    DemoImageFeedbackUnavailable,
+)
 from mirror_api.demo_job_service import (
     DemoJobAuthorityCorruption,
     DemoJobInputError,
@@ -400,6 +411,57 @@ def _raise_editing_error(error: Exception) -> NoReturn:
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         code="DEMO_EDITING_AUTHORITY_CORRUPT",
         message="编辑 authority 无法安全读取。",
+        details={"track": "DEMO_PROTOTYPE"},
+    ) from error
+
+
+def _raise_image_feedback_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoIdempotencyPayloadConflict):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
+            message="幂等键已绑定到不同的图片反馈命令。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoImageFeedbackConflict):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="DEMO_IMAGE_FEEDBACK_STATE_CONFLICT",
+            message="当前图片版本状态不允许该反馈操作。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(
+        error,
+        (
+            DemoImageFeedbackInputError,
+            DemoIdempotencyInputError,
+            DemoPreferenceLedgerInputError,
+        ),
+    ):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="DEMO_IMAGE_FEEDBACK_REQUEST_INVALID",
+            message="图片反馈请求不符合 Demo authority 约束。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(
+        error,
+        (
+            DemoImageFeedbackUnavailable,
+            DemoPreferenceActorUnavailable,
+            DemoPreferenceSessionUnavailable,
+        ),
+    ):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_IMAGE_VERSION_UNAVAILABLE",
+            message="图片版本不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise APIError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="DEMO_IMAGE_FEEDBACK_AUTHORITY_CORRUPT",
+        message="图片反馈 authority 无法安全读取。",
         details={"track": "DEMO_PROTOTYPE"},
     ) from error
 
@@ -1061,10 +1123,42 @@ async def get_tool_run(
     responses=DEMO_ERRORS,
 )
 async def create_image_version_feedback(
-    image_version_id: DemoId, payload: DemoImageFeedbackRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del image_version_id, payload, idempotency_key
-    _not_implemented("image_feedback", "D09")
+    image_version_id: DemoId,
+    payload: DemoImageFeedbackRequest,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    service: DemoImageFeedbackService = Depends(get_demo_image_feedback_service),
+) -> DemoPreferenceEventResponse:
+    try:
+        result = await service.create(
+            CreateDemoImageFeedback(
+                demo_actor_id=actor.id,
+                image_version_id=image_version_id,
+                feedback=payload.feedback,
+                acceptance_kind=payload.acceptance_kind,
+                intensity_ppm=payload.intensity_ppm,
+                idempotency_key=idempotency_key,
+            )
+        )
+    except (
+        DemoImageFeedbackInputError,
+        DemoImageFeedbackUnavailable,
+        DemoImageFeedbackConflict,
+        DemoImageFeedbackAuthorityCorruption,
+        DemoIdempotencyInputError,
+        DemoIdempotencyPayloadConflict,
+        DemoIdempotencyAuthorityCorruption,
+        DemoPreferenceLedgerInputError,
+        DemoPreferenceActorUnavailable,
+        DemoPreferenceSessionUnavailable,
+        DemoPreferenceLedgerCorruption,
+    ) as exc:
+        _raise_image_feedback_error(exc)
+    return DemoPreferenceEventResponse(
+        event_id=result.event_id,
+        event_type=result.event_type,
+        event_digest=result.event_digest,
+    )
 
 
 @router.post(

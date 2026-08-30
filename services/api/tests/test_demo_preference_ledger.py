@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta, timezone
 from importlib import import_module
-from typing import Any, Protocol, cast
+from typing import Any, Literal, Protocol, cast
 
 import pytest
 from sqlalchemy import create_engine, func, select, text
@@ -17,12 +17,20 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session
 
-from mirror_api.demo_idempotency import canonical_json_bytes
+from mirror_api.demo_idempotency import DemoIdempotencyPayloadConflict, canonical_json_bytes
+from mirror_api.demo_image_feedback_service import (
+    CreateDemoImageFeedback,
+    DemoImageFeedbackConflict,
+    DemoImageFeedbackResult,
+    DemoImageFeedbackService,
+    DemoImageFeedbackUnavailable,
+)
 from mirror_api.demo_models import (
     DEMO_TABLE_NAMES,
     DemoAcceptedVisualEpisode,
     DemoActor,
     DemoAestheticProfile,
+    DemoCommandBinding,
     DemoContextCompilation,
     DemoEditingSession,
     DemoPreferenceEvent,
@@ -147,6 +155,25 @@ def _final_save_command(fixture: _FinalSaveFixture) -> FinalizeDemoAcceptedVisua
         source_type=DemoPreferenceSourceType.EXPLICIT_USER_ACTION,
         signal={"final_save": 1},
         occurred_at=NOW + timedelta(hours=1),
+    )
+
+
+def _image_feedback_command(
+    fixture: _FinalSaveFixture,
+    *,
+    key: str,
+    feedback: Literal["ACCEPT", "REJECT", "ADJUST"] = "ACCEPT",
+    acceptance_kind: Literal["EVENT_ONLY", "FINAL_SAVE"] | None = "EVENT_ONLY",
+    intensity_ppm: int | None = None,
+    actor_id: str | None = None,
+) -> CreateDemoImageFeedback:
+    return CreateDemoImageFeedback(
+        demo_actor_id=actor_id or fixture.demo_actor_id,
+        image_version_id=fixture.accepted_image_version_id,
+        feedback=feedback,
+        acceptance_kind=acceptance_kind,
+        intensity_ppm=intensity_ppm,
+        idempotency_key=key,
     )
 
 
@@ -945,6 +972,291 @@ async def test_concurrent_final_saves_have_one_canonical_winner() -> None:
                     .where(DemoPreferenceEvent.demo_actor_id == fixture.demo_actor_id)
                 )
                 == event_count_before + 1
+            )
+
+
+@pytest.mark.asyncio
+async def test_image_feedback_service_distinguishes_event_only_and_final_save() -> None:
+    async with _final_save_database() as (sessions, fixture):
+        service = DemoImageFeedbackService(
+            session_factory=sessions,
+            now=lambda: NOW + timedelta(hours=1),
+        )
+        event_only = await service.create(
+            _image_feedback_command(
+                fixture,
+                key="feedback-event-only-key",
+            )
+        )
+        assert event_only.event_type == "IMAGE_ACCEPTED"
+        assert event_only.final_save is False
+        assert event_only.replayed is False
+
+        async with sessions() as session:
+            event = await session.get(DemoPreferenceEvent, event_only.event_id)
+            assert event is not None
+            assert event.signal == {
+                "acceptance_kind": "EVENT_ONLY",
+                "feedback": "ACCEPT",
+            }
+            assert (
+                await session.scalar(select(func.count()).select_from(DemoAcceptedVisualEpisode))
+                == 0
+            )
+
+        final_save = await service.create(
+            _image_feedback_command(
+                fixture,
+                key="feedback-final-save-key",
+                acceptance_kind="FINAL_SAVE",
+            )
+        )
+        assert final_save.event_type == "IMAGE_ACCEPTED"
+        assert final_save.final_save is True
+        assert final_save.event_id != event_only.event_id
+
+        async with sessions() as session:
+            episode = await session.scalar(
+                select(DemoAcceptedVisualEpisode).where(
+                    DemoAcceptedVisualEpisode.acceptance_event_id == final_save.event_id
+                )
+            )
+            assert episode is not None
+            assert episode.accepted_image_version_id == fixture.accepted_image_version_id
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoCommandBinding)
+                    .where(DemoCommandBinding.endpoint_operation == "image_version.feedback")
+                )
+                == 2
+            )
+
+
+@pytest.mark.asyncio
+async def test_image_feedback_service_reject_adjust_and_owner_boundary() -> None:
+    async with _final_save_database() as (sessions, fixture):
+        service = DemoImageFeedbackService(
+            session_factory=sessions,
+            now=lambda: NOW + timedelta(hours=1),
+        )
+        rejected = await service.create(
+            _image_feedback_command(
+                fixture,
+                key="feedback-reject-key",
+                feedback="REJECT",
+                acceptance_kind=None,
+            )
+        )
+        adjusted = await service.create(
+            _image_feedback_command(
+                fixture,
+                key="feedback-adjust-key",
+                feedback="ADJUST",
+                acceptance_kind=None,
+                intensity_ppm=350_000,
+            )
+        )
+        assert rejected.event_type == "IMAGE_REJECTED"
+        assert adjusted.event_type == "IMAGE_ADJUSTED"
+
+        async with sessions() as session:
+            reject_event = await session.get(DemoPreferenceEvent, rejected.event_id)
+            adjust_event = await session.get(DemoPreferenceEvent, adjusted.event_id)
+            assert reject_event is not None
+            assert adjust_event is not None
+            assert reject_event.signal == {"feedback": "REJECT"}
+            assert adjust_event.signal == {
+                "feedback": "ADJUST",
+                "intensity_ppm": 350_000,
+            }
+            assert (
+                await session.scalar(select(func.count()).select_from(DemoAcceptedVisualEpisode))
+                == 0
+            )
+
+        with pytest.raises(DemoImageFeedbackUnavailable):
+            await service.create(
+                _image_feedback_command(
+                    fixture,
+                    key="feedback-foreign-actor",
+                    actor_id="f" * 32,
+                )
+            )
+
+
+@pytest.mark.asyncio
+async def test_image_feedback_service_replays_and_rejects_payload_collision() -> None:
+    async with _final_save_database() as (sessions, fixture):
+        service = DemoImageFeedbackService(
+            session_factory=sessions,
+            now=lambda: NOW + timedelta(hours=1),
+        )
+        command = _image_feedback_command(
+            fixture,
+            key="feedback-replay-key",
+        )
+        first = await service.create(command)
+        replay = await service.create(command)
+        assert replay.event_id == first.event_id
+        assert replay.event_digest == first.event_digest
+        assert replay.replayed is True
+
+        with pytest.raises(DemoIdempotencyPayloadConflict):
+            await service.create(
+                replace(
+                    command,
+                    feedback="REJECT",
+                    acceptance_kind=None,
+                )
+            )
+
+        async with sessions() as session:
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoCommandBinding)
+                    .where(DemoCommandBinding.endpoint_operation == "image_version.feedback")
+                )
+                == 1
+            )
+
+
+@pytest.mark.asyncio
+async def test_concurrent_image_feedback_final_save_same_key_replays_one_episode() -> None:
+    async with _final_save_database() as (sessions, fixture):
+        service = DemoImageFeedbackService(
+            session_factory=sessions,
+            now=lambda: NOW + timedelta(hours=1),
+        )
+        command = _image_feedback_command(
+            fixture,
+            key="feedback-concurrent-key",
+            acceptance_kind="FINAL_SAVE",
+        )
+        first, second = await asyncio.gather(
+            service.create(command),
+            service.create(command),
+        )
+        assert first.event_id == second.event_id
+        assert sorted((first.replayed, second.replayed)) == [False, True]
+
+        async with sessions() as session:
+            assert (
+                await session.scalar(select(func.count()).select_from(DemoAcceptedVisualEpisode))
+                == 1
+            )
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoCommandBinding)
+                    .where(DemoCommandBinding.endpoint_operation == "image_version.feedback")
+                )
+                == 1
+            )
+
+
+@pytest.mark.asyncio
+async def test_concurrent_image_feedback_final_save_different_keys_has_one_winner() -> None:
+    async with _final_save_database() as (sessions, fixture):
+        service = DemoImageFeedbackService(
+            session_factory=sessions,
+            now=lambda: NOW + timedelta(hours=1),
+        )
+        async with sessions() as session:
+            event_count_before = await session.scalar(
+                select(func.count())
+                .select_from(DemoPreferenceEvent)
+                .where(DemoPreferenceEvent.demo_actor_id == fixture.demo_actor_id)
+            )
+        outcomes = await asyncio.gather(
+            service.create(
+                _image_feedback_command(
+                    fixture,
+                    key="feedback-concurrent-first",
+                    acceptance_kind="FINAL_SAVE",
+                )
+            ),
+            service.create(
+                _image_feedback_command(
+                    fixture,
+                    key="feedback-concurrent-second",
+                    acceptance_kind="FINAL_SAVE",
+                )
+            ),
+            return_exceptions=True,
+        )
+        assert sum(isinstance(item, DemoImageFeedbackResult) for item in outcomes) == 1
+        assert sum(isinstance(item, DemoImageFeedbackConflict) for item in outcomes) == 1
+
+        async with sessions() as session:
+            assert (
+                await session.scalar(select(func.count()).select_from(DemoAcceptedVisualEpisode))
+                == 1
+            )
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoPreferenceEvent)
+                    .where(DemoPreferenceEvent.demo_actor_id == fixture.demo_actor_id)
+                )
+                == event_count_before + 1
+            )
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoCommandBinding)
+                    .where(DemoCommandBinding.endpoint_operation == "image_version.feedback")
+                )
+                == 1
+            )
+
+
+@pytest.mark.asyncio
+async def test_image_feedback_invalid_final_save_rolls_back_event_and_binding() -> None:
+    async with _final_save_database(intermediate_operation_as_terminal=True) as (
+        sessions,
+        fixture,
+    ):
+        service = DemoImageFeedbackService(
+            session_factory=sessions,
+            now=lambda: NOW + timedelta(hours=1),
+        )
+        async with sessions() as session:
+            event_count_before = await session.scalar(
+                select(func.count())
+                .select_from(DemoPreferenceEvent)
+                .where(DemoPreferenceEvent.demo_actor_id == fixture.demo_actor_id)
+            )
+        with pytest.raises(DemoImageFeedbackConflict):
+            await service.create(
+                _image_feedback_command(
+                    fixture,
+                    key="feedback-invalid-final-save",
+                    acceptance_kind="FINAL_SAVE",
+                )
+            )
+
+        async with sessions() as session:
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoPreferenceEvent)
+                    .where(DemoPreferenceEvent.demo_actor_id == fixture.demo_actor_id)
+                )
+                == event_count_before
+            )
+            assert (
+                await session.scalar(select(func.count()).select_from(DemoAcceptedVisualEpisode))
+                == 0
+            )
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoCommandBinding)
+                    .where(DemoCommandBinding.endpoint_operation == "image_version.feedback")
+                )
+                == 0
             )
 
 

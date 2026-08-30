@@ -171,6 +171,13 @@ async def append_demo_preference_event(
     )
 
 
+async def acquire_demo_preference_actor_lock(session: AsyncSession, demo_actor_id: str) -> None:
+    """Acquire D09's canonical actor lock before a caller locks related rows."""
+
+    _require_id(demo_actor_id, "demo actor id")
+    await _acquire_preference_actor_lock(session, demo_actor_id)
+
+
 async def finalize_demo_accepted_visual_episode(
     session: AsyncSession, command: FinalizeDemoAcceptedVisualEpisode
 ) -> DemoAcceptedVisualEpisodeFinalSaveResult:
