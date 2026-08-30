@@ -23,9 +23,12 @@ from test_demo_schema_authority_invariants import (
     _truncate_formal_synthetic_fixture_authority,
 )
 
+from mirror_api.demo_job_service import DemoJobService
 from mirror_api.demo_memory_service import (
     CompileDemoContext,
+    DemoAestheticProfileResult,
     DemoMemoryConflict,
+    DemoMemoryReconciliationCandidate,
     DemoMemoryService,
     DemoMemoryUnavailable,
     RebuildDemoAestheticProfile,
@@ -94,6 +97,16 @@ def _rebuild(
         reason=reason,  # type: ignore[arg-type]
         idempotency_key=key,
         request_id=f"d10-profile-{key}",
+    )
+
+
+async def _rebuild_execute(
+    service: DemoMemoryService, command: RebuildDemoAestheticProfile
+) -> DemoAestheticProfileResult:
+    accepted = await service.admit_rebuild(command)
+    return await service.execute_rebuild(
+        demo_actor_id=command.demo_actor_id,
+        job_id=accepted.job_id,
     )
 
 
@@ -202,8 +215,8 @@ async def test_profile_context_and_recall_are_exactly_replayable(
     graph = _insert_full_demo_graph(postgres_session)
     service, sessions, engine = _service()
     try:
-        profile = await service.rebuild_profile(_rebuild(graph))
-        profile_replay = await service.rebuild_profile(_rebuild(graph))
+        profile = await _rebuild_execute(service, _rebuild(graph))
+        profile_replay = await _rebuild_execute(service, _rebuild(graph))
         assert profile_replay == type(profile)(
             job_id=profile.job_id,
             aesthetic_profile_id=profile.aesthetic_profile_id,
@@ -262,13 +275,104 @@ async def test_profile_context_and_recall_are_exactly_replayable(
 
 
 @pytest.mark.asyncio
+async def test_rebuild_admission_is_pending_before_owner_bound_execution(
+    postgres_session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    service, sessions, engine = _service()
+    try:
+        async with sessions() as session:
+            profile_count_before = await session.scalar(
+                select(func.count()).select_from(DemoAestheticProfile)
+            )
+        assert isinstance(profile_count_before, int)
+        command = _rebuild(graph)
+        admitted = await service.admit_rebuild(command)
+        replay = await service.admit_rebuild(command)
+        assert replay == type(admitted)(
+            job_id=admitted.job_id,
+            request_id=admitted.request_id,
+            replayed=True,
+        )
+        async with sessions() as session:
+            job = await session.get(Job, admitted.job_id)
+            profiles = list((await session.scalars(select(DemoAestheticProfile))).all())
+            attempts = list(
+                (
+                    await session.scalars(
+                        select(JobAttempt).where(JobAttempt.job_id == admitted.job_id)
+                    )
+                ).all()
+            )
+        assert job is not None and (job.status, job.attempt_count, job.result_code) == (
+            "PENDING",
+            1,
+            None,
+        )
+        assert [(attempt.attempt, attempt.status) for attempt in attempts] == [(1, "PENDING")]
+        assert len(profiles) == profile_count_before
+        assert await service.reconciliation_candidates() == (
+            DemoMemoryReconciliationCandidate(
+                demo_actor_id=command.demo_actor_id,
+                job_id=admitted.job_id,
+                request_id=admitted.request_id,
+            ),
+        )
+        completed = await service.execute_rebuild(
+            demo_actor_id=command.demo_actor_id,
+            job_id=admitted.job_id,
+        )
+        assert completed.replayed is False
+        assert await service.reconciliation_candidates() == ()
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_pending_rebuild_attempt_cancels_atomically_before_execution(
+    postgres_session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    service, sessions, engine = _service()
+    try:
+        command = _rebuild(graph, key="d10-cancel-pending-rebuild")
+        admitted = await service.admit_rebuild(command)
+        cancelled = await DemoJobService(session_factory=sessions).cancel(
+            demo_actor_id=command.demo_actor_id,
+            job_id=admitted.job_id,
+            expected_status="PENDING",
+            reason="USER_REQUEST",
+            idempotency_key="d10-cancel-command-key",
+        )
+
+        assert cancelled.status == "CANCELLED"
+        assert cancelled.result_code == "USER_REQUEST"
+        async with sessions() as session:
+            attempt = await session.scalar(
+                select(JobAttempt).where(JobAttempt.job_id == admitted.job_id)
+            )
+            assert attempt is not None
+            assert attempt.status == "CANCELLED"
+            assert attempt.result_code == "USER_REQUEST"
+            assert attempt.finished_at == cancelled.finalized_at
+        assert await service.reconciliation_candidates() == ()
+        with pytest.raises(DemoMemoryUnavailable, match="fresh durable execution"):
+            await service.execute_rebuild(
+                demo_actor_id=command.demo_actor_id,
+                job_id=admitted.job_id,
+            )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_event_only_acceptance_is_traceable_but_not_visual_memory(
     postgres_session: Session,
 ) -> None:
     graph = _insert_full_demo_graph(postgres_session, include_episode=False)
     service, sessions, engine = _service()
     try:
-        first = await service.rebuild_profile(_rebuild(graph))
+        first = await _rebuild_execute(service, _rebuild(graph))
         async with sessions() as session:
             stored = await session.get(DemoAestheticProfile, first.aesthetic_profile_id)
             assert stored is not None
@@ -286,7 +390,7 @@ async def test_event_only_acceptance_is_traceable_but_not_visual_memory(
             event_type=DemoPreferenceEventType.EXPLICIT_STYLE_SELECTION,
             signal={"style_key": "editorial"},
         )
-        second = await service.rebuild_profile(_rebuild(graph, key="d10-profile-key-0002"))
+        second = await _rebuild_execute(service, _rebuild(graph, key="d10-profile-key-0002"))
         assert second.generation == first.generation + 1
         assert second.compilation_watermark != first.compilation_watermark
         async with sessions() as session:
@@ -304,14 +408,14 @@ async def test_reset_and_rollback_rebuild_without_mutating_history(
     graph = _insert_full_demo_graph(postgres_session)
     service, sessions, engine = _service()
     try:
-        baseline = await service.rebuild_profile(_rebuild(graph))
+        baseline = await _rebuild_execute(service, _rebuild(graph))
         discarded = await _append(
             sessions,
             graph,
             event_type=DemoPreferenceEventType.EXPLICIT_STYLE_SELECTION,
             signal={"style_key": "discarded"},
         )
-        after_event = await service.rebuild_profile(_rebuild(graph, key="d10-profile-key-0002"))
+        after_event = await _rebuild_execute(service, _rebuild(graph, key="d10-profile-key-0002"))
         assert after_event.generation == baseline.generation + 1
 
         reset = await _append(
@@ -323,12 +427,13 @@ async def test_reset_and_rollback_rebuild_without_mutating_history(
             target_id=graph["actor"].id,
             signal={"reset_watermark": graph["accepted_event"].event_sequence},
         )
-        after_reset = await service.rebuild_profile(
+        after_reset = await _rebuild_execute(
+            service,
             _rebuild(
                 graph,
                 key="d10-profile-key-0003",
                 reason="RESET",
-            )
+            ),
         )
         with pytest.raises(DemoMemoryUnavailable, match="AestheticProfile"):
             await service.compile_context(
@@ -353,12 +458,13 @@ async def test_reset_and_rollback_rebuild_without_mutating_history(
             target_type=DemoPreferenceTargetType.AESTHETIC_PROFILE,
             target_id=baseline.aesthetic_profile_id,
         )
-        after_rollback = await service.rebuild_profile(
+        after_rollback = await _rebuild_execute(
+            service,
             _rebuild(
                 graph,
                 key="d10-profile-key-0004",
                 reason="ROLLBACK",
-            )
+            ),
         )
         async with sessions() as session:
             stored = await session.get(DemoAestheticProfile, after_rollback.aesthetic_profile_id)
@@ -388,7 +494,7 @@ async def test_recall_rejects_context_with_lifecycle_stale_session_evidence(
     graph = _insert_full_demo_graph(postgres_session)
     service, sessions, engine = _service()
     try:
-        profile = await service.rebuild_profile(_rebuild(graph))
+        profile = await _rebuild_execute(service, _rebuild(graph))
         override = await _append(
             sessions,
             graph,
@@ -458,8 +564,8 @@ async def test_reset_to_genesis_materializes_an_empty_rebuildable_profile(
             target_id=graph["actor"].id,
             signal={"reset_watermark": 0},
         )
-        rebuilt = await service.rebuild_profile(
-            _rebuild(graph, key="d10-profile-genesis-reset", reason="RESET")
+        rebuilt = await _rebuild_execute(
+            service, _rebuild(graph, key="d10-profile-genesis-reset", reason="RESET")
         )
         async with sessions() as session:
             stored = await session.get(DemoAestheticProfile, rebuilt.aesthetic_profile_id)
@@ -490,7 +596,7 @@ async def test_tombstone_and_delete_propagate_without_deleting_authority(
     graph = _insert_full_demo_graph(postgres_session)
     service, sessions, engine = _service()
     try:
-        profile = await service.rebuild_profile(_rebuild(graph))
+        profile = await _rebuild_execute(service, _rebuild(graph))
         context = await service.compile_context(_context(graph, profile.aesthetic_profile_id))
         await _append(
             sessions,
@@ -549,7 +655,7 @@ async def test_reference_dependencies_invalidate_profiles_contexts_and_new_rebui
     reference = _insert_valid_reference(postgres_session, graph)
     service, sessions, engine = _service()
     try:
-        profile = await service.rebuild_profile(_rebuild(graph))
+        profile = await _rebuild_execute(service, _rebuild(graph))
         context = await service.compile_context(_context(graph, profile.aesthetic_profile_id))
         async with sessions() as session:
             stored = await session.get(DemoAestheticProfile, profile.aesthetic_profile_id)
@@ -571,12 +677,13 @@ async def test_reference_dependencies_invalidate_profiles_contexts_and_new_rebui
                 recall_at=AS_OF + timedelta(minutes=1),
             )
 
-        rebuilt = await service.rebuild_profile(
+        rebuilt = await _rebuild_execute(
+            service,
             _rebuild(
                 graph,
                 key=f"d10-reference-invalidation-{target_key}",
                 reason="TOMBSTONE_PROPAGATION",
-            )
+            ),
         )
         async with sessions() as session:
             stored = await session.get(DemoAestheticProfile, rebuilt.aesthetic_profile_id)
@@ -608,7 +715,7 @@ async def test_next_session_recall_excludes_previous_temporary_override(
             demo_session_id=graph["session"].id,
             signal={"dimension_key": "jaw_width", "value_ppm": 1_000},
         )
-        profile = await service.rebuild_profile(_rebuild(graph))
+        profile = await _rebuild_execute(service, _rebuild(graph))
         async with sessions() as session:
             stored_profile = await session.get(DemoAestheticProfile, profile.aesthetic_profile_id)
             assert stored_profile is not None
@@ -668,7 +775,7 @@ async def test_context_budget_is_fixed_and_overflow_is_traced(
                 signal={"dimension_key": f"dimension_{index}"},
                 occurred_at=AS_OF - timedelta(minutes=20) + timedelta(seconds=index),
             )
-        profile = await service.rebuild_profile(_rebuild(graph))
+        profile = await _rebuild_execute(service, _rebuild(graph))
         context = await service.compile_context(_context(graph, profile.aesthetic_profile_id))
         async with sessions() as session:
             stored = await session.get(DemoContextCompilation, context.context_compilation_id)
@@ -749,7 +856,7 @@ async def test_context_selected_evidence_uses_frozen_event_sequence_order(
         assert second.content_digest == second_digest
         assert second.content_digest < first.content_digest
 
-        profile = await service.rebuild_profile(_rebuild(graph))
+        profile = await _rebuild_execute(service, _rebuild(graph))
         context = await service.compile_context(_context(graph, profile.aesthetic_profile_id))
         async with sessions() as session:
             stored = await session.get(DemoContextCompilation, context.context_compilation_id)
@@ -771,29 +878,30 @@ async def test_context_selected_evidence_uses_frozen_event_sequence_order(
 
 
 @pytest.mark.asyncio
-async def test_idempotency_collision_concurrency_and_failure_have_zero_partial_rows(
+async def test_idempotency_concurrency_and_failures_preserve_recoverable_authority(
     postgres_session: Session,
 ) -> None:
     graph = _insert_full_demo_graph(postgres_session)
     service, sessions, engine = _service()
     try:
         first, second = await asyncio.gather(
-            service.rebuild_profile(_rebuild(graph, key="d10-concurrent-key")),
-            service.rebuild_profile(_rebuild(graph, key="d10-concurrent-key")),
+            _rebuild_execute(service, _rebuild(graph, key="d10-concurrent-key")),
+            _rebuild_execute(service, _rebuild(graph, key="d10-concurrent-key")),
         )
         assert first.aesthetic_profile_id == second.aesthetic_profile_id
         assert {first.replayed, second.replayed} == {False, True}
 
         with pytest.raises(DemoMemoryConflict, match="another key"):
-            await service.rebuild_profile(_rebuild(graph, key="d10-same-input-different-key"))
+            await _rebuild_execute(service, _rebuild(graph, key="d10-same-input-different-key"))
 
         with pytest.raises(DemoMemoryConflict, match="different request"):
-            await service.rebuild_profile(
+            await _rebuild_execute(
+                service,
                 _rebuild(
                     graph,
                     key="d10-concurrent-key",
                     reason="RESET",
-                )
+                ),
             )
 
         async with sessions() as session:
@@ -904,11 +1012,26 @@ async def test_idempotency_collision_concurrency_and_failure_have_zero_partial_r
             session_factory=sessions,
             post_write_probe=fail_profile_after_write,
         )
+        fault_command = _rebuild(graph, key="d10-profile-post-write-failure")
+        fault_admission = await profile_fault_service.admit_rebuild(fault_command)
         with pytest.raises(RuntimeError, match="profile post-write"):
-            await profile_fault_service.rebuild_profile(
-                _rebuild(graph, key="d10-profile-post-write-failure")
+            await profile_fault_service.execute_rebuild(
+                demo_actor_id=fault_command.demo_actor_id,
+                job_id=fault_admission.job_id,
             )
-        assert await d10_row_counts() == before_profile_failure
+        after_profile_failure = await d10_row_counts()
+        assert after_profile_failure == tuple(
+            before + delta
+            for before, delta in zip(
+                before_profile_failure,
+                (1, 1, 1, 0, 0),
+                strict=True,
+            )
+        )
+        assert fault_admission.job_id in {
+            candidate.job_id
+            for candidate in await profile_fault_service.reconciliation_candidates()
+        }
 
         def fail_context_after_write(stage: Literal["PROFILE", "CONTEXT"]) -> None:
             if stage == "CONTEXT":

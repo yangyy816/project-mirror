@@ -248,8 +248,34 @@ class DemoJobService:
                 attempt.result_code = reason
                 attempt.error_code = None
                 attempt.finished_at = now
+            elif job.attempt_count == 1:
+                attempt = await session.scalar(
+                    select(JobAttempt)
+                    .where(
+                        JobAttempt.job_id == job_id,
+                        JobAttempt.attempt == 1,
+                    )
+                    .with_for_update()
+                )
+                if (
+                    attempt is None
+                    or attempt.status != "PENDING"
+                    or attempt.lease_token is not None
+                    or attempt.result_code is not None
+                    or attempt.error_code is not None
+                    or attempt.finished_at is not None
+                ):
+                    raise DemoJobAuthorityCorruption(
+                        "PENDING Demo Job has an invalid initial PENDING attempt"
+                    )
+                attempt.status = "CANCELLED"
+                attempt.result_code = reason
+                attempt.error_code = None
+                attempt.finished_at = now
             elif job.attempt_count != 0:
-                raise DemoJobAuthorityCorruption("PENDING Demo Job cannot already contain attempts")
+                raise DemoJobAuthorityCorruption(
+                    "PENDING Demo Job has an unsupported attempt history"
+                )
 
             job.status = "CANCELLED"
             job.lease_token = None

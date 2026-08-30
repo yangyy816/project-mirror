@@ -30,6 +30,11 @@ from mirror_api.demo_editing_task_contract import (
     DemoEditingTaskMessage,
 )
 from mirror_api.demo_editing_verifier_adapter import DemoDeterministicEditVerifier
+from mirror_api.demo_memory_service import DemoMemoryService
+from mirror_api.demo_memory_task_contract import (
+    DemoMemoryDispatcher,
+    DemoMemoryTaskMessage,
+)
 from mirror_api.demo_profile_commands import DemoProfileCommandService
 from mirror_api.demo_profile_service import DemoProfileCompilationService
 from mirror_api.demo_profile_task_contract import (
@@ -78,6 +83,7 @@ from mirror_worker.cleanup import SqlAlchemyIngestionCleanup
 from mirror_worker.data_rights import AccountDeletionTaskExecutor, DataExportTaskExecutor
 from mirror_worker.demo_analysis import DemoAnalysisTaskExecutor
 from mirror_worker.demo_analysis_runtime import DeferredDemoAnalysisRuntime
+from mirror_worker.demo_memory import DemoMemoryTaskExecutor
 from mirror_worker.demo_profile import DemoProfileTaskExecutor
 from mirror_worker.ingestion import (
     IngestionMaintenance,
@@ -135,6 +141,12 @@ class DemoProfileRuntime:
     engine: AsyncEngine
     application: DemoProfileCompilationService
     commands: DemoProfileCommandService
+
+
+@dataclass(frozen=True)
+class DemoMemoryRuntime:
+    engine: AsyncEngine
+    application: DemoMemoryService
 
 
 @dataclass(frozen=True)
@@ -298,6 +310,17 @@ def create_demo_profile_runtime(settings: Settings) -> DemoProfileRuntime:
     )
 
 
+def create_demo_memory_runtime(settings: Settings) -> DemoMemoryRuntime:
+    """Compose deterministic D10 authority without a Provider or private input."""
+
+    engine = create_async_engine(settings.database_url)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    return DemoMemoryRuntime(
+        engine=engine,
+        application=DemoMemoryService(session_factory=sessions),
+    )
+
+
 def create_demo_editing_runtime(settings: Settings) -> DemoEditingRuntime:
     """Compose the local synthetic D07 runtime without a Provider or public network."""
 
@@ -406,6 +429,41 @@ async def run_demo_profile_reconciliation(
                 request_id=candidate.request_id,
             )
             dispatcher.dispatch_demo_profile(message)
+            dispatched.append(candidate.job_id)
+        return tuple(dispatched)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_demo_memory_message(
+    message: dict[str, Any], *, settings: Settings | None = None
+) -> dict[str, str | None]:
+    runtime = create_demo_memory_runtime(settings or get_settings())
+    try:
+        result = await DemoMemoryTaskExecutor(application=runtime.application).execute(
+            DemoMemoryTaskMessage.from_message(message)
+        )
+        return asdict(result)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_demo_memory_reconciliation(
+    *,
+    dispatcher: DemoMemoryDispatcher,
+    limit: int = 100,
+    settings: Settings | None = None,
+) -> tuple[str, ...]:
+    runtime = create_demo_memory_runtime(settings or get_settings())
+    try:
+        dispatched: list[str] = []
+        for candidate in await runtime.application.reconciliation_candidates(limit=limit):
+            message = DemoMemoryTaskMessage(
+                demo_actor_id=candidate.demo_actor_id,
+                job_id=candidate.job_id,
+                request_id=candidate.request_id,
+            )
+            dispatcher.dispatch_demo_memory(message)
             dispatched.append(candidate.job_id)
         return tuple(dispatched)
     finally:

@@ -16,6 +16,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Final, Literal, cast
 
 from sqlalchemy import func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mirror_api.demo_idempotency import (
@@ -105,8 +106,30 @@ class DemoMemoryConflict(DemoMemoryError):
     """An idempotency key or immutable compilation input already has authority."""
 
 
+class DemoMemoryRejected(DemoMemoryConflict):
+    """A claimed rebuild is ineligible for materialization and was rejected."""
+
+
 class DemoMemoryAuthorityCorruption(DemoMemoryError):
     """Persisted P5/P6/P7 authority cannot be safely replayed."""
+
+
+@dataclass(frozen=True)
+class DemoProfileRebuildAccepted:
+    """Durable admission result for a queued Profile rebuild."""
+
+    job_id: str
+    request_id: str
+    replayed: bool
+
+
+@dataclass(frozen=True)
+class DemoMemoryReconciliationCandidate:
+    """A recoverable PENDING Profile rebuild that may be dispatched again."""
+
+    demo_actor_id: str
+    job_id: str
+    request_id: str
 
 
 @dataclass(frozen=True)
@@ -231,9 +254,10 @@ class DemoMemoryService:
         self._now = now
         self._post_write_probe = post_write_probe
 
-    async def rebuild_profile(
+    async def admit_rebuild(
         self, command: RebuildDemoAestheticProfile
-    ) -> DemoAestheticProfileResult:
+    ) -> DemoProfileRebuildAccepted:
+        """Create or replay an immutable, recoverable PENDING rebuild intent."""
         command.validate()
         key_hash = idempotency_key_hash(command.idempotency_key)
         request_digest = semantic_request_digest(
@@ -250,116 +274,258 @@ class DemoMemoryService:
                     key_hash=key_hash,
                 )
                 if existing_binding is not None:
-                    return await _replay_profile(
+                    return await _replay_rebuild_admission(
+                        session, existing_binding, request_digest=request_digest
+                    )
+                audit_now = self._normalized_audit_now()
+                try:
+                    job, _ = await _create_pending_execution(
                         session,
-                        existing_binding,
+                        actor_id=command.demo_actor_id,
+                        operation=DEMO_PROFILE_REBUILD_OPERATION,
+                        target_type="DEMO_ACTOR",
+                        target_id=command.demo_actor_id,
+                        key_hash=key_hash,
                         request_digest=request_digest,
+                        request_id=command.request_id,
+                        audit_now=audit_now,
                     )
+                except IntegrityError as exc:
+                    winner = await _binding_for_key(
+                        session,
+                        actor_id=command.demo_actor_id,
+                        operation=DEMO_PROFILE_REBUILD_OPERATION,
+                        key_hash=key_hash,
+                    )
+                    if winner is None:
+                        raise DemoMemoryAuthorityCorruption(
+                            "rebuild admission failed without a reloadable winner"
+                        ) from exc
+                    return await _replay_rebuild_admission(
+                        session, winner, request_digest=request_digest
+                    )
+                return DemoProfileRebuildAccepted(
+                    job_id=job.id, request_id=job.request_id, replayed=False
+                )
 
-                events = await _events(session, command.demo_actor_id)
-                profiles = await _aesthetic_profiles(session, command.demo_actor_id)
-                projection = _project_lifecycle(events, profiles)
-                sources = await _profile_sources(
-                    session,
-                    actor_id=command.demo_actor_id,
-                    projection=projection,
+    async def reconciliation_candidates(
+        self, *, limit: int = 100
+    ) -> tuple[DemoMemoryReconciliationCandidate, ...]:
+        if type(limit) is not int or not 1 <= limit <= 1000:
+            raise DemoMemoryInputError("reconciliation limit is invalid")
+        async with self._sessions() as session:
+            rows = (
+                await session.execute(
+                    select(DemoJobBinding, Job)
+                    .join(Job, Job.id == DemoJobBinding.job_id)
+                    .where(
+                        DemoJobBinding.endpoint_operation == DEMO_PROFILE_REBUILD_OPERATION,
+                        DemoJobBinding.target_type == "DEMO_ACTOR",
+                        Job.job_type == DEMO_PROFILE_REBUILD_JOB_TYPE,
+                        Job.status == "PENDING",
+                        Job.attempt_count == 1,
+                    )
+                    .order_by(Job.created_at, Job.id)
+                    .limit(limit)
                 )
-                source_manifest = _profile_source_manifest(sources)
-                watermark_payload = {
-                    "active_event_sequences": sorted(projection.active_sequences),
-                    "actor_id": command.demo_actor_id,
-                    "compiler_version": command.compiler_version,
-                    "invalidated_targets": [
-                        {"target_id": target_id, "target_type": target_type}
-                        for target_type, target_id in sorted(projection.invalidated_targets)
-                    ],
-                    "ledger_tail_digest": projection.tail_digest,
-                    "ledger_tail_sequence": projection.tail_sequence,
-                    "reset_epoch": projection.reset_epoch,
-                    "source_manifest": source_manifest,
-                }
-                compilation_watermark = hashlib.sha256(
-                    canonical_json_bytes(watermark_payload)
-                ).hexdigest()
-                duplicate = await session.scalar(
-                    select(DemoAestheticProfile).where(
-                        DemoAestheticProfile.demo_actor_id == command.demo_actor_id,
-                        DemoAestheticProfile.compilation_watermark == compilation_watermark,
-                        DemoAestheticProfile.compiler_version == command.compiler_version,
-                        DemoAestheticProfile.reset_epoch == projection.reset_epoch,
+            ).all()
+            candidates: list[DemoMemoryReconciliationCandidate] = []
+            for binding, job in rows:
+                _validate_pending_rebuild_execution(binding, job)
+                initial_attempt = await session.scalar(
+                    select(JobAttempt).where(
+                        JobAttempt.job_id == job.id,
+                        JobAttempt.attempt == 1,
+                        JobAttempt.status == "PENDING",
                     )
                 )
-                if duplicate is not None:
-                    raise DemoMemoryConflict(
-                        "profile rebuild input already has immutable authority under another key"
+                if initial_attempt is None or initial_attempt.finished_at is not None:
+                    raise DemoMemoryAuthorityCorruption(
+                        "pending profile rebuild Job lacks its initial PENDING attempt"
                     )
+                candidates.append(
+                    DemoMemoryReconciliationCandidate(
+                        demo_actor_id=binding.demo_actor_id,
+                        job_id=job.id,
+                        request_id=job.request_id,
+                    )
+                )
+            return tuple(candidates)
 
-                job, binding, attempt, audit_now = await _create_execution(
-                    session,
-                    actor_id=command.demo_actor_id,
-                    session_id=None,
-                    operation=DEMO_PROFILE_REBUILD_OPERATION,
-                    target_type="DEMO_ACTOR",
-                    target_id=command.demo_actor_id,
-                    key_hash=key_hash,
-                    request_digest=request_digest,
-                    request_id=command.request_id,
-                    audit_now=self._normalized_audit_now(),
-                )
-                generation = (
-                    cast(
-                        int,
-                        (
-                            await session.scalar(
-                                select(
-                                    func.coalesce(func.max(DemoAestheticProfile.generation), 0)
-                                ).where(DemoAestheticProfile.demo_actor_id == command.demo_actor_id)
-                            )
-                        ),
+    async def execute_rebuild(
+        self, *, demo_actor_id: str, job_id: str
+    ) -> DemoAestheticProfileResult:
+        """Claim and execute exactly one owner-bound queued Profile rebuild."""
+        _require_id(demo_actor_id, "demo_actor_id")
+        _require_id(job_id, "job_id")
+        terminal_error: DemoMemoryError | None = None
+        result: DemoAestheticProfileResult | None = None
+        async with self._sessions() as session:
+            async with session.begin():
+                await _acquire_actor_lock(session, demo_actor_id)
+                job, binding = await _lock_rebuild_execution(session, demo_actor_id, job_id)
+                if job.status == "COMPLETED":
+                    return await _replay_profile(
+                        session, binding, request_digest=binding.request_digest
                     )
-                    + 1
-                )
-                profile_payload = _profile_payload(sources, projection, source_manifest)
-                evidence_digests = _profile_evidence_digests(sources)
-                authority_payload = {
-                    "as_of_event_sequence": projection.tail_sequence,
-                    "compilation_watermark": compilation_watermark,
-                    "compiler_version": command.compiler_version,
-                    "demo_actor_id": command.demo_actor_id,
-                    "demo_job_binding_id": binding.id,
-                    "evidence_digests": list(evidence_digests),
-                    "generation": generation,
-                    "profile_payload": profile_payload,
-                    "reset_epoch": projection.reset_epoch,
-                }
-                profile = DemoAestheticProfile(
-                    id=new_id(),
-                    schema_version=DEMO_AESTHETIC_PROFILE_SCHEMA,
-                    canonical_payload=authority_payload,
-                    content_digest=_authority_digest(
-                        DEMO_AESTHETIC_PROFILE_SCHEMA, authority_payload
+                if job.status != "PENDING" or job.attempt_count != 1:
+                    raise DemoMemoryUnavailable(
+                        "profile rebuild Job is not a fresh durable execution"
+                    )
+                _validate_pending_rebuild_execution(binding, job)
+                audit_now = self._normalized_audit_now()
+                attempt = cast(
+                    JobAttempt | None,
+                    await session.scalar(
+                        select(JobAttempt)
+                        .where(JobAttempt.job_id == job.id, JobAttempt.attempt == 1)
+                        .with_for_update()
                     ),
-                    created_at=audit_now,
-                    **authority_payload,
                 )
-                session.add(profile)
+                if (
+                    attempt is None
+                    or attempt.status != "PENDING"
+                    or attempt.finished_at is not None
+                ):
+                    raise DemoMemoryAuthorityCorruption(
+                        "fresh profile rebuild Job lacks its initial PENDING attempt"
+                    )
+                attempt.status = "RUNNING"
+                attempt.started_at = audit_now
+                job.status = "RUNNING"
+                job.updated_at = audit_now
                 await session.flush()
-                self._run_post_write_probe("PROFILE")
-                _finish_execution(
-                    job,
-                    attempt,
-                    result_code="PROFILE_REBUILT",
-                    audit_now=audit_now,
-                )
+                try:
+                    result = await self._materialize_rebuild(
+                        session,
+                        binding=binding,
+                        audit_now=audit_now,
+                    )
+                except DemoMemoryUnavailable as exc:
+                    terminal_error = DemoMemoryRejected(str(exc))
+                    _finish_execution_state(
+                        job,
+                        attempt,
+                        status="REJECTED",
+                        result_code="PROFILE_REJECTED",
+                        error_code=None,
+                        audit_now=audit_now,
+                    )
+                except (DemoMemoryConflict, DemoMemoryInputError) as exc:
+                    terminal_error = exc
+                    _finish_execution_state(
+                        job,
+                        attempt,
+                        status="REJECTED",
+                        result_code="PROFILE_REJECTED",
+                        error_code=None,
+                        audit_now=audit_now,
+                    )
+                except DemoMemoryAuthorityCorruption as exc:
+                    terminal_error = exc
+                    _finish_execution_state(
+                        job,
+                        attempt,
+                        status="FAILED",
+                        result_code="PROFILE_AUTHORITY_CORRUPTION",
+                        error_code="PROFILE_AUTHORITY_CORRUPTION",
+                        audit_now=audit_now,
+                    )
+                else:
+                    _finish_execution_state(
+                        job,
+                        attempt,
+                        status="COMPLETED",
+                        result_code="PROFILE_REBUILT",
+                        error_code=None,
+                        audit_now=audit_now,
+                    )
                 await session.flush()
-                return DemoAestheticProfileResult(
-                    job_id=job.id,
-                    aesthetic_profile_id=profile.id,
-                    generation=profile.generation,
-                    compilation_watermark=profile.compilation_watermark,
-                    profile_digest=profile.content_digest,
-                    replayed=False,
-                )
+        if terminal_error is not None:
+            raise terminal_error
+        if result is None:
+            raise DemoMemoryAuthorityCorruption("profile rebuild produced no durable result")
+        return result
+
+    async def _materialize_rebuild(
+        self, session: AsyncSession, *, binding: DemoJobBinding, audit_now: datetime
+    ) -> DemoAestheticProfileResult:
+        events = await _events(session, binding.demo_actor_id)
+        profiles = await _aesthetic_profiles(session, binding.demo_actor_id)
+        projection = _project_lifecycle(events, profiles)
+        sources = await _profile_sources(
+            session, actor_id=binding.demo_actor_id, projection=projection
+        )
+        source_manifest = _profile_source_manifest(sources)
+        compiler_version = DEMO_MEMORY_PROFILE_COMPILER_VERSION
+        watermark_payload = {
+            "active_event_sequences": sorted(projection.active_sequences),
+            "actor_id": binding.demo_actor_id,
+            "compiler_version": compiler_version,
+            "invalidated_targets": [
+                {"target_id": target_id, "target_type": target_type}
+                for target_type, target_id in sorted(projection.invalidated_targets)
+            ],
+            "ledger_tail_digest": projection.tail_digest,
+            "ledger_tail_sequence": projection.tail_sequence,
+            "reset_epoch": projection.reset_epoch,
+            "source_manifest": source_manifest,
+        }
+        compilation_watermark = hashlib.sha256(canonical_json_bytes(watermark_payload)).hexdigest()
+        duplicate = await session.scalar(
+            select(DemoAestheticProfile).where(
+                DemoAestheticProfile.demo_actor_id == binding.demo_actor_id,
+                DemoAestheticProfile.compilation_watermark == compilation_watermark,
+                DemoAestheticProfile.compiler_version == compiler_version,
+                DemoAestheticProfile.reset_epoch == projection.reset_epoch,
+            )
+        )
+        if duplicate is not None:
+            raise DemoMemoryConflict(
+                "profile rebuild input already has immutable authority under another key"
+            )
+        generation = (
+            cast(
+                int,
+                await session.scalar(
+                    select(func.coalesce(func.max(DemoAestheticProfile.generation), 0)).where(
+                        DemoAestheticProfile.demo_actor_id == binding.demo_actor_id
+                    )
+                ),
+            )
+            + 1
+        )
+        profile_payload = _profile_payload(sources, projection, source_manifest)
+        authority_payload = {
+            "as_of_event_sequence": projection.tail_sequence,
+            "compilation_watermark": compilation_watermark,
+            "compiler_version": compiler_version,
+            "demo_actor_id": binding.demo_actor_id,
+            "demo_job_binding_id": binding.id,
+            "evidence_digests": list(_profile_evidence_digests(sources)),
+            "generation": generation,
+            "profile_payload": profile_payload,
+            "reset_epoch": projection.reset_epoch,
+        }
+        profile = DemoAestheticProfile(
+            id=new_id(),
+            schema_version=DEMO_AESTHETIC_PROFILE_SCHEMA,
+            canonical_payload=authority_payload,
+            content_digest=_authority_digest(DEMO_AESTHETIC_PROFILE_SCHEMA, authority_payload),
+            created_at=audit_now,
+            **authority_payload,
+        )
+        session.add(profile)
+        await session.flush()
+        self._run_post_write_probe("PROFILE")
+        return DemoAestheticProfileResult(
+            job_id=binding.job_id,
+            aesthetic_profile_id=profile.id,
+            generation=profile.generation,
+            compilation_watermark=profile.compilation_watermark,
+            profile_digest=profile.content_digest,
+            replayed=False,
+        )
 
     async def compile_context(self, command: CompileDemoContext) -> DemoContextCompilationResult:
         command.validate()
@@ -1767,6 +1933,194 @@ async def _create_execution(
     job.updated_at = audit_now
     await session.flush()
     return job, binding, attempt, audit_now
+
+
+async def _create_pending_execution(
+    session: AsyncSession,
+    *,
+    actor_id: str,
+    operation: str,
+    target_type: Literal["DEMO_ACTOR"],
+    target_id: str,
+    key_hash: str,
+    request_digest: str,
+    request_id: str,
+    audit_now: datetime,
+) -> tuple[Job, DemoJobBinding]:
+    """Create the durable D10 envelope without claiming or materializing it."""
+    job = Job(
+        id=new_id(),
+        job_type=f"demo_p3_p7.{operation}",
+        status="PENDING",
+        idempotency_key_hash=_formal_job_key_hash(actor_id, operation, key_hash),
+        request_id=request_id,
+        payload={},
+        owner_user_id=None,
+        ingestion_upload_intent_id=None,
+        attempt_count=0,
+        lease_token=None,
+        lease_acquired_at=None,
+        lease_expires_at=None,
+        finalized_at=None,
+        result_asset_id=None,
+        result_code=None,
+        created_at=audit_now,
+        updated_at=audit_now,
+    )
+    binding_payload = {
+        "demo_actor_id": actor_id,
+        "demo_session_id": None,
+        "endpoint_operation": operation,
+        "idempotency_key_hash": key_hash,
+        "job_id": job.id,
+        "request_digest": request_digest,
+        "target_id": target_id,
+        "target_type": target_type,
+    }
+    binding = DemoJobBinding(
+        id=new_id(),
+        schema_version=DEMO_JOB_BINDING_SCHEMA,
+        canonical_payload=binding_payload,
+        content_digest=_authority_digest(DEMO_JOB_BINDING_SCHEMA, binding_payload),
+        created_at=audit_now,
+        **binding_payload,
+    )
+    attempt = JobAttempt(
+        id=new_id(),
+        job_id=job.id,
+        attempt=1,
+        status="PENDING",
+        lease_token=None,
+        result_code=None,
+        error_code=None,
+        started_at=audit_now,
+        finished_at=None,
+    )
+    # A savepoint allows unique-key contention to reload the committed winner
+    # while retaining the outer transaction and actor advisory lock.
+    async with session.begin_nested():
+        session.add(job)
+        await session.flush()
+        session.add(binding)
+        await session.flush()
+        session.add(attempt)
+        job.attempt_count = 1
+        await session.flush()
+    return job, binding
+
+
+async def _replay_rebuild_admission(
+    session: AsyncSession, binding: DemoJobBinding, *, request_digest: str
+) -> DemoProfileRebuildAccepted:
+    if binding.request_digest != request_digest:
+        raise DemoMemoryConflict("idempotency key is bound to a different request")
+    job = await session.get(Job, binding.job_id)
+    _validate_rebuild_envelope(binding, job)
+    assert job is not None
+    return DemoProfileRebuildAccepted(job_id=job.id, request_id=job.request_id, replayed=True)
+
+
+async def _lock_rebuild_execution(
+    session: AsyncSession, demo_actor_id: str, job_id: str
+) -> tuple[Job, DemoJobBinding]:
+    job = cast(
+        Job | None,
+        await session.scalar(select(Job).where(Job.id == job_id).with_for_update()),
+    )
+    binding = cast(
+        DemoJobBinding | None,
+        await session.scalar(
+            select(DemoJobBinding).where(DemoJobBinding.job_id == job_id).with_for_update()
+        ),
+    )
+    if job is None or binding is None or binding.demo_actor_id != demo_actor_id:
+        raise DemoMemoryUnavailable("profile rebuild Job authority is unavailable")
+    _validate_rebuild_envelope(binding, job)
+    actor = await _lock_active_actor(session, demo_actor_id)
+    if actor.id != binding.target_id:
+        raise DemoMemoryAuthorityCorruption("profile rebuild target authority is invalid")
+    return job, binding
+
+
+def _validate_rebuild_envelope(binding: DemoJobBinding, job: Job | None) -> None:
+    payload = {
+        "demo_actor_id": binding.demo_actor_id,
+        "demo_session_id": binding.demo_session_id,
+        "endpoint_operation": DEMO_PROFILE_REBUILD_OPERATION,
+        "idempotency_key_hash": binding.idempotency_key_hash,
+        "job_id": binding.job_id,
+        "request_digest": binding.request_digest,
+        "target_id": binding.target_id,
+        "target_type": binding.target_type,
+    }
+    if (
+        job is None
+        or binding.demo_session_id is not None
+        or binding.endpoint_operation != DEMO_PROFILE_REBUILD_OPERATION
+        or binding.target_type != "DEMO_ACTOR"
+        or binding.target_id != binding.demo_actor_id
+        or binding.schema_version != DEMO_JOB_BINDING_SCHEMA
+        or binding.canonical_payload != payload
+        or binding.content_digest != _authority_digest(DEMO_JOB_BINDING_SCHEMA, payload)
+        or job.id != binding.job_id
+        or job.job_type != DEMO_PROFILE_REBUILD_JOB_TYPE
+        or job.idempotency_key_hash
+        != _formal_job_key_hash(
+            binding.demo_actor_id, DEMO_PROFILE_REBUILD_OPERATION, binding.idempotency_key_hash
+        )
+        or job.payload != {}
+        or job.owner_user_id is not None
+        or job.ingestion_upload_intent_id is not None
+        or job.result_asset_id is not None
+        or job.status not in {"PENDING", "RUNNING", "COMPLETED", "REJECTED", "FAILED", "CANCELLED"}
+    ):
+        raise DemoMemoryAuthorityCorruption("profile rebuild Job envelope is invalid")
+    assert job is not None
+    if (
+        job.lease_token is not None
+        or job.lease_acquired_at is not None
+        or job.lease_expires_at is not None
+    ):
+        raise DemoMemoryAuthorityCorruption("profile rebuild Job contains unsupported lease state")
+    if job.status in {"PENDING", "RUNNING"}:
+        if job.finalized_at is not None or job.result_code is not None:
+            raise DemoMemoryAuthorityCorruption("active profile rebuild Job has terminal fields")
+    elif job.finalized_at is None or job.result_code is None:
+        raise DemoMemoryAuthorityCorruption("terminal profile rebuild Job lacks terminal fields")
+
+
+def _validate_pending_rebuild_execution(binding: DemoJobBinding, job: Job) -> None:
+    _validate_rebuild_envelope(binding, job)
+    if (
+        job.status != "PENDING"
+        or job.attempt_count != 1
+        or job.finalized_at is not None
+        or job.result_code is not None
+    ):
+        raise DemoMemoryAuthorityCorruption("pending profile rebuild envelope is invalid")
+    # The initial pending attempt is intentionally created at admission.  It is
+    # transitioned in-place on the single legal PENDING -> RUNNING claim.
+
+
+def _finish_execution_state(
+    job: Job,
+    attempt: JobAttempt,
+    *,
+    status: Literal["COMPLETED", "REJECTED", "FAILED"],
+    result_code: str,
+    error_code: str | None,
+    audit_now: datetime,
+) -> None:
+    if job.status != "RUNNING" or attempt.status != "RUNNING":
+        raise DemoMemoryAuthorityCorruption("D10 execution cannot finish from current state")
+    attempt.status = status
+    attempt.result_code = result_code
+    attempt.error_code = error_code
+    attempt.finished_at = audit_now
+    job.status = status
+    job.finalized_at = audit_now
+    job.result_code = result_code
+    job.updated_at = audit_now
 
 
 def _finish_execution(
