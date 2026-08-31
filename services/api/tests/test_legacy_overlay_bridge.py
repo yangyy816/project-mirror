@@ -31,6 +31,7 @@ LEGACY_OVERLAY_SHA256 = "1487d8d30f7354f7353b4784231ce5ca5b2a83ecdfd4356a152dcde
 
 @dataclass(frozen=True, slots=True)
 class _LegacyFixture:
+    project_root: Path
     bridge_path: Path
     receipt_path: Path
     controller_sha256: str
@@ -39,7 +40,6 @@ class _LegacyFixture:
     registration_receipt_sha256: str
     output_id: str
     action_id: str
-    registered_output_sha256: str
 
 
 def _verifier_sha256() -> str:
@@ -131,14 +131,10 @@ def _legacy_fixture(tmp_path: Path) -> _LegacyFixture:
     receipt = cast(dict[str, Any], verified["receipt"])
     state = cast(dict[str, Any], verified["state"])
     registration = cast(dict[str, str], state["output_registration"])
-    registration_evidence = legacy.verify_registration_before_decode(
-        registered.receipt_path,
-        expected_controller_sha256=controller_sha256,
-        project_worktree_root=project,
-    )
     control = parent / "legacy-bridge-control"
     control.mkdir()
     return _LegacyFixture(
+        project_root=project,
         bridge_path=control / "bridge.json",
         receipt_path=registered.receipt_path,
         controller_sha256=controller_sha256,
@@ -147,7 +143,6 @@ def _legacy_fixture(tmp_path: Path) -> _LegacyFixture:
         registration_receipt_sha256=registration["registration_receipt_sha256"],
         output_id=output_id,
         action_id=action_id,
-        registered_output_sha256=cast(str, registration_evidence["source_sha256"]),
     )
 
 
@@ -156,6 +151,7 @@ def _bridge(fixture: _LegacyFixture) -> tuple[Any, str]:
     bridge = create_or_verify_cal_req_004_bridge_from_legacy_receipt(
         bridge_path=fixture.bridge_path,
         legacy_receipt_path=fixture.receipt_path,
+        project_worktree_root=fixture.project_root,
         expected_legacy_controller_sha256=fixture.controller_sha256,
         expected_legacy_receipt_sha256=fixture.receipt_sha256,
         expected_legacy_state_sha256=fixture.state_sha256,
@@ -166,7 +162,6 @@ def _bridge(fixture: _LegacyFixture) -> tuple[Any, str]:
         expected_new_verifier_sha256=verifier_sha256,
         policy_version="policy-v1",
         policy_sha256="8" * 64,
-        registered_output_sha256=fixture.registered_output_sha256,
     )
     return bridge, verifier_sha256
 

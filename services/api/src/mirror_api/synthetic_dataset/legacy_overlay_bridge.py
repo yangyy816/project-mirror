@@ -34,6 +34,7 @@ def create_or_verify_cal_req_004_bridge_from_legacy_receipt(
     *,
     bridge_path: Path,
     legacy_receipt_path: Path,
+    project_worktree_root: Path,
     expected_legacy_controller_sha256: str,
     expected_legacy_receipt_sha256: str,
     expected_legacy_state_sha256: str,
@@ -44,7 +45,6 @@ def create_or_verify_cal_req_004_bridge_from_legacy_receipt(
     expected_new_verifier_sha256: str,
     policy_version: str,
     policy_sha256: str,
-    registered_output_sha256: str,
 ) -> LegacyBridgeReceipt:
     """Verify the exact legacy receipt before creating its one bridge receipt."""
     try:
@@ -60,6 +60,17 @@ def create_or_verify_cal_req_004_bridge_from_legacy_receipt(
         )
     except LegacyOverlayVerificationError as error:
         raise LegacyBridgeError("LEGACY_RECEIPT_VERIFICATION_FAILED") from error
+    try:
+        registration = _legacy.verify_registration_before_decode(
+            legacy_receipt_path,
+            expected_controller_sha256=expected_legacy_controller_sha256,
+            project_worktree_root=project_worktree_root,
+        )
+    except _legacy.ExecutionOverlayError as error:
+        raise LegacyBridgeError("LEGACY_REGISTRATION_VERIFICATION_FAILED") from error
+    registered_output_sha256 = registration.get("source_sha256")
+    if not isinstance(registered_output_sha256, str):
+        raise LegacyBridgeError("LEGACY_REGISTERED_OUTPUT_DIGEST_INVALID")
     # No bridge serializer receives caller-provided attestation data.  The
     # attestation below was just created by exact receipt verification above.
     source = dict(attestation.payload)
