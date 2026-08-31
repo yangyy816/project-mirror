@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const apiOrigin = "http://127.0.0.1:4400";
+const apiOrigin = "http://localhost:4400";
 
 test.beforeEach(async ({ request }) => {
   await request.post(`${apiOrigin}/__test/reset`);

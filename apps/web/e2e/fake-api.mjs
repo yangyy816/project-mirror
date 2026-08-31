@@ -1,8 +1,8 @@
 import { createServer } from "node:http";
 
-const host = "127.0.0.1";
+const host = "localhost";
 const port = 4400;
-const appOrigin = "http://127.0.0.1:4300";
+const appOrigin = "http://localhost:4300";
 const challengeId = "c".repeat(32);
 const userId = "d".repeat(32);
 const recordId = "e".repeat(32);
@@ -10,6 +10,9 @@ const assetId = "a".repeat(32);
 const exportId = "b".repeat(32);
 const deletionRequestId = "f".repeat(32);
 const jobId = "9".repeat(32);
+const demoSessionId = "1".repeat(32);
+const demoDigest = "f".repeat(64);
+const demoBearer = "x".repeat(32);
 const refreshCookie =
   "mirror_refresh=synthetic-refresh; HttpOnly; SameSite=Lax; Path=/";
 const csrfCookie = "mirror_csrf=synthetic-csrf; SameSite=Lax; Path=/";
@@ -29,6 +32,9 @@ function reset() {
     accountDeletionStatus: null,
     accountDeletionPolls: 0,
     failNextAssetList: false,
+    demoRecallAts: [],
+    demoRequestCount: 0,
+    demoDigestMismatch: false,
   };
 }
 
@@ -110,6 +116,57 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/health/live") {
+    send(response, 200, { status: "live", version: "e2e" });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/health/ready") {
+    send(response, 200, {
+      status: "ready",
+      version: "e2e",
+      dependencies: { database: "ready", redis: "ready" },
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/demo/sessions/${demoSessionId}/context`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`) {
+      error(response, 401);
+      return;
+    }
+    state.demoRecallAts.push(url.searchParams.get("recall_at"));
+    state.demoRequestCount += 1;
+    send(response, 200, {
+      session_id: demoSessionId,
+      profile_id: "2".repeat(32),
+      compilation_digest: demoDigest,
+      expires_at: "2099-01-01T00:15:00Z",
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/demo/traces/${demoSessionId}`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`) {
+      error(response, 401);
+      return;
+    }
+    state.demoRecallAts.push(url.searchParams.get("recall_at"));
+    state.demoRequestCount += 1;
+    send(response, 200, {
+      session_id: demoSessionId,
+      context_compilation_id: "3".repeat(32),
+      evidence_digest: state.demoDigestMismatch ? "e".repeat(64) : demoDigest,
+    });
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/__test/reset") {
     reset();
     send(response, 204, null, {
@@ -130,6 +187,8 @@ const server = createServer(async (request, response) => {
       asset_present: state.assetPresent,
       export_status: state.exportStatus,
       account_deletion_status: state.accountDeletionStatus,
+      demo_recall_ats: state.demoRecallAts,
+      demo_request_count: state.demoRequestCount,
     });
     return;
   }
@@ -137,6 +196,7 @@ const server = createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/__test/fail-next") {
     const body = await jsonBody(request);
     if (body.target === "assets") state.failNextAssetList = true;
+    if (body.target === "demo-digest-mismatch") state.demoDigestMismatch = true;
     send(response, 204, null);
     return;
   }
