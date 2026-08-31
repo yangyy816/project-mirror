@@ -34,6 +34,11 @@ module-level locked singleton. Signature assignment is absent from the
 verification hot path; private receipt bytes, locators, images, Prompts and
 credentials are never emitted into tracked evidence.
 
+The only public bridge-creation entry receives the exact legacy receipt path
+and every receipt/state/registration/action/output anchor, then invokes
+`verify_cal_req_004_once` before it can create or re-verify a bridge receipt.
+Caller-built attestation payloads are not an authority input.
+
 ## Required local evidence
 
 - legacy overlay fixed-SHA regression;
