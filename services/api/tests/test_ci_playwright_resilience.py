@@ -116,6 +116,17 @@ def test_playwright_install_evidence_is_always_uploaded_before_browser_tests() -
     assert "if-no-files-found: error" in step
 
 
+def test_playwright_install_evidence_is_initialized_before_python_tests() -> None:
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    start = workflow.index("      - name: Initialize Playwright install evidence\n")
+    end = workflow.index("      - name: Python tests\n", start)
+    step = workflow[start:end]
+
+    assert "PLAYWRIGHT_INSTALL_LOG" in step
+    assert ': > "$PLAYWRIGHT_INSTALL_LOG"' in step
+    assert "event=playwright_install_evidence outcome=not_started" in step
+
+
 def test_playwright_download_timeout_owns_each_logging_pipeline_and_keeps_retry_contract() -> None:
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     step = _step_body(

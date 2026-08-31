@@ -94,6 +94,14 @@ jobs:
               assert len(item["regexes"]) == 1
               assert "rules" not in item
           PY
+      - name: Initialize Playwright install evidence
+        shell: bash
+        env:
+          PLAYWRIGHT_INSTALL_LOG: ${{ runner.temp }}/playwright-chromium-install.log
+        run: |
+          set -euo pipefail
+          : > "$PLAYWRIGHT_INSTALL_LOG"
+          printf 'event=playwright_install_evidence outcome=not_started\n' >> "$PLAYWRIGHT_INSTALL_LOG"
       - uses: actions/setup-python@v5
         with:
           python-version: 3.13.1
@@ -291,7 +299,7 @@ jobs:
         with:
           name: playwright-install-evidence
           path: ${{ runner.temp }}/playwright-chromium-install.log
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
       - name: Browser integration
         run: pnpm --filter @mirror/web test:e2e
