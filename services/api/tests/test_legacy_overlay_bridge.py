@@ -27,6 +27,7 @@ from mirror_api.synthetic_dataset.post_registration_repeatability import (
 )
 from mirror_api.synthetic_dataset.post_registration_request_reference import (
     PostRegistrationRequestReference,
+    RequestReferenceError,
     build_request_reference,
 )
 from mirror_api.synthetic_dataset.private_post_registration_verifier_v2 import (
@@ -484,6 +485,43 @@ def test_v2_rejects_stateful_mapping_and_malformed_idempotent_replay(tmp_path: P
             handle=entry,
             expected_verifier_sha256=verifier_sha256,
             request_reference=malformed,
+            timestamp="2026-09-01T00:04:00Z",
+        )
+    assert bound.state_sha256 != entry.state_sha256
+
+
+def test_v2_rejects_string_subclass_authority_on_new_and_idempotent_paths(tmp_path: Path) -> None:
+    fixture, bridge, verifier_sha256, entry = _v2_entry(tmp_path)
+    valid = _request_reference(fixture, bridge)
+
+    class _AlwaysEqual(str):
+        def __eq__(self, other: object) -> bool:
+            return True
+
+    with pytest.raises(RequestReferenceError, match="AUTHORITY_INVALID"):
+        PostRegistrationRequestReference(
+            reference=_AlwaysEqual(valid.reference),
+            sha256=_AlwaysEqual(valid.sha256),
+            authority=valid.authority,
+        )
+    bound = append_v2_transition(
+        handle=entry,
+        expected_verifier_sha256=verifier_sha256,
+        request_reference=valid,
+        timestamp="2026-09-01T00:03:00Z",
+    )
+    forged = PostRegistrationRequestReference(
+        reference=valid.reference,
+        sha256=valid.sha256,
+        authority=valid.authority,
+    )
+    object.__setattr__(forged, "reference", _AlwaysEqual(valid.reference))
+    object.__setattr__(forged, "sha256", _AlwaysEqual(valid.sha256))
+    with pytest.raises(PostRegistrationVerifierV2Error, match="REQUEST_REFERENCE_BINDING_INVALID"):
+        append_v2_transition(
+            handle=entry,
+            expected_verifier_sha256=verifier_sha256,
+            request_reference=forged,
             timestamp="2026-09-01T00:04:00Z",
         )
     assert bound.state_sha256 != entry.state_sha256

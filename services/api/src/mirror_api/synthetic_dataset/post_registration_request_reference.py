@@ -22,8 +22,10 @@ class PostRegistrationRequestReference:
     def __post_init__(self) -> None:
         """Snapshot authority once so digest and bridge checks share identical facts."""
         authority = dict(self.authority)
-        if not all(
-            isinstance(key, str) and isinstance(value, str) for key, value in authority.items()
+        if (
+            type(self.reference) is not str
+            or type(self.sha256) is not str
+            or not all(type(key) is str and type(value) is str for key, value in authority.items())
         ):
             raise RequestReferenceError("REQUEST_REFERENCE_AUTHORITY_INVALID")
         object.__setattr__(self, "authority", MappingProxyType(authority))

@@ -96,7 +96,7 @@ def _sha256_bytes(value: bytes) -> str:
 
 
 def _validate_digest(value: str, field: str) -> None:
-    if not _HEX.fullmatch(value):
+    if type(value) is not str or not _HEX.fullmatch(value):
         raise PostRegistrationVerifierV2Error(f"V2_{field}_INVALID")
 
 
@@ -372,7 +372,11 @@ def _request_reference_digest_is_canonical(
     request_reference: PostRegistrationRequestReference,
 ) -> bool:
     authority = request_reference.authority
-    if not all(isinstance(key, str) and isinstance(value, str) for key, value in authority.items()):
+    if (
+        type(request_reference.reference) is not str
+        or type(request_reference.sha256) is not str
+        or not all(type(key) is str and type(value) is str for key, value in authority.items())
+    ):
         return False
     return request_reference.sha256 == _sha256_bytes(_canonical_json_bytes(dict(authority)))
 
