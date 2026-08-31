@@ -21,16 +21,23 @@
 
 ## Execution
 
-1. 创建不可变 Run header，固定 50/10/1/0 和 target=4。
+1. 通过内部非 HTTP operator 的 `bootstrap` 创建不可变 Run header，固定 50/10/1/0 和 target=4。
    PostgreSQL 只允许一个 bootstrap spec 和一个 run；相同 authority 只能 replay，不同 spec/run
    key 必须 fail closed。
-2. 仅开放当前 tranche，逐 ordinal 创建 Candidate；每个 ordinal 只能尝试一次。
-3. 每次调用先发布 primary，立即把精确 locator/file identity与digest写入private index，再将
+2. 每次使用同一个长生命周期 `call-session`：先提交并输出 redacted `CALL_STARTED` facts，随后才从
+   non-TTY stdin 读取一条 bounded、newline-delimited Provider result envelope。输入协议仅允许
+   `RESULT`、明确 `NO_RESULT` 或 `UNCERTAIN`；缺失、截断或无法分类的输入必须将整个 run fail closed。
+3. 仅开放当前 tranche，逐 ordinal 创建 Candidate；每个 ordinal 只能尝试一次。
+4. 每次调用先发布 primary，立即把精确 locator/file identity与digest写入private index，再将
    `PRIMARY_DURABLE` Candidate提交到PostgreSQL；只有该提交成功后才从绑定的primary创建backup。
-4. Candidate 通过后建立 Manifest，再建立 formal source authority；未完成前不得跳 stage。
-5. 每个阶段写 append-only event，并更新可重建 projection；不得把 Prompt、path、private
+5. Candidate 通过后建立 Manifest，再建立 formal source authority；未完成前不得跳 stage。
+6. 每个阶段写 append-only event，并更新可重建 projection；不得把 Prompt、path、private
    locator、raw bytes 或 credential 写入 tracked state。
-6. 达到 4 个 accepted formal source 后立即 finalize；不得继续调用 Provider。
+7. 达到 4 个 accepted formal source 后立即 finalize；不得继续调用 Provider。
+
+Bootstrap identity 固定来自 tracked code/authority，不接受 CLI 覆盖：provider identity、M3 prescreen
+policy、runtime、model、QA policy 与唯一 run key 都必须逐字节 replay。Operator 命令行只接收非敏感的
+run/candidate ID、digest、ordinal、stage code；数据库 URL 仅从进程环境读取。
 
 ## Failure and recovery
 
@@ -40,6 +47,8 @@
   精确locator/file identity和recovery-only capability重新绑定同一文件，并登记同一Candidate；
   recovery capability不得进入Provider dispatch或materialize新result，不得搜索或使用同digest的
   其他文件。无法确定Provider outcome时立即把整个run置为`FAILED_CLOSED`。
+- 若 backup 已按固定 allocation 创建、但 private index 或 DB 更新中断，恢复只能精确重绑该 allocation
+  与已登记 primary identity；不得再次复制、生成新名称或调用 Provider。
 - backup、M3、QA、screening或admission技术失败只能恢复同一Candidate/Manifest/bundle，不得
   触发新的Provider调用。
 - 存在`PRIMARY_DURABLE`、`DURABLE`或`M3_SUPPORTED` Candidate时，必须先完成同一Candidate，

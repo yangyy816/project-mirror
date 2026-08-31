@@ -53,6 +53,24 @@ commit → backup publish → Candidate reconciliation` 排序。进程中断后
 13. `calls_without_accept` 是当前 `content_review_epoch` 内自最近一次 accepted/review resume
     起的连续计数；授权的 D02 Principal review 可开启下一 epoch并清零该计数，但
     `budget_consumed` 永不清零、扩容或回退。
+14. Bootstrap 不接受调用者临时编造的 identity。三个此前未显式物化的 D02-only identity 使用
+    domain-separated canonical JSON 固定为：
+    - `mirror.demo/D02AcquisitionProviderIdentity/v1`：只绑定已接受的 ImageGen control-plane、
+      endpoint、credential boundary、retention 与 Prompt policy，不绑定已被本 ADR 取代的旧四调用预算；
+      digest 为 `e3d94667886b21f80ae30fce1f49bb5a072dd3678506d21091d48ab88029bc05`；
+    - `mirror.demo/D02CandidateM3PrescreenPolicy/v1`：绑定当前 M3 runtime/model/topology/config，
+      Candidate 只执行一次 provisional source inspection，Manifest 后仍强制正式三次重跑；digest 为
+      `52b626baf6cd2a0f2867dc3b8bf92446973cafd851752cd5abab04433bee472d`；
+    - `mirror.demo/D02AutonomousAcquisitionRunKey/v1`：绑定唯一自治授权、最终运行时 Gate、E3/E4
+      `FAILED_CLOSED` 与 forward-only policy；digest 为
+      `04c4dacd3199bed812aeef542cea12b521689aa58796dd2f0ea20f8a9683e1a2`。
+    runtime、model 与 QA digest 继续直接复用已有 tracked authority。Operator 只能使用这些 replayable
+    defaults；测试占位 digest、branch SHA、随机值或 private preimage 均不得进入 run bootstrap。
+15. 正式 application entrypoint 是 D02-owned、非 HTTP 的 operator。`call-session` 必须先在短事务中
+    commit `CALL_STARTED`，再通过 non-TTY stdin 消费恰好一条 bounded、newline-delimited result
+    envelope。Provider 调用、result materialization、文件 I/O、M3、QA 与 screening 均不得持有数据库锁。
+    Operator stdout/stderr 只允许 ordinal、slot、ID、digest、计数和安全错误码，不得输出 Prompt、tool
+    payload、data URL、bytes 或 private locator。
 
 ## Alternatives
 

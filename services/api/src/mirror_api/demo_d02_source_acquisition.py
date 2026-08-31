@@ -432,6 +432,59 @@ class D02TwoCopyStorage:
             _factory_token=_DURABLE_CANDIDATE_FACTORY_TOKEN,
         )
 
+    def reconcile_existing_backup(
+        self,
+        *,
+        primary: DurableCandidateBytes,
+        primary_file: BoundPngFile,
+        backup_file: BoundPngFile,
+    ) -> DurableCandidateBytes:
+        """Validate an exact already-created backup after a local checkpoint interruption.
+
+        This path never writes bytes and cannot dispatch a Provider.  Both file
+        capabilities must have been reconstructed from the known D02 allocation
+        and private index; directory discovery or same-digest substitution is
+        intentionally outside this boundary.
+        """
+
+        if primary.backup_sha256 is not None:
+            _fail("BACKUP_ALREADY_RECONCILED")
+        try:
+            primary_facts = primary_file.validate()
+            backup_facts = backup_file.validate()
+        except D02R2PngReceiverError as error:
+            raise D02TwoCopyStorageError(
+                "BACKUP_RECOVERY_FAILED",
+                durable_candidate=primary,
+            ) from error
+        if (
+            primary_facts.sha256 != primary.primary_sha256
+            or primary_facts.byte_size != primary.byte_size
+            or primary_facts.width != primary.width
+            or primary_facts.height != primary.height
+            or backup_facts != primary_facts
+        ):
+            raise D02TwoCopyStorageError(
+                "TWO_COPY_DIGEST_MISMATCH",
+                durable_candidate=primary,
+            )
+        return DurableCandidateBytes(
+            run_id=primary.run_id,
+            cohort_spec_id=primary.cohort_spec_id,
+            provider_ordinal=primary.provider_ordinal,
+            selector_slot_id=primary.selector_slot_id,
+            call_started_event_digest=primary.call_started_event_digest,
+            output_id=primary.output_id,
+            provider_result_digest=primary.provider_result_digest,
+            media_type=primary.media_type,
+            byte_size=primary.byte_size,
+            primary_sha256=primary.primary_sha256,
+            backup_sha256=backup_facts.sha256,
+            width=primary.width,
+            height=primary.height,
+            _factory_token=_DURABLE_CANDIDATE_FACTORY_TOKEN,
+        )
+
 
 class D02SourceAcquisitionService:
     """Serialized transactional projection writer for the D02 acquisition ledger."""
