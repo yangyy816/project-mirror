@@ -476,7 +476,7 @@ def test_0010_downgrade_fails_closed_when_m3_authority_exists(
     engine = create_engine(database_url)
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "demo_0014_d02_r2_e3_versioning"
+            "demo_0015_d02_source_acq_pool"
         )
     engine.dispose()
     get_settings.cache_clear()
