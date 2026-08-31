@@ -52,12 +52,48 @@ jobs:
       SENSITIVE_PROCESSING_ENABLED: "false"
       CI: "true"
       PYTHONPATH: services/api/src:services/worker/src
-      DEMO_PROTOTYPE_TRACK: ${{ (github.ref == 'refs/heads/codex/p3-p7-core-demo') || (github.event_name == 'pull_request' && github.head_ref == 'codex/p3-p7-core-demo') }}
+      DEMO_PROTOTYPE_TRACK: ${{ (github.ref == 'refs/heads/codex/p3-p7-core-demo') || (github.ref == 'refs/heads/codex/p3-p7-product-forward') || startsWith(github.ref, 'refs/heads/codex/p3-p7-product-forward-') || (github.event_name == 'pull_request' && ((github.head_ref == 'codex/p3-p7-core-demo') || (github.head_ref == 'codex/p3-p7-product-forward') || startsWith(github.head_ref, 'codex/p3-p7-product-forward-'))) }}
     steps:
       - uses: actions/checkout@v4
         with:
           # Registry authority tests replay the accepted CC08 plan ancestor locally.
           fetch-depth: 0
+      - name: Validate Demo prototype branch routing matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          is_demo_branch() {
+            case "$1" in
+              codex/p3-p7-core-demo|codex/p3-p7-product-forward|codex/p3-p7-product-forward-*) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+          is_demo_branch codex/p3-p7-core-demo
+          is_demo_branch codex/p3-p7-product-forward
+          is_demo_branch codex/p3-p7-product-forward-d10-context-trace
+          ! is_demo_branch codex/unrelated-demo
+          ! is_demo_branch codex/phase2-m5-failure-mechanism-isolation
+      - name: Validate bounded D10 Gitleaks allowlists
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import tomllib
+
+          config = tomllib.loads(Path(".gitleaks.toml").read_text(encoding="utf-8"))
+          repairs = [
+              item
+              for item in config["allowlists"]
+              if item["description"].startswith("D10 successor: ")
+          ]
+          assert len(repairs) == 10
+          for item in repairs:
+              assert item["condition"] == "AND"
+              assert item["regexTarget"] == "match"
+              assert len(item["commits"]) == 1
+              assert len(item["paths"]) == 1
+              assert len(item["regexes"]) == 1
+              assert "rules" not in item
+          PY
       - uses: actions/setup-python@v5
         with:
           python-version: 3.13.1
@@ -275,9 +311,11 @@ jobs:
         if: env.DEMO_PROTOTYPE_TRACK == 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > demo-prototype-migration-head.txt
-          test "$(tr -d '\r\n' < demo-prototype-migration-head.txt)" = "demo_0012_d05_profile_auth (head)"
+          test "$(tr -d '\r\n' < demo-prototype-migration-head.txt)" = "demo_0014_d02_r2_e3_versioning (head)"
           python -m alembic -c services/api/alembic.ini history > demo-prototype-migration-history.txt
-          grep -Fqx "demo_0011_d03_job_recovery -> demo_0012_d05_profile_auth (head), Add D05 profile compilation and self-transfer projection authority." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0013_d07_publish_auth -> demo_0014_d02_r2_e3_versioning (head), Add the bounded D02-R2 Epoch 03 authority branches." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0012_d05_profile_auth -> demo_0013_d07_publish_auth, Add D07 quarantine artifact and PASS-only publication authority." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0011_d03_job_recovery -> demo_0012_d05_profile_auth, Add D05 profile compilation and self-transfer projection authority." demo-prototype-migration-history.txt
           grep -Fqx "demo_0010_d03_analysis_run -> demo_0011_d03_job_recovery, Add bounded D03 dispatch and expired-lease retry authority." demo-prototype-migration-history.txt
           grep -Fqx "demo_0009_d02_r2_e2_adm -> demo_0010_d03_analysis_run, Add the Demo-only D03 analysis request and execution authority." demo-prototype-migration-history.txt
           grep -Fqx "demo_0008_d02_r2_source_auth -> demo_0009_d02_r2_e2_adm, Add D02-R2 Epoch 02 source and atomic bank admission authority." demo-prototype-migration-history.txt
@@ -292,7 +330,7 @@ jobs:
           printf '%s\n' \
             "TRACK: DEMO_PROTOTYPE" \
             "COMMIT_SHA: $GITHUB_SHA" \
-            "DEMO_MIGRATION_HEAD: demo_0012_d05_profile_auth" \
+            "DEMO_MIGRATION_HEAD: demo_0014_d02_r2_e3_versioning" \
             "FORMAL_EVIDENCE_GENERATORS: NOT_RUN_ON_PROTOTYPE_HEAD" \
             "FORMAL_HEAD_AUTHORITY: 0014_m5_eval_authority" \
             "PRODUCTION_RELEASE: NOT_AUTHORIZED" \

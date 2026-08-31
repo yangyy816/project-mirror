@@ -45,3 +45,90 @@ commits = ["0500b9e60822d81811f85f2926534b26ad86a088"]
 paths = ['''^docs/research/P2_QUESTIONBANK_GENERATION_POLICY_V3\.json$''']
 regexTarget = "match"
 regexes = ['''71942e2bdd3ff8896f6c74e7ee2f562167cb635528d9d802b7d66c460b0f13cf''']
+
+# D10-CI-R01: public Git commit identities in the durable execution-state map
+# match the generic-key heuristic. Each exception is bound to one historical
+# commit, one tracked path, and the exact public field/value pair.
+[[allowlists]]
+description = "D10 successor: historical profile rebuild commit identity in b139364"
+condition = "AND"
+commits = ["b1393646034490d0b1ecf676669bd8739ce44ddd"]
+paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
+regexTarget = "match"
+regexes = ['''D10_PROFILE_REBUILD_API_WIRING": "98ddfc47e74a894e25142c9cc677e23178d91776"''']
+
+[[allowlists]]
+description = "D10 successor: historical profile rebuild commit identity in 5ad9f4c"
+condition = "AND"
+commits = ["5ad9f4c331aa8dc466b69a3e01854ae5f8960187"]
+paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
+regexTarget = "match"
+regexes = ['''D10_PROFILE_REBUILD_API_WIRING": "98ddfc47e74a894e25142c9cc677e23178d91776"''']
+
+[[allowlists]]
+description = "D10 successor: historical D09 feedback commit identity in 5ad9f4c"
+condition = "AND"
+commits = ["5ad9f4c331aa8dc466b69a3e01854ae5f8960187"]
+paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
+regexTarget = "match"
+regexes = ['''D09_IMAGE_FEEDBACK_FINAL_SAVE_API": "32cb1e9d62c99d33f898357617264b23c6f7d06d"''']
+
+[[allowlists]]
+description = "D10 successor: historical D09 feedback commit identity in 1217478"
+condition = "AND"
+commits = ["121747816fefd07235a22a37bc3796b512b81ff4"]
+paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
+regexTarget = "match"
+regexes = ['''D09_IMAGE_FEEDBACK_FINAL_SAVE_API": "32cb1e9d62c99d33f898357617264b23c6f7d06d"''']
+
+[[allowlists]]
+description = "D10 successor: historical Context Trace commit identity in 1217478"
+condition = "AND"
+commits = ["121747816fefd07235a22a37bc3796b512b81ff4"]
+paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
+regexTarget = "match"
+regexes = ['''D10_CONTEXT_TRACE_EXPLICIT_RECALL_API": "cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd"''']
+
+# D10-CI-R01: these two tracked source lines compare a parsed handle schema
+# against static key-name sets. They are not handles, locators, Prompt data, or
+# credential material.
+[[allowlists]]
+description = "D10 successor: historical static V1 capture handle-key set assignment in 5452af4"
+condition = "AND"
+commits = ["5452af4337a2bd462f31a213ddc439d291ab2362"]
+paths = ['''^services/api/src/mirror_api/synthetic_dataset/private_imagegen_capture\.py$''']
+regexTarget = "match"
+regexes = ['''expected_handle_keys = _EXPECTED_HANDLE_KEYS_V1''']
+
+[[allowlists]]
+description = "D10 successor: historical static V2 capture handle-key set assignment in 5452af4"
+condition = "AND"
+commits = ["5452af4337a2bd462f31a213ddc439d291ab2362"]
+paths = ['''^services/api/src/mirror_api/synthetic_dataset/private_imagegen_capture\.py$''']
+regexTarget = "match"
+regexes = ['''expected_handle_keys = _EXPECTED_HANDLE_KEYS_V2''']
+
+# D10-CI-R01: exact synthetic idempotency identifiers used only by tests.
+[[allowlists]]
+description = "D10 successor: historical editing command synthetic idempotency key in 186db65"
+condition = "AND"
+commits = ["186db65e3e1ad5a7f78b284a060d8d25de20cc99"]
+paths = ['''^services/api/tests/test_demo_editing_commands\.py$''']
+regexTarget = "match"
+regexes = ['''_KEY = "idempotency-key-01"''']
+
+[[allowlists]]
+description = "D10 successor: historical editing coordinator synthetic idempotency key in 186db65"
+condition = "AND"
+commits = ["186db65e3e1ad5a7f78b284a060d8d25de20cc99"]
+paths = ['''^services/api/tests/test_demo_editing_coordinator\.py$''']
+regexTarget = "match"
+regexes = ['''idempotency_key="idempotency-key-01"''']
+
+[[allowlists]]
+description = "D10 successor: historical self-transfer collision test key in 53cbac3"
+condition = "AND"
+commits = ["53cbac335a6a0008fbb4395a10715d0e6512d1ad"]
+paths = ['''^services/api/tests/test_demo_self_transfer_service\.py$''']
+regexTarget = "match"
+regexes = ['''key="d06-result-collision"''']
