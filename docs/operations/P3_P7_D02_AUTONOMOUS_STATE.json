@@ -6,7 +6,7 @@
     "status": "REJECTED_CANDIDATE_WITH_KNOWN_MATERIALIZER_FINDINGS"
   },
   "run": {
-    "state": "BOOTSTRAP_PENDING",
+    "state": "READY_NOT_STARTED",
     "total_budget": 50,
     "budget_consumed": 0,
     "tranche_size": 10,
@@ -19,11 +19,11 @@
     "stage": "RUN",
     "pause_reason": null,
     "policy_digests": {
-      "generation_policy": null,
-      "materializer": null,
-      "m3_prescreen": null,
-      "qa": null,
-      "status": "BOOTSTRAP_PENDING"
+      "generation_policy": "58f385338b713a87d30dc2ef5be2e60b9c8850ab4f1505bf2aafc4e8af392705",
+      "materializer": "93c21495fbf9a17a7a440522fcf8045d31fd4124b246bcf1dfe3cee714b870b6",
+      "m3_prescreen": "e40d23b47551720fd1cd2630ac3e8bfdf65e8d3184e9c4b2e5127a4d09c30b09",
+      "qa": "b79d03d6a738044cca032029ba2f84618c613e0539bd93ce8f19ac5dcc1cf178",
+      "status": "BOOTSTRAP_INTEGRATED"
     },
     "counts": {
       "candidate_created": 0,
@@ -36,7 +36,7 @@
       "completed": 0,
       "opened": 0,
       "current": null,
-      "summary_status": "BOOTSTRAP_PENDING"
+      "summary_status": "NOT_OPENED"
     }
   },
   "legacy": {

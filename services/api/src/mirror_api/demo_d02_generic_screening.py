@@ -19,6 +19,9 @@ from mirror_api.demo_d02_generic_admission import (
     SOURCE_SCHEMA,
     GenericAdmissionError,
     GenericSourceInput,
+    NormalizedAsset,
+    build_identity_row,
+    build_source_authority,
     validate_identity_row,
     validate_source_authority,
 )
@@ -38,6 +41,16 @@ PAIR_QA_SCHEMA: Final = "mirror.demo/D02GenericQuestionPairQAPayload/v1"
 SELECTED_PAIR_MANIFEST_SCHEMA: Final = "mirror.demo/D02GenericSelectedPairManifest/v1"
 ASSET_ENTRY_SCHEMA: Final = "mirror.demo/D02GenericScreeningAssetEntry/v1"
 VARIANT_ENTRY_SCHEMA: Final = "mirror.demo/D02GenericScreeningVariantEntry/v1"
+GENERIC_RUNTIME_PACKET_KEYS: Final = frozenset(
+    {
+        "source_input",
+        "supporting_row",
+        "identity_row",
+        "facts",
+        "source_manifest_entry",
+        "source_manifest_digest",
+    }
+)
 
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 _ID = re.compile(r"[0-9a-f]{32}\Z")
@@ -90,6 +103,21 @@ _FIXED_COUNTS: Final = {
     "phash_comparison_count": 1326,
     "candidate_pair_count": 24,
 }
+_RUNTIME_FORBIDDEN_KEYS: Final = frozenset(
+    {
+        "absolute_path",
+        "content",
+        "image_bytes",
+        "locator",
+        "object_key",
+        "private_locator",
+        "prompt",
+        "prompt_text",
+        "raw_bytes",
+        "secret",
+        "token",
+    }
+)
 
 
 def _fail(message: str) -> NoReturn:
@@ -144,6 +172,170 @@ def _reject_noncanonical(value: object) -> None:
     elif isinstance(value, (list, tuple)):
         for nested in value:
             _reject_noncanonical(nested)
+
+
+def _reject_runtime_private(value: object) -> None:
+    """Keep the generic runtime packet a public structural projection."""
+
+    if isinstance(value, bytes) or isinstance(value, float):
+        _fail("generic runtime packet contains a non-canonical value")
+    if isinstance(value, Mapping):
+        for key, nested in value.items():
+            if not isinstance(key, str) or key.lower() in _RUNTIME_FORBIDDEN_KEYS:
+                _fail("generic runtime packet contains a forbidden field")
+            _reject_runtime_private(nested)
+    elif isinstance(value, (list, tuple)):
+        for nested in value:
+            _reject_runtime_private(nested)
+    elif value is not None and not isinstance(value, (str, int, bool)):
+        _fail("generic runtime packet contains a non-canonical value")
+
+
+def encode_generic_source_input(value: GenericSourceInput) -> dict[str, object]:
+    """Encode the complete generic input without dataclass instances.
+
+    This is intentionally a direct canonical projection.  Replaying it through
+    ``decode_generic_source_input`` and the generic admission builders proves
+    the formal source and identity rows rather than introducing a receipt.
+    """
+
+    payload = {
+        "acquisition_run_id": value.acquisition_run_id,
+        "cohort_spec_id": value.cohort_spec_id,
+        "manifest_id": value.manifest_id,
+        "manifest_acquisition_run_id": value.manifest_acquisition_run_id,
+        "manifest_cohort_spec_id": value.manifest_cohort_spec_id,
+        "manifest_content_digest": value.manifest_content_digest,
+        "manifest_ordered_candidate_ids": list(value.manifest_ordered_candidate_ids),
+        "candidate_id": value.candidate_id,
+        "candidate_acquisition_run_id": value.candidate_acquisition_run_id,
+        "candidate_cohort_spec_id": value.candidate_cohort_spec_id,
+        "candidate_content_digest": value.candidate_content_digest,
+        "position": value.position,
+        "spec_content_digest": value.spec_content_digest,
+        "generation_policy_digest": value.generation_policy_digest,
+        "source_output_id": value.source_output_id,
+        "normalized_asset": {
+            "asset_id": value.normalized_asset.asset_id,
+            "sha256": value.normalized_asset.sha256,
+            "byte_size": value.normalized_asset.byte_size,
+            "width": value.normalized_asset.width,
+            "height": value.normalized_asset.height,
+            "mime_type": value.normalized_asset.mime_type,
+        },
+        "formal_source_qa_digest": value.formal_source_qa_digest,
+        "candidate_m3_evidence_digest": value.candidate_m3_evidence_digest,
+        "candidate_qa_evidence_digest": value.candidate_qa_evidence_digest,
+        "formal_facts": dict(value.formal_facts),
+        "formal_measurement_projection": dict(value.formal_measurement_projection),
+        "formal_landmark_digest": value.formal_landmark_digest,
+    }
+    _reject_runtime_private(payload)
+    # The ordinary generic builders are the canonical shape and scalar checks.
+    build_identity_row(value, source_row=build_source_authority(value))
+    return payload
+
+
+_GENERIC_SOURCE_INPUT_KEYS: Final = frozenset(
+    {
+        "acquisition_run_id",
+        "cohort_spec_id",
+        "manifest_id",
+        "manifest_acquisition_run_id",
+        "manifest_cohort_spec_id",
+        "manifest_content_digest",
+        "manifest_ordered_candidate_ids",
+        "candidate_id",
+        "candidate_acquisition_run_id",
+        "candidate_cohort_spec_id",
+        "candidate_content_digest",
+        "position",
+        "spec_content_digest",
+        "generation_policy_digest",
+        "source_output_id",
+        "normalized_asset",
+        "formal_source_qa_digest",
+        "candidate_m3_evidence_digest",
+        "candidate_qa_evidence_digest",
+        "formal_facts",
+        "formal_measurement_projection",
+        "formal_landmark_digest",
+    }
+)
+_NORMALIZED_ASSET_KEYS: Final = frozenset(
+    {"asset_id", "sha256", "byte_size", "width", "height", "mime_type"}
+)
+
+
+def decode_generic_source_input(value: object) -> GenericSourceInput:
+    """Decode and structurally validate one canonical generic source input."""
+
+    payload = _exact(value, _GENERIC_SOURCE_INPUT_KEYS, "generic source input")
+    _reject_runtime_private(payload)
+    asset = _exact(payload["normalized_asset"], _NORMALIZED_ASSET_KEYS, "normalized Asset")
+    candidates = payload["manifest_ordered_candidate_ids"]
+    if not isinstance(candidates, list) or len(candidates) != 4:
+        _fail("generic ordered Candidate IDs are invalid")
+    input_value = GenericSourceInput(
+        acquisition_run_id=_id(payload["acquisition_run_id"], "generic acquisition run ID"),
+        cohort_spec_id=_id(payload["cohort_spec_id"], "generic cohort spec ID"),
+        manifest_id=_id(payload["manifest_id"], "generic Manifest ID"),
+        manifest_acquisition_run_id=_id(
+            payload["manifest_acquisition_run_id"], "generic Manifest run ID"
+        ),
+        manifest_cohort_spec_id=_id(payload["manifest_cohort_spec_id"], "generic Manifest spec ID"),
+        manifest_content_digest=_digest(
+            payload["manifest_content_digest"], "generic Manifest digest"
+        ),
+        manifest_ordered_candidate_ids=cast(
+            tuple[str, str, str, str],
+            tuple(_id(item, "generic ordered Candidate ID") for item in candidates),
+        ),
+        candidate_id=_id(payload["candidate_id"], "generic Candidate ID"),
+        candidate_acquisition_run_id=_id(
+            payload["candidate_acquisition_run_id"], "generic Candidate run ID"
+        ),
+        candidate_cohort_spec_id=_id(
+            payload["candidate_cohort_spec_id"], "generic Candidate spec ID"
+        ),
+        candidate_content_digest=_digest(
+            payload["candidate_content_digest"], "generic Candidate digest"
+        ),
+        position=_integer(payload["position"], "generic source position"),
+        spec_content_digest=_digest(payload["spec_content_digest"], "generic spec digest"),
+        generation_policy_digest=_digest(
+            payload["generation_policy_digest"], "generic generation policy digest"
+        ),
+        source_output_id=cast(str, payload["source_output_id"]),
+        normalized_asset=NormalizedAsset(
+            asset_id=_id(asset["asset_id"], "generic Asset ID"),
+            sha256=_digest(asset["sha256"], "generic Asset digest"),
+            byte_size=_integer(asset["byte_size"], "generic Asset byte size"),
+            width=_integer(asset["width"], "generic Asset width"),
+            height=_integer(asset["height"], "generic Asset height"),
+            mime_type=cast(str, asset["mime_type"]),
+        ),
+        formal_source_qa_digest=_digest(
+            payload["formal_source_qa_digest"], "generic formal QA digest"
+        ),
+        candidate_m3_evidence_digest=_digest(
+            payload["candidate_m3_evidence_digest"], "generic Candidate M3 digest"
+        ),
+        candidate_qa_evidence_digest=_digest(
+            payload["candidate_qa_evidence_digest"], "generic Candidate QA digest"
+        ),
+        formal_facts=_mapping(payload["formal_facts"], "generic formal facts"),
+        formal_measurement_projection=_mapping(
+            payload["formal_measurement_projection"], "generic formal measurement projection"
+        ),
+        formal_landmark_digest=_digest(
+            payload["formal_landmark_digest"], "generic formal landmark digest"
+        ),
+    )
+    if not isinstance(input_value.source_output_id, str):
+        _fail("generic source output ID is invalid")
+    build_identity_row(input_value, source_row=build_source_authority(input_value))
+    return input_value
 
 
 def _record_digest(schema: str, value: Mapping[str, object], field: str) -> str:
@@ -230,6 +422,15 @@ def build_source_manifest_entry(
     measurement_projection = _mapping(
         identity_row.get("source_measurement_projection"), "formal measurement projection"
     )
+    formal_facts = _mapping(source_input.formal_facts, "generic formal facts")
+    source_p2_candidate_manifest_content_digest = _digest(
+        formal_facts.get("source_p2_candidate_manifest_content_digest"),
+        "generic source P2 candidate manifest digest",
+    )
+    dimension_authority_manifest_content_digest = _digest(
+        formal_facts.get("dimension_authority_manifest_content_digest"),
+        "generic dimension authority manifest digest",
+    )
     payload: dict[str, object] = {
         "source_ordinal": position,
         "selected_source_manifest_id": manifest_id,
@@ -282,6 +483,8 @@ def build_source_manifest_entry(
             identity_row.get("source_measurement_projection_digest"),
             "source measurement projection digest",
         ),
+        "source_p2_candidate_manifest_content_digest": source_p2_candidate_manifest_content_digest,
+        "dimension_authority_manifest_content_digest": dimension_authority_manifest_content_digest,
         "adult_synthetic_attested": identity_row.get("adult_synthetic_attested"),
     }
     if (
@@ -330,6 +533,76 @@ def build_formal_source_manifest(
         if len({entry[key] for entry in entries}) != 4:
             _fail(f"formal source manifest {key} values must be unique")
     return entries, _manifest_hash(FORMAL_SOURCE_MANIFEST_SCHEMA, entries)
+
+
+def build_generic_runtime_packet(
+    *,
+    source_input: GenericSourceInput,
+    source_row: Mapping[str, object],
+    identity_row: Mapping[str, object],
+    source_manifest_entry: Mapping[str, object],
+    source_manifest_digest: str,
+) -> dict[str, object]:
+    """Build the public five-member packet consumed by the frozen R2 runner."""
+
+    input_payload = encode_generic_source_input(source_input)
+    r2.validate_r2_facts(source_input.formal_facts)
+    validate_source_authority(source_input, source_row=source_row)
+    validate_identity_row(source_input, source_row=source_row, identity_row=identity_row)
+    expected_entry = build_source_manifest_entry(
+        source_input=source_input,
+        source_row=source_row,
+        identity_row=identity_row,
+        selected_source_manifest_id=source_input.manifest_id,
+        selected_source_manifest_digest=source_input.manifest_content_digest,
+    )
+    if dict(source_manifest_entry) != expected_entry:
+        _fail("generic runtime source manifest entry does not replay")
+    packet: dict[str, object] = {
+        "source_input": input_payload,
+        "supporting_row": dict(source_row),
+        "identity_row": dict(identity_row),
+        "facts": dict(source_input.formal_facts),
+        "source_manifest_entry": expected_entry,
+        "source_manifest_digest": _digest(
+            source_manifest_digest, "generic runtime source manifest digest"
+        ),
+    }
+    _reject_runtime_private(packet)
+    return packet
+
+
+def validate_generic_runtime_packet(value: object) -> Mapping[str, object]:
+    """Replay a generic runtime packet without accepting legacy receipts."""
+
+    packet = _exact(value, GENERIC_RUNTIME_PACKET_KEYS, "generic runtime packet")
+    _reject_runtime_private(packet)
+    source_input = decode_generic_source_input(packet["source_input"])
+    source_row = _mapping(packet["supporting_row"], "generic runtime source row")
+    identity_row = _mapping(packet["identity_row"], "generic runtime identity row")
+    facts = _mapping(packet["facts"], "generic runtime facts")
+    source_manifest_entry = _mapping(
+        packet["source_manifest_entry"], "generic runtime source manifest entry"
+    )
+    validate_source_authority(source_input, source_row=source_row)
+    validate_identity_row(source_input, source_row=source_row, identity_row=identity_row)
+    if dict(facts) != dict(source_input.formal_facts):
+        _fail("generic runtime facts do not equal the canonical source input")
+    fact_snapshot = identity_row.get("source_fact_snapshot")
+    if not isinstance(fact_snapshot, Mapping) or fact_snapshot.get("facts") != facts:
+        _fail("generic runtime facts do not match the identity projection")
+    r2.validate_r2_facts(facts)
+    expected_entry = build_source_manifest_entry(
+        source_input=source_input,
+        source_row=source_row,
+        identity_row=identity_row,
+        selected_source_manifest_id=source_input.manifest_id,
+        selected_source_manifest_digest=source_input.manifest_content_digest,
+    )
+    if dict(source_manifest_entry) != expected_entry:
+        _fail("generic runtime source manifest entry does not replay")
+    _digest(packet["source_manifest_digest"], "generic runtime source manifest digest")
+    return packet
 
 
 def build_asset_manifest_entry(

@@ -22,6 +22,7 @@ from typing import Any, Final, NoReturn, Protocol, cast
 from PIL import Image, UnidentifiedImageError
 
 from mirror_api import demo_d02_authority as legacy
+from mirror_api import demo_d02_generic_screening as generic_screening
 from mirror_api import demo_d02_r2_authority as authority
 from mirror_api import demo_d02_r2_e3_admission as epoch3
 from mirror_api import demo_d02_r2_epoch2_admission as epoch2
@@ -257,6 +258,35 @@ class DurableSourceDescriptor:
             source_schema_version=cast(str, row["schema_version"]),
         )
 
+    @classmethod
+    def from_generic_packet(cls, packet: Mapping[str, object]) -> DurableSourceDescriptor:
+        """Bind a generic formal source without manufacturing a generation receipt."""
+
+        generic_screening.validate_generic_runtime_packet(packet)
+        row = cast(Mapping[str, object], packet["supporting_row"])
+        source_input = generic_screening.decode_generic_source_input(packet["source_input"])
+        return cls(
+            source_id=_identifier(row["source_asset_id"], "generic source Asset ID"),
+            source_output_id=cast(str, row["source_output_id"]),
+            ordinal=cast(int, row["source_ordinal"]),
+            content_sha256=_digest(row["source_asset_sha256"], "generic source Asset digest"),
+            media_type=cast(str, row["source_asset_mime_type"]),
+            width=cast(int, row["source_asset_width"]),
+            height=cast(int, row["source_asset_height"]),
+            byte_length=cast(int, row["source_asset_byte_size"]),
+            # Generic acquisition has no generation receipt.  Candidate content
+            # is the immutable per-call identity that prevents a shared policy
+            # digest from collapsing the four durable descriptors.
+            generation_request_identity=source_input.candidate_content_digest,
+            provenance_identity=_digest(
+                row["source_provenance_digest"], "generic source provenance digest"
+            ),
+            source_authority_key=_digest(
+                row["source_authority_key"], "generic source authority key"
+            ),
+            source_schema_version=cast(str, row["schema_version"]),
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class SourceDescriptorManifest:
@@ -357,6 +387,25 @@ class SourceDescriptorManifest:
             )
         )
 
+    @classmethod
+    def from_generic_packets(
+        cls, packets: Sequence[Mapping[str, object]]
+    ) -> SourceDescriptorManifest:
+        if len(packets) != 4:
+            _fail("source descriptor manifest requires exactly four packets")
+        values = tuple(DurableSourceDescriptor.from_generic_packet(packet) for packet in packets)
+        return cls(
+            cast(
+                tuple[
+                    DurableSourceDescriptor,
+                    DurableSourceDescriptor,
+                    DurableSourceDescriptor,
+                    DurableSourceDescriptor,
+                ],
+                values,
+            )
+        )
+
 
 def _manifest_from_versioned_packets(
     packets: Sequence[Mapping[str, object]],
@@ -371,6 +420,8 @@ def _manifest_from_versioned_packets(
         return SourceDescriptorManifest.from_epoch3_packets(packets)
     if schemas == {E4_CONTEXT.source_record_schema}:
         return SourceDescriptorManifest.from_forward_packets(packets, context=E4_CONTEXT)
+    if schemas == {"mirror.demo/D02GenericSourceAuthorityRecord/v1"}:
+        return SourceDescriptorManifest.from_generic_packets(packets)
     _fail("source packets mix unsupported execution epochs")
 
 
@@ -385,6 +436,8 @@ def _descriptor_from_versioned_packet(
         return DurableSourceDescriptor.from_epoch3_packet(packet)
     if schema == E4_CONTEXT.source_record_schema:
         return DurableSourceDescriptor.from_forward_packet(packet, context=E4_CONTEXT)
+    if schema == "mirror.demo/D02GenericSourceAuthorityRecord/v1":
+        return DurableSourceDescriptor.from_generic_packet(packet)
     _fail("source packet schema is unsupported")
 
 

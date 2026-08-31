@@ -20,6 +20,7 @@ from mirror_api.demo_idempotency import canonical_json_bytes
 
 PROVIDER_IDENTITY_SCHEMA: Final = "mirror.demo/D02AcquisitionProviderIdentity/v1"
 M3_PRESCREEN_POLICY_SCHEMA: Final = "mirror.demo/D02CandidateM3PrescreenPolicy/v1"
+CANDIDATE_QA_POLICY_SCHEMA: Final = "mirror.demo/D02CandidateQAPolicy/v1"
 RUN_KEY_SCHEMA: Final = "mirror.demo/D02AutonomousAcquisitionRunKey/v1"
 
 # These four public digests bind the accepted, prompt-free slices of
@@ -36,6 +37,12 @@ PROVIDER_RETENTION_POLICY_DIGEST: Final = (
     "2734305501c3d2236d236db25022efbd1d0abd362b4fe343e656ccf2806f5f22"
 )
 PROMPT_POLICY_DIGEST: Final = "fb32c5b86c45a113084e731a991a4bd70f026837d2cbe5bc6209fdf1c707a87b"
+NORMALIZATION_POLICY_DIGEST: Final = (
+    "cae980e18fd1808f7b2674241be5971fe03fc253db56d7575175b181facfa823"
+)
+MANUAL_REVIEW_POLICY_DIGEST: Final = (
+    "23078b7d3b508e36e756d533783aae786b022550d2ff74c3f5e3fdd6d9a88d62"
+)
 
 
 def provider_identity_payload() -> dict[str, object]:
@@ -74,6 +81,7 @@ def m3_prescreen_policy_payload() -> dict[str, object]:
         "vision_model_manifest_digest": measurement.VISION_MODEL_MANIFEST_DIGEST,
         "topology_digest": measurement.TOPOLOGY_DIGEST,
         "measurement_config_digest": measurement.MEASUREMENT_CONFIG_DIGEST,
+        "normalization_policy_digest": NORMALIZATION_POLICY_DIGEST,
         "source_m3_repeat_indices": [1],
         "required_face_count": 1,
         "required_landmark_count": 478,
@@ -85,6 +93,27 @@ def m3_prescreen_policy_payload() -> dict[str, object]:
         "formal_source_repeat_count": 3,
         "formal_reexecution_required_after_manifest_selection": True,
         "admission_authority": False,
+    }
+
+
+def candidate_qa_policy_payload() -> dict[str, object]:
+    return {
+        "schema_version": CANDIDATE_QA_POLICY_SCHEMA,
+        "legacy_measurement_qa_policy_digest": (
+            d02_authority.RECOVERED_LEGACY_QA_POLICY_CONTENT_DIGEST
+        ),
+        "candidate_m3_prescreen_policy_digest": M3_PRESCREEN_POLICY_DIGEST,
+        "manual_review_policy_digest": MANUAL_REVIEW_POLICY_DIGEST,
+        "normalization_policy_digest": NORMALIZATION_POLICY_DIGEST,
+        "adult_synthetic_required": True,
+        "suspected_minor_required": False,
+        "real_person_reference_forbidden": True,
+        "celebrity_imitation_forbidden": True,
+        "anti_homogenization_required": True,
+        "beauty_scoring_forbidden": True,
+        "sensitive_trait_inference_forbidden": True,
+        "candidate_evidence_is_provisional": True,
+        "formal_manifest_reexecution_required": True,
     }
 
 
@@ -118,6 +147,9 @@ PROVIDER_IDENTITY_DIGEST: Final = canonical_digest(
 M3_PRESCREEN_POLICY_DIGEST: Final = canonical_digest(
     M3_PRESCREEN_POLICY_SCHEMA, m3_prescreen_policy_payload()
 )
+CANDIDATE_QA_POLICY_DIGEST: Final = canonical_digest(
+    CANDIDATE_QA_POLICY_SCHEMA, candidate_qa_policy_payload()
+)
 RUN_KEY_DIGEST: Final = canonical_digest(RUN_KEY_SCHEMA, run_key_payload())
 
 
@@ -129,5 +161,5 @@ def default_spec_identity() -> D02SpecIdentity:
         runtime_identity_digest=measurement.RUNTIME_MANIFEST_DIGEST,
         model_identity_digest=build_default_model_identity().identity_digest,
         m3_prescreen_policy_digest=M3_PRESCREEN_POLICY_DIGEST,
-        qa_policy_digest=d02_authority.RECOVERED_LEGACY_QA_POLICY_CONTENT_DIGEST,
+        qa_policy_digest=CANDIDATE_QA_POLICY_DIGEST,
     )

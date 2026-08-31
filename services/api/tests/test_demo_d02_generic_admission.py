@@ -68,7 +68,11 @@ def _source() -> generic.GenericSourceInput:
         formal_source_qa_digest=_digest("formal-qa"),
         candidate_m3_evidence_digest=_digest("candidate-m3"),
         candidate_qa_evidence_digest=_digest("candidate-qa"),
-        formal_facts={"subject": "source-1"},
+        formal_facts={
+            "subject": "source-1",
+            "source_p2_candidate_manifest_content_digest": _digest("source-p2"),
+            "dimension_authority_manifest_content_digest": _digest("dimension-authority"),
+        },
         formal_measurement_projection={"landmark_count": 1},
         formal_landmark_digest=_digest("landmark"),
     )
@@ -263,7 +267,13 @@ def _generic_sources(
             formal_source_qa_digest=_digest(f"formal-source-qa-{position}"),
             candidate_m3_evidence_digest=cast(str, candidate.m3_evidence_digest),
             candidate_qa_evidence_digest=cast(str, candidate.qa_evidence_digest),
-            formal_facts={"fixture": f"source-{position}"},
+            formal_facts={
+                "fixture": f"source-{position}",
+                "source_p2_candidate_manifest_content_digest": _digest(f"source-p2-{position}"),
+                "dimension_authority_manifest_content_digest": _digest(
+                    f"dimension-authority-{position}"
+                ),
+            },
             formal_measurement_projection={"fixture_measurement": position},
             formal_landmark_digest=_digest(f"formal-landmark-{position}"),
         )
@@ -312,7 +322,10 @@ def _generic_screening_graph(
     list[dict[str, object]],
 ]:
     """Rebind a deterministic, in-memory R2 graph to generic formal sources."""
-    report_template, _ = _report_input_template()
+    # The authority helper is cached for its own module; generic rebinding must
+    # always start from a fresh graph because several runtime tests deliberately
+    # mutate their local fixture copy.
+    report_template, _ = _report_input_template.__wrapped__()
     source_entries, formal_digest = screening.build_formal_source_manifest(
         source_inputs=inputs,
         source_rows=source_rows,

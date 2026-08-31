@@ -54,6 +54,7 @@ from mirror_api.demo_models import (
     D02SourceAcquisitionRun,
     D02SourceCandidate,
 )
+from mirror_api.image_sanitizer import ImageSanitizationError, decode_canonical_rgb_image
 
 MIGRATION_HEAD: Final = "demo_0015_d02_source_acq_pool"
 LOCAL_INDEX_SCHEMA: Final = "mirror.private/D02LocalDurableIndex/v1"
@@ -102,6 +103,7 @@ class TransactionalSessionFactory(Protocol):
 class LocalFileFacts:
     relative_locator: str
     file_identity: tuple[int, int]
+    media_type: str
     sha256: str
     byte_size: int
     width: int
@@ -112,6 +114,7 @@ class LocalFileFacts:
             "schema_version": LOCAL_FILE_SCHEMA,
             "relative_locator": self.relative_locator,
             "file_identity": [self.file_identity[0], self.file_identity[1]],
+            "media_type": self.media_type,
             "sha256": self.sha256,
             "byte_size": self.byte_size,
             "width": self.width,
@@ -124,6 +127,7 @@ class LocalFileFacts:
             "schema_version",
             "relative_locator",
             "file_identity",
+            "media_type",
             "sha256",
             "byte_size",
             "width",
@@ -135,6 +139,7 @@ class LocalFileFacts:
             _fail("PRIVATE_INDEX_FILE_SCHEMA_UNKNOWN")
         locator = value.get("relative_locator")
         identity = value.get("file_identity")
+        media_type = value.get("media_type")
         digest = value.get("sha256")
         byte_size = value.get("byte_size")
         width = value.get("width")
@@ -151,6 +156,8 @@ class LocalFileFacts:
         ):
             _fail("PRIVATE_INDEX_FILE_IDENTITY_INVALID")
         _require_digest(digest, "PRIVATE_INDEX_DIGEST_INVALID")
+        if media_type not in {"image/png", "image/jpeg"}:
+            _fail("PRIVATE_INDEX_MEDIA_TYPE_INVALID")
         if any(
             not isinstance(item, int) or isinstance(item, bool) or item < 1
             for item in (byte_size, width, height)
@@ -159,6 +166,7 @@ class LocalFileFacts:
         return cls(
             relative_locator=locator,
             file_identity=(cast(int, identity[0]), cast(int, identity[1])),
+            media_type=cast(str, media_type),
             sha256=cast(str, digest),
             byte_size=cast(int, byte_size),
             width=cast(int, width),
@@ -176,6 +184,8 @@ class LocalDurableEntry:
     primary_relative_locator: str
     primary: LocalFileFacts | None
     backup: LocalFileFacts | None
+    normalized_primary: LocalFileFacts | None
+    normalized_backup: LocalFileFacts | None
 
     def payload(self) -> dict[str, object]:
         return {
@@ -188,6 +198,12 @@ class LocalDurableEntry:
             "primary_relative_locator": self.primary_relative_locator,
             "primary": self.primary.payload() if self.primary is not None else None,
             "backup": self.backup.payload() if self.backup is not None else None,
+            "normalized_primary": (
+                self.normalized_primary.payload() if self.normalized_primary is not None else None
+            ),
+            "normalized_backup": (
+                self.normalized_backup.payload() if self.normalized_backup is not None else None
+            ),
         }
 
     @property
@@ -206,6 +222,8 @@ class LocalDurableEntry:
             "primary_relative_locator",
             "primary",
             "backup",
+            "normalized_primary",
+            "normalized_backup",
         }
         if not isinstance(value, Mapping) or set(value) != expected:
             _fail("PRIVATE_INDEX_ENTRY_INVALID")
@@ -231,6 +249,8 @@ class LocalDurableEntry:
         _validate_relative_locator(primary_locator)
         raw_primary = value.get("primary")
         raw_backup = value.get("backup")
+        raw_normalized_primary = value.get("normalized_primary")
+        raw_normalized_backup = value.get("normalized_backup")
         parsed = cls(
             run_id=run_id,
             cohort_spec_id=cohort_spec_id,
@@ -240,12 +260,33 @@ class LocalDurableEntry:
             primary_relative_locator=primary_locator,
             primary=LocalFileFacts.parse(raw_primary) if raw_primary is not None else None,
             backup=LocalFileFacts.parse(raw_backup) if raw_backup is not None else None,
+            normalized_primary=(
+                LocalFileFacts.parse(raw_normalized_primary)
+                if raw_normalized_primary is not None
+                else None
+            ),
+            normalized_backup=(
+                LocalFileFacts.parse(raw_normalized_backup)
+                if raw_normalized_backup is not None
+                else None
+            ),
         )
         if (
             parsed.primary is not None
             and parsed.primary.relative_locator != parsed.primary_relative_locator
         ) or (parsed.backup is not None and parsed.primary is None):
             _fail("PRIVATE_INDEX_ENTRY_STAGE_INVALID")
+        if (parsed.normalized_primary is None) != (parsed.normalized_backup is None) or (
+            parsed.normalized_primary is not None
+            and (
+                parsed.primary is None
+                or parsed.normalized_primary.media_type != "image/jpeg"
+                or parsed.normalized_backup is None
+                or parsed.normalized_backup.media_type != "image/jpeg"
+                or parsed.normalized_primary.sha256 != parsed.normalized_backup.sha256
+            )
+        ):
+            _fail("PRIVATE_INDEX_NORMALIZED_STAGE_INVALID")
         return parsed
 
 
@@ -314,6 +355,8 @@ class D02LocalDurableIndex:
             primary_relative_locator=facts.relative_locator,
             primary=facts,
             backup=None,
+            normalized_primary=None,
+            normalized_backup=None,
         )
         return self._upsert_entry(entry)
 
@@ -331,6 +374,8 @@ class D02LocalDurableIndex:
             primary_relative_locator=self._relative_locator(primary_path),
             primary=None,
             backup=None,
+            normalized_primary=None,
+            normalized_backup=None,
         )
         return self._upsert_entry(entry)
 
@@ -359,6 +404,8 @@ class D02LocalDurableIndex:
             primary_relative_locator=current.primary_relative_locator,
             primary=current.primary,
             backup=backup,
+            normalized_primary=current.normalized_primary,
+            normalized_backup=current.normalized_backup,
         )
         return self._upsert_entry(updated)
 
@@ -397,6 +444,59 @@ class D02LocalDurableIndex:
     def count(self) -> int:
         return len(self._load_entries())
 
+    def record_normalized_jpeg(
+        self,
+        *,
+        call_started_event_digest: str,
+        primary_path: Path,
+        backup_path: Path,
+        expected_sha256: str,
+        expected_byte_size: int,
+        expected_width: int,
+        expected_height: int,
+    ) -> LocalDurableEntry:
+        entry = self.require_entry(call_started_event_digest)
+        if entry.primary is None or entry.backup is None:
+            _fail("PRIVATE_INDEX_CANDIDATE_NOT_DURABLE")
+        primary = self._normalized_file_facts(
+            path=primary_path,
+            expected_sha256=expected_sha256,
+            expected_byte_size=expected_byte_size,
+            expected_width=expected_width,
+            expected_height=expected_height,
+        )
+        backup = self._normalized_file_facts(
+            path=backup_path,
+            expected_sha256=expected_sha256,
+            expected_byte_size=expected_byte_size,
+            expected_width=expected_width,
+            expected_height=expected_height,
+        )
+        if primary.sha256 != backup.sha256:
+            _fail("TWO_COPY_DIGEST_MISMATCH")
+        updated = LocalDurableEntry(
+            run_id=entry.run_id,
+            cohort_spec_id=entry.cohort_spec_id,
+            provider_ordinal=entry.provider_ordinal,
+            selector_slot_id=entry.selector_slot_id,
+            call_started_event_digest=entry.call_started_event_digest,
+            primary_relative_locator=entry.primary_relative_locator,
+            primary=entry.primary,
+            backup=entry.backup,
+            normalized_primary=primary,
+            normalized_backup=backup,
+        )
+        return self._upsert_entry(updated)
+
+    def read_normalized_jpeg(self, entry: LocalDurableEntry) -> bytes:
+        if entry.normalized_primary is None or entry.normalized_backup is None:
+            _fail("PRIVATE_INDEX_NORMALIZED_NOT_FOUND")
+        primary = self._read_local_file(entry.normalized_primary)
+        backup = self._read_local_file(entry.normalized_backup)
+        if primary != backup:
+            _fail("TWO_COPY_DIGEST_MISMATCH")
+        return primary
+
     def _upsert_entry(self, entry: LocalDurableEntry) -> LocalDurableEntry:
         with _checkpoint_lock(self._lock):
             document = self._load_document()
@@ -416,9 +516,19 @@ class D02LocalDurableIndex:
                     return existing
                 if not _same_local_allocation(existing, entry):
                     _fail("PRIVATE_INDEX_ENTRY_COLLISION")
-                if existing.backup is not None:
-                    _fail("PRIVATE_INDEX_ENTRY_COLLISION")
                 if existing.primary is not None and entry.primary != existing.primary:
+                    _fail("PRIVATE_INDEX_ENTRY_COLLISION")
+                if existing.backup is not None and entry.backup != existing.backup:
+                    _fail("PRIVATE_INDEX_ENTRY_COLLISION")
+                if (
+                    existing.normalized_primary is not None
+                    and entry.normalized_primary != existing.normalized_primary
+                ):
+                    _fail("PRIVATE_INDEX_ENTRY_COLLISION")
+                if (
+                    existing.normalized_backup is not None
+                    and entry.normalized_backup != existing.normalized_backup
+                ):
                     _fail("PRIVATE_INDEX_ENTRY_COLLISION")
                 entries = [entry if item == existing else item for item in entries]
             else:
@@ -456,6 +566,7 @@ class D02LocalDurableIndex:
         return LocalFileFacts(
             relative_locator=relative,
             file_identity=bound.file_identity,
+            media_type=candidate.media_type,
             sha256=received.sha256,
             byte_size=received.byte_size,
             width=received.width,
@@ -463,6 +574,8 @@ class D02LocalDurableIndex:
         )
 
     def _bind(self, facts: LocalFileFacts) -> BoundPngFile:
+        if facts.media_type != "image/png":
+            _fail("PRIVATE_INDEX_MEDIA_TYPE_INVALID")
         path = self._path_from_locator(facts.relative_locator)
         bound = bind_principal_existing_png_file(
             path=path,
@@ -477,6 +590,59 @@ class D02LocalDurableIndex:
         ):
             _fail("PRIVATE_INDEX_FILE_BINDING_MISMATCH")
         return bound
+
+    def _normalized_file_facts(
+        self,
+        *,
+        path: Path,
+        expected_sha256: str,
+        expected_byte_size: int,
+        expected_width: int,
+        expected_height: int,
+    ) -> LocalFileFacts:
+        _require_digest(expected_sha256, "PRIVATE_INDEX_DIGEST_INVALID")
+        relative = self._relative_locator(path)
+        identity = _regular_file_identity(path, code="PRIVATE_INDEX_NORMALIZED_FILE_INVALID")
+        content = _read_bound_file(
+            path,
+            expected_identity=identity,
+            maximum_bytes=MAXIMUM_PROVIDER_RESULT_FILE_BYTES,
+            code="PRIVATE_INDEX_NORMALIZED_FILE_INVALID",
+        )
+        if (
+            len(content) != expected_byte_size
+            or hashlib.sha256(content).hexdigest() != expected_sha256
+        ):
+            _fail("PRIVATE_INDEX_NORMALIZED_FILE_MISMATCH")
+        try:
+            decode_canonical_rgb_image(
+                content,
+                expected_width=expected_width,
+                expected_height=expected_height,
+            )
+        except ImageSanitizationError as error:
+            raise D02OperatorError("PRIVATE_INDEX_NORMALIZED_FILE_INVALID") from error
+        return LocalFileFacts(
+            relative_locator=relative,
+            file_identity=identity,
+            media_type="image/jpeg",
+            sha256=expected_sha256,
+            byte_size=expected_byte_size,
+            width=expected_width,
+            height=expected_height,
+        )
+
+    def _read_local_file(self, facts: LocalFileFacts) -> bytes:
+        path = self._path_from_locator(facts.relative_locator)
+        content = _read_bound_file(
+            path,
+            expected_identity=facts.file_identity,
+            maximum_bytes=MAXIMUM_PROVIDER_RESULT_FILE_BYTES,
+            code="PRIVATE_INDEX_FILE_BINDING_MISMATCH",
+        )
+        if len(content) != facts.byte_size or hashlib.sha256(content).hexdigest() != facts.sha256:
+            _fail("PRIVATE_INDEX_FILE_BINDING_MISMATCH")
+        return content
 
     def _relative_locator(self, path: Path) -> str:
         if not path.is_absolute():
@@ -1399,7 +1565,12 @@ def _validate_relative_locator(value: str) -> None:
         or pure.parts[:3] != expected_prefix
         or len(pure.parts) != 4
         or pure.name in {"", ".", ".."}
-        or re.fullmatch(r"d02-o[0-9]{2}-[0-9a-f]{16}-(?:primary|backup)\.png", pure.name) is None
+        or re.fullmatch(
+            r"(?:d02-o[0-9]{2}-[0-9a-f]{16}-(?:primary|backup)\.png|"
+            r"d02-c[0-9a-f]{32}-normalized-(?:primary|backup)\.jpg)",
+            pure.name,
+        )
+        is None
     ):
         _fail("PRIVATE_INDEX_LOCATOR_INVALID")
 
@@ -1435,6 +1606,68 @@ def _require_exact_directory(path: Path, *, code: str) -> None:
         or (reparse_flag and attributes & reparse_flag)
     ):
         _fail(code)
+
+
+def _regular_file_identity(path: Path, *, code: str) -> tuple[int, int]:
+    if not path.is_absolute():
+        _fail(code)
+    try:
+        info = os.lstat(path)
+        resolved = path.resolve(strict=True)
+        parent = path.parent.resolve(strict=True)
+    except OSError as error:
+        raise D02OperatorError(code) from error
+    attributes = getattr(info, "st_file_attributes", 0)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    if (
+        resolved != path
+        or parent != path.parent
+        or not stat.S_ISREG(info.st_mode)
+        or stat.S_ISLNK(info.st_mode)
+        or (reparse_flag and attributes & reparse_flag)
+    ):
+        _fail(code)
+    return info.st_dev, info.st_ino
+
+
+def _read_bound_file(
+    path: Path,
+    *,
+    expected_identity: tuple[int, int],
+    maximum_bytes: int,
+    code: str,
+) -> bytes:
+    if _regular_file_identity(path, code=code) != expected_identity:
+        _fail(code)
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise D02OperatorError(code) from error
+    close_error: OSError | None = None
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or (opened.st_dev, opened.st_ino) != expected_identity:
+            _fail(code)
+        chunks: list[bytes] = []
+        total = 0
+        while chunk := os.read(descriptor, 1024 * 1024):
+            total += len(chunk)
+            if total > maximum_bytes:
+                _fail(code)
+            chunks.append(chunk)
+        if _regular_file_identity(path, code=code) != expected_identity:
+            _fail(code)
+        return b"".join(chunks)
+    except OSError as error:
+        raise D02OperatorError(code) from error
+    finally:
+        try:
+            os.close(descriptor)
+        except OSError as error:
+            close_error = error
+        if close_error is not None:
+            raise D02OperatorError(code) from close_error
 
 
 @contextmanager

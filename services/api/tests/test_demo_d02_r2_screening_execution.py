@@ -31,6 +31,7 @@ class _Adapters:
         self.unsupported_source = False
         self.missing_phash = False
         self.failing_manual = False
+        self.manual_policy_digests: list[str] = []
 
     def case_fields(self, **_: object) -> dict[str, object]:
         ordinal = cast(int, _["case_ordinal"])
@@ -172,6 +173,7 @@ class _Adapters:
         return record
 
     def decision_fields(self, **_: object) -> dict[str, object]:
+        self.manual_policy_digests.append(cast(str, _["manual_review_policy_digest"]))
         case = cast(dict[str, object], _["case_entry"])
         record = self._manual[cast(int, case["case_ordinal"]) - 1]
         result = {
@@ -226,6 +228,11 @@ def test_run_replays_the_complete_happy_path() -> None:
     assert report["case_count"] == 48
     assert report["m4_execution_count"] == 96
     assert report["selected_pair_count"] == 16
+    assert set(adapters.manual_policy_digests) == {
+        cast(dict[str, object], fields["report_payload"])["schema_and_policy"][
+            "manual_review_policy_digest"
+        ]
+    }
     payload = cast(dict[str, object], report["report_payload"])
     assert len(cast(list[object], payload["phash_observation_evidence"]["comparisons"])) == 1326  # type: ignore[index]
 

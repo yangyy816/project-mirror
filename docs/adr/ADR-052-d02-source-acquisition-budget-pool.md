@@ -53,24 +53,56 @@ commit → backup publish → Candidate reconciliation` 排序。进程中断后
 13. `calls_without_accept` 是当前 `content_review_epoch` 内自最近一次 accepted/review resume
     起的连续计数；授权的 D02 Principal review 可开启下一 epoch并清零该计数，但
     `budget_consumed` 永不清零、扩容或回退。
-14. Bootstrap 不接受调用者临时编造的 identity。三个此前未显式物化的 D02-only identity 使用
+14. Bootstrap 不接受调用者临时编造的 identity。四个 D02-only identity 使用
     domain-separated canonical JSON 固定为：
     - `mirror.demo/D02AcquisitionProviderIdentity/v1`：只绑定已接受的 ImageGen control-plane、
       endpoint、credential boundary、retention 与 Prompt policy，不绑定已被本 ADR 取代的旧四调用预算；
       digest 为 `e3d94667886b21f80ae30fce1f49bb5a072dd3678506d21091d48ab88029bc05`；
     - `mirror.demo/D02CandidateM3PrescreenPolicy/v1`：绑定当前 M3 runtime/model/topology/config，
       Candidate 只执行一次 provisional source inspection，Manifest 后仍强制正式三次重跑；digest 为
-      `52b626baf6cd2a0f2867dc3b8bf92446973cafd851752cd5abab04433bee472d`；
+      `e40d23b47551720fd1cd2630ac3e8bfdf65e8d3184e9c4b2e5127a4d09c30b09`；
+    - `mirror.demo/D02CandidateQAPolicy/v1`：复合绑定 Candidate M3 prescreen、规范化、
+      Principal manual review、成年合成、no-real-person/no-celebrity、anti-homogenization 以及
+      Candidate evidence 仅为 provisional；digest 为
+      `b79d03d6a738044cca032029ba2f84618c613e0539bd93ce8f19ac5dcc1cf178`；
     - `mirror.demo/D02AutonomousAcquisitionRunKey/v1`：绑定唯一自治授权、最终运行时 Gate、E3/E4
       `FAILED_CLOSED` 与 forward-only policy；digest 为
       `04c4dacd3199bed812aeef542cea12b521689aa58796dd2f0ea20f8a9683e1a2`。
-    runtime、model 与 QA digest 继续直接复用已有 tracked authority。Operator 只能使用这些 replayable
+    runtime 与 model digest 继续直接复用已有 tracked authority。Operator 只能使用这些 replayable
     defaults；测试占位 digest、branch SHA、随机值或 private preimage 均不得进入 run bootstrap。
 15. 正式 application entrypoint 是 D02-owned、非 HTTP 的 operator。`call-session` 必须先在短事务中
     commit `CALL_STARTED`，再通过 non-TTY stdin 消费恰好一条 bounded、newline-delimited result
     envelope。Provider 调用、result materialization、文件 I/O、M3、QA 与 screening 均不得持有数据库锁。
+    Provider 调用、result materialization、文件 I/O、M3、QA 与 screening 不得持有数据库 transaction
+    或 row lock；第21项的 session advisory mutex 只作同run外部执行互斥，不承载业务状态。
     Operator stdout/stderr 只允许 ordinal、slot、ID、digest、计数和安全错误码，不得输出 Prompt、tool
     payload、data URL、bytes 或 private locator。
+16. Candidate 入选后的正式 source 构造采用 sealed staged builder：finalized Candidate Manifest →
+    provisional descriptor/Asset ID → 三次真实 source M3 → manifest-bound Principal review →
+    facts-independent generic source row → runtime-handle-bound M3 evidence → R2 facts → byte-equal
+    source-row replay → formal identity/runtime packet。Candidate M3/QA evidence 不得替代正式三次 M3。
+17. Formal source manifest 存在两个不可混淆的 digest domain：R2 runtime packet 使用
+    `D02SourceAuthorityManifest/v2` digest；generic Report/admission 使用
+    `D02GenericFormalSourceManifest/v1` digest。两者绑定相同四个有序 entry，但不得互相替代。
+18. Final runtime 分两阶段：第一阶段完成 48 cases、96 M4、144 result M3，每个 first-replay
+    JPEG 立即 two-copy durable；完整 PREPARED checkpoint 成功后，人工 review、screening replay 或
+    admission failure 的恢复只重放 checkpoint，不再次调用 M3/M4。第一阶段技术失败仍按本 ADR 的
+    same-Manifest recovery 语义处理，且永不新增 Provider 调用；若已存在 result bytes 却缺少可验证
+    checkpoint，必须 fail closed，不得猜测或重复执行。
+19. 48 个 result JPEG 使用固定 ignored availability index；primary/backup 分别 create-new、re-read、
+    SHA-256/尺寸/file identity 相等后才可进入 generic bundle。该 index 不是业务 authority，locator
+    不进入 Report、PostgreSQL 或 tracked projection。
+20. Generic admission assembly 固定生成 4 source Assets、48 result Assets、48 AssetVariants、
+    1 Report、1 QuestionBank 与 16 QuestionPairs，并仅交给既有单 PostgreSQL 事务 coordinator。
+    duplicate policy digest 为
+    `f3ab1e7255744a4653456dbc25e9514b54caf1ba9faac765b4f2913edd97b4c5`，pHash implementation
+    digest 为 `a820c98dd25fe76106891a5d38affe04c8172af8bdec95b3261eb724805925df`；
+    pHash 只形成观察证据，不在本版本引入自动 rejection threshold。
+21. Official final runtime operator 必须在独立 PostgreSQL connection 上取得 run-scoped session
+    advisory lock，并覆盖 source assembly、M3/M4、人工 review、screening 与 admission；竞争者立即
+    fail closed。ignored `D02_FINAL_RUNTIME_CHECKPOINT.json` 只保存 run/Manifest/spec/runtime-bound 的
+    replayable adapter evidence与sealed decisions，标记为 recovery-only/non-business-authority；DB run
+    state仍是唯一业务权威。
 
 ## Alternatives
 
@@ -105,5 +137,10 @@ tracked projection 可能短暂落后 DB/private authority，但不得被当作�
 - 验证 50 ordinal、10-item tranche、serial=1、retry=0、最终恰好 4 source。
 - 验证 Candidate→Manifest→formal source 顺序、非法状态转换、终态追加和同 ordinal retry
   均 fail closed。
+- 验证 R2 runtime/generic formal 两个 manifest digest domain 均可重放且不可替换。
+- 验证完整 PREPARED stage 在人工 review/admission recovery 中不重复 M3/M4，只重放公开 evidence。
+- 验证 PREPARED/REVIEWED crash recovery、checkpoint tamper/substitution 与 run-scoped advisory
+  lock concurrent loser。
+- 验证 48 result 的两副本 tamper/collision/partial recovery 与 52 Asset/48 AssetVariant assembly。
 - 验证 DB/private/tracked 优先级与 stage-aware 恢复；验证 tracked state 不含敏感字段。
 - 在真实 PostgreSQL 上验证 bootstrap、append-only trigger、跨行四源完整性及 downgrade guard。
