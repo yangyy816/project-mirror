@@ -802,6 +802,29 @@ def validate_r2_admission_packet(value: object) -> None:
 
             validate_epoch2_admission_packet(value)
             return
+        if (
+            isinstance(generation_receipt, Mapping)
+            and generation_receipt.get("schema_version")
+            == "mirror.demo/D02R2Epoch3GenerationReceipt/v1"
+        ):
+            from mirror_api.demo_d02_r2_e3_admission import (
+                validate_epoch3_admission_packet,
+            )
+
+            validate_epoch3_admission_packet(value)
+            return
+        if (
+            isinstance(generation_receipt, Mapping)
+            and generation_receipt.get("schema_version")
+            == "mirror.demo/D02R2Epoch4GenerationReceipt/v1"
+        ):
+            from mirror_api.demo_d02_r2_e3_admission import (
+                validate_epoch3_admission_packet,
+            )
+            from mirror_api.demo_d02_r2_generation_e3 import E4_CONTEXT
+
+            validate_epoch3_admission_packet(value, context=E4_CONTEXT)
+            return
 
     packet = _exact(
         value,

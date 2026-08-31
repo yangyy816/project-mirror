@@ -1,0 +1,52 @@
+{
+  "schema_version": "mirror.demo/D02AutonomousStateProjection/v1",
+  "authority": "NON_AUTHORITATIVE_TRACKED_PROJECTION",
+  "base": {
+    "sha": "5f759c4e48f5d45493519c8cfdaeb33864f1e067",
+    "status": "REJECTED_CANDIDATE_WITH_KNOWN_MATERIALIZER_FINDINGS"
+  },
+  "run": {
+    "state": "BOOTSTRAP_PENDING",
+    "total_budget": 50,
+    "budget_consumed": 0,
+    "tranche_size": 10,
+    "concurrency": 1,
+    "same_ordinal_retry": 0,
+    "target_formal_sources": 4,
+    "accepted_formal_sources": 0,
+    "current_ordinal": null,
+    "current_tranche": null,
+    "stage": "RUN",
+    "pause_reason": null,
+    "policy_digests": {
+      "generation_policy": null,
+      "materializer": null,
+      "m3_prescreen": null,
+      "qa": null,
+      "status": "BOOTSTRAP_PENDING"
+    },
+    "counts": {
+      "candidate_created": 0,
+      "candidate_consumed": 0,
+      "manifest_created": 0,
+      "formal_sources_admitted": 0,
+      "event_count": 0
+    },
+    "tranche_reconciliation": {
+      "completed": 0,
+      "opened": 0,
+      "current": null,
+      "summary_status": "BOOTSTRAP_PENDING"
+    }
+  },
+  "legacy": {
+    "e3": "FAILED_CLOSED",
+    "e4": "FAILED_CLOSED"
+  },
+  "projection_rules": {
+    "db_authority_priority": 1,
+    "private_registry_priority": 2,
+    "tracked_projection_priority": 3,
+    "reconstructible": true
+  }
+}

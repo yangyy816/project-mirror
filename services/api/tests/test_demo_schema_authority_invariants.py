@@ -82,6 +82,11 @@ from mirror_api.models import (
 )
 
 _LEGACY_DEMO_GRAPH_TABLE_NAMES = set(DEMO_TABLE_NAMES) - {
+    "demo_d02_cohort_specs",
+    "demo_d02_source_acquisition_runs",
+    "demo_d02_source_acquisition_events",
+    "demo_d02_source_candidates",
+    "demo_d02_selected_source_manifests",
     "demo_d02_r2_source_authorities",
     "demo_d02_r2_epoch2_admissions",
     "demo_analysis_runs",
@@ -89,7 +94,7 @@ _LEGACY_DEMO_GRAPH_TABLE_NAMES = set(DEMO_TABLE_NAMES) - {
     "demo_self_transfer_evidence",
 }
 
-DEMO_REVISION = "demo_0014_d02_r2_e3_versioning"
+DEMO_REVISION = "demo_0015_d02_source_acq_pool"
 D02_RECOVERED_QA_DOWN_REVISION = "demo_0006_d02_private_exec"
 D02_PRIVATE_EXEC_DOWN_REVISION = "demo_0005_d02_quality_auth"
 D02_QUALITY_DOWN_REVISION = "demo_0004_d09_episode_prov"
@@ -3555,6 +3560,7 @@ def _insert_full_demo_graph(
     session: Session,
     *,
     include_episode: bool = True,
+    legacy_pre_d07: bool = False,
     plan_overrides: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Insert one valid authority lineage spanning every Demo table."""
@@ -3896,7 +3902,7 @@ def _insert_full_demo_graph(
     )
     session.add(attempt)
     session.commit()
-    d07_authority_present = bool(
+    d07_authority_present = not legacy_pre_d07 and bool(
         session.scalar(text("SELECT to_regclass('demo_edit_artifacts') IS NOT NULL"))
     )
     artifact: DemoEditArtifact | None = None
@@ -4130,20 +4136,23 @@ def _insert_full_demo_graph(
         "result_plan": result_plan,
         "operation": operation,
         "execution_binding": execution_binding,
-        "artifact": artifact,
-        "materialized_event": materialized_event,
         "tool_run": tool_run,
         "image1": image1,
         "image1_asset": image1_asset,
         "image1_variant": image1_variant,
         "verification": verification,
         "verification_attempt": verification_attempt,
-        "promotion_event": promotion_event,
         "accepted_event": accepted_event,
         "aesthetic_profile": aesthetic_profile,
         "context": context,
         "context_binding": context_binding,
     }
+    if artifact is not None and materialized_event is not None and promotion_event is not None:
+        graph.update(
+            artifact=artifact,
+            materialized_event=materialized_event,
+            promotion_event=promotion_event,
+        )
     if include_episode:
         graph["episode"] = _insert_episode(
             session, graph, [image0.content_digest, image1.content_digest]
@@ -4818,7 +4827,7 @@ def test_d02_v10_postgresql_rejects_stale_schema_policy_authority(
 def test_d02_v10_rejects_new_legacy_local_identity_write(session: Session) -> None:
     with pytest.raises(
         DBAPIError,
-        match="New Demo local synthetic identity events must use v3 authority",
+        match="New Demo synthetic identity event uses an unsupported authority version",
     ):
         _insert_legacy_local_d02_identity(
             session,
@@ -5888,7 +5897,7 @@ def test_accepted_episode_rejects_isolated_terminal_plan_provenance_drift(
 
 
 def test_demo_metadata_and_database_objects_match(session: Session) -> None:
-    assert len(DEMO_TABLE_NAMES) == 36
+    assert len(DEMO_TABLE_NAMES) == 41
     database_tables = set(
         session.scalars(
             text(
@@ -5979,7 +5988,7 @@ def test_demo_orm_and_database_foreign_keys_match(session: Session) -> None:
         actual_count += len(actual)
         assert actual == expected, table_name
 
-    assert expected_count == actual_count == 120
+    assert expected_count == actual_count == 134
 
 
 def test_canonical_json_digest_and_integer_numeric_authority(session: Session) -> None:
@@ -7328,7 +7337,7 @@ def test_d02_quality_round_trip_preserves_legacy_rows_and_rejects_new_v1_report(
 
         with pytest.raises(
             DBAPIError,
-            match="New D02 screening reports must use v2 authority",
+            match="New D02 screening reports use an unsupported authority version",
         ):
             session.execute(DemoPairScreeningReport.__table__.insert().values(**report_values))
             session.commit()
@@ -7443,7 +7452,7 @@ def test_d09_upgrade_preserves_legal_episode_bytes(
     config = _demo_alembic_config(database_url)
     try:
         command.downgrade(config, D09_DOWN_REVISION)
-        graph = _insert_full_demo_graph(session)
+        graph = _insert_full_demo_graph(session, legacy_pre_d07=True)
         episode_id = graph["episode"].id
         before = session.scalar(
             text("SELECT to_jsonb(episode_row) FROM demo_accepted_visual_episodes episode_row")
@@ -7475,7 +7484,11 @@ def test_d09_upgrade_rejects_resigned_legacy_forgery_without_rewriting(
     config = _demo_alembic_config(database_url)
     try:
         command.downgrade(config, D09_DOWN_REVISION)
-        graph = _insert_full_demo_graph(session, include_episode=False)
+        graph = _insert_full_demo_graph(
+            session,
+            include_episode=False,
+            legacy_pre_d07=True,
+        )
         forged_values = _episode_insert_values(
             graph,
             profile_digest=hashlib.sha256(b"legacy-forged-profile").hexdigest(),
@@ -7486,8 +7499,8 @@ def test_d09_upgrade_rejects_resigned_legacy_forgery_without_rewriting(
         session.commit()
         before = session.scalar(
             text(
-                "SELECT to_jsonb(episode_row) FROM demo_accepted_visual_episodes episode_row "
-                "WHERE id=:episode_id"
+                "SELECT to_jsonb(episode_row) FROM demo_accepted_visual_episodes "
+                "episode_row WHERE id=:episode_id"
             ),
             {"episode_id": forged_values["id"]},
         )
@@ -7522,7 +7535,7 @@ def test_d09_populated_downgrade_fails_closed_with_function_unchanged(
     config = _demo_alembic_config(database_url)
     try:
         command.downgrade(config, D02_QUALITY_DOWN_REVISION)
-        graph = _insert_full_demo_graph(session)
+        graph = _insert_full_demo_graph(session, legacy_pre_d07=True)
         episode_id = graph["episode"].id
         hardened_definition = _accepted_episode_function_definition(session)
         session.commit()
@@ -7562,7 +7575,11 @@ def test_d09_upgrade_serializes_concurrent_forged_insert_until_hardened_commit(
 
     try:
         command.downgrade(config, D09_DOWN_REVISION)
-        graph = _insert_full_demo_graph(session, include_episode=False)
+        graph = _insert_full_demo_graph(
+            session,
+            include_episode=False,
+            legacy_pre_d07=True,
+        )
         forged_values = _episode_insert_values(
             graph,
             profile_digest=hashlib.sha256(b"blocked-forged-profile").hexdigest(),
@@ -7625,7 +7642,11 @@ def test_d09_downgrade_serializes_insert_past_empty_check_and_restoration(
 
     try:
         command.downgrade(config, D02_QUALITY_DOWN_REVISION)
-        graph = _insert_full_demo_graph(session, include_episode=False)
+        graph = _insert_full_demo_graph(
+            session,
+            include_episode=False,
+            legacy_pre_d07=True,
+        )
         legal_values = _episode_insert_values(graph)
         session.commit()
 
@@ -7892,10 +7913,13 @@ def test_populated_formal_demo_authority_blocks_downgrade(
     engine = create_engine(database_url)
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
-        assert connection.scalar(
-            text(
-                "SELECT count(*) FROM pg_trigger "
-                "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_authority_%'"
+        assert (
+            connection.scalar(
+                text(
+                    "SELECT count(*) FROM pg_trigger "
+                    "WHERE NOT tgisinternal AND tgname LIKE 'trg_demo_authority_%'"
+                )
             )
-        ) == len(DEMO_TABLE_NAMES - {"demo_d02_r2_source_authorities"})
+            == 35
+        )
     engine.dispose()

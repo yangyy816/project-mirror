@@ -66,7 +66,7 @@ _AUTHORITY_EXCLUDED_COLUMNS = {
     "tombstoned_at",
 }
 
-_HEAD_DEMO_REVISION = "demo_0014_d02_r2_e3_versioning"
+_HEAD_DEMO_REVISION = "demo_0015_d02_source_acq_pool"
 
 
 @pytest.fixture
@@ -181,6 +181,12 @@ def _normalized_check_sql(value: str) -> str:
         value.replace("::character varying", "").replace("::text", ""),
     )
     for deparsed_form, authority_form in (
+        (
+            "schema_version<>ALLARRAY['mirror.demo/DemoSyntheticIdentity/v4',"
+            "'mirror.demo/DemoSyntheticIdentity/v5'][]",
+            "schema_versionNOTIN'mirror.demo/DemoSyntheticIdentity/v4',"
+            "'mirror.demo/DemoSyntheticIdentity/v5'",
+        ),
         (
             "NOTjsonb_typeofsource_fact_snapshotISDISTINCTFROM'object'",
             "jsonb_typeofsource_fact_snapshotISNOTDISTINCTFROM'object'",

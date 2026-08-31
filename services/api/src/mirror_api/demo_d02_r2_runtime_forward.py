@@ -23,12 +23,15 @@ from PIL import Image, UnidentifiedImageError
 
 from mirror_api import demo_d02_authority as legacy
 from mirror_api import demo_d02_r2_authority as authority
+from mirror_api import demo_d02_r2_e3_admission as epoch3
 from mirror_api import demo_d02_r2_epoch2_admission as epoch2
 from mirror_api import demo_d02_r2_screening_execution as screening
 from mirror_api import demo_measurement_quality as measurement
-from mirror_api.demo_d02_r2_epoch2_admission import (
-    SOURCE_NORMALIZATION_VERSION,
-    validate_epoch2_admission_packet,
+from mirror_api.demo_d02_r2_epoch2_admission import SOURCE_NORMALIZATION_VERSION
+from mirror_api.demo_d02_r2_generation_e3 import (
+    E3_CONTEXT,
+    E4_CONTEXT,
+    GenerationExecutionContext,
 )
 from mirror_api.demo_measurement_quality import mirror_demo_digest
 from mirror_api.providers.opencv_geometry import ALGORITHM_VERSION as M4_ALGORITHM_VERSION
@@ -46,6 +49,7 @@ M3_EXECUTION_OUTPUT_SCHEMA: Final = "mirror.demo/D02R2M3ExecutionOutput/v1"
 M4_EXECUTION_OUTPUT_SCHEMA: Final = "mirror.demo/D02R2M4ExecutionOutput/v1"
 
 RUNTIME_RECIPE_VERSION: Final = "demo-m3-m4-runtime-recipe-v1"
+E3_RUNTIME_RECIPE_VERSION: Final = "demo-m3-m4-runtime-recipe-e3-v1"
 M3_ALGORITHM_VERSION: Final = "source-built-mediapipe-face-landmarker-v0.10.35"
 MODEL_VERSION: Final = "face-landmarker-bundle-gcs-1683136941468629"
 MODEL_PROVIDER_KIND: Final = "PRIVATE_SOURCE_BUILT_MEDIAPIPE"
@@ -186,7 +190,57 @@ class DurableSourceDescriptor:
 
     @classmethod
     def from_epoch2_packet(cls, packet: Mapping[str, object]) -> DurableSourceDescriptor:
-        validate_epoch2_admission_packet(packet)
+        epoch2.validate_epoch2_admission_packet(packet)
+        row = cast(Mapping[str, object], packet["supporting_row"])
+        return cls(
+            source_id=cast(str, row["source_asset_id"]),
+            source_output_id=cast(str, row["source_output_id"]),
+            ordinal=cast(int, row["source_ordinal"]),
+            content_sha256=cast(str, row["source_asset_sha256"]),
+            media_type=cast(str, row["source_asset_mime_type"]),
+            width=cast(int, row["source_asset_width"]),
+            height=cast(int, row["source_asset_height"]),
+            byte_length=cast(int, row["source_asset_byte_size"]),
+            generation_request_identity=cast(str, row["generation_request_digest"]),
+            provenance_identity=cast(str, row["source_provenance_digest"]),
+            source_authority_key=cast(str, row["source_authority_key"]),
+            source_schema_version=cast(str, row["schema_version"]),
+        )
+
+    @classmethod
+    def from_epoch3_packet(cls, packet: Mapping[str, object]) -> DurableSourceDescriptor:
+        """Mint the unchanged durable descriptor from an E3-only packet.
+
+        The descriptor schema deliberately remains v1: `source_schema_version`
+        and the authority key carry the epoch-specific lineage while downstream
+        M3/M4 handles retain their accepted contract.
+        """
+
+        epoch3.validate_epoch3_admission_packet(packet, context=E3_CONTEXT)
+        row = cast(Mapping[str, object], packet["supporting_row"])
+        return cls(
+            source_id=cast(str, row["source_asset_id"]),
+            source_output_id=cast(str, row["source_output_id"]),
+            ordinal=cast(int, row["source_ordinal"]),
+            content_sha256=cast(str, row["source_asset_sha256"]),
+            media_type=cast(str, row["source_asset_mime_type"]),
+            width=cast(int, row["source_asset_width"]),
+            height=cast(int, row["source_asset_height"]),
+            byte_length=cast(int, row["source_asset_byte_size"]),
+            generation_request_identity=cast(str, row["generation_request_digest"]),
+            provenance_identity=cast(str, row["source_provenance_digest"]),
+            source_authority_key=cast(str, row["source_authority_key"]),
+            source_schema_version=cast(str, row["schema_version"]),
+        )
+
+    @classmethod
+    def from_forward_packet(
+        cls,
+        packet: Mapping[str, object],
+        *,
+        context: GenerationExecutionContext,
+    ) -> DurableSourceDescriptor:
+        epoch3.validate_epoch3_admission_packet(packet, context=context)
         row = cast(Mapping[str, object], packet["supporting_row"])
         return cls(
             source_id=cast(str, row["source_asset_id"]),
@@ -259,6 +313,79 @@ class SourceDescriptorManifest:
             values,
         )
         return cls(descriptors)
+
+    @classmethod
+    def from_epoch3_packets(
+        cls, packets: Sequence[Mapping[str, object]]
+    ) -> SourceDescriptorManifest:
+        if len(packets) != 4:
+            _fail("source descriptor manifest requires exactly four packets")
+        values = tuple(DurableSourceDescriptor.from_epoch3_packet(packet) for packet in packets)
+        descriptors = cast(
+            tuple[
+                DurableSourceDescriptor,
+                DurableSourceDescriptor,
+                DurableSourceDescriptor,
+                DurableSourceDescriptor,
+            ],
+            values,
+        )
+        return cls(descriptors)
+
+    @classmethod
+    def from_forward_packets(
+        cls,
+        packets: Sequence[Mapping[str, object]],
+        *,
+        context: GenerationExecutionContext,
+    ) -> SourceDescriptorManifest:
+        if len(packets) != 4:
+            _fail("source descriptor manifest requires exactly four packets")
+        values = tuple(
+            DurableSourceDescriptor.from_forward_packet(packet, context=context)
+            for packet in packets
+        )
+        return cls(
+            cast(
+                tuple[
+                    DurableSourceDescriptor,
+                    DurableSourceDescriptor,
+                    DurableSourceDescriptor,
+                    DurableSourceDescriptor,
+                ],
+                values,
+            )
+        )
+
+
+def _manifest_from_versioned_packets(
+    packets: Sequence[Mapping[str, object]],
+) -> SourceDescriptorManifest:
+    schemas = {
+        cast(Mapping[str, object], packet.get("supporting_row", {})).get("schema_version")
+        for packet in packets
+    }
+    if schemas == {epoch2.E2_SOURCE_RECORD_SCHEMA}:
+        return SourceDescriptorManifest.from_epoch2_packets(packets)
+    if schemas == {epoch3.E3_SOURCE_RECORD_SCHEMA}:
+        return SourceDescriptorManifest.from_epoch3_packets(packets)
+    if schemas == {E4_CONTEXT.source_record_schema}:
+        return SourceDescriptorManifest.from_forward_packets(packets, context=E4_CONTEXT)
+    _fail("source packets mix unsupported execution epochs")
+
+
+def _descriptor_from_versioned_packet(
+    packet: Mapping[str, object],
+) -> DurableSourceDescriptor:
+    row = packet.get("supporting_row")
+    schema = row.get("schema_version") if isinstance(row, Mapping) else None
+    if schema == epoch2.E2_SOURCE_RECORD_SCHEMA:
+        return DurableSourceDescriptor.from_epoch2_packet(packet)
+    if schema == epoch3.E3_SOURCE_RECORD_SCHEMA:
+        return DurableSourceDescriptor.from_epoch3_packet(packet)
+    if schema == E4_CONTEXT.source_record_schema:
+        return DurableSourceDescriptor.from_forward_packet(packet, context=E4_CONTEXT)
+    _fail("source packet schema is unsupported")
 
 
 @dataclass(frozen=True, slots=True)
@@ -346,6 +473,31 @@ def build_default_runtime_recipe() -> DemoRuntimeRecipe:
     return DemoRuntimeRecipe(
         recipe_version=RUNTIME_RECIPE_VERSION,
         preprocessing_version=SOURCE_NORMALIZATION_VERSION,
+        m3_algorithm_version=M3_ALGORITHM_VERSION,
+        m4_algorithm_version=M4_ALGORITHM_VERSION,
+        runtime_manifest_digest=measurement.RUNTIME_MANIFEST_DIGEST,
+        topology_digest=measurement.TOPOLOGY_DIGEST,
+        measurement_config_digest=measurement.MEASUREMENT_CONFIG_DIGEST,
+        threshold_config_digest=legacy.SCREENING_POLICY_DIGEST,
+        deterministic_ordering="source-ordinal-case-ordinal-repeat-index-v1",
+        unsupported_behavior="EXPLICIT_UNSUPPORTED_FAILS_SELECTION_V1",
+        failure_behavior="NO_PARTIAL_ADMISSION_OUTPUT_V1",
+        network_policy=NETWORK_POLICY,
+        source_m3_output_schema=authority.R2_SOURCE_M3_SCHEMA,
+        result_m3_output_schema=authority.R2_RESULT_M3_SCHEMA,
+        m4_output_schema=authority.R2_M4_SCHEMA,
+        screening_output_schema=authority.R2_REPORT_SCHEMA,
+    )
+
+
+def build_epoch3_runtime_recipe(
+    *, context: GenerationExecutionContext = E3_CONTEXT
+) -> DemoRuntimeRecipe:
+    """Bind accepted M3/M4 identities to one versioned normalization context."""
+
+    return DemoRuntimeRecipe(
+        recipe_version=context.runtime_recipe_version,
+        preprocessing_version=context.source_normalization_version,
         m3_algorithm_version=M3_ALGORITHM_VERSION,
         m4_algorithm_version=M4_ALGORITHM_VERSION,
         runtime_manifest_digest=measurement.RUNTIME_MANIFEST_DIGEST,
@@ -525,7 +677,12 @@ def mint_runtime_handles(
     recipe: DemoRuntimeRecipe,
     model_identity: DemoModelIdentity,
 ) -> tuple[M3RuntimeHandle, M3ModelHandle]:
-    if recipe != build_default_runtime_recipe():
+    accepted_recipes = (
+        build_default_runtime_recipe(),
+        build_epoch3_runtime_recipe(),
+        build_epoch3_runtime_recipe(context=E4_CONTEXT),
+    )
+    if recipe not in accepted_recipes:
         _fail("runtime recipe is not the accepted Demo-only recipe")
     if model_identity != build_default_model_identity():
         _fail("model identity is not the accepted Demo-only identity")
@@ -1113,7 +1270,7 @@ class RuntimeScreeningBridge:
         source_materials: Sequence[SourceMaterial],
         executor: DemoM3M4Executor,
     ) -> None:
-        packet_manifest = SourceDescriptorManifest.from_epoch2_packets(source_packets)
+        packet_manifest = _manifest_from_versioned_packets(source_packets)
         if packet_manifest != executor.manifest:
             _fail("source packets differ from the reconstructed runtime manifest")
         if len(source_materials) != 4:
@@ -1192,13 +1349,11 @@ class RuntimeScreeningBridge:
         return outputs
 
     def _material_for_packet(self, packet: Mapping[str, object]) -> SourceMaterial:
-        validate_epoch2_admission_packet(packet)
+        authority.validate_r2_admission_packet(packet)
         row = cast(Mapping[str, object], packet["supporting_row"])
         source_id = _identifier(row.get("source_asset_id"), "source packet Asset ID")
         material = self._materials.get(source_id)
-        if material is None or DurableSourceDescriptor.from_epoch2_packet(packet) != (
-            material.descriptor
-        ):
+        if material is None or _descriptor_from_versioned_packet(packet) != material.descriptor:
             _fail("source packet does not match a runtime source material")
         return material
 
@@ -1241,7 +1396,7 @@ class RuntimeScreeningResult:
             (self.model_identity_digest, "runtime result model identity"),
         ):
             _digest(value, label)
-        manifest = SourceDescriptorManifest.from_epoch2_packets(self.source_packets)
+        manifest = _manifest_from_versioned_packets(self.source_packets)
         if manifest.manifest_digest != self.source_descriptor_manifest_digest:
             _fail("runtime result source manifest does not replay")
         try:
@@ -1323,10 +1478,45 @@ def build_epoch2_admission_bundle(
     return bundle
 
 
+def build_epoch3_admission_bundle(
+    result: RuntimeScreeningResult,
+    *,
+    asset_rows: Sequence[Mapping[str, object]],
+    asset_variant_rows: Sequence[Mapping[str, object]],
+    question_bank_row: Mapping[str, object],
+    question_pair_rows: Sequence[Mapping[str, object]],
+    context: GenerationExecutionContext = E3_CONTEXT,
+) -> epoch3.Epoch3AdmissionBundle:
+    """Return versioned coordinator input only after the entire graph replays."""
+
+    if not result.admission_ready:
+        _fail(f"runtime screening result is not eligible for {context.cohort_label} admission")
+    if {
+        cast(Mapping[str, object], packet["supporting_row"])["schema_version"]
+        for packet in result.source_packets
+    } != {context.source_record_schema}:
+        _fail(f"{context.cohort_label} admission bundle requires one source schema")
+    bundle = epoch3.Epoch3AdmissionBundle(
+        source_packets=result.source_packets,
+        asset_rows=tuple(asset_rows),
+        asset_variant_rows=tuple(asset_variant_rows),
+        report_row=result.report_row,
+        question_bank_row=question_bank_row,
+        question_pair_rows=tuple(question_pair_rows),
+    )
+    try:
+        epoch3._validate_bundle(bundle, context=context)
+    except epoch3.D02R2Epoch3AdmissionError as error:
+        raise RuntimeForwardError(
+            f"{context.cohort_label} admission bundle failed replay"
+        ) from error
+    return bundle
+
+
 def run_runtime_screening(request: RuntimeScreeningRequest) -> RuntimeScreeningResult:
     """Execute real injected M3/M4 backends, then reuse the accepted R2 runner."""
 
-    manifest = SourceDescriptorManifest.from_epoch2_packets(request.source_packets)
+    manifest = _manifest_from_versioned_packets(request.source_packets)
     authority_binding = request.execution_authority
     if (
         authority_binding.get("runtime_manifest_digest") != request.recipe.runtime_manifest_digest

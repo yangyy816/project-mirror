@@ -651,6 +651,12 @@ def test_four_durable_descriptors_and_handles_replay(runtime_inputs: _RuntimeInp
     assert first == second
     assert first[0].handle_digest == second[0].handle_digest
     assert first[1].handle_digest == second[1].handle_digest
+    epoch3 = runtime.mint_runtime_handles(
+        manifest,
+        recipe=runtime.build_epoch3_runtime_recipe(),
+        model_identity=model,
+    )
+    assert epoch3[0].recipe_version == runtime.E3_RUNTIME_RECIPE_VERSION
 
 
 @pytest.mark.parametrize("mode", ["missing", "reordered", "duplicate"])

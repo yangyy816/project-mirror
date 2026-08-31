@@ -148,3 +148,21 @@ commits = ["53cbac335a6a0008fbb4395a10715d0e6512d1ad"]
 paths = ['''^services/api/tests/test_demo_self_transfer_service\.py$''']
 regexTarget = "match"
 regexes = ['''key="d06-result-collision"''']
+
+# D02 integration: the core-demo checkpoint carries the same deterministic
+# test-only idempotency values under a second exact historical commit.
+[[allowlists]]
+description = "D02 integration: historical editing command key in a8907b7"
+condition = "AND"
+commits = ["a8907b7b580d7e4ce699fa5f067512c8501204cc"]
+paths = ['''^services/api/tests/test_demo_editing_commands\.py$''']
+regexTarget = "match"
+regexes = ['''_KEY = "idempotency-key-01"''']
+
+[[allowlists]]
+description = "D02 integration: historical editing coordinator key in a8907b7"
+condition = "AND"
+commits = ["a8907b7b580d7e4ce699fa5f067512c8501204cc"]
+paths = ['''^services/api/tests/test_demo_editing_coordinator\.py$''']
+regexTarget = "match"
+regexes = ['''idempotency_key="idempotency-key-01"''']

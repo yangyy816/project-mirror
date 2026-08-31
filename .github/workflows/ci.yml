@@ -53,6 +53,7 @@ jobs:
       CI: "true"
       PYTHONPATH: services/api/src:services/worker/src
       DEMO_PROTOTYPE_TRACK: ${{ (github.ref == 'refs/heads/codex/p3-p7-core-demo') || (github.ref == 'refs/heads/codex/p3-p7-product-forward') || startsWith(github.ref, 'refs/heads/codex/p3-p7-product-forward-') || (github.event_name == 'pull_request' && ((github.head_ref == 'codex/p3-p7-core-demo') || (github.head_ref == 'codex/p3-p7-product-forward') || startsWith(github.head_ref, 'codex/p3-p7-product-forward-'))) }}
+      D02_AUTONOMY_BOOTSTRAP_TRACK: ${{ (github.ref == 'refs/heads/codex/p3-p7-d02-final-gate') || (github.event_name == 'pull_request' && github.head_ref == 'codex/p3-p7-d02-final-gate') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -319,9 +320,10 @@ jobs:
         if: env.DEMO_PROTOTYPE_TRACK == 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > demo-prototype-migration-head.txt
-          test "$(tr -d '\r\n' < demo-prototype-migration-head.txt)" = "demo_0014_d02_r2_e3_versioning (head)"
+          test "$(tr -d '\r\n' < demo-prototype-migration-head.txt)" = "demo_0015_d02_source_acq_pool (head)"
           python -m alembic -c services/api/alembic.ini history > demo-prototype-migration-history.txt
-          grep -Fqx "demo_0013_d07_publish_auth -> demo_0014_d02_r2_e3_versioning (head), Add the bounded D02-R2 Epoch 03 authority branches." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0014_d02_r2_e3_versioning -> demo_0015_d02_source_acq_pool (head), Add the D02 autonomous source acquisition budget pool." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0013_d07_publish_auth -> demo_0014_d02_r2_e3_versioning, Add the bounded D02-R2 Epoch 03 authority branches." demo-prototype-migration-history.txt
           grep -Fqx "demo_0012_d05_profile_auth -> demo_0013_d07_publish_auth, Add D07 quarantine artifact and PASS-only publication authority." demo-prototype-migration-history.txt
           grep -Fqx "demo_0011_d03_job_recovery -> demo_0012_d05_profile_auth, Add D05 profile compilation and self-transfer projection authority." demo-prototype-migration-history.txt
           grep -Fqx "demo_0010_d03_analysis_run -> demo_0011_d03_job_recovery, Add bounded D03 dispatch and expired-lease retry authority." demo-prototype-migration-history.txt
@@ -338,7 +340,7 @@ jobs:
           printf '%s\n' \
             "TRACK: DEMO_PROTOTYPE" \
             "COMMIT_SHA: $GITHUB_SHA" \
-            "DEMO_MIGRATION_HEAD: demo_0014_d02_r2_e3_versioning" \
+            "DEMO_MIGRATION_HEAD: demo_0015_d02_source_acq_pool" \
             "FORMAL_EVIDENCE_GENERATORS: NOT_RUN_ON_PROTOTYPE_HEAD" \
             "FORMAL_HEAD_AUTHORITY: 0014_m5_eval_authority" \
             "PRODUCTION_RELEASE: NOT_AUTHORIZED" \
@@ -351,8 +353,35 @@ jobs:
             demo-prototype-ci-boundary.txt
             demo-prototype-migration-head.txt
             demo-prototype-migration-history.txt
+      - name: Validate D02 autonomy bootstrap evidence boundary
+        if: env.D02_AUTONOMY_BOOTSTRAP_TRACK == 'true'
+        run: |
+          python -m alembic -c services/api/alembic.ini heads > d02-autonomy-migration-head.txt
+          test "$(tr -d '\r\n' < d02-autonomy-migration-head.txt)" = "demo_0015_d02_source_acq_pool (head)"
+          python -m alembic -c services/api/alembic.ini history > d02-autonomy-migration-history.txt
+          grep -Fqx "demo_0014_d02_r2_e3_versioning -> demo_0015_d02_source_acq_pool (head), Add the D02 autonomous source acquisition budget pool." d02-autonomy-migration-history.txt
+          grep -Fqx "demo_0013_d07_publish_auth -> demo_0014_d02_r2_e3_versioning, Add the bounded D02-R2 Epoch 03 authority branches." d02-autonomy-migration-history.txt
+          grep -Fqx "demo_0012_d05_profile_auth -> demo_0013_d07_publish_auth, Add D07 quarantine artifact and PASS-only publication authority." d02-autonomy-migration-history.txt
+          grep -Fqx "0014_m5_eval_authority -> demo_0001_p3_p7_core, Branch-local P3-P7 algorithmic prototype authority." d02-autonomy-migration-history.txt
+          printf '%s\n' \
+            "TRACK: D02_AUTONOMY_BOOTSTRAP" \
+            "COMMIT_SHA: $GITHUB_SHA" \
+            "D02_MIGRATION_HEAD: demo_0015_d02_source_acq_pool" \
+            "FORMAL_EVIDENCE_GENERATORS: NOT_RUN_ON_DEMO_HEAD" \
+            "FORMAL_HEAD_AUTHORITY: 0014_m5_eval_authority" \
+            "PUBLIC_API_CHANGE: NONE" \
+            "PRODUCTION_RELEASE: NOT_AUTHORIZED" \
+            > d02-autonomy-ci-boundary.txt
+      - uses: actions/upload-artifact@v4
+        if: env.D02_AUTONOMY_BOOTSTRAP_TRACK == 'true'
+        with:
+          name: d02-autonomy-bootstrap-ci-boundary
+          path: |
+            d02-autonomy-ci-boundary.txt
+            d02-autonomy-migration-head.txt
+            d02-autonomy-migration-history.txt
       - name: Generate Phase 1 CI evidence
-        if: env.DEMO_PROTOTYPE_TRACK != 'true'
+        if: env.DEMO_PROTOTYPE_TRACK != 'true' && env.D02_AUTONOMY_BOOTSTRAP_TRACK != 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > phase1-migration-head.txt
           python -m mirror_api.scripts.phase1_ci_evidence \
@@ -363,12 +392,12 @@ jobs:
             --test-results phase1-integration-results.xml \
             --output phase1-ci-evidence.json
       - uses: actions/upload-artifact@v4
-        if: env.DEMO_PROTOTYPE_TRACK != 'true'
+        if: env.DEMO_PROTOTYPE_TRACK != 'true' && env.D02_AUTONOMY_BOOTSTRAP_TRACK != 'true'
         with:
           name: phase1-ci-evidence
           path: phase1-ci-evidence.json
       - name: Generate P2-M1 CI evidence
-        if: env.DEMO_PROTOTYPE_TRACK != 'true'
+        if: env.DEMO_PROTOTYPE_TRACK != 'true' && env.D02_AUTONOMY_BOOTSTRAP_TRACK != 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > p2-m1-migration-head.txt
           python -m mirror_api.scripts.p2_m1_ci_evidence \
@@ -379,12 +408,12 @@ jobs:
             --test-results p2-m1-results.xml \
             --output p2-m1-ci-evidence.json
       - uses: actions/upload-artifact@v4
-        if: env.DEMO_PROTOTYPE_TRACK != 'true'
+        if: env.DEMO_PROTOTYPE_TRACK != 'true' && env.D02_AUTONOMY_BOOTSTRAP_TRACK != 'true'
         with:
           name: p2-m1-ci-evidence
           path: p2-m1-ci-evidence.json
       - name: Generate P2-M2 CI evidence
-        if: env.DEMO_PROTOTYPE_TRACK != 'true'
+        if: env.DEMO_PROTOTYPE_TRACK != 'true' && env.D02_AUTONOMY_BOOTSTRAP_TRACK != 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > p2-m2-migration-head.txt
           python -m mirror_api.scripts.p2_m2_ci_evidence \
@@ -395,12 +424,12 @@ jobs:
             --test-results p2-m2-results.xml \
             --output p2-m2-ci-evidence.json
       - uses: actions/upload-artifact@v4
-        if: env.DEMO_PROTOTYPE_TRACK != 'true'
+        if: env.DEMO_PROTOTYPE_TRACK != 'true' && env.D02_AUTONOMY_BOOTSTRAP_TRACK != 'true'
         with:
           name: p2-m2-ci-evidence
           path: p2-m2-ci-evidence.json
       - name: Generate P2-M3 CI evidence
-        if: env.DEMO_PROTOTYPE_TRACK != 'true'
+        if: env.DEMO_PROTOTYPE_TRACK != 'true' && env.D02_AUTONOMY_BOOTSTRAP_TRACK != 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > p2-m3-migration-head.txt
           python -m mirror_api.scripts.p2_m3_ci_evidence \
@@ -415,7 +444,7 @@ jobs:
             --v01-correction docs/operations/P2_M3_V01_MIGRATION_HEAD_CORRECTION.json \
             --output p2-m3-ci-evidence.json
       - uses: actions/upload-artifact@v4
-        if: env.DEMO_PROTOTYPE_TRACK != 'true'
+        if: env.DEMO_PROTOTYPE_TRACK != 'true' && env.D02_AUTONOMY_BOOTSTRAP_TRACK != 'true'
         with:
           name: p2-m3-ci-evidence
           path: p2-m3-ci-evidence.json
