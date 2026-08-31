@@ -328,6 +328,7 @@ def append_v2_transition(
             or state.get("allowed_next_transition") != _BOUND_PHASE
             or state.get("request_reference_sha256") is not None
             or request_reference.reference != f"request-{request_reference.sha256[:48]}"
+            or not _request_reference_matches_bridge(request_reference, state)
         ):
             raise PostRegistrationVerifierV2Error("V2_REQUEST_REFERENCE_BINDING_INVALID")
         next_state = dict(state)
@@ -343,6 +344,53 @@ def append_v2_transition(
             }
         )
         return _commit_state(root=root, state=next_state, verifier_sha256=expected_verifier_sha256)
+
+
+def _request_reference_matches_bridge(
+    request_reference: PostRegistrationRequestReference, state: Mapping[str, Any]
+) -> bool:
+    authority = request_reference.authority
+    bridge = state.get("bridge")
+    if not isinstance(bridge, Mapping) or set(authority) != {
+        "ordinal",
+        "action_id",
+        "expected_output_id",
+        "source_output_sha256",
+        "registration_receipt_sha256",
+        "legacy_bridge_sha256",
+        "policy_version",
+        "policy_sha256",
+        "runtime_sha256",
+        "model_sha256",
+    }:
+        return False
+    runtime_model_authority = bridge.get("runtime_model_authority")
+    if (
+        not isinstance(runtime_model_authority, Mapping)
+        or set(runtime_model_authority)
+        != {
+            "post_registration_controller_sha256",
+            "runtime_sha256_by_platform",
+            "model_sha256",
+        }
+        or not isinstance(runtime_model_authority.get("runtime_sha256_by_platform"), Mapping)
+    ):
+        return False
+    runtime_sha256_by_platform = cast(
+        Mapping[str, object], runtime_model_authority["runtime_sha256_by_platform"]
+    )
+    return (
+        authority["ordinal"] == _CAL_REQ_004
+        and authority["legacy_bridge_sha256"] == state.get("legacy_bridge_sha256")
+        and _sha256_bytes(authority["action_id"].encode("utf-8")) == bridge.get("action_id_sha256")
+        and authority["expected_output_id"] == bridge.get("expected_output_id")
+        and authority["source_output_sha256"] == bridge.get("registered_output_sha256")
+        and authority["registration_receipt_sha256"] == bridge.get("registration_receipt_sha256")
+        and authority["policy_version"] == bridge.get("policy_version")
+        and authority["policy_sha256"] == bridge.get("policy_sha256")
+        and authority["runtime_sha256"] in runtime_sha256_by_platform.values()
+        and authority["model_sha256"] == runtime_model_authority.get("model_sha256")
+    )
 
 
 def verify_v2_entry(

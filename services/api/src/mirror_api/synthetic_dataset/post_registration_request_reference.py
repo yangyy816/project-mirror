@@ -16,6 +16,7 @@ class RequestReferenceError(RuntimeError):
 class PostRegistrationRequestReference:
     reference: str
     sha256: str
+    authority: Mapping[str, str]
 
 
 def build_request_reference(
@@ -47,4 +48,6 @@ def build_request_reference(
     if ordinal != "CAL-REQ-004" or any(not value for value in values.values()):
         raise RequestReferenceError("REQUEST_REFERENCE_AUTHORITY_INVALID")
     digest = _legacy.sha256_bytes(_legacy.canonical_json_bytes(values))
-    return PostRegistrationRequestReference(reference=f"request-{digest[:48]}", sha256=digest)
+    return PostRegistrationRequestReference(
+        reference=f"request-{digest[:48]}", sha256=digest, authority=dict(values)
+    )

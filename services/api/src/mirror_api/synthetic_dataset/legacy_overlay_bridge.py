@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from mirror_api.synthetic_dataset import private_execution_overlay as _legacy
+from mirror_api.synthetic_dataset import private_imagegen_post_registration as _post_registration
 from mirror_api.synthetic_dataset.legacy_overlay_verifier import (
     LEGACY_ATTESTATION_SCHEMA,
     LegacyOverlayVerificationError,
@@ -105,11 +106,15 @@ def create_or_verify_cal_req_004_bridge_from_legacy_receipt(
         "legacy_receipt_sha256": source["legacy_receipt_sha256"],
         "legacy_state_sha256": source["legacy_state_sha256"],
         "legacy_attestation_sha256": attestation.sha256,
+        "action_id_sha256": source["action_id_sha256"],
+        "expected_output_id": source["expected_output_id"],
+        "registration_receipt_sha256": source["registration_receipt_sha256"],
         "new_verifier_sha256": expected_new_verifier_sha256,
         "policy_version": policy_version,
         "policy_sha256": policy_sha256,
         "resource_ledger_sha256": source["resource_ledger_sha256"],
         "registered_output_sha256": registered_output_sha256,
+        "runtime_model_authority": _runtime_model_authority(),
         "phase": _PHASE,
         "allowed_next_transition": "POST_REGISTRATION_ATTEMPT_BOUND",
     }
@@ -119,6 +124,24 @@ def create_or_verify_cal_req_004_bridge_from_legacy_receipt(
     if _legacy.sha256_file(bridge_path) != receipt_digest:
         raise LegacyBridgeError("BRIDGE_RECEIPT_DIGEST_MISMATCH")
     return LegacyBridgeReceipt(path=bridge_path, sha256=receipt_digest, payload=payload)
+
+
+def _runtime_model_authority() -> dict[str, object]:
+    """Snapshot the already-approved private capability authority without loading it."""
+    runtime_sha256_by_platform = dict(sorted(_post_registration.RUNTIME_SHA256_BY_PLATFORM.items()))
+    if (
+        not runtime_sha256_by_platform
+        or not isinstance(_post_registration.MODEL_SHA256, str)
+        or not all(isinstance(value, str) for value in runtime_sha256_by_platform.values())
+    ):
+        raise LegacyBridgeError("RUNTIME_MODEL_AUTHORITY_INVALID")
+    return {
+        "post_registration_controller_sha256": _legacy.sha256_file(
+            Path(_post_registration.__file__)
+        ),
+        "runtime_sha256_by_platform": runtime_sha256_by_platform,
+        "model_sha256": _post_registration.MODEL_SHA256,
+    }
 
 
 def verify_bridge_for_cal_req_004(
@@ -132,13 +155,49 @@ def verify_bridge_for_cal_req_004(
     if _legacy.sha256_file(bridge_path) != expected_bridge_sha256:
         raise LegacyBridgeError("BRIDGE_RECEIPT_DIGEST_MISMATCH")
     payload: dict[str, Any] = _legacy._read_json(bridge_path)
+    runtime_model_authority = payload.get("runtime_model_authority")
+    expected_fields = {
+        "schema_version",
+        "scope",
+        "legacy_controller_sha256",
+        "legacy_receipt_sha256",
+        "legacy_state_sha256",
+        "legacy_attestation_sha256",
+        "action_id_sha256",
+        "expected_output_id",
+        "registration_receipt_sha256",
+        "new_verifier_sha256",
+        "policy_version",
+        "policy_sha256",
+        "resource_ledger_sha256",
+        "registered_output_sha256",
+        "runtime_model_authority",
+        "phase",
+        "allowed_next_transition",
+    }
     if (
         _legacy._read_plain_file_bytes(bridge_path) != _legacy.canonical_json_bytes(payload)
+        or set(payload) != expected_fields
         or payload.get("schema_version") != BRIDGE_RECEIPT_VERSION
         or payload.get("scope") != "CAL_REQ_004_POST_REGISTRATION_ONLY"
         or payload.get("legacy_controller_sha256") != expected_legacy_controller_sha256
         or payload.get("legacy_receipt_sha256") != expected_legacy_receipt_sha256
         or payload.get("phase") != _PHASE
+        or not isinstance(runtime_model_authority, dict)
+        or set(runtime_model_authority)
+        != {
+            "post_registration_controller_sha256",
+            "runtime_sha256_by_platform",
+            "model_sha256",
+        }
+        or not isinstance(runtime_model_authority.get("runtime_sha256_by_platform"), dict)
+        or not runtime_model_authority["runtime_sha256_by_platform"]
+        or not all(
+            isinstance(value, str)
+            for value in runtime_model_authority["runtime_sha256_by_platform"].values()
+        )
+        or not isinstance(runtime_model_authority.get("model_sha256"), str)
+        or not isinstance(runtime_model_authority.get("post_registration_controller_sha256"), str)
     ):
         raise LegacyBridgeError("BRIDGE_RECEIPT_BINDING_INVALID")
     return payload
