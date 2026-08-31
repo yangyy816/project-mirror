@@ -820,3 +820,13 @@
   `SAME_SHA_CI_FOR_IMPLEMENTATION_SHA` 明确为 `UNAVAILABLE_NOT_CLAIMED`。该接受仅覆盖显式 `recall_at` 的
   owner-bound Context/Trace read slice；queued Context compiler 与 D10/P7 final acceptance 仍等待 D02 migration
   lease 后续工作。
+
+- 2026-08-31：D11 Trace UI Contract slice 与 server-side Demo credential/session bridge 已接受。D11代码提交为
+  `c89cc16e0b1338004074b0b71a89e314fa61d8cd`，正常merge后的exact integration head为
+  `7472438fdf29006294355ffd7446dfd9977ce0eb`，run `33384367990` 三jobs及Python、PostgreSQL、
+  TypeScript/build、Playwright、contract drift、Demo boundary、dependency/license、Docker与Gitleaks全绿。Demo
+  Bearer只存在于Next server-only environment/process memory和server→API Authorization；浏览器仅持有随机64-hex、
+  HttpOnly、SameSite=Strict、`/api/demo` path-scoped handle。Registry只保存server-bound session与expiry，TTL为
+  60–900秒、容量64、支持过期清理/配置轮换/logout；同一显式`recall_at`同时用于Context与Trace，digest不一致
+  fail closed。该slice固定为`UI_CONTRACT_ONLY`、`SYNTHETIC_DEMO`、`RUNTIME_EVIDENCE_DEFERRED`，不构成真实
+  D02、真实用户、`LOCAL_WEB_AGENT`或production E2E PASS。
