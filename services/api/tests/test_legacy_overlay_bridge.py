@@ -11,6 +11,7 @@ from typing import Any, cast
 
 import pytest
 
+from mirror_api.synthetic_dataset import legacy_overlay_bridge as bridge_module
 from mirror_api.synthetic_dataset import private_execution_overlay as legacy
 from mirror_api.synthetic_dataset.legacy_overlay_bridge import (
     LegacyBridgeError,
@@ -199,10 +200,9 @@ def test_bridge_factory_requires_a_real_verified_legacy_receipt(tmp_path: Path) 
         expected_legacy_receipt_sha256=fixture.receipt_sha256,
     )
     assert verified["new_verifier_sha256"] == verifier_sha256
-    assert (
-        "LegacyOverlayAttestation"
-        not in create_or_verify_cal_req_004_bridge_from_legacy_receipt.__annotations__.values()
-    )
+    bridge_source = Path(bridge_module.__file__).read_text(encoding="utf-8")
+    assert "LegacyOverlayAttestation" not in bridge_source
+    assert "def _create_or_verify_cal_req_004_bridge" not in bridge_source
 
 
 def test_bridge_factory_rejects_a_tampered_legacy_receipt(tmp_path: Path) -> None:

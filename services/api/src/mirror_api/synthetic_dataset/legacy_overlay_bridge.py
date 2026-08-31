@@ -10,7 +10,6 @@ from typing import Any
 from mirror_api.synthetic_dataset import private_execution_overlay as _legacy
 from mirror_api.synthetic_dataset.legacy_overlay_verifier import (
     LEGACY_ATTESTATION_SCHEMA,
-    LegacyOverlayAttestation,
     LegacyOverlayVerificationError,
     verify_cal_req_004_once,
 )
@@ -18,7 +17,6 @@ from mirror_api.synthetic_dataset.legacy_overlay_verifier import (
 BRIDGE_RECEIPT_VERSION = "p2-m5-cal-req-004-legacy-to-v2-post-registration-bridge/v1"
 _CAL_REQ_004 = "CAL-REQ-004"
 _PHASE = "OUTPUT_REGISTERED_PRE_DECODE"
-_FACTORY_VERIFICATION_TOKEN = object()
 
 
 class LegacyBridgeError(RuntimeError):
@@ -62,32 +60,8 @@ def create_or_verify_cal_req_004_bridge_from_legacy_receipt(
         )
     except LegacyOverlayVerificationError as error:
         raise LegacyBridgeError("LEGACY_RECEIPT_VERIFICATION_FAILED") from error
-    return _create_or_verify_cal_req_004_bridge(
-        factory_verification_token=_FACTORY_VERIFICATION_TOKEN,
-        bridge_path=bridge_path,
-        attestation=attestation,
-        expected_legacy_controller_sha256=expected_legacy_controller_sha256,
-        expected_new_verifier_sha256=expected_new_verifier_sha256,
-        policy_version=policy_version,
-        policy_sha256=policy_sha256,
-        registered_output_sha256=registered_output_sha256,
-    )
-
-
-def _create_or_verify_cal_req_004_bridge(
-    *,
-    factory_verification_token: object,
-    bridge_path: Path,
-    attestation: LegacyOverlayAttestation,
-    expected_legacy_controller_sha256: str,
-    expected_new_verifier_sha256: str,
-    policy_version: str,
-    policy_sha256: str,
-    registered_output_sha256: str,
-) -> LegacyBridgeReceipt:
-    """Create one canonical bridge receipt or verify the same immutable bytes."""
-    if factory_verification_token is not _FACTORY_VERIFICATION_TOKEN:
-        raise LegacyBridgeError("LEGACY_ATTESTATION_FACTORY_REQUIRED")
+    # No bridge serializer receives caller-provided attestation data.  The
+    # attestation below was just created by exact receipt verification above.
     source = dict(attestation.payload)
     required = {
         "schema_version",
