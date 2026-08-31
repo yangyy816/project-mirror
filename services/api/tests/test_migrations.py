@@ -85,6 +85,15 @@ def test_ci_evidence_tracks_current_migration_head() -> None:
     expected_argument = "--expected-migration-head 0014_m5_eval_authority"
     assert workflow.count(expected_argument) == 4
     assert "--expected-migration-head 0009_generation_batch_pipeline" not in workflow
+    assert "D02_AUTONOMY_BOOTSTRAP_TRACK" in workflow
+    assert workflow.count("demo_0015_d02_source_acq_pool") == 3
+    assert "TRACK: D02_AUTONOMY_BOOTSTRAP" in workflow
+    assert (
+        workflow.count(
+            "env.DEMO_PROTOTYPE_TRACK != 'true' && env.D02_AUTONOMY_BOOTSTRAP_TRACK != 'true'"
+        )
+        == 8
+    )
 
 
 def test_upgrade_downgrade_reupgrade_and_schema_consistency(
