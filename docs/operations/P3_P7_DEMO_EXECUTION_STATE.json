@@ -37,7 +37,7 @@
     "D09_IMAGE_FEEDBACK_FINAL_SAVE_API",
     "D10_CONTEXT_TRACE_EXPLICIT_RECALL_API"
   ],
-  "active_checkpoint": "D10_EXACT_SHA_CI_FORWARD_REPAIR_DECISION",
+  "active_checkpoint": "D11_TRACE_UI_CONTRACT_SLICE_INTEGRATION",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -57,7 +57,8 @@
     "D03_DOMAIN_READY_ROUTE_PENDING": "df2426fb143e4e87c018bb3eb6897aff3cd81829",
     "D05_PROFILE_AUTHORITY_CODE": "ce73cbcc6253e7c9d434e3ebb4e5ac869449f0d1",
     "D05_PROFILE_AUTHORITY_INTEGRATION": "3987e9dfed69c50c15fbea86959831799a8c38a7",
-    "D05_API_WORKER_WIRING_AND_CONTRACT": "41d3d718b2afc98c1d8cdbdca0b2ebf9f55726e2"
+    "D05_API_WORKER_WIRING_AND_CONTRACT": "41d3d718b2afc98c1d8cdbdca0b2ebf9f55726e2",
+    "D10_CONTEXT_TRACE_EXPLICIT_RECALL_API": "cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd"
   },
   "implementation_checkpoint_shas": {
     "D03_D04_B_D07_B_DOMAIN_SLICES": "93919f47ea391694d4ed952cec8a3e7d5683dc4a",
@@ -87,7 +88,8 @@
     "D02_R2_EPOCH_02_REQUEST_DIGEST_BRIDGE": 33226054944,
     "D03_DOMAIN_READY_ROUTE_PENDING": 33257194685,
     "D05_PROFILE_AUTHORITY": 33275794207,
-    "D05_API_WORKER_WIRING_AND_CONTRACT": 33278449485
+    "D05_API_WORKER_WIRING_AND_CONTRACT": 33278449485,
+    "D10_CONTEXT_TRACE_FORWARD_VALIDATED_SUCCESSOR": 33379004528
   },
   "generation_capability_candidate": {
     "authority_id": "P3_P7_D02_R2_GENERATION_CAPABILITY_AUTHORITY_01",
@@ -268,13 +270,36 @@
       "head_sha": "cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd",
       "remote_ref": "codex/p3-p7-product-forward-d10-context-trace",
       "exact_sha_binding": true,
-      "outcome": "TERMINAL_SECRET_SCAN_FAILURE_QUALITY_JOB_STILL_IN_PROGRESS",
+      "outcome": "CANCELLED_AFTER_TERMINAL_SECRET_SCAN_FAILURE",
       "docker_validation": "PASS",
       "secret_scan": "FAIL_EIGHT_HISTORICAL_GENERIC_API_KEY_FALSE_POSITIVE_CANDIDATES",
-      "quality_and_integration": "IN_PROGRESS_PYTHON_TESTS",
+      "quality_and_integration": "CANCELLED_PYTHON_TESTS",
       "same_sha_pass_claimed": false,
       "legal_same_sha_rerun_path": "NONE_WITHOUT_HISTORY_REWRITE_OR_FORBIDDEN_CORE_DEMO_REF",
       "forward_repair_boundary": "SUCCESSOR_SHA_CI_ONLY_OWNER_DECISION_REQUIRED"
+    },
+    "D10_CONTEXT_TRACE_SUCCESSOR_01": {
+      "run_id": 33358177959,
+      "head_sha": "859b0fe16d410f2c1acb078f6dd0e8c317c9734f",
+      "outcome": "FAIL_STALE_SCHEMA_TEST_INFRASTRUCTURE",
+      "secret_scan": "PASS",
+      "docker_validation": "PASS"
+    },
+    "D10_CONTEXT_TRACE_SUCCESSOR_02": {
+      "run_id": 33365877486,
+      "head_sha": "d8635708f683f0b4e0d267b37d207252056ac644",
+      "outcome": "FAIL_STALE_PLAYWRIGHT_EVIDENCE_ASSERTION",
+      "python_summary": "2478_PASSED_1_SKIPPED_1_FAILED",
+      "secret_scan": "PASS",
+      "docker_validation": "PASS"
+    },
+    "D10_CONTEXT_TRACE_SUCCESSOR_03": {
+      "run_id": 33372527626,
+      "head_sha": "646da96d333aad902f0b97f67a2451912b59a2e0",
+      "outcome": "FAIL_THREE_EXISTING_WEB_PRETTIER_DRIFTS",
+      "python_summary": "2479_PASSED_1_SKIPPED",
+      "secret_scan": "PASS",
+      "docker_validation": "PASS"
     },
     "D03_D04_B_D07_B_APPLICATION_INTEGRATION_01": {
       "run_id": 33266023349,
@@ -348,6 +373,17 @@
       "validation": "PASS_D10_POSTGRESQL_18_GENERIC_JOB_4_WORKER_10_DOMAIN_REGRESSION_63_CONTEXT_TRACE_ROUTE_AND_RELATED_30_RUFF_STRICT_MYPY_175_OPENAPI_CONTENT_GENERATED_TYPES_DIFF_CHECK",
       "task_acceptance_claimed": false
     },
+    "D10_CONTEXT_TRACE_READ_SLICE": {
+      "implementation_sha": "cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd",
+      "validation_successor_sha": "f17dd9b09867b739e9810f490551f3d65084a532",
+      "validation_successor_ci": "PASS_33379004528",
+      "acceptance_mode": "FORWARD_VALIDATED_SUCCESSOR",
+      "implementation_blob_equivalence": "PASS",
+      "same_sha_ci_for_implementation_sha": "UNAVAILABLE_NOT_CLAIMED",
+      "status": "TASK_ACCEPTED",
+      "track": "DEMO_PROTOTYPE",
+      "final_d10_p7_acceptance": "NOT_VERIFIED"
+    },
     "D09_IMAGE_FEEDBACK_FINAL_SAVE_API": {
       "code_sha": "32cb1e9d62c99d33f898357617264b23c6f7d06d",
       "implementation": "LOCAL_VALIDATED_COMPLETE",
@@ -406,7 +442,7 @@
     "d02_branch": "codex/p3-p7-d02-final-gate",
     "d02_tracked_checkpoint_sha": "5f759c4e48f5d45493519c8cfdaeb33864f1e067",
     "product_branch": "codex/p3-p7-product-forward",
-    "product_code_head": "cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd",
+    "product_code_head": "f17dd9b09867b739e9810f490551f3d65084a532",
     "private_execution_owner": "D02_SUBSYSTEM_PRINCIPAL",
     "main_process_d02_access": "FORBIDDEN_UNTIL_INTEGRATION_RETURN"
   },
@@ -416,10 +452,9 @@
     "D04_B_REAL_BANK_INTEGRATION": "BLOCKED_BY_D02",
     "D07_B_REAL_D02_ASSET_AND_M4_INTEGRATION": "BLOCKED_BY_D02",
     "D06_REFERENCE_PROFILE_QUEUED_ORCHESTRATION": "DEFERRED_UNTIL_D02_MIGRATION_LEASE_RELEASE_REQUIRES_NEW_IMMUTABLE_REQUEST_AUTHORITY",
-    "D10_CONTEXT_QUEUED_COMPILER": "DEFERRED_UNTIL_D02_MIGRATION_LEASE_RELEASE_REQUIRES_DURABLE_EXPLICIT_AS_OF_REQUEST_AUTHORITY",
-    "D10_CONTEXT_TRACE_CHANGED_CODE_CI": "BLOCKED_EXACT_SHA_CONFIG_CANNOT_ALLOWLIST_HISTORICAL_FALSE_POSITIVES_OR_SELECT_DEMO_TRACK"
+    "D10_CONTEXT_QUEUED_COMPILER": "DEFERRED_UNTIL_D02_MIGRATION_LEASE_RELEASE_REQUIRES_DURABLE_EXPLICIT_AS_OF_REQUEST_AUTHORITY"
   },
-  "next_ready_nodes": ["D10_EXACT_SHA_CI_FORWARD_REPAIR_DECISION"],
+  "next_ready_nodes": ["D11_TRACE_UI_CONTRACT_SLICE_INTEGRATION"],
   "runtime_evidence_blocked_nodes": [
     "D02_FINAL_RUNTIME_GATE",
     "D03_FRESH_M3_RUNTIME_INTEGRATION_GATE",

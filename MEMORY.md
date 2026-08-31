@@ -811,3 +811,12 @@
   Ruff、175-source strict mypy、contracts lint/typecheck/test 与独立只读审查通过；未执行 push/same-SHA remote CI，
   D10/P7 final acceptance 继续为 `NOT_VERIFIED`。真实 D11 trace UI 仍需冻结的 Demo credential/session bridge；在此之前
   只允许明确标记 `UI_CONTRACT_ONLY` 的 trace presentation slice，不向浏览器暴露 Demo Bearer。
+
+- 2026-08-31：D10 Context/Trace read slice 以前向验证后继模式接受：产品实现保持
+  `cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd`，最终 validation successor 为
+  `f17dd9b09867b739e9810f490551f3d65084a532`，exact-SHA run `33379004528` 的
+  quality/integration、PostgreSQL lifecycle、2479 项 Python、TypeScript/build、Playwright、contract drift、Demo
+  boundary、dependency/license、Docker 与 Gitleaks 全绿。五个 governed D10 blobs 与实现 SHA 完全相同；
+  `SAME_SHA_CI_FOR_IMPLEMENTATION_SHA` 明确为 `UNAVAILABLE_NOT_CLAIMED`。该接受仅覆盖显式 `recall_at` 的
+  owner-bound Context/Trace read slice；queued Context compiler 与 D10/P7 final acceptance 仍等待 D02 migration
+  lease 后续工作。
