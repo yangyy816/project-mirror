@@ -89,6 +89,14 @@ paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
 regexTarget = "match"
 regexes = ['''D10_CONTEXT_TRACE_EXPLICIT_RECALL_API": "cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd"''']
 
+[[allowlists]]
+description = "D10 successor: accepted Context Trace commit identity in a2f3498"
+condition = "AND"
+commits = ["a2f3498f86745736eb7495523bf8dc233118a5f7"]
+paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
+regexTarget = "match"
+regexes = ['''D10_CONTEXT_TRACE_EXPLICIT_RECALL_API": "cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd"''']
+
 # D10-CI-R01: these two tracked source lines compare a parsed handle schema
 # against static key-name sets. They are not handles, locators, Prompt data, or
 # credential material.

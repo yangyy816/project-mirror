@@ -85,7 +85,7 @@ jobs:
               for item in config["allowlists"]
               if item["description"].startswith("D10 successor: ")
           ]
-          assert len(repairs) == 10
+          assert len(repairs) == 11
           for item in repairs:
               assert item["condition"] == "AND"
               assert item["regexTarget"] == "match"
