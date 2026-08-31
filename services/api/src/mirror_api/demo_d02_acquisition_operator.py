@@ -1704,17 +1704,17 @@ def _checkpoint_lock(path: Path) -> Iterator[None]:
             os.fsync(handle.fileno())
         handle.seek(0)
         if os.name == "nt":
-            import msvcrt
+            msvcrt_module = cast(Any, __import__("msvcrt"))
 
             try:
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                msvcrt_module.locking(handle.fileno(), msvcrt_module.LK_NBLCK, 1)
             except OSError as error:
                 raise D02OperatorError("PRIVATE_INDEX_LOCKED") from error
             try:
                 yield
             finally:
                 handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                msvcrt_module.locking(handle.fileno(), msvcrt_module.LK_UNLCK, 1)
         else:
             fcntl_module = cast(Any, __import__("fcntl"))
 
