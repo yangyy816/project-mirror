@@ -111,6 +111,81 @@ def _initialized(tmp_path: Path) -> tuple[Path, Path]:
     return root, handle.receipt_path
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows native binding contract")
+def test_windows_native_binding_is_singleton_and_recovers_from_failed_initialization() -> None:
+    """A fresh process may initialize once, but never retains a partial native binding."""
+    source_root = Path(overlay_module.__file__).parents[2]
+    script = """
+import ctypes
+import threading
+from mirror_api.synthetic_dataset import private_execution_overlay as overlay
+
+original = ctypes.WinDLL
+def fail(*args, **kwargs):
+    raise OSError("synthetic binding failure")
+ctypes.WinDLL = fail
+try:
+    try:
+        overlay._windows_native_binding()
+    except OSError:
+        pass
+    else:
+        raise AssertionError("native binding failure was accepted")
+finally:
+    ctypes.WinDLL = original
+
+assert overlay._WINDOWS_NATIVE_BINDING is None
+assert overlay._windows_native_binding_initialization_count() == 0
+first = overlay._windows_native_binding()
+functions = (
+    first.nt_create_file,
+    first.create_file,
+    first.get_file_information,
+    first.get_final_path,
+    first.close_handle,
+    first.get_file_size,
+    first.set_file_pointer,
+    first.read_file,
+    first.write_file,
+    first.flush_file,
+    first.lock_file_ex,
+    first.unlock_file_ex,
+)
+signatures = [(id(function), function.argtypes, function.restype) for function in functions]
+identities = []
+def read_binding():
+    identities.append(overlay._windows_native_binding())
+threads = [threading.Thread(target=read_binding) for _ in range(16)]
+for thread in threads:
+    thread.start()
+for thread in threads:
+    thread.join()
+assert all(item is first for item in identities)
+assert overlay._windows_native_binding_initialization_count() == 1
+assert [(id(function), function.argtypes, function.restype) for function in functions] == signatures
+"""
+    environment = {**os.environ, "PYTHONPATH": str(source_root)}
+    completed = subprocess.run(  # noqa: S603 - fixed interpreter and in-test literal script
+        [sys.executable, "-c", script],
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    for helper in (
+        overlay_module._open_windows_relative_plain_file,
+        overlay_module._open_windows_relative_plain_directory,
+        overlay_module._windows_open_path,
+        overlay_module._read_windows_file_handle,
+        overlay_module._write_create_new_windows,
+    ):
+        source = inspect.getsource(helper)
+        assert "ctypes.Structure" not in source
+        assert ".argtypes =" not in source
+        assert ".restype =" not in source
+
+
 def _consumed(tmp_path: Path) -> tuple[Path, Path]:
     root, receipt = _initialized(tmp_path)
     prepared = prepare_dispatch(

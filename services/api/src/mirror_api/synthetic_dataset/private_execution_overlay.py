@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import ctypes
 import hashlib
 import importlib
 import json
@@ -56,6 +57,216 @@ _ALLOWED_PRIVATE_PROMPT_FIELDS: Final = frozenset(
 _LEASE_GUARD = threading.RLock()
 _LEASES: dict[str, tuple[int, int, int]] = {}
 _LEASE_PENDING: set[str] = set()
+
+
+class _WindowsUnicodeString(ctypes.Structure):
+    _fields_ = [
+        ("Length", ctypes.c_ushort),
+        ("MaximumLength", ctypes.c_ushort),
+        ("Buffer", ctypes.c_wchar_p),
+    ]
+
+
+class _WindowsObjectAttributes(ctypes.Structure):
+    _fields_ = [
+        ("Length", ctypes.c_ulong),
+        ("RootDirectory", ctypes.c_void_p),
+        ("ObjectName", ctypes.POINTER(_WindowsUnicodeString)),
+        ("Attributes", ctypes.c_ulong),
+        ("SecurityDescriptor", ctypes.c_void_p),
+        ("SecurityQualityOfService", ctypes.c_void_p),
+    ]
+
+
+class _WindowsIoStatusValue(ctypes.Union):
+    _fields_ = (("Status", ctypes.c_long), ("Pointer", ctypes.c_void_p))
+
+
+class _WindowsIoStatusBlock(ctypes.Structure):
+    _fields_ = (("Value", _WindowsIoStatusValue), ("Information", ctypes.c_size_t))
+
+
+class _WindowsByHandleFileInformation(ctypes.Structure):
+    _fields_ = [
+        ("dwFileAttributes", ctypes.c_uint32),
+        ("ftCreationTimeLow", ctypes.c_uint32),
+        ("ftCreationTimeHigh", ctypes.c_uint32),
+        ("ftLastAccessTimeLow", ctypes.c_uint32),
+        ("ftLastAccessTimeHigh", ctypes.c_uint32),
+        ("ftLastWriteTimeLow", ctypes.c_uint32),
+        ("ftLastWriteTimeHigh", ctypes.c_uint32),
+        ("dwVolumeSerialNumber", ctypes.c_uint32),
+        ("nFileSizeHigh", ctypes.c_uint32),
+        ("nFileSizeLow", ctypes.c_uint32),
+        ("nNumberOfLinks", ctypes.c_uint32),
+        ("nFileIndexHigh", ctypes.c_uint32),
+        ("nFileIndexLow", ctypes.c_uint32),
+    ]
+
+
+class _WindowsOverlapped(ctypes.Structure):
+    _fields_ = [
+        ("Internal", ctypes.c_size_t),
+        ("InternalHigh", ctypes.c_size_t),
+        ("Offset", ctypes.c_uint32),
+        ("OffsetHigh", ctypes.c_uint32),
+        ("hEvent", ctypes.c_void_p),
+    ]
+
+
+_WINDOWS_NTCREATEFILE_ARGTYPES: Final = (
+    ctypes.POINTER(ctypes.c_void_p),
+    ctypes.c_ulong,
+    ctypes.POINTER(_WindowsObjectAttributes),
+    ctypes.POINTER(_WindowsIoStatusBlock),
+    ctypes.c_void_p,
+    ctypes.c_ulong,
+    ctypes.c_ulong,
+    ctypes.c_ulong,
+    ctypes.c_ulong,
+    ctypes.c_void_p,
+    ctypes.c_ulong,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _WindowsNativeBinding:
+    ntdll: Any
+    nt_create_file: Any
+    kernel32: Any
+    create_file: Any
+    get_file_information: Any
+    get_final_path: Any
+    close_handle: Any
+    get_file_size: Any
+    set_file_pointer: Any
+    read_file: Any
+    write_file: Any
+    flush_file: Any
+    lock_file_ex: Any
+    unlock_file_ex: Any
+
+
+_WINDOWS_NATIVE_BINDING_LOCK = threading.Lock()
+_WINDOWS_NATIVE_BINDING: _WindowsNativeBinding | None = None
+_WINDOWS_NATIVE_BINDING_INITIALIZATIONS = 0
+
+
+def _windows_native_binding() -> _WindowsNativeBinding:
+    """Return one fully initialized native binding or fail before caching it."""
+    global _WINDOWS_NATIVE_BINDING, _WINDOWS_NATIVE_BINDING_INITIALIZATIONS
+    with _WINDOWS_NATIVE_BINDING_LOCK:
+        if _WINDOWS_NATIVE_BINDING is None:
+            win_dll = getattr(ctypes, "WinDLL", None)
+            if not callable(win_dll):
+                raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_UNAVAILABLE")
+            ntdll = win_dll("ntdll", use_last_error=True)
+            kernel32 = win_dll("kernel32", use_last_error=True)
+            nt_create_file = ntdll.NtCreateFile
+            nt_create_file.argtypes = _WINDOWS_NTCREATEFILE_ARGTYPES
+            nt_create_file.restype = ctypes.c_long
+            create_file = kernel32.CreateFileW
+            create_file.argtypes = (
+                ctypes.c_wchar_p,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.c_void_p,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.c_void_p,
+            )
+            create_file.restype = ctypes.c_void_p
+            get_file_information = kernel32.GetFileInformationByHandle
+            get_file_information.argtypes = (
+                ctypes.c_void_p,
+                ctypes.POINTER(_WindowsByHandleFileInformation),
+            )
+            get_file_information.restype = ctypes.c_int
+            get_final_path = kernel32.GetFinalPathNameByHandleW
+            get_final_path.argtypes = (
+                ctypes.c_void_p,
+                ctypes.c_wchar_p,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+            )
+            get_final_path.restype = ctypes.c_uint32
+            close_handle = kernel32.CloseHandle
+            close_handle.argtypes = (ctypes.c_void_p,)
+            close_handle.restype = ctypes.c_int
+            get_file_size = kernel32.GetFileSizeEx
+            get_file_size.argtypes = (ctypes.c_void_p, ctypes.POINTER(ctypes.c_longlong))
+            get_file_size.restype = ctypes.c_int
+            set_file_pointer = kernel32.SetFilePointerEx
+            set_file_pointer.argtypes = (
+                ctypes.c_void_p,
+                ctypes.c_longlong,
+                ctypes.POINTER(ctypes.c_longlong),
+                ctypes.c_uint32,
+            )
+            set_file_pointer.restype = ctypes.c_int
+            read_file = kernel32.ReadFile
+            read_file.argtypes = (
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.c_void_p,
+            )
+            read_file.restype = ctypes.c_int
+            write_file = kernel32.WriteFile
+            write_file.argtypes = (
+                ctypes.c_void_p,
+                ctypes.c_void_p,
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.c_void_p,
+            )
+            write_file.restype = ctypes.c_int
+            flush_file = kernel32.FlushFileBuffers
+            flush_file.argtypes = (ctypes.c_void_p,)
+            flush_file.restype = ctypes.c_int
+            lock_file_ex = kernel32.LockFileEx
+            lock_file_ex.argtypes = (
+                ctypes.c_void_p,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.POINTER(_WindowsOverlapped),
+            )
+            lock_file_ex.restype = ctypes.c_int
+            unlock_file_ex = kernel32.UnlockFileEx
+            unlock_file_ex.argtypes = (
+                ctypes.c_void_p,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.POINTER(_WindowsOverlapped),
+            )
+            unlock_file_ex.restype = ctypes.c_int
+            _WINDOWS_NATIVE_BINDING = _WindowsNativeBinding(
+                ntdll=ntdll,
+                nt_create_file=nt_create_file,
+                kernel32=kernel32,
+                create_file=create_file,
+                get_file_information=get_file_information,
+                get_final_path=get_final_path,
+                close_handle=close_handle,
+                get_file_size=get_file_size,
+                set_file_pointer=set_file_pointer,
+                read_file=read_file,
+                write_file=write_file,
+                flush_file=flush_file,
+                lock_file_ex=lock_file_ex,
+                unlock_file_ex=unlock_file_ex,
+            )
+            _WINDOWS_NATIVE_BINDING_INITIALIZATIONS += 1
+        return _WINDOWS_NATIVE_BINDING
+
+
+def _windows_native_binding_initialization_count() -> int:
+    with _WINDOWS_NATIVE_BINDING_LOCK:
+        return _WINDOWS_NATIVE_BINDING_INITIALIZATIONS
 
 
 class ExecutionOverlayError(RuntimeError):
@@ -197,34 +408,9 @@ def _open_quiescence_lease_file(control_root: Path) -> int:
 def _acquire_platform_lease(descriptor: int) -> bool:
     """Acquire one advisory process lease without creating a second lock object."""
     if os.name == "nt":
-        import ctypes
-
-        win_dll = getattr(ctypes, "WinDLL", None)
-        if not callable(win_dll):
-            raise ExecutionOverlayError("QUIESCENCE_LEASE_UNAVAILABLE")
-        kernel32 = win_dll("kernel32", use_last_error=True)
-
-        class Overlapped(ctypes.Structure):
-            _fields_ = [
-                ("Internal", ctypes.c_size_t),
-                ("InternalHigh", ctypes.c_size_t),
-                ("Offset", ctypes.c_uint32),
-                ("OffsetHigh", ctypes.c_uint32),
-                ("hEvent", ctypes.c_void_p),
-            ]
-
-        overlapped = Overlapped()
-        lock_file_ex = kernel32.LockFileEx
-        lock_file_ex.argtypes = [
-            ctypes.c_void_p,
-            ctypes.c_uint32,
-            ctypes.c_uint32,
-            ctypes.c_uint32,
-            ctypes.c_uint32,
-            ctypes.POINTER(Overlapped),
-        ]
-        lock_file_ex.restype = ctypes.c_int
-        if lock_file_ex(
+        binding = _windows_native_binding()
+        overlapped = _WindowsOverlapped()
+        if binding.lock_file_ex(
             ctypes.c_void_p(descriptor),
             0x00000002 | 0x00000001,
             0,
@@ -252,33 +438,11 @@ def _acquire_platform_lease(descriptor: int) -> bool:
 
 def _release_platform_lease(descriptor: int) -> None:
     if os.name == "nt":
-        import ctypes
-
-        win_dll = getattr(ctypes, "WinDLL", None)
-        if not callable(win_dll):
-            raise ExecutionOverlayError("QUIESCENCE_LEASE_UNAVAILABLE")
-        kernel32 = win_dll("kernel32", use_last_error=True)
-
-        class Overlapped(ctypes.Structure):
-            _fields_ = [
-                ("Internal", ctypes.c_size_t),
-                ("InternalHigh", ctypes.c_size_t),
-                ("Offset", ctypes.c_uint32),
-                ("OffsetHigh", ctypes.c_uint32),
-                ("hEvent", ctypes.c_void_p),
-            ]
-
-        overlapped = Overlapped()
-        unlock_file_ex = kernel32.UnlockFileEx
-        unlock_file_ex.argtypes = [
-            ctypes.c_void_p,
-            ctypes.c_uint32,
-            ctypes.c_uint32,
-            ctypes.c_uint32,
-            ctypes.POINTER(Overlapped),
-        ]
-        unlock_file_ex.restype = ctypes.c_int
-        if not unlock_file_ex(ctypes.c_void_p(descriptor), 0, 1, 0, ctypes.byref(overlapped)):
+        binding = _windows_native_binding()
+        overlapped = _WindowsOverlapped()
+        if not binding.unlock_file_ex(
+            ctypes.c_void_p(descriptor), 0, 1, 0, ctypes.byref(overlapped)
+        ):
             get_last_error = getattr(ctypes, "get_last_error", None)
             if not callable(get_last_error):
                 raise ExecutionOverlayError("QUIESCENCE_LEASE_UNAVAILABLE")
@@ -311,42 +475,19 @@ def _initialize_platform_lease_file(descriptor: int) -> None:
     if actual:
         raise ExecutionOverlayError("QUIESCENCE_LEASE_FILE_INVALID")
     if os.name == "nt":
-        import ctypes
-
-        win_dll = getattr(ctypes, "WinDLL", None)
-        if not callable(win_dll):
-            raise ExecutionOverlayError("QUIESCENCE_LEASE_UNAVAILABLE")
-        kernel32 = win_dll("kernel32", use_last_error=True)
-        set_pointer = kernel32.SetFilePointerEx
-        set_pointer.argtypes = [
-            ctypes.c_void_p,
-            ctypes.c_longlong,
-            ctypes.POINTER(ctypes.c_longlong),
-            ctypes.c_uint32,
-        ]
-        set_pointer.restype = ctypes.c_int
-        write_file = kernel32.WriteFile
-        write_file.argtypes = [
-            ctypes.c_void_p,
-            ctypes.c_void_p,
-            ctypes.c_uint32,
-            ctypes.POINTER(ctypes.c_uint32),
-            ctypes.c_void_p,
-        ]
-        write_file.restype = ctypes.c_int
-        flush_file = kernel32.FlushFileBuffers
-        flush_file.argtypes = [ctypes.c_void_p]
-        flush_file.restype = ctypes.c_int
-        if not set_pointer(ctypes.c_void_p(descriptor), 0, None, 0):
+        binding = _windows_native_binding()
+        if not binding.set_file_pointer(ctypes.c_void_p(descriptor), 0, None, 0):
             raise ExecutionOverlayError("QUIESCENCE_LEASE_FILE_INVALID")
         payload = ctypes.create_string_buffer(b"\0")
         written = ctypes.c_uint32()
         if (
-            not write_file(ctypes.c_void_p(descriptor), payload, 1, ctypes.byref(written), None)
+            not binding.write_file(
+                ctypes.c_void_p(descriptor), payload, 1, ctypes.byref(written), None
+            )
             or written.value != 1
         ):
             raise ExecutionOverlayError("QUIESCENCE_LEASE_FILE_INVALID")
-        if not flush_file(ctypes.c_void_p(descriptor)):
+        if not binding.flush_file(ctypes.c_void_p(descriptor)):
             raise ExecutionOverlayError("QUIESCENCE_LEASE_FILE_INVALID")
     else:
         os.lseek(descriptor, 0, os.SEEK_SET)
@@ -1821,19 +1962,11 @@ def _open_posix_generated_artifact(
 
 
 def _windows_final_path(handle: int) -> str:
-    import ctypes
-
-    win_dll = getattr(ctypes, "WinDLL", None)
-    if not callable(win_dll):
-        raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_UNAVAILABLE")
-    kernel32 = win_dll("kernel32", use_last_error=True)
-    get_final_path = kernel32.GetFinalPathNameByHandleW
-    get_final_path.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32]
-    get_final_path.restype = ctypes.c_uint32
+    binding = _windows_native_binding()
     buffer_size = 512
     while buffer_size <= 32768:
         buffer = ctypes.create_unicode_buffer(buffer_size)
-        result = get_final_path(handle, buffer, buffer_size, 0)
+        result = binding.get_final_path(handle, buffer, buffer_size, 0)
         if result == 0:
             raise ExecutionOverlayError("GENERATED_ARTIFACT_HANDLE_PATH_UNAVAILABLE")
         if result < buffer_size:
@@ -1848,57 +1981,17 @@ def _windows_final_path(handle: int) -> str:
 
 
 def _windows_open_path(path: Path, *, expect_directory: bool) -> int:
-    import ctypes
-
-    win_dll = getattr(ctypes, "WinDLL", None)
-    if not callable(win_dll):
-        raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_UNAVAILABLE")
-    kernel32 = win_dll("kernel32", use_last_error=True)
-    create_file = kernel32.CreateFileW
-    create_file.argtypes = [
-        ctypes.c_wchar_p,
-        ctypes.c_uint32,
-        ctypes.c_uint32,
-        ctypes.c_void_p,
-        ctypes.c_uint32,
-        ctypes.c_uint32,
-        ctypes.c_void_p,
-    ]
-    create_file.restype = ctypes.c_void_p
-    get_file_information = kernel32.GetFileInformationByHandle
-    get_file_information.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-    get_file_information.restype = ctypes.c_int
-    close_handle = kernel32.CloseHandle
-    close_handle.argtypes = [ctypes.c_void_p]
-    close_handle.restype = ctypes.c_int
-
-    class ByHandleFileInformation(ctypes.Structure):
-        _fields_ = [
-            ("dwFileAttributes", ctypes.c_uint32),
-            ("ftCreationTimeLow", ctypes.c_uint32),
-            ("ftCreationTimeHigh", ctypes.c_uint32),
-            ("ftLastAccessTimeLow", ctypes.c_uint32),
-            ("ftLastAccessTimeHigh", ctypes.c_uint32),
-            ("ftLastWriteTimeLow", ctypes.c_uint32),
-            ("ftLastWriteTimeHigh", ctypes.c_uint32),
-            ("dwVolumeSerialNumber", ctypes.c_uint32),
-            ("nFileSizeHigh", ctypes.c_uint32),
-            ("nFileSizeLow", ctypes.c_uint32),
-            ("nNumberOfLinks", ctypes.c_uint32),
-            ("nFileIndexHigh", ctypes.c_uint32),
-            ("nFileIndexLow", ctypes.c_uint32),
-        ]
-
+    binding = _windows_native_binding()
     flags = 0x00200000
     if expect_directory:
         flags |= 0x02000000
-    handle = create_file(str(path), 0x80000000, 0x00000001, None, 3, flags, None)
+    handle = binding.create_file(str(path), 0x80000000, 0x00000001, None, 3, flags, None)
     invalid_handle = ctypes.c_void_p(-1).value
     if handle == invalid_handle or handle is None:
         raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_FAILED")
-    information = ByHandleFileInformation()
+    information = _WindowsByHandleFileInformation()
     try:
-        if not get_file_information(handle, ctypes.byref(information)):
+        if not binding.get_file_information(handle, ctypes.byref(information)):
             raise ExecutionOverlayError("GENERATED_ARTIFACT_HANDLE_INFO_UNAVAILABLE")
         is_directory = bool(information.dwFileAttributes & _FILE_ATTRIBUTE_DIRECTORY)
         if (
@@ -1909,19 +2002,12 @@ def _windows_open_path(path: Path, *, expect_directory: bool) -> int:
             raise ExecutionOverlayError("GENERATED_ARTIFACT_HANDLE_BINDING_INVALID")
         return cast(int, handle)
     except Exception:
-        close_handle(handle)
+        binding.close_handle(handle)
         raise
 
 
 def _close_windows_handles(handles: list[int]) -> None:
-    import ctypes
-
-    win_dll = getattr(ctypes, "WinDLL", None)
-    if not callable(win_dll):
-        raise ExecutionOverlayError("GENERATED_ARTIFACT_SAFE_OPEN_UNAVAILABLE")
-    close_handle = win_dll("kernel32", use_last_error=True).CloseHandle
-    close_handle.argtypes = [ctypes.c_void_p]
-    close_handle.restype = ctypes.c_int
+    close_handle = _windows_native_binding().close_handle
     for handle in reversed(handles):
         close_handle(handle)
 
@@ -1931,17 +2017,10 @@ def _open_windows_directory_chain(path: Path) -> list[int]:
         raise ExecutionOverlayError("PRIVATE_OVERLAY_ABSOLUTE_PATH_REQUIRED")
     current_path = Path(path.anchor)
     handles = [_windows_open_path(current_path, expect_directory=True)]
-    expected_paths = [current_path]
     try:
         for part in path.parts[1:]:
             current_path /= part
             handles.append(_windows_open_path(current_path, expect_directory=True))
-            expected_paths.append(current_path)
-        if any(
-            _windows_final_path(handle) != os.path.normcase(os.path.normpath(str(expected)))
-            for handle, expected in zip(handles, expected_paths, strict=True)
-        ):
-            raise ExecutionOverlayError("PRIVATE_OVERLAY_DIRECTORY_BINDING_CHANGED")
         return handles
     except Exception:
         _close_windows_handles(handles)
@@ -1949,35 +2028,9 @@ def _open_windows_directory_chain(path: Path) -> list[int]:
 
 
 def _assert_windows_plain_file_handle(handle: int, expected_path: Path) -> None:
-    import ctypes
-
-    win_dll = getattr(ctypes, "WinDLL", None)
-    if not callable(win_dll):
-        raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_UNAVAILABLE")
-    kernel32 = win_dll("kernel32", use_last_error=True)
-    get_file_information = kernel32.GetFileInformationByHandle
-    get_file_information.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-    get_file_information.restype = ctypes.c_int
-
-    class ByHandleFileInformation(ctypes.Structure):
-        _fields_ = [
-            ("dwFileAttributes", ctypes.c_uint32),
-            ("ftCreationTimeLow", ctypes.c_uint32),
-            ("ftCreationTimeHigh", ctypes.c_uint32),
-            ("ftLastAccessTimeLow", ctypes.c_uint32),
-            ("ftLastAccessTimeHigh", ctypes.c_uint32),
-            ("ftLastWriteTimeLow", ctypes.c_uint32),
-            ("ftLastWriteTimeHigh", ctypes.c_uint32),
-            ("dwVolumeSerialNumber", ctypes.c_uint32),
-            ("nFileSizeHigh", ctypes.c_uint32),
-            ("nFileSizeLow", ctypes.c_uint32),
-            ("nNumberOfLinks", ctypes.c_uint32),
-            ("nFileIndexHigh", ctypes.c_uint32),
-            ("nFileIndexLow", ctypes.c_uint32),
-        ]
-
-    information = ByHandleFileInformation()
-    if not get_file_information(handle, ctypes.byref(information)):
+    binding = _windows_native_binding()
+    information = _WindowsByHandleFileInformation()
+    if not binding.get_file_information(handle, ctypes.byref(information)):
         raise ExecutionOverlayError("PRIVATE_OVERLAY_HANDLE_INFO_UNAVAILABLE")
     if (
         information.dwFileAttributes & _FILE_ATTRIBUTE_REPARSE_POINT
@@ -1988,35 +2041,9 @@ def _assert_windows_plain_file_handle(handle: int, expected_path: Path) -> None:
 
 
 def _assert_windows_plain_directory_handle(handle: int, expected_path: Path) -> None:
-    import ctypes
-
-    win_dll = getattr(ctypes, "WinDLL", None)
-    if not callable(win_dll):
-        raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_UNAVAILABLE")
-    kernel32 = win_dll("kernel32", use_last_error=True)
-    get_file_information = kernel32.GetFileInformationByHandle
-    get_file_information.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-    get_file_information.restype = ctypes.c_int
-
-    class ByHandleFileInformation(ctypes.Structure):
-        _fields_ = [
-            ("dwFileAttributes", ctypes.c_uint32),
-            ("ftCreationTimeLow", ctypes.c_uint32),
-            ("ftCreationTimeHigh", ctypes.c_uint32),
-            ("ftLastAccessTimeLow", ctypes.c_uint32),
-            ("ftLastAccessTimeHigh", ctypes.c_uint32),
-            ("ftLastWriteTimeLow", ctypes.c_uint32),
-            ("ftLastWriteTimeHigh", ctypes.c_uint32),
-            ("dwVolumeSerialNumber", ctypes.c_uint32),
-            ("nFileSizeHigh", ctypes.c_uint32),
-            ("nFileSizeLow", ctypes.c_uint32),
-            ("nNumberOfLinks", ctypes.c_uint32),
-            ("nFileIndexHigh", ctypes.c_uint32),
-            ("nFileIndexLow", ctypes.c_uint32),
-        ]
-
-    information = ByHandleFileInformation()
-    if not get_file_information(handle, ctypes.byref(information)):
+    binding = _windows_native_binding()
+    information = _WindowsByHandleFileInformation()
+    if not binding.get_file_information(handle, ctypes.byref(information)):
         raise ExecutionOverlayError("PRIVATE_OVERLAY_HANDLE_INFO_UNAVAILABLE")
     if (
         information.dwFileAttributes & _FILE_ATTRIBUTE_REPARSE_POINT
@@ -2036,74 +2063,30 @@ def _open_windows_relative_plain_file(
     share_access: int = 0x00000001,
     write_access: bool = False,
 ) -> int:
-    import ctypes
-
     if Path(file_name).name != file_name or file_name in {"", ".", ".."}:
         raise ExecutionOverlayError("PRIVATE_OVERLAY_CHILD_NAME_INVALID")
-    win_dll = getattr(ctypes, "WinDLL", None)
-    if not callable(win_dll):
-        raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_UNAVAILABLE")
-    ntdll = win_dll("ntdll", use_last_error=True)
-
-    class UnicodeString(ctypes.Structure):
-        _fields_ = [
-            ("Length", ctypes.c_ushort),
-            ("MaximumLength", ctypes.c_ushort),
-            ("Buffer", ctypes.c_wchar_p),
-        ]
-
-    class ObjectAttributes(ctypes.Structure):
-        _fields_ = [
-            ("Length", ctypes.c_ulong),
-            ("RootDirectory", ctypes.c_void_p),
-            ("ObjectName", ctypes.POINTER(UnicodeString)),
-            ("Attributes", ctypes.c_ulong),
-            ("SecurityDescriptor", ctypes.c_void_p),
-            ("SecurityQualityOfService", ctypes.c_void_p),
-        ]
-
-    class IoStatusValue(ctypes.Union):
-        _fields_ = (("Status", ctypes.c_long), ("Pointer", ctypes.c_void_p))
-
-    class IoStatusBlock(ctypes.Structure):
-        _fields_ = (("Value", IoStatusValue), ("Information", ctypes.c_size_t))
-
+    binding = _windows_native_binding()
     relative_buffer = ctypes.create_unicode_buffer(file_name)
     encoded_name = file_name.encode("utf-16-le")
-    unicode_name = UnicodeString(
+    unicode_name = _WindowsUnicodeString(
         len(encoded_name),
         len(encoded_name) + 2,
         ctypes.cast(relative_buffer, ctypes.c_wchar_p),
     )
-    object_attributes = ObjectAttributes(
-        ctypes.sizeof(ObjectAttributes),
+    object_attributes = _WindowsObjectAttributes(
+        ctypes.sizeof(_WindowsObjectAttributes),
         ctypes.c_void_p(parent_handle),
         ctypes.pointer(unicode_name),
         0x00000040,
         None,
         None,
     )
-    io_status = IoStatusBlock()
+    io_status = _WindowsIoStatusBlock()
     output_handle = ctypes.c_void_p()
-    nt_create_file = ntdll.NtCreateFile
-    nt_create_file.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_ulong,
-        ctypes.POINTER(ObjectAttributes),
-        ctypes.POINTER(IoStatusBlock),
-        ctypes.c_void_p,
-        ctypes.c_ulong,
-        ctypes.c_ulong,
-        ctypes.c_ulong,
-        ctypes.c_ulong,
-        ctypes.c_void_p,
-        ctypes.c_ulong,
-    ]
-    nt_create_file.restype = ctypes.c_long
     if create_new and open_if:
         raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_MODE_INVALID")
     desired_access = (0xC0000000 if create_new or write_access else 0x80000000) | 0x00100000
-    status = nt_create_file(
+    status = binding.nt_create_file(
         ctypes.byref(output_handle),
         desired_access,
         ctypes.byref(object_attributes),
@@ -2133,71 +2116,27 @@ def _open_windows_relative_plain_file(
 def _open_windows_relative_plain_directory(
     *, parent_handle: int, directory_name: str, expected_path: Path, create_new: bool
 ) -> int:
-    import ctypes
-
     if Path(directory_name).name != directory_name or directory_name in {"", ".", ".."}:
         raise ExecutionOverlayError("PRIVATE_OVERLAY_DIRECTORY_PATH_INVALID")
-    win_dll = getattr(ctypes, "WinDLL", None)
-    if not callable(win_dll):
-        raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_UNAVAILABLE")
-    ntdll = win_dll("ntdll", use_last_error=True)
-
-    class UnicodeString(ctypes.Structure):
-        _fields_ = [
-            ("Length", ctypes.c_ushort),
-            ("MaximumLength", ctypes.c_ushort),
-            ("Buffer", ctypes.c_wchar_p),
-        ]
-
-    class ObjectAttributes(ctypes.Structure):
-        _fields_ = [
-            ("Length", ctypes.c_ulong),
-            ("RootDirectory", ctypes.c_void_p),
-            ("ObjectName", ctypes.POINTER(UnicodeString)),
-            ("Attributes", ctypes.c_ulong),
-            ("SecurityDescriptor", ctypes.c_void_p),
-            ("SecurityQualityOfService", ctypes.c_void_p),
-        ]
-
-    class IoStatusValue(ctypes.Union):
-        _fields_ = (("Status", ctypes.c_long), ("Pointer", ctypes.c_void_p))
-
-    class IoStatusBlock(ctypes.Structure):
-        _fields_ = (("Value", IoStatusValue), ("Information", ctypes.c_size_t))
-
+    binding = _windows_native_binding()
     relative_buffer = ctypes.create_unicode_buffer(directory_name)
     encoded_name = directory_name.encode("utf-16-le")
-    unicode_name = UnicodeString(
+    unicode_name = _WindowsUnicodeString(
         len(encoded_name),
         len(encoded_name) + 2,
         ctypes.cast(relative_buffer, ctypes.c_wchar_p),
     )
-    object_attributes = ObjectAttributes(
-        ctypes.sizeof(ObjectAttributes),
+    object_attributes = _WindowsObjectAttributes(
+        ctypes.sizeof(_WindowsObjectAttributes),
         ctypes.c_void_p(parent_handle),
         ctypes.pointer(unicode_name),
         0x00000040,
         None,
         None,
     )
-    io_status = IoStatusBlock()
+    io_status = _WindowsIoStatusBlock()
     output_handle = ctypes.c_void_p()
-    nt_create_file = ntdll.NtCreateFile
-    nt_create_file.argtypes = [
-        ctypes.POINTER(ctypes.c_void_p),
-        ctypes.c_ulong,
-        ctypes.POINTER(ObjectAttributes),
-        ctypes.POINTER(IoStatusBlock),
-        ctypes.c_void_p,
-        ctypes.c_ulong,
-        ctypes.c_ulong,
-        ctypes.c_ulong,
-        ctypes.c_ulong,
-        ctypes.c_void_p,
-        ctypes.c_ulong,
-    ]
-    nt_create_file.restype = ctypes.c_long
-    status = nt_create_file(
+    status = binding.nt_create_file(
         ctypes.byref(output_handle),
         0x00100081,
         ctypes.byref(object_attributes),
@@ -2246,38 +2185,13 @@ def _create_plain_directory_windows(path: Path, *, create_new: bool) -> None:
 
 
 def _read_windows_file_handle(handle: int) -> bytes:
-    import ctypes
-
-    win_dll = getattr(ctypes, "WinDLL", None)
-    if not callable(win_dll):
-        raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_UNAVAILABLE")
-    kernel32 = win_dll("kernel32", use_last_error=True)
-    get_file_size = kernel32.GetFileSizeEx
-    get_file_size.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_longlong)]
-    get_file_size.restype = ctypes.c_int
-    set_pointer = kernel32.SetFilePointerEx
-    set_pointer.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_longlong,
-        ctypes.POINTER(ctypes.c_longlong),
-        ctypes.c_uint32,
-    ]
-    set_pointer.restype = ctypes.c_int
-    read_file = kernel32.ReadFile
-    read_file.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.c_uint32,
-        ctypes.POINTER(ctypes.c_uint32),
-        ctypes.c_void_p,
-    ]
-    read_file.restype = ctypes.c_int
+    binding = _windows_native_binding()
     size = ctypes.c_longlong()
-    if not get_file_size(handle, ctypes.byref(size)):
+    if not binding.get_file_size(handle, ctypes.byref(size)):
         raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_SIZE_UNAVAILABLE")
     if size.value < 0 or size.value > MAX_PRIVATE_OVERLAY_FILE_BYTES:
         raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_BYTE_BOUND_FAILED")
-    if not set_pointer(handle, 0, None, 0):
+    if not binding.set_file_pointer(handle, 0, None, 0):
         raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_SEEK_FAILED")
     chunks: list[bytes] = []
     remaining = size.value
@@ -2285,7 +2199,7 @@ def _read_windows_file_handle(handle: int) -> bytes:
         chunk_size = min(1024 * 1024, remaining)
         buffer = ctypes.create_string_buffer(chunk_size)
         bytes_read = ctypes.c_uint32()
-        if not read_file(handle, buffer, chunk_size, ctypes.byref(bytes_read), None):
+        if not binding.read_file(handle, buffer, chunk_size, ctypes.byref(bytes_read), None):
             raise ExecutionOverlayError("PRIVATE_OVERLAY_FILE_READ_FAILED")
         if bytes_read.value == 0:
             raise ExecutionOverlayError("CREATE_NEW_SHORT_READBACK")
@@ -2314,8 +2228,6 @@ def _read_plain_file_bytes_windows(path: Path) -> bytes:
 
 
 def _write_create_new_windows(path: Path, payload: bytes) -> bytes:
-    import ctypes
-
     handles = _open_windows_directory_chain(path.parent)
     file_handle: int | None = None
     try:
@@ -2325,28 +2237,13 @@ def _write_create_new_windows(path: Path, payload: bytes) -> bytes:
             expected_path=path,
             create_new=True,
         )
-        win_dll = getattr(ctypes, "WinDLL", None)
-        if not callable(win_dll):
-            raise ExecutionOverlayError("PRIVATE_OVERLAY_SAFE_OPEN_UNAVAILABLE")
-        kernel32 = win_dll("kernel32", use_last_error=True)
-        write_file = kernel32.WriteFile
-        write_file.argtypes = [
-            ctypes.c_void_p,
-            ctypes.c_void_p,
-            ctypes.c_uint32,
-            ctypes.POINTER(ctypes.c_uint32),
-            ctypes.c_void_p,
-        ]
-        write_file.restype = ctypes.c_int
-        flush_file = kernel32.FlushFileBuffers
-        flush_file.argtypes = [ctypes.c_void_p]
-        flush_file.restype = ctypes.c_int
+        binding = _windows_native_binding()
         offset = 0
         while offset < len(payload):
             chunk = payload[offset : offset + (1024 * 1024)]
             buffer = ctypes.create_string_buffer(chunk)
             written = ctypes.c_uint32()
-            if not write_file(
+            if not binding.write_file(
                 file_handle,
                 buffer,
                 len(chunk),
@@ -2357,7 +2254,7 @@ def _write_create_new_windows(path: Path, payload: bytes) -> bytes:
             if written.value == 0:
                 raise ExecutionOverlayError("CREATE_NEW_SHORT_WRITE")
             offset += written.value
-        if not flush_file(file_handle):
+        if not binding.flush_file(file_handle):
             raise ExecutionOverlayError("CREATE_NEW_FLUSH_FAILED")
         actual = _read_windows_file_handle(file_handle)
         _assert_windows_plain_file_handle(file_handle, path)

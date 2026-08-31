@@ -160,6 +160,14 @@ class _TerminalTipAuthority:
     event_sha256: str
 
 
+@dataclass(frozen=True, slots=True)
+class _VerifiedReceiptHistory:
+    """Invocation-local index over a chain already verified from its current tip."""
+
+    paths_by_tip: Mapping[tuple[str, str, str, str], Path]
+    post_states: tuple[Mapping[str, Any], ...]
+
+
 def process_registered_output(
     *,
     receipt_path: Path,
@@ -1608,11 +1616,12 @@ def _verify_terminal_evidence(
     replacement to evade both terminal verification and successor rollover.
     """
     post = _post_state(state)
-    historical_posts = _historical_post_states(
+    verified_history = _verified_receipt_history(
         root=root,
         maximum_sequence=cast(int, state["sequence"]),
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
     )
+    historical_posts = verified_history.post_states
     _verify_attempt_evidence(
         root=root,
         state=state,
@@ -1676,6 +1685,7 @@ def _verify_terminal_evidence(
                 state=state,
                 post=post,
                 historical_posts=historical_posts,
+                verified_history=verified_history,
                 operation=operation_by_id[operation_id],
                 expected_overlay_controller_sha256=expected_overlay_controller_sha256,
                 expected_post_registration_controller_sha256=(
@@ -1907,28 +1917,36 @@ def _verify_attempt_evidence(
     )
 
 
-def _historical_post_states(
+def _verified_receipt_history(
     *,
     root: Path,
     maximum_sequence: int,
     expected_overlay_controller_sha256: str,
-) -> tuple[Mapping[str, Any], ...]:
-    """Read every chain-bound post-registration state once for closure anchors."""
+) -> _VerifiedReceiptHistory:
+    """Read each chain-bound receipt once for terminal evidence anchors."""
     historical: list[Mapping[str, Any]] = []
+    paths_by_tip: dict[tuple[str, str, str, str], Path] = {}
     for sequence in range(maximum_sequence + 1):
         receipt_path = _overlay._safe_child(root, _overlay._receipt_name(sequence))
         if receipt_path.is_symlink():
             raise PostRegistrationError("POST_REGISTRATION_RECEIPT_SYMLINK_REJECTED")
         if not receipt_path.exists():
             raise PostRegistrationError("POST_REGISTRATION_HISTORY_RECEIPT_MISSING")
-        _receipt, _event, historical_state = _overlay._verify_receipt(
+        receipt, _event, historical_state = _overlay._verify_receipt(
             receipt_path,
             expected_controller_sha256=expected_overlay_controller_sha256,
         )
         historical_post = historical_state.get("post_registration")
         if isinstance(historical_post, dict):
             historical.append(historical_post)
-    return tuple(historical)
+        key = _tip_key(_tip_payload(receipt))
+        if key in paths_by_tip:
+            raise PostRegistrationError("POST_REGISTRATION_HISTORY_TIP_DUPLICATE")
+        paths_by_tip[key] = receipt_path
+    return _VerifiedReceiptHistory(
+        paths_by_tip=MappingProxyType(paths_by_tip),
+        post_states=tuple(historical),
+    )
 
 
 def _require_historical_post_anchor(
@@ -2129,6 +2147,7 @@ def _verify_persisted_operation_plan(
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
     authority: _ExternalVerificationAuthority,
+    verified_history: _VerifiedReceiptHistory | None = None,
 ) -> tuple[Mapping[str, Any], PrivateVisionCapabilityBinding]:
     capability = _capability_from_persisted_payload(plan.get("capability"))
     if capability.platform != operation["platform"]:
@@ -2141,6 +2160,7 @@ def _verify_persisted_operation_plan(
         tip=overlay_tip,
         maximum_sequence=cast(int, state["sequence"]),
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
+        verified_history=verified_history,
     )
     expected = _operation_plan_payload(
         state=state,
@@ -2173,6 +2193,7 @@ def _verify_persisted_completed_operation(
     state: Mapping[str, Any],
     post: Mapping[str, Any],
     historical_posts: tuple[Mapping[str, Any], ...],
+    verified_history: _VerifiedReceiptHistory,
     operation: Mapping[str, Any],
     expected_overlay_controller_sha256: str,
     expected_post_registration_controller_sha256: str,
@@ -2186,6 +2207,7 @@ def _verify_persisted_completed_operation(
         state=state,
         post=post,
         historical_posts=historical_posts,
+        verified_history=verified_history,
         plan=plan,
         operation=operation,
         expected_overlay_controller_sha256=expected_overlay_controller_sha256,
@@ -3772,6 +3794,7 @@ def _verify_tip_in_root(
     tip: Mapping[str, Any],
     maximum_sequence: int,
     expected_overlay_controller_sha256: str,
+    verified_history: _VerifiedReceiptHistory | None = None,
 ) -> Path:
     if set(tip) != {
         "receipt_sha256",
@@ -3784,27 +3807,35 @@ def _verify_tip_in_root(
         _validate_lower_digest(tip.get(key), f"POST_REGISTRATION_PLAN_TIP_{key.upper()}")
     if tip.get("controller_sha256") != expected_overlay_controller_sha256:
         raise PostRegistrationError("POST_REGISTRATION_PLAN_TIP_CONTROLLER_INVALID")
-    for sequence in range(maximum_sequence + 1):
-        candidate = _overlay._safe_child(root, _overlay._receipt_name(sequence))
-        if candidate.is_symlink():
-            raise PostRegistrationError("POST_REGISTRATION_RECEIPT_SYMLINK_REJECTED")
-        if not candidate.exists():
-            continue
-        if _overlay.sha256_file(candidate) != tip["receipt_sha256"]:
-            continue
-        # Every caller has already verified its current receipt chain.  Replaying
-        # that whole chain for each of the 20 persisted plans makes the terminal
-        # verifier needlessly quadratic.  Recheck this exact candidate's
-        # receipt/event/state binding instead; the caller's verified tip anchors
-        # it in the same immutable chain.
-        receipt, _event, _state = _overlay._verify_receipt(
-            candidate,
-            expected_controller_sha256=expected_overlay_controller_sha256,
-        )
-        if _tip_payload(receipt) != tip:
-            raise PostRegistrationError("POST_REGISTRATION_PLAN_TIP_BINDING_INVALID")
-        return candidate
-    raise PostRegistrationError("POST_REGISTRATION_PLAN_TIP_NOT_IN_CHAIN")
+    candidate = (
+        verified_history.paths_by_tip.get(_tip_key(tip)) if verified_history is not None else None
+    )
+    if candidate is None:
+        for sequence in range(maximum_sequence + 1):
+            possible = _overlay._safe_child(root, _overlay._receipt_name(sequence))
+            if possible.is_symlink():
+                raise PostRegistrationError("POST_REGISTRATION_RECEIPT_SYMLINK_REJECTED")
+            if possible.exists() and _overlay.sha256_file(possible) == tip["receipt_sha256"]:
+                candidate = possible
+                break
+    if candidate is None:
+        raise PostRegistrationError("POST_REGISTRATION_PLAN_TIP_NOT_IN_CHAIN")
+    receipt, _event, _state = _overlay._verify_receipt(
+        candidate,
+        expected_controller_sha256=expected_overlay_controller_sha256,
+    )
+    if _tip_payload(receipt) != tip:
+        raise PostRegistrationError("POST_REGISTRATION_PLAN_TIP_BINDING_INVALID")
+    return candidate
+
+
+def _tip_key(tip: Mapping[str, Any]) -> tuple[str, str, str, str]:
+    return (
+        cast(str, tip["receipt_sha256"]),
+        cast(str, tip["state_sha256"]),
+        cast(str, tip["event_sha256"]),
+        cast(str, tip["controller_sha256"]),
+    )
 
 
 def _read_canonical_json(path: Path, code: str) -> dict[str, Any]:
