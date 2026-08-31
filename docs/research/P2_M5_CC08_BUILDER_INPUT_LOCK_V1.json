@@ -2,7 +2,9 @@
   "schema_version": "mirror.p2-m5.cc08-builder-input-lock/v1",
   "lock_version": "p2-m5-cc08-source-built-vision-input-lock-v1",
   "recipe_version": "p2-m5-cc08-source-built-vision-recipe-v1",
-  "status": "LOCKED_LOCAL_PASS_PENDING_TRACKED_GATES",
+  "status": "LOCKED_REPAIR_LOCAL_PASS_PENDING_TRACKED_GATES",
+  "repair_task_id": "P2-M5-R58",
+  "repair_scope": "DOCKER_RUN_NETWORK_ISOLATION_AND_ROOT_REPARSE_VALIDATION_ONLY",
   "source": {
     "upstream": "https://github.com/google-ai-edge/mediapipe.git",
     "tag": "v0.10.35",
@@ -123,6 +125,11 @@
       "sha256": "c6add060f4ebfb37b2690136b6c711c7e5fcb7038baa2649ae3338b83979565a"
     }
   ],
+  "input_authority": {
+    "schema_version": "mirror.p2-m5.cc08-builder-input-authority/v2",
+    "algorithm": "canonical-stable-prebuild-inputs-v2",
+    "content_sha256": "036a56877def3841d0c2f169da0b47e3fa0b5c0b737467cf3fd8bc81c8fd517d"
+  },
   "builder_algorithm": {
     "target": "//mediapipe/tasks/c:mirror_face_landmarker_source",
     "common_bazel_flags": [
@@ -136,8 +143,17 @@
     "linux": {
       "platform_flag": "--config=linux",
       "builder_dockerfile": "scripts/research/p2_m5_cc08_linux_builder.Dockerfile",
+      "builder_dockerfile_version": "p2-m5-cc08-builder-dockerfile-v2-run-network-none",
+      "locked_invocation_version": "p2-m5-cc08-builder-invocation-v2-run-network-none",
+      "dockerfile_frontend": "DOCKER_ENGINE_BUNDLED_NO_EXTERNAL_DIRECTIVE",
       "base_image": "python@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a",
-      "runtime_network": "NONE",
+      "base_image_digest_resolution": "BOUNDED_PUBLIC_ACQUISITION_OR_PRELOADED_EXACT_BASE_AUTHORITY",
+      "dockerfile_run_network": "NONE_PER_RUN",
+      "build_default_network": "NONE",
+      "pull": false,
+      "no_cache": true,
+      "provenance": false,
+      "fully_offline_build_claimed": false,
       "clean_roots_required": 2
     },
     "windows": {
@@ -160,6 +176,7 @@
         "WINDOWS_CLEAN_ROOT_2"
       ],
       "network": "NONE",
+      "base_acquisition_is_separate_from_run_isolation": true,
       "retry_same_root": 0,
       "outputs_are_new_runtime_identity": true
     }
@@ -167,13 +184,35 @@
   "tracked_builder_files": [
     {
       "path": "scripts/research/p2_m5_cc08_builder_lock.py",
-      "sha256": "c4fb2eae2c7f285c0dde67f2da1d173020577e427372f077ce1ab559df586aa9"
+      "sha256": "370321cee069f2fdfe34142828ebe1d5b3f3a9de496a576a982df31336e9785d"
     },
     {
       "path": "scripts/research/p2_m5_cc08_linux_builder.Dockerfile",
-      "sha256": "b261ff7cf32df2d45cfe0d6dce8de9f7e77a1aa86c317b1244bc786e70671b8c"
+      "sha256": "e4977f4883bab1cb45d2273705efdfc726d169bf417bbbbd291efa4c41e2e89a"
     }
   ],
+  "locked_invocation": {
+    "dockerfile_version": "p2-m5-cc08-builder-dockerfile-v2-run-network-none",
+    "dockerfile_sha256": "e4977f4883bab1cb45d2273705efdfc726d169bf417bbbbd291efa4c41e2e89a",
+    "invocation_version": "p2-m5-cc08-builder-invocation-v2-run-network-none",
+    "file_sha256": "da29b19fee8e03dded6a7db690a2db8e691b6c5f1681ff2b5b178a6e42e38cdf",
+    "content_sha256": "c46dd48640954e5c2c173b69ac11ac8d81c780768f09b6f9b029c77534e867b7",
+    "root_validation_algorithm_sha256": "370321cee069f2fdfe34142828ebe1d5b3f3a9de496a576a982df31336e9785d",
+    "root_validation_spec_sha256": "a958e1d6de0bb3d39275323ad9593a8878636fc7410c2ac716a911e3cb7cedc2",
+    "context_manifest_file_sha256": "848194ba8128c40506d8dac1d52d0a03e2975ce455bb735ae908c98ed2338353",
+    "context_manifest_content_sha256": "86707070c4a2b947f298e6e38b36d679e66d9a0aa88153235e4eda4689a45252",
+    "context_manifest_entries": 104,
+    "builder_identity_file_sha256": "aae6a78ee95b62b67bd54973c08845af6bb56a7ced03e861afed23974c131e99",
+    "builder_identity_content_sha256": "e35f88d9dc46b0c385238f8a0d0b404276d9c83c0e0f66290e0f307109845afa",
+    "execution_result_file_sha256": "b8efac69e7abf1bfaf0f41e838c1eb292e2cf236696694fc63452a728c71b754",
+    "execution_result_content_sha256": "e4e898f9e7b7367d6da57c3b6c52c6f3d5dbb699ba5caf1217ba683b8f0b9e37"
+  },
+  "historical_not_accepted_builder": {
+    "candidate_sha": "95bd90253ac96489ab321a4d7cae900ec495529a",
+    "disposition": "HISTORICAL_NOT_ACCEPTED_SECURITY_FINDING",
+    "authority_image_id": "sha256:a9e34228a05e6874e6c932bd0435ef5bc86f3b8a6b72d7691e571e22f4ec930a",
+    "reconstruction_image_id": "sha256:8f80985cc8ec09f6ec3bbbb287cb6f37e3530c7facd56c77e47b4bd7fb84d220"
+  },
   "linux_builder": {
     "base_image": "python@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a",
     "distribution": "Debian GNU/Linux 13.6 (trixie)",
@@ -188,8 +227,8 @@
       "manifest_content_sha256": "85d6fa09535ff367f882aedd4ce3cc2fb6717e9e02db7e615a7d9d111378a3dd"
     },
     "authoritative_image": {
-      "image_id": "sha256:a9e34228a05e6874e6c932bd0435ef5bc86f3b8a6b72d7691e571e22f4ec930a",
-      "image_size_bytes": 368879978,
+      "image_id": "sha256:f71f120592d7e84418767516e93b67e1e94501aac6fbe52ae8d74edca6270f57",
+      "image_size_bytes": 368879633,
       "semantic_content_sha256": "e9deaa7baf5ced3c29cd3b2f70bc28bb0bde5b0b27d29453467d6d3a93db67ab",
       "installed_package_records": 190,
       "python": "3.13.15",
@@ -199,14 +238,14 @@
       "bazel": "7.4.1"
     },
     "reconstruction": {
-      "second_image_id": "sha256:8f80985cc8ec09f6ec3bbbb287cb6f37e3530c7facd56c77e47b4bd7fb84d220",
+      "second_image_id": "sha256:ff5112d2544a67ce6f93f8a7faa8edc0832a1de8ed8349aefb9a781b12edf8c1",
       "oci_image_id_equal": false,
       "semantic_inventory_equal": true,
       "semantic_content_sha256": "e9deaa7baf5ced3c29cd3b2f70bc28bb0bde5b0b27d29453467d6d3a93db67ab",
       "disposition": "EXACT_FIRST_IMAGE_HANDLE_IS_AUTHORITY_SECOND_BUILD_PROVES_RECIPE_COMPLETENESS_ONLY",
       "loss_rule": "LOSS_OF_EXACT_IMAGE_HANDLE_REQUIRES_NEW_BUILDER_IDENTITY_AND_REQUALIFICATION"
     },
-    "assembly_network": "RUN_STEPS_NONE_BASE_DIGEST_RESOLUTION_BOUNDED_PUBLIC_ACQUISITION",
+    "assembly_network": "DOCKER_BUILD_NETWORK_NONE_AND_EVERY_RUN_NETWORK_NONE_BASE_ACQUISITION_SEPARATE",
     "runtime_builds": 0
   },
   "windows_builder": {
@@ -237,9 +276,11 @@
       "second_read_verification": "PASS"
     },
     "offline_fetch": {
-      "task_private_bazel_and_embedded_java_outbound_deny": "PASS",
+      "task_private_bazel_and_embedded_java_outbound_deny": "PASS_R58_FRESH_REPLAY",
       "repository_cache_unchanged": true,
-      "firewall_rule_cleanup": "PASS_ZERO_REMAINING"
+      "firewall_rule_cleanup": "PASS_ZERO_REMAINING",
+      "toolchain_manifest_fresh_second_read": "PASS_24448_FILES",
+      "task_private_python3_executable_shim_sha256": "03573716a7fcbd8b7fed8fe0163bbfbd3a852546920d6a666123f307c8dac7d9"
     },
     "runtime_builds": 0
   },
@@ -267,15 +308,15 @@
     },
     {
       "id": "linux_builder_authority",
-      "file_sha256": "a16c0561c8a283620be45c5fc6f514522dbb072d3cc0302c24dfa283ee1d5076",
-      "content_sha256": "95f083987bba16766191c5a320e16fa370c4e93011a04d9671c41e77260ad0a2",
+      "file_sha256": "cc8cb9aab85cae1aef61f650a62a7cf4939932fdd391498a18a5dd5f0b9b12cc",
+      "content_sha256": "17fb6f78b4809a5e49ba84e2798ff779c9bcf3978dadc7e92a64ed3071bed2ad",
       "entry_count": 190,
       "total_bytes": 607314944
     },
     {
       "id": "linux_builder_reconstruction",
-      "file_sha256": "13cf236e731a2251753adc324a6b1adc6fc4111309aee95aa4f7a1df07d4201f",
-      "content_sha256": "cca98094b77430da3e9a18016d20a3656754952a78056bb17827f30bdf2f5f3d",
+      "file_sha256": "34abf6428e4d5b9dbeb8bb43515ad9404608ab0831b1bf7430ec351cd3965c15",
+      "content_sha256": "ab8779d5a879f2e60d1d025a46bef72cad4e568c0bb2fbeded00e8b5734b9016",
       "entry_count": 190,
       "total_bytes": 607314944
     },
@@ -300,7 +341,13 @@
     "cc08a-repository-cache-v1",
     "cc08a-linux-builder-image-v1",
     "cc08a-windows-builder-capability-v1",
-    "cc08a-builder-lock-executable-v1"
+    "cc08a-builder-lock-executable-v1",
+    "cc08a-r58-builder-context-v2",
+    "cc08a-r58-builder-invocation-v2",
+    "cc08a-r58-builder-authority-inventory-v2",
+    "cc08a-r58-builder-reconstruction-inventory-v2",
+    "cc08a-r58-builder-identity-v2",
+    "cc08a-r58-builder-execution-v2"
   ],
   "boundaries": {
     "synthetic_only": true,
@@ -316,5 +363,5 @@
     "schema_api_openapi_workflow_changes": 0,
     "production_distribution_real_user_authorized": false
   },
-  "content_sha256": "501b653f2cc67c7f33c42d4e77ae3dffacb14fedae440e01c401ec8a119501c4"
+  "content_sha256": "cb9a00f001ff34e59368a2cd5c50964a5a6ccec5136c4c1ddfb68b3a1db55cd2"
 }

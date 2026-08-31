@@ -9,13 +9,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 COPY debs/ /opt/mirror-cc08/debs/
 
-RUN dpkg --unpack /opt/mirror-cc08/debs/*.deb \
+RUN --network=none dpkg --unpack /opt/mirror-cc08/debs/*.deb \
     && dpkg --configure --pending \
     && test -z "$(dpkg --audit)" \
     && rm -rf /var/lib/apt/lists/* /opt/mirror-cc08/debs
 
 COPY bazel-7.4.1-linux-x86_64 /usr/local/bin/bazel
-RUN chmod 0755 /usr/local/bin/bazel \
+RUN --network=none chmod 0755 /usr/local/bin/bazel \
     && test "$(sha256sum /usr/local/bin/bazel | cut -d' ' -f1)" = \
       "c97f02133adce63f0c28678ac1f21d65fa8255c80429b588aeeba8a1fac6202b" \
     && test "$(bazel --version)" = "bazel 7.4.1" \

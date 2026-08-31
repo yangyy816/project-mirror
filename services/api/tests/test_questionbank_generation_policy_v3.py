@@ -123,6 +123,12 @@ CC08_A_LOCK_PATH = ROOT / "docs" / "research" / "P2_M5_CC08_BUILDER_INPUT_LOCK_V
 CC08_A_EVIDENCE_PATH = (
     ROOT / "docs" / "operations" / "P2_M5_CC08_A_BUILDER_INPUT_LOCK_EVIDENCE.json"
 )
+CC08_R58_CONTRACT_PATH = (
+    ROOT / "docs" / "operations" / "P2_M5_R58_CC08_A_SECURITY_REPAIR_CONTRACT.md"
+)
+CC08_R58_EVIDENCE_PATH = (
+    ROOT / "docs" / "operations" / "P2_M5_R58_CC08_A_SECURITY_REPAIR_EVIDENCE.json"
+)
 
 _CC05_A_AUTHORIZED_A0_OVERRIDES = {
     "ASSIGNMENT_LEDGER_VERSION": ("p2-m5-cc05a-calibration-assignment-v3-cal-req-002-forward"),
@@ -536,6 +542,14 @@ def _last_cc08_a_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-cc08-a-recoverable-builder-input-lock-eof/v1",
         sentinel="P2_M5_CC08_A_RECOVERABLE_BUILDER_INPUT_LOCK_TRUE_EOF",
+    )
+
+
+def _last_r58_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-r58-cc08-a-security-repair-eof/v1",
+        sentinel="P2_M5_R58_CC08_A_SECURITY_REPAIR_TRUE_EOF",
     )
 
 
@@ -2580,6 +2594,117 @@ def test_r43_q01_redacted_evidence_is_complete_zero_generation_and_path_free() -
         "D:\\",
     ):
         assert forbidden not in tracked
+
+
+def test_r58_cc08_a_security_repair_is_digest_bound_and_coherent_at_true_eof() -> None:
+    lock = cast(dict[str, Any], json.loads(CC08_A_LOCK_PATH.read_text(encoding="utf-8")))
+    evidence = cast(
+        dict[str, Any],
+        json.loads(CC08_R58_EVIDENCE_PATH.read_text(encoding="utf-8")),
+    )
+    canonical = _last_r58_key_block(ACCEPTANCE_PATH)
+    mirror = _last_r58_key_block(EXECUTION_PROTOCOL_PATH)
+    values = dict(canonical)
+
+    assert canonical == mirror
+    assert len(canonical) == len(values)
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_R58_CC08_A_SECURITY_REPAIR_TRUE_EOF",
+    )
+
+    assert evidence["schema_version"] == ("mirror.p2-m5.r58-cc08-a-security-repair-evidence/v1")
+    assert evidence["content_sha256"] == _newline_content_digest(evidence)
+    assert evidence["lock"]["content_sha256"] == lock["content_sha256"]
+    assert (
+        evidence["lock"]["file_sha256"] == hashlib.sha256(CC08_A_LOCK_PATH.read_bytes()).hexdigest()
+    )
+    assert lock["input_authority"]["content_sha256"] == (
+        "036a56877def3841d0c2f169da0b47e3fa0b5c0b737467cf3fd8bc81c8fd517d"
+    )
+    assert lock["locked_invocation"]["dockerfile_version"] == (
+        "p2-m5-cc08-builder-dockerfile-v2-run-network-none"
+    )
+    assert lock["locked_invocation"]["invocation_version"] == (
+        "p2-m5-cc08-builder-invocation-v2-run-network-none"
+    )
+    assert (
+        lock["locked_invocation"]["builder_identity_content_sha256"]
+        == (evidence["builder_identity"]["content_sha256"])
+    )
+    assert evidence["dockerfile"]["every_run_network_none"] is True
+    assert evidence["dockerfile"]["remote_add"] is False
+    assert evidence["locked_invocation"]["network_none"] is True
+    assert evidence["locked_invocation"]["pull_false"] is True
+    assert evidence["locked_invocation"]["no_cache"] is True
+    assert evidence["locked_invocation"]["provenance_false"] is True
+    assert evidence["locked_invocation"]["docker_build_fully_offline_claimed"] is False
+    assert evidence["root_validation"]["proof_count"] == 13
+    assert evidence["root_validation"]["fresh_process_revalidation"] == "PASS"
+    assert evidence["builder_identity"]["old_identity_inherited"] is False
+    assert evidence["builder_identity"]["semantic_inventory_equal"] is True
+    assert evidence["input_revalidation"]["source_file_count"] == 4736
+    assert evidence["input_revalidation"]["public_artifact_count"] == 7
+    assert evidence["input_revalidation"]["deb_bundle_count"] == 103
+    assert evidence["input_revalidation"]["windows_toolchain_file_count"] == 24448
+    assert evidence["input_revalidation"]["bazel_cache_object_count"] == 106
+    assert evidence["input_revalidation"]["linux_offline_replay"].startswith("PASS")
+    assert evidence["input_revalidation"]["windows_offline_replay"].startswith("PASS")
+    assert evidence["input_revalidation"]["windows_firewall_cleanup"] == ("PASS_ZERO_REMAINING")
+    assert all(value == 0 for value in evidence["operations"].values())
+
+    assert values["CC08_A_95BD902_STATUS"] == ("CANDIDATE_NOT_ACCEPTED_SECURITY_FINDINGS")
+    assert values["CC08_A_95BD902_SECURITY"] == "FAIL_TWO_MANDATORY_FINDINGS"
+    assert values["CC08_A_95BD902_PRINCIPAL_ACCEPTANCE"] == "DENIED"
+    assert values["CC08_A_REPAIR_STATUS"] == (
+        "PASS_AFTER_THIS_COMMIT_ALL_GATES_AND_PRINCIPAL_ACCEPTANCE"
+    )
+    assert values["CC08_A_REPAIR_SCOPE"] == (
+        "DOCKER_RUN_NETWORK_ISOLATION_AND_ROOT_REPARSE_VALIDATION_ONLY"
+    )
+    assert values["CC08_A_REPAIR_EVIDENCE_CONTENT_SHA256"].lower() == (evidence["content_sha256"])
+    assert values["CC08_A_REPAIR_INPUT_LOCK_CONTENT_SHA256"].lower() == (lock["content_sha256"])
+    assert values["CC08_A_REPAIR_IMAGEGEN_CALLS"] == "0"
+    assert values["CC08_A_REPAIR_DECODE_CALLS"] == "0"
+    assert values["CC08_A_REPAIR_M3_CALLS"] == "0"
+    assert values["CAL_REQ_004_STATUS"] == "OUTPUT_REGISTERED_PRE_DECODE"
+    assert values["CAL_REQ_004_REDISPATCH"] == "PROHIBITED"
+    assert values["NEXT_UNUSED_FORMAL_ORDINAL"] == "CAL-REQ-005"
+    assert values["FORMAL_CALLS_REMAINING"] == "28"
+    assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "28"
+    assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "59"
+    assert values["CC08_A_NEXT_TASK_AFTER_ACCEPTANCE"] == (
+        "P2-M5-CC08-B_BUILD_AND_FREEZE_NEW_TWO_PLATFORM_RUNTIME_MANIFEST"
+    )
+    assert values["NEXT_READY_TASK"] == values["CC08_A_NEXT_TASK_AFTER_ACCEPTANCE"]
+    assert values["POST_ACCEPTANCE_COMMIT_REQUIRED"] == "NO"
+    assert values["P2_M5_TECHNICAL_GATE"] == "NOT_EVALUATED"
+    assert values["P2_MVR_V1_RESULT"] == "NOT_EVALUATED"
+    assert values["P2_M6_ENTRY"] == "CLOSED_PENDING_TECHNICAL_AND_MVR_PASS"
+
+    contract = CC08_R58_CONTRACT_PATH.read_text(encoding="utf-8")
+    tracked = "\n".join(
+        (
+            CC08_A_LOCK_PATH.read_text(encoding="utf-8"),
+            CC08_R58_EVIDENCE_PATH.read_text(encoding="utf-8"),
+            contract,
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-30_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-30_000:],
+        )
+    )
+    for forbidden in (
+        '"locator":',
+        ".private-handoff",
+        "data:image/",
+        "prompt_plaintext",
+        "signed_url",
+        "object_key",
+        "D:\\p-worktrees\\",
+        "C:\\Users\\",
+    ):
+        assert forbidden not in tracked
     assert "provider_raw_payload" not in tracked.lower()
 
 
@@ -4024,7 +4149,8 @@ def test_cc08_a_builder_input_lock_and_authority_are_coherent_at_true_eof() -> N
     assert lock["schema_version"] == "mirror.p2-m5.cc08-builder-input-lock/v1"
     assert lock["lock_version"] == "p2-m5-cc08-source-built-vision-input-lock-v1"
     assert lock["recipe_version"] == "p2-m5-cc08-source-built-vision-recipe-v1"
-    assert lock["status"] == "LOCKED_LOCAL_PASS_PENDING_TRACKED_GATES"
+    assert lock["status"] == "LOCKED_REPAIR_LOCAL_PASS_PENDING_TRACKED_GATES"
+    assert lock["repair_task_id"] == "P2-M5-R58"
     assert lock["content_sha256"] == _newline_content_digest(lock)
     assert lock["source"]["commit"] == "f8ef212d5c962c0e853db7e59d217056b187084b"
 
@@ -4078,9 +4204,14 @@ def test_cc08_a_builder_input_lock_and_authority_are_coherent_at_true_eof() -> N
         "windows_toolchain",
         "repository_cache",
     }
-    assert len(lock["private_handle_ids"]) == 6
+    assert len(lock["private_handle_ids"]) == 12
     assert lock["builder_algorithm"]["fetch"]["repository_cache_create_once"] is True
     assert lock["builder_algorithm"]["build"]["network"] == "NONE"
+    assert lock["builder_algorithm"]["linux"]["dockerfile_run_network"] == "NONE_PER_RUN"
+    assert lock["builder_algorithm"]["linux"]["pull"] is False
+    assert lock["builder_algorithm"]["linux"]["no_cache"] is True
+    assert lock["builder_algorithm"]["linux"]["provenance"] is False
+    assert lock["builder_algorithm"]["linux"]["fully_offline_build_claimed"] is False
     assert (
         "--override_repository=npm=$SOURCE_ROOT/third_party/mirror_v03_empty_npm"
         in (lock["builder_algorithm"]["common_bazel_flags"])
@@ -4090,10 +4221,10 @@ def test_cc08_a_builder_input_lock_and_authority_are_coherent_at_true_eof() -> N
 
     assert evidence["schema_version"] == ("mirror.p2-m5.cc08-a-builder-input-lock-evidence/v1")
     assert evidence["content_sha256"] == _newline_content_digest(evidence)
-    assert evidence["lock"]["content_sha256"] == lock["content_sha256"]
-    assert (
-        evidence["lock"]["file_sha256"] == hashlib.sha256(CC08_A_LOCK_PATH.read_bytes()).hexdigest()
+    assert evidence["lock"]["content_sha256"] == (
+        "501b653f2cc67c7f33c42d4e77ae3dffacb14fedae440e01c401ec8a119501c4"
     )
+    assert evidence["lock"]["content_sha256"] != lock["content_sha256"]
     assert evidence["repository_cache"]["linux_offline_read_only_replay"].startswith("PASS")
     assert evidence["repository_cache"]["windows_offline_replay"].startswith("PASS")
     assert evidence["private_custody"]["recoverable"] is True
@@ -4111,7 +4242,10 @@ def test_cc08_a_builder_input_lock_and_authority_are_coherent_at_true_eof() -> N
     assert values["P2_M5_CC08_G_CI_RUN"] == ("33340749511_ATTEMPT_1_ALL_MANDATORY_JOBS_PASS")
     assert values["P2_M5_CC08_G_PRINCIPAL_ACCEPTANCE"] == "GRANTED"
     assert values["P2_M5_CC08_A"] == "TASK_ACCEPTED_ON_AUTHORITY_ACTIVATION"
-    assert values["P2_M5_CC08_A_INPUT_LOCK_CONTENT_SHA256"].lower() == (lock["content_sha256"])
+    assert (
+        values["P2_M5_CC08_A_INPUT_LOCK_CONTENT_SHA256"].lower()
+        == (evidence["lock"]["content_sha256"])
+    )
     assert values["P2_M5_CC08_A_EVIDENCE_CONTENT_SHA256"].lower() == (evidence["content_sha256"])
     assert values["P2_M5_CC08_A_LINUX_OFFLINE_FETCH"].startswith("PASS")
     assert values["P2_M5_CC08_A_WINDOWS_OFFLINE_FETCH"].startswith("PASS")
@@ -4142,8 +4276,8 @@ def test_cc08_a_builder_input_lock_and_authority_are_coherent_at_true_eof() -> N
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_CC08_A_RECOVERABLE_BUILDER_INPUT_LOCK_TRUE_EOF",
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    assert canonical[-1][1] in ACCEPTANCE_PATH.read_text(encoding="utf-8")
+    assert mirror[-1][1] in EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")
 
     tracked = "\n".join(
         (
