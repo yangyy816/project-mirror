@@ -100,6 +100,14 @@ paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
 regexTarget = "line"
 regexes = ['''"D10_CONTEXT_TRACE_EXPLICIT_RECALL_API": "cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd"''']
 
+[[allowlists]]
+description = "Historical D10 explicit-recall API checkpoint SHA in a2f3498"
+condition = "AND"
+commits = ["a2f3498f86745736eb7495523bf8dc233118a5f7"]
+paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
+regexTarget = "line"
+regexes = ['''"D10_CONTEXT_TRACE_EXPLICIT_RECALL_API": "cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd"''']
+
 # D02-CI-R02: deterministic test-only idempotency values are not credentials.
 # Keep both exceptions bound to their exact immutable source commits and paths.
 [[allowlists]]
