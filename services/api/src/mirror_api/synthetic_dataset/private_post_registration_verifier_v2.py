@@ -539,7 +539,7 @@ def _r64_exclusive_lease(parent: Path) -> Iterator[None]:
         while not locked:
             try:
                 if os.name == "nt":
-                    import msvcrt
+                    msvcrt = cast(Any, importlib.import_module("msvcrt"))
 
                     os.lseek(descriptor, 0, os.SEEK_SET)
                     msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
@@ -555,7 +555,7 @@ def _r64_exclusive_lease(parent: Path) -> Iterator[None]:
     finally:
         if locked:
             if os.name == "nt":
-                import msvcrt
+                msvcrt = cast(Any, importlib.import_module("msvcrt"))
 
                 os.lseek(descriptor, 0, os.SEEK_SET)
                 msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
