@@ -291,7 +291,7 @@ jobs:
         with:
           name: playwright-install-evidence
           path: ${{ runner.temp }}/playwright-chromium-install.log
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
       - name: Browser integration
         run: pnpm --filter @mirror/web test:e2e

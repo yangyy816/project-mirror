@@ -3896,23 +3896,38 @@ def _insert_full_demo_graph(
     )
     session.add(attempt)
     session.commit()
-    artifact, materialized_event = _reserve_materialized_artifact(
-        session,
-        actor=actor,
-        demo_session=demo_session,
-        operation=operation,
-        execution_binding=execution_binding,
-        attempt=attempt,
-        result_sha256=digest("e"),
-        result_template=image0_asset,
-        marker="initial-geometry",
+    d07_authority_present = bool(
+        session.scalar(text("SELECT to_regclass('demo_edit_artifacts') IS NOT NULL"))
     )
-    image1_asset, image1_variant = _d07_result_variant(
-        session,
-        image0_asset,
-        sha=digest("e"),
-        variant_type="demo_p3_p7_edit_result",
-    )
+    artifact: DemoEditArtifact | None = None
+    materialized_event: DemoEditArtifactEvent | None = None
+    promotion_event: DemoEditArtifactEvent | None = None
+    verification_attempt: JobAttempt | None = None
+    if d07_authority_present:
+        artifact, materialized_event = _reserve_materialized_artifact(
+            session,
+            actor=actor,
+            demo_session=demo_session,
+            operation=operation,
+            execution_binding=execution_binding,
+            attempt=attempt,
+            result_sha256=digest("e"),
+            result_template=image0_asset,
+            marker="initial-geometry",
+        )
+        image1_asset, image1_variant = _d07_result_variant(
+            session,
+            image0_asset,
+            sha=digest("e"),
+            variant_type="demo_p3_p7_edit_result",
+        )
+    else:
+        image1_asset, image1_variant = _result_variant(
+            session,
+            image0_asset,
+            sha=digest("e"),
+            variant_type="demo_p3_p7_edit_result",
+        )
     tool_run = _insert_demo_row(
         session,
         DemoToolRun,
@@ -3922,13 +3937,13 @@ def _insert_full_demo_graph(
         edit_operation_digest=operation.content_digest,
         demo_job_binding_id=execution_binding.id,
         formal_job_attempt_id=attempt.id,
-        demo_edit_artifact_id=artifact.id,
+        demo_edit_artifact_id=artifact.id if artifact is not None else None,
         tool_name="fixture-tool",
         tool_version="fixture-tool-v1",
         input_asset_id=image0_asset.id,
         input_asset_sha256=image0_asset.sha256,
-        output_asset_id=None,
-        output_asset_sha256=None,
+        output_asset_id=image1_asset.id if artifact is None else None,
+        output_asset_sha256=image1_asset.sha256 if artifact is None else None,
         effect_contract={"identity_preserved": 1},
         outcome="COMPLETED",
     )
@@ -3940,15 +3955,16 @@ def _insert_full_demo_graph(
         target_id=tool_run.id,
         demo_session=demo_session,
     )
-    verification_attempt = JobAttempt(
-        id=new_id(),
-        job_id=verification_job.id,
-        attempt=1,
-        status="PENDING",
-        started_at=utcnow(),
-    )
-    session.add(verification_attempt)
-    session.commit()
+    if d07_authority_present:
+        verification_attempt = JobAttempt(
+            id=new_id(),
+            job_id=verification_job.id,
+            attempt=1,
+            status="PENDING",
+            started_at=utcnow(),
+        )
+        session.add(verification_attempt)
+        session.commit()
     image1_id = new_id()
     verification = _build_demo_row(
         DemoVerificationResult,
@@ -3957,8 +3973,10 @@ def _insert_full_demo_graph(
         tool_run_id=tool_run.id,
         image_version_id=image1_id,
         demo_job_binding_id=verification_binding.id,
-        demo_edit_artifact_id=artifact.id,
-        formal_job_attempt_id=verification_attempt.id,
+        demo_edit_artifact_id=artifact.id if artifact is not None else None,
+        formal_job_attempt_id=(
+            verification_attempt.id if verification_attempt is not None else None
+        ),
         output_asset_id=image1_asset.id,
         output_asset_sha256=image1_asset.sha256,
         verifier_version="fixture-verify-v1",
@@ -3968,6 +3986,24 @@ def _insert_full_demo_graph(
         outcome="PASS",
         reason_codes=[],
     )
+    if not d07_authority_present:
+        legacy_verification_table = Table(
+            DemoVerificationResult.__tablename__,
+            MetaData(),
+            autoload_with=session.connection(),
+        )
+        missing_verification_columns = set(DemoVerificationResult.__table__.columns.keys()) - set(
+            legacy_verification_table.columns.keys()
+        )
+        if missing_verification_columns:
+            verification_payload = dict(verification.canonical_payload)
+            for column_name in missing_verification_columns:
+                verification_payload.pop(column_name, None)
+            verification.canonical_payload = verification_payload
+            verification.content_digest = _digest(
+                verification.schema_version,
+                verification_payload,
+            )
     image1 = _build_demo_row(
         DemoImageVersion,
         row_id=image1_id,
@@ -3986,21 +4022,27 @@ def _insert_full_demo_graph(
         tool_run_digest=tool_run.content_digest,
         verifier_digest=verification.content_digest,
     )
-    promotion_event = _build_artifact_promotion(
-        actor=actor,
-        demo_session=demo_session,
-        artifact=artifact,
-        asset=image1_asset,
-        variant=image1_variant,
-        verification=verification,
-        image=image1,
-    )
-    session.add(image1)
-    session.flush()
-    session.add(verification)
-    session.flush()
-    session.add(promotion_event)
-    session.commit()
+    if artifact is not None:
+        promotion_event = _build_artifact_promotion(
+            actor=actor,
+            demo_session=demo_session,
+            artifact=artifact,
+            asset=image1_asset,
+            variant=image1_variant,
+            verification=verification,
+            image=image1,
+        )
+    if d07_authority_present:
+        session.add(image1)
+        session.flush()
+        session.add(verification)
+        session.flush()
+        if promotion_event is not None:
+            session.add(promotion_event)
+        session.commit()
+    else:
+        _persist_historical_authority_rows(session, image1, verification, commit=False)
+        session.commit()
     accepted_event = _insert_preference_event(
         session,
         actor,
@@ -5937,7 +5979,7 @@ def test_demo_orm_and_database_foreign_keys_match(session: Session) -> None:
         actual_count += len(actual)
         assert actual == expected, table_name
 
-    assert expected_count == actual_count == 109
+    assert expected_count == actual_count == 120
 
 
 def test_canonical_json_digest_and_integer_numeric_authority(session: Session) -> None:
@@ -7399,16 +7441,16 @@ def test_d09_upgrade_preserves_legal_episode_bytes(
     database_url = os.environ["TEST_DATABASE_URL"]
     monkeypatch.setenv("DATABASE_URL", database_url)
     config = _demo_alembic_config(database_url)
-    command.downgrade(config, D09_DOWN_REVISION)
-    graph = _insert_full_demo_graph(session)
-    episode_id = graph["episode"].id
-    before = session.scalar(
-        text("SELECT to_jsonb(episode_row) FROM demo_accepted_visual_episodes episode_row")
-    )
-    session.commit()
-
     try:
-        command.upgrade(config, DEMO_REVISION)
+        command.downgrade(config, D09_DOWN_REVISION)
+        graph = _insert_full_demo_graph(session)
+        episode_id = graph["episode"].id
+        before = session.scalar(
+            text("SELECT to_jsonb(episode_row) FROM demo_accepted_visual_episodes episode_row")
+        )
+        session.commit()
+
+        command.upgrade(config, D02_QUALITY_DOWN_REVISION)
         after = session.scalar(
             text(
                 "SELECT to_jsonb(episode_row) FROM demo_accepted_visual_episodes "
@@ -7418,9 +7460,9 @@ def test_d09_upgrade_preserves_legal_episode_bytes(
         )
         assert after == before
     finally:
-        if session.scalar(text("SELECT version_num FROM alembic_version")) != DEMO_REVISION:
-            _truncate_demo_authority(session)
-            command.upgrade(config, DEMO_REVISION)
+        session.rollback()
+        _truncate_demo_authority(session)
+        command.upgrade(config, DEMO_REVISION)
 
 
 def test_d09_upgrade_rejects_resigned_legacy_forgery_without_rewriting(
@@ -7431,28 +7473,28 @@ def test_d09_upgrade_rejects_resigned_legacy_forgery_without_rewriting(
     database_url = os.environ["TEST_DATABASE_URL"]
     monkeypatch.setenv("DATABASE_URL", database_url)
     config = _demo_alembic_config(database_url)
-    command.downgrade(config, D09_DOWN_REVISION)
-    graph = _insert_full_demo_graph(session, include_episode=False)
-    forged_values = _episode_insert_values(
-        graph,
-        profile_digest=hashlib.sha256(b"legacy-forged-profile").hexdigest(),
-        context_digest=hashlib.sha256(b"legacy-forged-context").hexdigest(),
-        instruction_digest=hashlib.sha256(b"legacy-forged-instruction").hexdigest(),
-    )
-    session.execute(DemoAcceptedVisualEpisode.__table__.insert().values(**forged_values))
-    session.commit()
-    before = session.scalar(
-        text(
-            "SELECT to_jsonb(episode_row) FROM demo_accepted_visual_episodes episode_row "
-            "WHERE id=:episode_id"
-        ),
-        {"episode_id": forged_values["id"]},
-    )
-    session.commit()
-
     try:
+        command.downgrade(config, D09_DOWN_REVISION)
+        graph = _insert_full_demo_graph(session, include_episode=False)
+        forged_values = _episode_insert_values(
+            graph,
+            profile_digest=hashlib.sha256(b"legacy-forged-profile").hexdigest(),
+            context_digest=hashlib.sha256(b"legacy-forged-context").hexdigest(),
+            instruction_digest=hashlib.sha256(b"legacy-forged-instruction").hexdigest(),
+        )
+        session.execute(DemoAcceptedVisualEpisode.__table__.insert().values(**forged_values))
+        session.commit()
+        before = session.scalar(
+            text(
+                "SELECT to_jsonb(episode_row) FROM demo_accepted_visual_episodes episode_row "
+                "WHERE id=:episode_id"
+            ),
+            {"episode_id": forged_values["id"]},
+        )
+        session.commit()
+
         with pytest.raises(DBAPIError, match="provenance audit failed"):
-            command.upgrade(config, DEMO_REVISION)
+            command.upgrade(config, D02_QUALITY_DOWN_REVISION)
         assert session.scalar(text("SELECT version_num FROM alembic_version")) == (
             D09_DOWN_REVISION
         )
@@ -7478,13 +7520,13 @@ def test_d09_populated_downgrade_fails_closed_with_function_unchanged(
     database_url = os.environ["TEST_DATABASE_URL"]
     monkeypatch.setenv("DATABASE_URL", database_url)
     config = _demo_alembic_config(database_url)
-    command.downgrade(config, D02_QUALITY_DOWN_REVISION)
-    graph = _insert_full_demo_graph(session)
-    episode_id = graph["episode"].id
-    hardened_definition = _accepted_episode_function_definition(session)
-    session.commit()
-
     try:
+        command.downgrade(config, D02_QUALITY_DOWN_REVISION)
+        graph = _insert_full_demo_graph(session)
+        episode_id = graph["episode"].id
+        hardened_definition = _accepted_episode_function_definition(session)
+        session.commit()
+
         with pytest.raises(DBAPIError, match="downgrade blocked by existing evidence"):
             command.downgrade(config, D09_DOWN_REVISION)
 
@@ -7501,6 +7543,7 @@ def test_d09_populated_downgrade_fails_closed_with_function_unchanged(
         )
     finally:
         session.rollback()
+        _truncate_demo_authority(session)
         command.upgrade(config, DEMO_REVISION)
 
 
@@ -7512,23 +7555,30 @@ def test_d09_upgrade_serializes_concurrent_forged_insert_until_hardened_commit(
     database_url = os.environ["TEST_DATABASE_URL"]
     monkeypatch.setenv("DATABASE_URL", database_url)
     config = _demo_alembic_config(database_url)
-    command.downgrade(config, D09_DOWN_REVISION)
-    graph = _insert_full_demo_graph(session, include_episode=False)
-    forged_values = _episode_insert_values(
-        graph,
-        profile_digest=hashlib.sha256(b"blocked-forged-profile").hexdigest(),
-    )
-    session.commit()
-
-    blocker_engine = create_engine(database_url)
-    blocker_connection = blocker_engine.connect()
-    blocker_transaction = blocker_connection.begin()
-    blocker_connection.execute(text("SELECT version_num FROM alembic_version FOR UPDATE"))
+    blocker_engine: Any | None = None
+    blocker_connection: Any | None = None
+    blocker_transaction: Any | None = None
     insert_started = Event()
 
     try:
+        command.downgrade(config, D09_DOWN_REVISION)
+        graph = _insert_full_demo_graph(session, include_episode=False)
+        forged_values = _episode_insert_values(
+            graph,
+            profile_digest=hashlib.sha256(b"blocked-forged-profile").hexdigest(),
+        )
+        session.commit()
+
+        blocker_engine = create_engine(database_url)
+        blocker_connection = blocker_engine.connect()
+        blocker_transaction = blocker_connection.begin()
+        blocker_connection.execute(text("SELECT version_num FROM alembic_version FOR UPDATE"))
         with ThreadPoolExecutor(max_workers=2) as executor:
-            migration_future = executor.submit(command.upgrade, config, DEMO_REVISION)
+            migration_future = executor.submit(
+                command.upgrade,
+                config,
+                D02_QUALITY_DOWN_REVISION,
+            )
             try:
                 _wait_for_episode_access_exclusive_lock(session)
                 insert_future = executor.submit(
@@ -7546,10 +7596,14 @@ def test_d09_upgrade_serializes_concurrent_forged_insert_until_hardened_commit(
             migration_future.result(timeout=20)
             assert insert_future.result(timeout=20) == "rejected"
     finally:
-        if blocker_transaction.is_active:
+        session.rollback()
+        if blocker_transaction is not None and blocker_transaction.is_active:
             blocker_transaction.rollback()
-        blocker_connection.close()
-        blocker_engine.dispose()
+        if blocker_connection is not None:
+            blocker_connection.close()
+        if blocker_engine is not None:
+            blocker_engine.dispose()
+        _truncate_demo_authority(session)
         command.upgrade(config, DEMO_REVISION)
 
     assert session.scalar(text("SELECT version_num FROM alembic_version")) == DEMO_REVISION
@@ -7564,18 +7618,21 @@ def test_d09_downgrade_serializes_insert_past_empty_check_and_restoration(
     database_url = os.environ["TEST_DATABASE_URL"]
     monkeypatch.setenv("DATABASE_URL", database_url)
     config = _demo_alembic_config(database_url)
-    command.downgrade(config, D02_QUALITY_DOWN_REVISION)
-    graph = _insert_full_demo_graph(session, include_episode=False)
-    legal_values = _episode_insert_values(graph)
-    session.commit()
-
-    blocker_engine = create_engine(database_url)
-    blocker_connection = blocker_engine.connect()
-    blocker_transaction = blocker_connection.begin()
-    blocker_connection.execute(text("SELECT version_num FROM alembic_version FOR UPDATE"))
+    blocker_engine: Any | None = None
+    blocker_connection: Any | None = None
+    blocker_transaction: Any | None = None
     insert_started = Event()
 
     try:
+        command.downgrade(config, D02_QUALITY_DOWN_REVISION)
+        graph = _insert_full_demo_graph(session, include_episode=False)
+        legal_values = _episode_insert_values(graph)
+        session.commit()
+
+        blocker_engine = create_engine(database_url)
+        blocker_connection = blocker_engine.connect()
+        blocker_transaction = blocker_connection.begin()
+        blocker_connection.execute(text("SELECT version_num FROM alembic_version FOR UPDATE"))
         with ThreadPoolExecutor(max_workers=2) as executor:
             migration_future = executor.submit(
                 command.downgrade,
@@ -7604,12 +7661,16 @@ def test_d09_downgrade_serializes_insert_past_empty_check_and_restoration(
         )
         assert session.scalar(text("SELECT count(*) FROM demo_accepted_visual_episodes")) == 1
         session.commit()
-        command.upgrade(config, DEMO_REVISION)
+        command.upgrade(config, D02_QUALITY_DOWN_REVISION)
     finally:
-        if blocker_transaction.is_active:
+        session.rollback()
+        if blocker_transaction is not None and blocker_transaction.is_active:
             blocker_transaction.rollback()
-        blocker_connection.close()
-        blocker_engine.dispose()
+        if blocker_connection is not None:
+            blocker_connection.close()
+        if blocker_engine is not None:
+            blocker_engine.dispose()
+        _truncate_demo_authority(session)
         command.upgrade(config, DEMO_REVISION)
 
 
