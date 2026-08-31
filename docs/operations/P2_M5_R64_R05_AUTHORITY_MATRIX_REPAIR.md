@@ -30,3 +30,17 @@ the legacy overlay, old receipt, schema, migration, OpenAPI, Provider, policy,
 image generation, decode, M3, QuestionBank, or runtime/model artifacts.
 R64 remains pending local regression, candidate commit, same-SHA CI, artifact
 inspection, independent reviews, and Principal acceptance.
+
+## Local verification
+
+- focused bridge and verifier matrix: `30 passed`;
+- focused bridge plus private post-registration regression: `52 passed`;
+- CI-range Ruff and strict mypy: PASS;
+- canonical-LF full API/Worker regression with task-owned PostgreSQL, Redis,
+  Celery and shared private test volume: `964 passed`, `1 skipped`; and
+- empty-database `base → head → base → head` migration lifecycle and Alembic
+  drift check: PASS.
+
+All exercised inputs were procedural non-human test bytes. No Provider,
+image-generation, decode, M3, schema, migration, or legacy-overlay operation
+was performed by this repair.
