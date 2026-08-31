@@ -45,7 +45,7 @@
 9. Generic bundle 必须重放 4 source + 48 result Assets、48 AssetVariants、16 QuestionPairs，
    然后才允许调用单事务 coordinator。
 10. 每个阶段写 append-only event，并更新可重建 projection；不得把 Prompt、path、private
-   locator、raw bytes 或 credential 写入 tracked state。
+    locator、raw bytes 或 credential 写入 tracked state。
 11. 达到 4 个 accepted formal source 后立即 finalize；不得继续调用 Provider。
 
 Bootstrap identity 固定来自 tracked code/authority，不接受 CLI 覆盖：provider identity、M3 prescreen

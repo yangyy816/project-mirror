@@ -68,8 +68,8 @@ commit → backup publish → Candidate reconciliation` 排序。进程中断后
     - `mirror.demo/D02AutonomousAcquisitionRunKey/v1`：绑定唯一自治授权、最终运行时 Gate、E3/E4
       `FAILED_CLOSED` 与 forward-only policy；digest 为
       `04c4dacd3199bed812aeef542cea12b521689aa58796dd2f0ea20f8a9683e1a2`。
-    runtime 与 model digest 继续直接复用已有 tracked authority。Operator 只能使用这些 replayable
-    defaults；测试占位 digest、branch SHA、随机值或 private preimage 均不得进入 run bootstrap。
+      runtime 与 model digest 继续直接复用已有 tracked authority。Operator 只能使用这些 replayable
+      defaults；测试占位 digest、branch SHA、随机值或 private preimage 均不得进入 run bootstrap。
 15. 正式 application entrypoint 是 D02-owned、非 HTTP 的 operator。`call-session` 必须先在短事务中
     commit `CALL_STARTED`，再通过 non-TTY stdin 消费恰好一条 bounded、newline-delimited result
     envelope。Provider 调用、result materialization、文件 I/O、M3、QA 与 screening 均不得持有数据库锁。
