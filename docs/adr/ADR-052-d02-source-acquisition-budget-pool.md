@@ -43,7 +43,7 @@ E3/E4 是历史兼容分支，永久 `FAILED_CLOSED`，不为本设计新增 E5/
 10. review 预算必须显式预留并由 CI/review gate 检查；不得因 review、失败诊断或 materializer
     恢复而隐式增加 Provider 调用预算。
 11. 两副本按 `primary publish → private locator/file-identity index → PRIMARY_DURABLE Candidate
-    commit → backup publish → Candidate reconciliation` 排序。进程中断后只能用 DB 中仍开放的
+commit → backup publish → Candidate reconciliation` 排序。进程中断后只能用 DB 中仍开放的
     `CALL_STARTED` 与 private checkpoint 的精确 locator/file identity 重放同一 primary；禁止扫描、
     替换文件或创建新 Provider call。恢复只签发不能进入 Provider dispatch 或新 result
     materialization 的 recovery-only capability，并必须同时提交 exact `BoundPngFile`；若 Provider
@@ -65,14 +65,14 @@ E3/E4 是历史兼容分支，永久 `FAILED_CLOSED`，不为本设计新增 E5/
 
 ## Stage-aware failure handling
 
-| 阶段 | durable authority 已存在 | durable authority 不存在 |
-| --- | --- | --- |
-| dispatch 前 | replay DB event/candidate；不得重复 ordinal | 可创建下一合法 event；保留预算边界 |
-| `CALL_STARTED` 后 | 以 DB event 为准；禁止 retry | 若精确 primary 与 file identity 可由 private index重放，则补写同一 Candidate；否则 outcome 不确定即全 run fail closed |
-| Candidate primary durable 后 | 只处理同一 Candidate 的 backup/M3/QA；不新增调用 | 不得凭 tracked 摘要或目录扫描补写 Candidate |
-| Manifest durable 后 | 可重建下游 formal source | 不得跳过 Candidate 或直接生成 formal source |
-| admission 成功 | 必须恰好 4 个 formal source 后 finalize | 少于 4 不得宣称 admission 成功 |
-| 暂停或预算耗尽 | 保留已消费计数，可少于 4 | 进入显式 paused/terminal state，不补预算 |
+| 阶段                         | durable authority 已存在                         | durable authority 不存在                                                                                              |
+| ---------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| dispatch 前                  | replay DB event/candidate；不得重复 ordinal      | 可创建下一合法 event；保留预算边界                                                                                    |
+| `CALL_STARTED` 后            | 以 DB event 为准；禁止 retry                     | 若精确 primary 与 file identity 可由 private index重放，则补写同一 Candidate；否则 outcome 不确定即全 run fail closed |
+| Candidate primary durable 后 | 只处理同一 Candidate 的 backup/M3/QA；不新增调用 | 不得凭 tracked 摘要或目录扫描补写 Candidate                                                                           |
+| Manifest durable 后          | 可重建下游 formal source                         | 不得跳过 Candidate 或直接生成 formal source                                                                           |
+| admission 成功               | 必须恰好 4 个 formal source 后 finalize          | 少于 4 不得宣称 admission 成功                                                                                        |
+| 暂停或预算耗尽               | 保留已消费计数，可少于 4                         | 进入显式 paused/terminal state，不补预算                                                                              |
 
 CI/review gate 必须验证状态可重建、预算不超界、失败不重试，并验证 tracked projection 可滞后。
 

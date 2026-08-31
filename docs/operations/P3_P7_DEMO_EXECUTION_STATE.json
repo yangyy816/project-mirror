@@ -218,9 +218,7 @@
     "D04_B": "D02_RUNTIME_EVIDENCE_PENDING",
     "D07_B": "GEOMETRY_APPLICATION_VERIFIER_AND_IMAGE_VERSION_PENDING"
   },
-  "next_ready_nodes": [
-    "D07_B_VERIFIER_AND_IMAGE_VERSION"
-  ],
+  "next_ready_nodes": ["D07_B_VERIFIER_AND_IMAGE_VERSION"],
   "runtime_evidence_blocked_nodes": [
     "D02_FINAL_RUNTIME_GATE",
     "D03_FRESH_M3_RUNTIME_INTEGRATION_GATE",
