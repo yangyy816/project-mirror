@@ -4,8 +4,8 @@ const next =
   process.platform === "win32"
     ? ".\\node_modules\\.bin\\next.CMD"
     : "./node_modules/.bin/next";
-const appOrigin = "http://127.0.0.1:4300";
-const apiOrigin = "http://127.0.0.1:4400";
+const appOrigin = "http://localhost:4300";
+const apiOrigin = "http://localhost:4400";
 const policyManifest = JSON.stringify([
   {
     document_code: "privacy",
@@ -16,6 +16,10 @@ const policyManifest = JSON.stringify([
     status: "approved",
   },
 ]);
+const webCommand =
+  process.platform === "win32"
+    ? `${next} build && ${next} start`
+    : `${next} build && node e2e/prepare-standalone.mjs && node .next/standalone/apps/web/server.js`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -39,20 +43,24 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
-      command: `${next} build && node e2e/prepare-standalone.mjs && node .next/standalone/apps/web/server.js`,
+      command: webCommand,
       cwd: ".",
-      url: appOrigin,
+      url: `${appOrigin}/demo`,
       reuseExistingServer: false,
       timeout: 120_000,
       env: {
         NEXT_PUBLIC_APP_ENV: "test",
         NEXT_PUBLIC_API_BASE_URL: apiOrigin,
+        API_BASE_URL: apiOrigin,
+        DEMO_BEARER_TOKEN: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        DEMO_SESSION_ID: "11111111111111111111111111111111",
+        DEMO_SESSION_TTL_SECONDS: "900",
         NEXT_PUBLIC_APP_ORIGIN: appOrigin,
         NEXT_PUBLIC_POLICY_MANIFEST: policyManifest,
         NEXT_PUBLIC_AGE_PROVIDER_STATUS: "approved",
         NEXT_PUBLIC_AGE_PROVIDER_PUBLIC_URL: `${apiOrigin}/age/verify`,
         NEXT_PUBLIC_AGE_PROVIDER_ORIGIN: apiOrigin,
-        HOSTNAME: "127.0.0.1",
+        HOSTNAME: "localhost",
         PORT: "4300",
       },
     },
