@@ -1,0 +1,320 @@
+{
+  "schema_version": "mirror.p2-m5.cc08-builder-input-lock/v1",
+  "lock_version": "p2-m5-cc08-source-built-vision-input-lock-v1",
+  "recipe_version": "p2-m5-cc08-source-built-vision-recipe-v1",
+  "status": "LOCKED_LOCAL_PASS_PENDING_TRACKED_GATES",
+  "source": {
+    "upstream": "https://github.com/google-ai-edge/mediapipe.git",
+    "tag": "v0.10.35",
+    "commit": "f8ef212d5c962c0e853db7e59d217056b187084b",
+    "checkout": "DETACHED_CANONICAL_LF",
+    "materialization": "LOCAL_NO_HARDLINK_CLONE_THEN_ORDERED_PATCH_REPLAY"
+  },
+  "patches": [
+    {
+      "order": 1,
+      "path": "docs/security/patches/mediapipe-v0.10.35-zero-telemetry-v1.patch",
+      "sha256": "cdde123e56bcd637726d7162171a75bed10de415cd323aa95952b1cba7e942eb"
+    },
+    {
+      "order": 2,
+      "path": "docs/security/patches/mediapipe-v0.10.35-build-lock-v1.patch",
+      "sha256": "6b0d8771c1d1660abb6ee4cfca7a88b04ebb787faa36c8fd9cd15ecdbd3ecafa"
+    },
+    {
+      "order": 3,
+      "path": "docs/security/patches/mediapipe-v0.10.35-crlf-version-stamp-v1.patch",
+      "sha256": "a59578edba3a6c350ef78850b26e6cbf5f5929a32048c5199f92b4c526a27823"
+    },
+    {
+      "order": 4,
+      "path": "docs/security/patches/mediapipe-v0.10.35-opencv-reproducible-paths-v1.patch",
+      "sha256": "192056a6ad29362442fe440bf24ea4f998b09172ab0807f91bc9c24a96d41c68"
+    },
+    {
+      "order": 5,
+      "path": "docs/security/patches/mediapipe-v0.10.35-windows-build-v1.patch",
+      "sha256": "9bec126ea037a8a9d72417ba798252e5b32fdb2c94b0081c5de55cf89f6c5c9a"
+    },
+    {
+      "order": 6,
+      "path": "docs/security/patches/mediapipe-v0.10.35-windows-cmake-toolchain-v1.patch",
+      "sha256": "38db262542d155dab30f55b43041ec4e56283f6fc6be6a4118ba938ccd545db1"
+    },
+    {
+      "order": 7,
+      "path": "docs/security/patches/mediapipe-v0.10.35-runtime-closure-hardening-v1.patch",
+      "sha256": "9c7f6c9032f1ffa050044123e29cc596ca255332e78d5af7fb77cf5f20f65e60"
+    },
+    {
+      "order": 8,
+      "path": "docs/security/patches/mediapipe-v0.10.35-windows-private-path-v1.patch",
+      "sha256": "b57ed5b0643d830cc9d66ad063eea211cbbab2b50c98df70d2b22f00b102775d"
+    },
+    {
+      "order": 9,
+      "path": "docs/security/patches/mediapipe-v0.10.35-windows-repro-closure-v1.patch",
+      "sha256": "02264c696b85af0637724afc880604c6a3e8bee846d298d39595c2ec0a410cb3"
+    },
+    {
+      "order": 10,
+      "path": "docs/security/patches/mediapipe-v0.10.35-stage-c-image-abi-v1.patch",
+      "sha256": "8838776b861579a9078868150de1475c9f624b032a67715748799bf04d987d31"
+    },
+    {
+      "order": 11,
+      "path": "docs/security/patches/mediapipe-v0.10.35-stage-c-windows-image-abi-v1.patch",
+      "sha256": "5bc80bdceea7e902e3af79c59ec1f121b01add2e660831c9aa85d11ac3c1bdb1"
+    },
+    {
+      "order": 12,
+      "path": "docs/security/patches/mediapipe-v0.10.35-c-only-npm-stub-v1.patch",
+      "sha256": "3d6a9662ddb2c00d2b3999d9f49e5f4d8015921d7adba2f77e85b0834ff2ca34"
+    }
+  ],
+  "public_artifacts": [
+    {
+      "id": "bazel-linux-x86-64",
+      "filename": "bazel-7.4.1-linux-x86_64",
+      "source_url": "https://github.com/bazelbuild/bazel/releases/download/7.4.1/bazel-7.4.1-linux-x86_64",
+      "byte_size": 59580428,
+      "sha256": "c97f02133adce63f0c28678ac1f21d65fa8255c80429b588aeeba8a1fac6202b"
+    },
+    {
+      "id": "bazel-windows-x86-64",
+      "filename": "bazel-7.4.1-windows-x86_64.exe",
+      "source_url": "https://github.com/bazelbuild/bazel/releases/download/7.4.1/bazel-7.4.1-windows-x86_64.exe",
+      "byte_size": 54863405,
+      "sha256": "4a76eddf6c5115e1d93355fd11db5ac2fc20e58f197f5d65d3f21da92aa0925b"
+    },
+    {
+      "id": "opencv-source",
+      "filename": "opencv-3.4.11.tar.gz",
+      "source_url": "https://github.com/opencv/opencv/archive/3.4.11.tar.gz",
+      "byte_size": 87405669,
+      "sha256": "10898a0268d8f8cbaf0354ddd1d9de6abaac84e3d9a6c9754f56a0aa3383d73b"
+    },
+    {
+      "id": "face-landmarker-model",
+      "filename": "face_landmarker.task",
+      "source_url": "https://storage.googleapis.com/storage/v1/b/mediapipe-models/o/face_landmarker%2Fface_landmarker%2Ffloat16%2Flatest%2Fface_landmarker.task?alt=media&generation=1683136941468629",
+      "byte_size": 3758596,
+      "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
+    },
+    {
+      "id": "model-card-blazeface-short-range",
+      "filename": "blazeface-short-range.pdf",
+      "source_url": "https://storage.googleapis.com/mediapipe-assets/MediaPipe%20BlazeFace%20Model%20Card%20%28Short%20Range%29.pdf",
+      "byte_size": 434425,
+      "sha256": "cd335c06fc0de7807cd815a0777a697932598bcdb28fa98adaaabf847485f758"
+    },
+    {
+      "id": "model-card-blendshape-v2",
+      "filename": "blendshape-v2.pdf",
+      "source_url": "https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Blendshape%20V2.pdf",
+      "byte_size": 2324099,
+      "sha256": "c8e9cf60a39998f4b341740623917590e050d1c97004e2de4568d84e026445ae"
+    },
+    {
+      "id": "model-card-face-mesh-v2",
+      "filename": "face-mesh-v2.pdf",
+      "source_url": "https://storage.googleapis.com/mediapipe-assets/Model%20Card%20MediaPipe%20Face%20Mesh%20V2.pdf",
+      "byte_size": 3476420,
+      "sha256": "c6add060f4ebfb37b2690136b6c711c7e5fcb7038baa2649ae3338b83979565a"
+    }
+  ],
+  "builder_algorithm": {
+    "target": "//mediapipe/tasks/c:mirror_face_landmarker_source",
+    "common_bazel_flags": [
+      "--define=MEDIAPIPE_DISABLE_GPU=1",
+      "--define=OPENCV=source",
+      "--repo_env=HERMETIC_PYTHON_VERSION=3.12",
+      "--jobs=4",
+      "--repository_cache=$REPOSITORY_CACHE",
+      "--override_repository=npm=$SOURCE_ROOT/third_party/mirror_v03_empty_npm"
+    ],
+    "linux": {
+      "platform_flag": "--config=linux",
+      "builder_dockerfile": "scripts/research/p2_m5_cc08_linux_builder.Dockerfile",
+      "base_image": "python@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a",
+      "runtime_network": "NONE",
+      "clean_roots_required": 2
+    },
+    "windows": {
+      "platform_flag": "--config=windows",
+      "action_environment": ["MIRROR_NMAKE_EXE=$VERIFIED_NMAKE_EXE"],
+      "runtime_network": "PROCESS_SPECIFIC_DENY_AND_CAPTURE",
+      "clean_roots_required": 2
+    },
+    "fetch": {
+      "network": "BOUNDED_PUBLIC_ACQUISITION_ONLY",
+      "linux_then_windows": true,
+      "repository_cache_create_once": true,
+      "cache_manifest_before_build": true
+    },
+    "build": {
+      "order": [
+        "LINUX_CLEAN_ROOT_1",
+        "LINUX_CLEAN_ROOT_2",
+        "WINDOWS_CLEAN_ROOT_1",
+        "WINDOWS_CLEAN_ROOT_2"
+      ],
+      "network": "NONE",
+      "retry_same_root": 0,
+      "outputs_are_new_runtime_identity": true
+    }
+  },
+  "tracked_builder_files": [
+    {
+      "path": "scripts/research/p2_m5_cc08_builder_lock.py",
+      "sha256": "c4fb2eae2c7f285c0dde67f2da1d173020577e427372f077ce1ab559df586aa9"
+    },
+    {
+      "path": "scripts/research/p2_m5_cc08_linux_builder.Dockerfile",
+      "sha256": "b261ff7cf32df2d45cfe0d6dce8de9f7e77a1aa86c317b1244bc786e70671b8c"
+    }
+  ],
+  "linux_builder": {
+    "base_image": "python@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a",
+    "distribution": "Debian GNU/Linux 13.6 (trixie)",
+    "apt_authorities": [
+      "http://deb.debian.org/debian trixie main",
+      "http://deb.debian.org/debian trixie-updates main",
+      "http://deb.debian.org/debian-security trixie-security main"
+    ],
+    "deb_bundle": {
+      "entry_count": 103,
+      "total_bytes": 117522508,
+      "manifest_content_sha256": "85d6fa09535ff367f882aedd4ce3cc2fb6717e9e02db7e615a7d9d111378a3dd"
+    },
+    "authoritative_image": {
+      "image_id": "sha256:a9e34228a05e6874e6c932bd0435ef5bc86f3b8a6b72d7691e571e22f4ec930a",
+      "image_size_bytes": 368879978,
+      "semantic_content_sha256": "e9deaa7baf5ced3c29cd3b2f70bc28bb0bde5b0b27d29453467d6d3a93db67ab",
+      "installed_package_records": 190,
+      "python": "3.13.15",
+      "gcc": "14.2.0",
+      "cmake": "3.31.6",
+      "ninja": "1.12.1",
+      "bazel": "7.4.1"
+    },
+    "reconstruction": {
+      "second_image_id": "sha256:8f80985cc8ec09f6ec3bbbb287cb6f37e3530c7facd56c77e47b4bd7fb84d220",
+      "oci_image_id_equal": false,
+      "semantic_inventory_equal": true,
+      "semantic_content_sha256": "e9deaa7baf5ced3c29cd3b2f70bc28bb0bde5b0b27d29453467d6d3a93db67ab",
+      "disposition": "EXACT_FIRST_IMAGE_HANDLE_IS_AUTHORITY_SECOND_BUILD_PROVES_RECIPE_COMPLETENESS_ONLY",
+      "loss_rule": "LOSS_OF_EXACT_IMAGE_HANDLE_REQUIRES_NEW_BUILDER_IDENTITY_AND_REQUALIFICATION"
+    },
+    "assembly_network": "RUN_STEPS_NONE_BASE_DIGEST_RESOLUTION_BOUNDED_PUBLIC_ACQUISITION",
+    "runtime_builds": 0
+  },
+  "windows_builder": {
+    "visual_studio": "17.14.38",
+    "visual_studio_build": "17.14.37531.7",
+    "msvc_tools": "14.44.35207",
+    "compiler": "19.44.35228.0",
+    "windows_sdk": "10.0.26100.0",
+    "python": "3.13.1",
+    "cmake": "4.3.3",
+    "bazel": "7.4.1",
+    "key_tools": {
+      "cl_sha256": "88c8344236a27a6e727e0a8edc49aaa2690bdc7a9464b9d18cc7abe70a9f1c0d",
+      "link_sha256": "ca11e6c45debd34bf652dfe984c5360a531a005ed78bf72852330c9c2590cf0d",
+      "nmake_sha256": "b05f089f67dba8df1d7cc38798b71e62a6ce8881b234dcfc80a657264597626c",
+      "mt_sha256": "1b8a272d586a9ab53ac2ccd457a88bd0210d7d7ac3daea5b34743cc2afe73b26",
+      "rc_sha256": "43da1503c262c30894c851589bf0155f8365d77e63a5f7bc13982320e3a6b42d",
+      "cmake_sha256": "5effdfe6f22cdc858e9666e23d833396e45196bf5a7029663a63776ed152c259",
+      "python_exe_sha256": "03573716a7fcbd8b7fed8fe0163bbfbd3a852546920d6a666123f307c8dac7d9",
+      "python313_dll_sha256": "78b1dd211c0e66a0603df48da2c9b67a915ab3258701b9285d3faa255ed8dc25",
+      "vsdevcmd_sha256": "c004278e64444bf3524360f960511b5ce7b1d0306910f08a4ebcf1c42ff9bd6d",
+      "vcvars64_sha256": "6b516d8fcf543c14b2d861e1f45661e0029230fe0dc48e86ce78522801822209"
+    },
+    "toolchain_manifest": {
+      "entry_count": 24448,
+      "total_bytes": 4322540856,
+      "content_sha256": "5862f43872bd284294497b98e6fa759d25d21c4ee23afc8f8c3569c6d17ac33e",
+      "second_read_verification": "PASS"
+    },
+    "offline_fetch": {
+      "task_private_bazel_and_embedded_java_outbound_deny": "PASS",
+      "repository_cache_unchanged": true,
+      "firewall_rule_cleanup": "PASS_ZERO_REMAINING"
+    },
+    "runtime_builds": 0
+  },
+  "private_manifest_bindings": [
+    {
+      "id": "source_tree",
+      "file_sha256": "7fa6284dbe6bafafbafa9d27e26acf8a10db16ea082b04457cde4f719f8d3307",
+      "content_sha256": "c25314cecf67e509f8338240c40f115d7564cb8c943c38f0a6e1e30765d8ddc6",
+      "entry_count": 4736,
+      "total_bytes": 75147166
+    },
+    {
+      "id": "public_artifacts",
+      "file_sha256": "70cfaeceecc0efb3dccfc175b783ba9d830ad2f212c66bdfa3e4bf1891dcd248",
+      "content_sha256": "bfdc98cb01f2ab6b57109eec87a4084c557ce2620b0dcc69a882fcfe141cc742",
+      "entry_count": 7,
+      "total_bytes": 211843042
+    },
+    {
+      "id": "linux_debs",
+      "file_sha256": "2adc6f9d7c2697c22ad6cfa98f59b4cb1c4eb41bd08bb0a2082fde9311ea10ab",
+      "content_sha256": "85d6fa09535ff367f882aedd4ce3cc2fb6717e9e02db7e615a7d9d111378a3dd",
+      "entry_count": 103,
+      "total_bytes": 117522508
+    },
+    {
+      "id": "linux_builder_authority",
+      "file_sha256": "a16c0561c8a283620be45c5fc6f514522dbb072d3cc0302c24dfa283ee1d5076",
+      "content_sha256": "95f083987bba16766191c5a320e16fa370c4e93011a04d9671c41e77260ad0a2",
+      "entry_count": 190,
+      "total_bytes": 607314944
+    },
+    {
+      "id": "linux_builder_reconstruction",
+      "file_sha256": "13cf236e731a2251753adc324a6b1adc6fc4111309aee95aa4f7a1df07d4201f",
+      "content_sha256": "cca98094b77430da3e9a18016d20a3656754952a78056bb17827f30bdf2f5f3d",
+      "entry_count": 190,
+      "total_bytes": 607314944
+    },
+    {
+      "id": "windows_toolchain",
+      "file_sha256": "92c60ade329cbe2957a2533fdecdcb1d00bda07d96a86395d66826a75517aa50",
+      "content_sha256": "5862f43872bd284294497b98e6fa759d25d21c4ee23afc8f8c3569c6d17ac33e",
+      "entry_count": 24448,
+      "total_bytes": 4322540856
+    },
+    {
+      "id": "repository_cache",
+      "file_sha256": "12d1fea791b5d3f0ff3f0945fa2fb29d01da2fa79d2250f09910101255780d98",
+      "content_sha256": "12cd03f3df9eae19ceebe6c769a546b791ca4b79fd80917070e2a68ead38ecea",
+      "entry_count": 106,
+      "total_bytes": 784676296
+    }
+  ],
+  "private_handle_ids": [
+    "cc08a-public-inputs-v1",
+    "cc08a-patched-source-v1",
+    "cc08a-repository-cache-v1",
+    "cc08a-linux-builder-image-v1",
+    "cc08a-windows-builder-capability-v1",
+    "cc08a-builder-lock-executable-v1"
+  ],
+  "boundaries": {
+    "synthetic_only": true,
+    "runtime_builds_in_cc08_a": 0,
+    "model_loads": 0,
+    "vision_calls": 0,
+    "canary_reads": 0,
+    "decode_calls": 0,
+    "m3_calls": 0,
+    "imagegen_calls": 0,
+    "database_mutations": 0,
+    "project_dependencies_added": 0,
+    "schema_api_openapi_workflow_changes": 0,
+    "production_distribution_real_user_authorized": false
+  },
+  "content_sha256": "501b653f2cc67c7f33c42d4e77ae3dffacb14fedae440e01c401ec8a119501c4"
+}

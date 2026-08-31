@@ -119,6 +119,10 @@ CC08_ADR_PATH = (
 CC08_CONTRACT_PATH = (
     ROOT / "docs" / "operations" / "P2_M5_CC08_RECOVERABLE_PRIVATE_VISION_RUNTIME_CONTRACT.md"
 )
+CC08_A_LOCK_PATH = ROOT / "docs" / "research" / "P2_M5_CC08_BUILDER_INPUT_LOCK_V1.json"
+CC08_A_EVIDENCE_PATH = (
+    ROOT / "docs" / "operations" / "P2_M5_CC08_A_BUILDER_INPUT_LOCK_EVIDENCE.json"
+)
 
 _CC05_A_AUTHORIZED_A0_OVERRIDES = {
     "ASSIGNMENT_LEDGER_VERSION": ("p2-m5-cc05a-calibration-assignment-v3-cal-req-002-forward"),
@@ -217,6 +221,21 @@ def _content_digest(value: dict[str, Any]) -> str:
         sort_keys=True,
         separators=(",", ":"),
     ).encode()
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def _newline_content_digest(value: dict[str, Any]) -> str:
+    canonical_value = dict(value)
+    canonical_value.pop("content_sha256")
+    canonical = (
+        json.dumps(
+            canonical_value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+        + b"\n"
+    )
     return hashlib.sha256(canonical).hexdigest()
 
 
@@ -509,6 +528,14 @@ def _last_cc08_g_key_block(path: Path) -> list[tuple[str, str]]:
         path,
         authority_version="p2-m5-cc08-g-superseding-runtime-v2-decision-eof/v1",
         sentinel="P2_M5_CC08_G_SUPERSEDING_RUNTIME_V2_DECISION_TRUE_EOF",
+    )
+
+
+def _last_cc08_a_key_block(path: Path) -> list[tuple[str, str]]:
+    return _last_key_block(
+        path,
+        authority_version="p2-m5-cc08-a-recoverable-builder-input-lock-eof/v1",
+        sentinel="P2_M5_CC08_A_RECOVERABLE_BUILDER_INPUT_LOCK_TRUE_EOF",
     )
 
 
@@ -3957,8 +3984,8 @@ def test_cc08_g_superseding_runtime_v2_decision_is_coherent_at_true_eof() -> Non
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_CC08_G_SUPERSEDING_RUNTIME_V2_DECISION_TRUE_EOF",
     )
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    assert canonical[-1][1] in ACCEPTANCE_PATH.read_text(encoding="utf-8")
+    assert mirror[-1][1] in EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")
 
     adr = " ".join(CC08_ADR_PATH.read_text(encoding="utf-8").split())
     contract = " ".join(CC08_CONTRACT_PATH.read_text(encoding="utf-8").split())
@@ -3986,5 +4013,154 @@ def test_cc08_g_superseding_runtime_v2_decision_is_coherent_at_true_eof() -> Non
         "object_key",
         "D:\\p-worktrees\\",
         "cc07a-d761637e4c0147cc",
+    ):
+        assert forbidden not in tracked
+
+
+def test_cc08_a_builder_input_lock_and_authority_are_coherent_at_true_eof() -> None:
+    lock = cast(dict[str, Any], json.loads(CC08_A_LOCK_PATH.read_text(encoding="utf-8")))
+    evidence = cast(dict[str, Any], json.loads(CC08_A_EVIDENCE_PATH.read_text(encoding="utf-8")))
+
+    assert lock["schema_version"] == "mirror.p2-m5.cc08-builder-input-lock/v1"
+    assert lock["lock_version"] == "p2-m5-cc08-source-built-vision-input-lock-v1"
+    assert lock["recipe_version"] == "p2-m5-cc08-source-built-vision-recipe-v1"
+    assert lock["status"] == "LOCKED_LOCAL_PASS_PENDING_TRACKED_GATES"
+    assert lock["content_sha256"] == _newline_content_digest(lock)
+    assert lock["source"]["commit"] == "f8ef212d5c962c0e853db7e59d217056b187084b"
+
+    patches = lock["patches"]
+    assert len(patches) == 12
+    assert [item["order"] for item in patches] == list(range(1, 13))
+    for item in patches:
+        patch_path = ROOT / item["path"]
+        assert patch_path.is_file()
+        assert hashlib.sha256(patch_path.read_bytes()).hexdigest() == item["sha256"]
+
+    public_artifacts = lock["public_artifacts"]
+    assert len(public_artifacts) == 7
+    assert sum(item["byte_size"] for item in public_artifacts) == 211843042
+    assert len({item["id"] for item in public_artifacts}) == len(public_artifacts)
+    assert all(item["source_url"].startswith("https://") for item in public_artifacts)
+    assert all(re.fullmatch(r"[0-9a-f]{64}", item["sha256"]) for item in public_artifacts)
+
+    linux = lock["linux_builder"]
+    assert linux["deb_bundle"]["entry_count"] == 103
+    assert linux["authoritative_image"]["installed_package_records"] == 190
+    assert linux["reconstruction"]["oci_image_id_equal"] is False
+    assert linux["reconstruction"]["semantic_inventory_equal"] is True
+    assert (
+        linux["authoritative_image"]["semantic_content_sha256"]
+        == (linux["reconstruction"]["semantic_content_sha256"])
+    )
+    assert linux["reconstruction"]["loss_rule"] == (
+        "LOSS_OF_EXACT_IMAGE_HANDLE_REQUIRES_NEW_BUILDER_IDENTITY_AND_REQUALIFICATION"
+    )
+    assert linux["runtime_builds"] == 0
+
+    windows = lock["windows_builder"]
+    assert windows["visual_studio"] == "17.14.38"
+    assert windows["msvc_tools"] == "14.44.35207"
+    assert windows["windows_sdk"] == "10.0.26100.0"
+    assert windows["toolchain_manifest"]["entry_count"] == 24448
+    assert windows["toolchain_manifest"]["second_read_verification"] == "PASS"
+    assert windows["offline_fetch"]["repository_cache_unchanged"] is True
+    assert windows["offline_fetch"]["firewall_rule_cleanup"] == "PASS_ZERO_REMAINING"
+    assert windows["runtime_builds"] == 0
+
+    bindings = lock["private_manifest_bindings"]
+    assert len(bindings) == 7
+    assert {item["id"] for item in bindings} == {
+        "source_tree",
+        "public_artifacts",
+        "linux_debs",
+        "linux_builder_authority",
+        "linux_builder_reconstruction",
+        "windows_toolchain",
+        "repository_cache",
+    }
+    assert len(lock["private_handle_ids"]) == 6
+    assert lock["builder_algorithm"]["fetch"]["repository_cache_create_once"] is True
+    assert lock["builder_algorithm"]["build"]["network"] == "NONE"
+    assert (
+        "--override_repository=npm=$SOURCE_ROOT/third_party/mirror_v03_empty_npm"
+        in (lock["builder_algorithm"]["common_bazel_flags"])
+    )
+    assert all(value == 0 for value in lock["boundaries"].values() if type(value) is int)
+    assert lock["boundaries"]["production_distribution_real_user_authorized"] is False
+
+    assert evidence["schema_version"] == ("mirror.p2-m5.cc08-a-builder-input-lock-evidence/v1")
+    assert evidence["content_sha256"] == _newline_content_digest(evidence)
+    assert evidence["lock"]["content_sha256"] == lock["content_sha256"]
+    assert (
+        evidence["lock"]["file_sha256"] == hashlib.sha256(CC08_A_LOCK_PATH.read_bytes()).hexdigest()
+    )
+    assert evidence["repository_cache"]["linux_offline_read_only_replay"].startswith("PASS")
+    assert evidence["repository_cache"]["windows_offline_replay"].startswith("PASS")
+    assert evidence["private_custody"]["recoverable"] is True
+    assert evidence["private_custody"]["private_locator_tracked"] is False
+    assert evidence["private_custody"]["private_bytes_tracked"] is False
+    assert all(value == 0 for value in evidence["operations"].values())
+    assert evidence["outcome"] == "LOCAL_PASS_PENDING_TRACKED_GATES"
+
+    canonical = _last_cc08_a_key_block(ACCEPTANCE_PATH)
+    mirror = _last_cc08_a_key_block(EXECUTION_PROTOCOL_PATH)
+    values = dict(canonical)
+    assert canonical == mirror
+    assert len(canonical) == len(values)
+    assert values["P2_M5_CC08_G"] == ("TASK_ACCEPTED_AT_96656547F3752B04156A1A775245A10052DB678C")
+    assert values["P2_M5_CC08_G_CI_RUN"] == ("33340749511_ATTEMPT_1_ALL_MANDATORY_JOBS_PASS")
+    assert values["P2_M5_CC08_G_PRINCIPAL_ACCEPTANCE"] == "GRANTED"
+    assert values["P2_M5_CC08_A"] == "TASK_ACCEPTED_ON_AUTHORITY_ACTIVATION"
+    assert values["P2_M5_CC08_A_INPUT_LOCK_CONTENT_SHA256"].lower() == (lock["content_sha256"])
+    assert values["P2_M5_CC08_A_EVIDENCE_CONTENT_SHA256"].lower() == (evidence["content_sha256"])
+    assert values["P2_M5_CC08_A_LINUX_OFFLINE_FETCH"].startswith("PASS")
+    assert values["P2_M5_CC08_A_WINDOWS_OFFLINE_FETCH"].startswith("PASS")
+    assert values["P2_M5_CC08_A_WINDOWS_FIREWALL_CLEANUP"] == ("PASS_ZERO_RULES_REMAINING")
+    for key in (
+        "P2_M5_CC08_A_RUNTIME_BUILDS",
+        "P2_M5_CC08_A_MODEL_LOADS",
+        "P2_M5_CC08_A_VISION_CALLS",
+        "P2_M5_CC08_A_CANARY_READS",
+        "P2_M5_CC08_A_DECODE_CALLS",
+        "P2_M5_CC08_A_M3_CALLS",
+        "P2_M5_CC08_A_IMAGEGEN_CALLS",
+        "P2_M5_CC08_A_DB_MUTATIONS",
+    ):
+        assert values[key] == "0"
+    assert values["CAL_REQ_004_STATUS"] == "OUTPUT_REGISTERED_PRE_DECODE"
+    assert values["CAL_REQ_004_POST_REGISTRATION_EXECUTION_AUTHORIZED"] == (
+        "FALSE_PENDING_CC08_F_ACCEPTANCE"
+    )
+    assert values["FORMAL_CALLS_REMAINING"] == "28"
+    assert values["FORMAL_RAW_CAPACITY_REMAINING"] == "28"
+    assert values["GLOBAL_NATIVE_OUTPUT_CAPACITY_REMAINING"] == "59"
+    assert values["NEXT_READY_TASK"] == (
+        "P2-M5-CC08-B_BUILD_AND_FREEZE_NEW_TWO_PLATFORM_RUNTIME_MANIFEST"
+    )
+    assert values["POST_ACCEPTANCE_COMMIT_REQUIRED"] == "NO"
+    assert canonical[-1] == (
+        "CURRENT_AUTHORITY_TAIL_END",
+        "P2_M5_CC08_A_RECOVERABLE_BUILDER_INPUT_LOCK_TRUE_EOF",
+    )
+    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
+    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+
+    tracked = "\n".join(
+        (
+            CC08_A_LOCK_PATH.read_text(encoding="utf-8"),
+            CC08_A_EVIDENCE_PATH.read_text(encoding="utf-8"),
+            ACCEPTANCE_PATH.read_text(encoding="utf-8")[-20_000:],
+            EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")[-20_000:],
+        )
+    )
+    for forbidden in (
+        '"locator":',
+        ".private-handoff",
+        "data:image/",
+        "prompt_plaintext",
+        "signed_url",
+        "object_key",
+        "D:\\p-worktrees\\",
+        "C:\\Users\\",
     ):
         assert forbidden not in tracked

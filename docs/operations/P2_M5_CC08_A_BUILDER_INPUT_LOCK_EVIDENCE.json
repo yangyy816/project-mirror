@@ -1,0 +1,131 @@
+{
+  "schema_version": "mirror.p2-m5.cc08-a-builder-input-lock-evidence/v1",
+  "task_id": "P2-M5-CC08-A",
+  "change_control_id": "CC-P2-M5-08",
+  "baseline_sha": "96656547f3752b04156a1a775245a10052db678c",
+  "status": "LOCAL_PASS_PENDING_TRACKED_GATES",
+  "lock": {
+    "path": "docs/research/P2_M5_CC08_BUILDER_INPUT_LOCK_V1.json",
+    "version": "p2-m5-cc08-source-built-vision-input-lock-v1",
+    "recipe_version": "p2-m5-cc08-source-built-vision-recipe-v1",
+    "file_sha256": "d88f2eb2d809d776503966cd1bd8f186a8b52d28da60f288c976f07599e9007f",
+    "content_sha256": "501b653f2cc67c7f33c42d4e77ae3dffacb14fedae440e01c401ec8a119501c4",
+    "verifier": "scripts/research/p2_m5_cc08_builder_lock.py",
+    "verifier_sha256": "c4fb2eae2c7f285c0dde67f2da1d173020577e427372f077ce1ab559df586aa9",
+    "linux_builder_dockerfile_sha256": "b261ff7cf32df2d45cfe0d6dce8de9f7e77a1aa86c317b1244bc786e70671b8c"
+  },
+  "source_authority": {
+    "commit": "f8ef212d5c962c0e853db7e59d217056b187084b",
+    "patch_count": 12,
+    "canonical_lf_replay": "PASS",
+    "source_manifest_entries": 4736,
+    "source_manifest_bytes": 75147166,
+    "source_manifest_content_sha256": "c25314cecf67e509f8338240c40f115d7564cb8c943c38f0a6e1e30765d8ddc6",
+    "old_runtime_digest_reused": false,
+    "old_build_manifest_recreated": false
+  },
+  "public_inputs": {
+    "artifacts": 7,
+    "bytes": 211843042,
+    "content_sha256": "bfdc98cb01f2ab6b57109eec87a4084c557ce2620b0dcc69a882fcfe141cc742",
+    "bazel_linux": "PASS_EXACT_SHA256",
+    "bazel_windows": "PASS_EXACT_SHA256",
+    "opencv_source": "PASS_EXACT_SHA256",
+    "face_landmarker_model": "PASS_EXACT_SHA256_NOT_LOADED",
+    "model_cards": "PASS_3_OF_3_EXACT_SHA256"
+  },
+  "linux_builder": {
+    "base_image_digest": "sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a",
+    "deb_bundle_entries": 103,
+    "deb_bundle_bytes": 117522508,
+    "deb_bundle_content_sha256": "85d6fa09535ff367f882aedd4ce3cc2fb6717e9e02db7e615a7d9d111378a3dd",
+    "authoritative_image_id": "sha256:a9e34228a05e6874e6c932bd0435ef5bc86f3b8a6b72d7691e571e22f4ec930a",
+    "reconstruction_image_id": "sha256:8f80985cc8ec09f6ec3bbbb287cb6f37e3530c7facd56c77e47b4bd7fb84d220",
+    "oci_image_id_equal": false,
+    "semantic_inventory_equal": true,
+    "semantic_content_sha256": "e9deaa7baf5ced3c29cd3b2f70bc28bb0bde5b0b27d29453467d6d3a93db67ab",
+    "installed_package_records": 190,
+    "assembly_network": "RUN_STEPS_NONE_BASE_DIGEST_RESOLUTION_BOUNDED_PUBLIC_ACQUISITION",
+    "runtime_builds": 0
+  },
+  "windows_builder": {
+    "visual_studio": "17.14.38",
+    "msvc": "14.44.35207",
+    "windows_sdk": "10.0.26100.0",
+    "python": "3.13.1",
+    "cmake": "4.3.3",
+    "toolchain_manifest_entries": 24448,
+    "toolchain_manifest_bytes": 4322540856,
+    "toolchain_manifest_content_sha256": "5862f43872bd284294497b98e6fa759d25d21c4ee23afc8f8c3569c6d17ac33e",
+    "second_read_verification": "PASS",
+    "runtime_builds": 0
+  },
+  "repository_cache": {
+    "entries": 106,
+    "bytes": 784676296,
+    "content_sha256": "12cd03f3df9eae19ceebe6c769a546b791ca4b79fd80917070e2a68ead38ecea",
+    "linux_online_fetch": "PASS",
+    "windows_online_fetch": "PASS",
+    "linux_offline_read_only_replay": "PASS_NETWORK_NONE_LOCAL_NPM_STUB",
+    "windows_offline_replay": "PASS_TASK_PRIVATE_BAZEL_AND_JAVA_OUTBOUND_DENY",
+    "before_after_manifest_equal": true,
+    "windows_firewall_cleanup": "PASS_ZERO_RULES_REMAINING"
+  },
+  "private_custody": {
+    "registry_sha256": "0d6c5f6778738c7d87456558d74b687e1c0ff30385de566e00bb22fd29f887e6",
+    "execution_receipt_sha256": "f7a0fa07f4eed4472a91c2d1749e3b2d52fe6f04e330d357a71e72bfcc333846",
+    "validation_receipt_sha256": "6fdab0328187ff3bbac7220f3d14e8721f52ca30e4a96bfbdf7969c48533926a",
+    "handle_count": 6,
+    "recoverable": true,
+    "private_locator_tracked": false,
+    "private_bytes_tracked": false,
+    "retention": "THROUGH_CC08_COMPLETION"
+  },
+  "attempts": {
+    "source_materialization_attempts": 2,
+    "linux_builder_assembly_attempts": 2,
+    "linux_online_fetch_attempts": 2,
+    "windows_online_fetch_attempts": 2,
+    "linux_offline_verify_attempts": 2,
+    "windows_offline_verify_attempts": 2,
+    "all_failures_pre_runtime_build": true,
+    "all_failures_retained_private": true
+  },
+  "validation": {
+    "builder_input_lock_verifier": "PASS",
+    "ruff_format_and_check": "PASS",
+    "strict_mypy": "PASS_1_SOURCE",
+    "governance_pytest": "PASS_36",
+    "builder_lock_pytest": "PASS_3",
+    "prettier_json": "PASS_2",
+    "staged_diff_check": "PASS",
+    "index_snapshot_gitleaks": "PASS_ZERO_FINDINGS_8618847_SCANNED_BYTES",
+    "staged_image_magic": "PASS_ZERO_HITS",
+    "invalid_zero_byte_gitleaks_result_accepted": false
+  },
+  "operations": {
+    "runtime_builds": 0,
+    "model_loads": 0,
+    "vision_calls": 0,
+    "canary_reads": 0,
+    "decode_calls": 0,
+    "m3_calls": 0,
+    "imagegen_calls": 0,
+    "database_mutations": 0
+  },
+  "boundaries": {
+    "synthetic_only": true,
+    "schema_or_migration_change": false,
+    "public_api_or_openapi_change": false,
+    "project_dependency_change": false,
+    "workflow_change": false,
+    "resource_ledger_change": false,
+    "production_distribution_real_user_authorized": false,
+    "question_bank_release_authorized": false,
+    "cal_req_004_status": "OUTPUT_REGISTERED_PRE_DECODE",
+    "cal_req_004_execution_authorized": false
+  },
+  "outcome": "LOCAL_PASS_PENDING_TRACKED_GATES",
+  "next_task_after_acceptance": "P2-M5-CC08-B_BUILD_AND_FREEZE_NEW_TWO_PLATFORM_RUNTIME_MANIFEST",
+  "content_sha256": "28dee64f5dea3efefc7aaf56ff8e372c118e32d856632784fb354579795f8cf3"
+}
