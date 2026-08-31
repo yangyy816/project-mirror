@@ -56,3 +56,73 @@ commits = ["5452af4337a2bd462f31a213ddc439d291ab2362"]
 paths = ['''^services/api/src/mirror_api/synthetic_dataset/private_imagegen_capture\.py$''']
 regexTarget = "match"
 regexes = ['''expected_handle_keys = _EXPECTED_HANDLE_KEYS_V[12]''']
+
+# D02-CI-R02: these immutable Demo state values are Git commit identities.
+# Gitleaks 8.28.0 treats the semantic `*_API*` field names as generic key
+# assignments. Keep every exception bound to one exact commit, path, and line.
+[[allowlists]]
+description = "Historical D10 profile API checkpoint SHA in b139364"
+condition = "AND"
+commits = ["b1393646034490d0b1ecf676669bd8739ce44ddd"]
+paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
+regexTarget = "line"
+regexes = ['''"D10_PROFILE_REBUILD_API_WIRING": "98ddfc47e74a894e25142c9cc677e23178d91776"''']
+
+[[allowlists]]
+description = "Historical D10 profile API checkpoint SHA in 5ad9f4c"
+condition = "AND"
+commits = ["5ad9f4c331aa8dc466b69a3e01854ae5f8960187"]
+paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
+regexTarget = "line"
+regexes = ['''"D10_PROFILE_REBUILD_API_WIRING": "98ddfc47e74a894e25142c9cc677e23178d91776"''']
+
+[[allowlists]]
+description = "Historical D09 final-save API checkpoint SHA in 5ad9f4c"
+condition = "AND"
+commits = ["5ad9f4c331aa8dc466b69a3e01854ae5f8960187"]
+paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
+regexTarget = "line"
+regexes = ['''"D09_IMAGE_FEEDBACK_FINAL_SAVE_API": "32cb1e9d62c99d33f898357617264b23c6f7d06d"''']
+
+[[allowlists]]
+description = "Historical D09 final-save API checkpoint SHA in 1217478"
+condition = "AND"
+commits = ["121747816fefd07235a22a37bc3796b512b81ff4"]
+paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
+regexTarget = "line"
+regexes = ['''"D09_IMAGE_FEEDBACK_FINAL_SAVE_API": "32cb1e9d62c99d33f898357617264b23c6f7d06d"''']
+
+[[allowlists]]
+description = "Historical D10 explicit-recall API checkpoint SHA in 1217478"
+condition = "AND"
+commits = ["121747816fefd07235a22a37bc3796b512b81ff4"]
+paths = ['''^docs/operations/P3_P7_DEMO_EXECUTION_STATE\.json$''']
+regexTarget = "line"
+regexes = ['''"D10_CONTEXT_TRACE_EXPLICIT_RECALL_API": "cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd"''']
+
+# D02-CI-R02: deterministic test-only idempotency values are not credentials.
+# Keep both exceptions bound to their exact immutable source commits and paths.
+[[allowlists]]
+description = "Historical D06 deterministic collision-key false positive"
+condition = "AND"
+commits = ["53cbac335a6a0008fbb4395a10715d0e6512d1ad"]
+paths = ['''^services/api/tests/test_demo_self_transfer_service\.py$''']
+regexTarget = "match"
+regexes = ['''key="d06-result-collision"''']
+
+[[allowlists]]
+description = "Historical D07 deterministic idempotency-key false positives"
+condition = "AND"
+commits = [
+  "186db65e3e1ad5a7f78b284a060d8d25de20cc99",
+  "a8907b7b580d7e4ce699fa5f067512c8501204cc",
+]
+paths = [
+  '''^services/api/tests/test_demo_editing_commands\.py$''',
+  '''^services/api/tests/test_demo_editing_coordinator\.py$''',
+]
+regexTarget = "match"
+regexes = [
+  '''_KEY = "idempotency-key-01"''',
+  '''idempotency_key="idempotency-key-01"''',
+]
