@@ -44,8 +44,80 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
         path: value for path, value in schema["paths"].items() if path.startswith("/api/v1/demo")
     }
     operations = [operation for item in paths.values() for operation in item.values()]
-    assert len(operations) == 23
-    assert sum(operation["operationId"].startswith("demo") for operation in operations) == 23
+    operation_matrix = {
+        (method.upper(), path, operation["operationId"])
+        for path, item in paths.items()
+        for method, operation in item.items()
+    }
+    assert operation_matrix == {
+        ("GET", "/api/v1/demo/analyses/{analysis_id}", "demoGetAnalysis"),
+        ("GET", "/api/v1/demo/capabilities", "demoGetCapabilities"),
+        ("GET", "/api/v1/demo/identities", "demoListIdentities"),
+        ("GET", "/api/v1/demo/jobs/{job_id}", "demoGetJob"),
+        ("GET", "/api/v1/demo/profiles/active", "demoGetActiveProfiles"),
+        (
+            "GET",
+            "/api/v1/demo/questionnaires/runs/{run_id}/next",
+            "demoGetQuestionnaireNext",
+        ),
+        (
+            "GET",
+            "/api/v1/demo/reference-profiles/active",
+            "demoGetActiveReferenceProfiles",
+        ),
+        (
+            "GET",
+            "/api/v1/demo/sessions/{session_id}/context",
+            "demoGetSessionContext",
+        ),
+        ("GET", "/api/v1/demo/tool-runs/{tool_run_id}", "demoGetToolRun"),
+        ("GET", "/api/v1/demo/traces/{session_id}", "demoGetTrace"),
+        ("POST", "/api/v1/demo/analyses", "demoCreateAnalysis"),
+        ("POST", "/api/v1/demo/constraints", "demoCreateConstraints"),
+        (
+            "POST",
+            "/api/v1/demo/edit-plans/{edit_plan_id}/executions",
+            "demoExecuteEditPlan",
+        ),
+        ("POST", "/api/v1/demo/editing-sessions", "demoCreateEditingSession"),
+        (
+            "POST",
+            "/api/v1/demo/editing-sessions/{editing_session_id}/plans",
+            "demoCreateEditPlan",
+        ),
+        (
+            "POST",
+            "/api/v1/demo/image-versions/{image_version_id}/feedback",
+            "demoCreateImageVersionFeedback",
+        ),
+        (
+            "POST",
+            "/api/v1/demo/image-versions/{image_version_id}/restore",
+            "demoRestoreImageVersion",
+        ),
+        ("POST", "/api/v1/demo/jobs/{job_id}/cancel", "demoCancelJob"),
+        ("POST", "/api/v1/demo/profiles/compile", "demoCompileProfile"),
+        ("POST", "/api/v1/demo/profiles/rebuild", "demoRebuildProfiles"),
+        (
+            "POST",
+            "/api/v1/demo/questionnaires/runs",
+            "demoCreateQuestionnaireRun",
+        ),
+        (
+            "POST",
+            "/api/v1/demo/questionnaires/runs/{run_id}/responses",
+            "demoCreateQuestionnaireResponse",
+        ),
+        (
+            "POST",
+            "/api/v1/demo/reference-profiles/compile",
+            "demoCompileReferenceProfile",
+        ),
+        ("POST", "/api/v1/demo/sessions", "demoCreateSession"),
+        ("POST", "/api/v1/demo/style-feedback", "demoCreateStyleFeedback"),
+    }
+    assert len(operations) == 25
+    assert sum(operation["operationId"].startswith("demo") for operation in operations) == 25
     assert all(operation["x-demo-only"] is True for operation in operations)
     posts = [
         operation
@@ -57,6 +129,7 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
             "demoCreateQuestionnaireRun",
             "demoCreateQuestionnaireResponse",
             "demoCompileProfile",
+            "demoCompileReferenceProfile",
             "demoCreateStyleFeedback",
             "demoCreateConstraints",
             "demoCreateEditingSession",
@@ -68,7 +141,7 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
             "demoCancelJob",
         }
     ]
-    assert len(posts) == 14
+    assert len(posts) == 15
     assert all("DemoBearerAuth" in operation["security"][0] for operation in operations)
     idempotency_headers = [
         next(
@@ -106,6 +179,7 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
     }.issubset(job["required"])
     assert {"result_code", "finalized_at"}.issubset(job["properties"])
     assert {"target_type", "target_id", "authority_digest"} == set(target["required"])
+    assert "REFERENCE_PROFILE_REQUEST" in target["properties"]["target_type"]["enum"]
 
 
 def test_capabilities_report_available_and_deferred_boundaries() -> None:
@@ -128,6 +202,11 @@ def test_capabilities_report_available_and_deferred_boundaries() -> None:
         "DEFERRED_WITH_EXPLICIT_REASON",
         "CAPABILITY_UNAVAILABLE",
     }
+    assert {
+        item["code"]
+        for item in capabilities.json()["capabilities"]
+        if item["status"] == "AVAILABLE"
+    } >= {"P5_COMPILER", "P5_REFERENCE_PROFILE"}
     rejected = client.post(
         "/api/v1/demo/sessions",
         headers={"Idempotency-Key": "abcdefgh"},
@@ -323,8 +402,9 @@ def test_frozen_demo_mutation_contracts_require_explicit_intent_and_precondition
 def test_main_application_exposes_the_complete_demo_contract() -> None:
     schema = create_app().openapi()
     paths = [path for path in schema["paths"] if path.startswith("/api/v1/demo")]
-    assert len(paths) == 23
+    assert len(paths) == 25
     assert schema["paths"]["/api/v1/demo/jobs/{job_id}/cancel"]["post"]["requestBody"]
+    assert schema["paths"]["/api/v1/demo/reference-profiles/compile"]["post"]["requestBody"]
 
 
 def test_demo_bearer_keyring_rejects_ambiguous_digest_authority() -> None:
