@@ -419,11 +419,12 @@ async def test_populated_d06_downgrade_fails_closed(postgres_session: Session) -
         "script_location",
         str(root / "services" / "api" / "migrations"),
     )
+    postgres_session.commit()
     with pytest.raises(ProgrammingError, match="downgrade is forbidden"):
         alembic_command.downgrade(config, "demo_0015_d02_source_acq_pool")
     postgres_session.expire_all()
     assert postgres_session.scalar(text("SELECT version_num FROM alembic_version")) == (
-        "demo_0016_d06_ref_profile_queue"
+        "demo_0017_d10_context_queue"
     )
 
 

@@ -714,7 +714,7 @@ def test_0013_empty_lifecycle_downgrades_and_reupgrades(
     command.upgrade(config, "head")
     with create_engine(database_url).connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "demo_0016_d06_ref_profile_queue"
+            "demo_0017_d10_context_queue"
         )
     get_settings.cache_clear()
 
@@ -773,7 +773,7 @@ def test_0012_downgrade_fails_closed_when_m4_authority_exists(
         command.downgrade(config, "0011_offline_synth_source")
     with create_engine(database_url).connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "demo_0016_d06_ref_profile_queue"
+            "demo_0017_d10_context_queue"
         )
     get_settings.cache_clear()
 

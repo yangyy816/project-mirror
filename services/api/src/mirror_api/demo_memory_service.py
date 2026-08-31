@@ -195,6 +195,29 @@ class DemoContextCompilationResult:
 
 
 @dataclass(frozen=True)
+class DemoContextInputSnapshot:
+    """Frozen, byte-free D10 compiler input for a queued Context request.
+
+    The snapshot deliberately contains only already-derived authority.  It is
+    suitable for persistence in the D10 request table and must be compared
+    exactly before a worker materializes a ContextCompilation.
+    """
+
+    aesthetic_profile_id: str
+    profile_digest: str
+    context_as_of_time: datetime
+    compiler_version: str
+    current_instruction_digest: str
+    selected_evidence: tuple[dict[str, object], ...]
+    rejected_evidence: tuple[dict[str, object], ...]
+    budgets: dict[str, int]
+    trace_payload: dict[str, object]
+    compilation_watermark: str
+    input_digest: str
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
 class DemoContextRecall:
     context_compilation_id: str
     aesthetic_profile_id: str
@@ -527,6 +550,149 @@ class DemoMemoryService:
             replayed=False,
         )
 
+    async def freeze_context_inputs_in_session(
+        self,
+        session: AsyncSession,
+        command: CompileDemoContext,
+    ) -> DemoContextInputSnapshot:
+        """Freeze deterministic Context inputs using the caller's explicit as-of time.
+
+        Callers own actor/session locking and transaction scope.  This method
+        never reads the clock: audit time is intentionally not compiler input.
+        """
+        command.validate()
+        context_as_of = _normalize_explicit_time(command.context_as_of_time, "context_as_of_time")
+        events = await _events(session, command.demo_actor_id)
+        profiles = await _aesthetic_profiles(session, command.demo_actor_id)
+        projection = _project_lifecycle(events, profiles)
+        profile = next((item for item in profiles if item.id == command.aesthetic_profile_id), None)
+        if profile is None or not _profile_is_active(profile, projection):
+            raise DemoMemoryUnavailable("AestheticProfile is unavailable for Context")
+        selected, rejected = await _context_evidence(
+            session,
+            actor_id=command.demo_actor_id,
+            session_id=command.demo_session_id,
+            profile=profile,
+            projection=projection,
+            context_as_of=context_as_of,
+        )
+        trace_payload: dict[str, object] = {
+            "current_instruction_priority": 1,
+            "evidence_precedence": [
+                "CURRENT_INSTRUCTION",
+                "EXPLICIT_LOCK_OR_OVERRIDE",
+                "ACCEPTED_SELF_TRANSFER_OR_REFERENCE",
+                "ACCEPTED_VISUAL_EPISODE",
+                "QUESTIONNAIRE",
+            ],
+            "next_session_recall": any(
+                entry.get("source_session_id") not in {None, command.demo_session_id}
+                for entry in selected
+            ),
+            "profile_generation": profile.generation,
+            "rejected_count": len(rejected),
+            "selected_count": len(selected),
+        }
+        compiler_input = {
+            "aesthetic_profile_digest": profile.content_digest,
+            "compiler_version": command.compiler_version,
+            "context_as_of_time": _canonical_time(context_as_of),
+            "current_instruction_digest": command.current_instruction_digest,
+            "rejected_evidence": rejected,
+            "selected_evidence": selected,
+            "session_id": command.demo_session_id,
+        }
+        watermark = hashlib.sha256(canonical_json_bytes(compiler_input)).hexdigest()
+        input_payload = {
+            "aesthetic_profile_id": profile.id,
+            "profile_digest": profile.content_digest,
+            "compiler_version": command.compiler_version,
+            "context_as_of_time": _canonical_time(context_as_of),
+            "current_instruction_digest": command.current_instruction_digest,
+            "selected_evidence": selected,
+            "rejected_evidence": rejected,
+            "budgets": dict(_CONTEXT_BUDGETS),
+            "trace_payload": trace_payload,
+            "compilation_watermark": watermark,
+            "expires_at": _canonical_time(context_as_of + _CONTEXT_TTL),
+        }
+        return DemoContextInputSnapshot(
+            aesthetic_profile_id=profile.id,
+            profile_digest=profile.content_digest,
+            context_as_of_time=context_as_of,
+            compiler_version=command.compiler_version,
+            current_instruction_digest=command.current_instruction_digest,
+            selected_evidence=tuple(selected),
+            rejected_evidence=tuple(rejected),
+            budgets=dict(_CONTEXT_BUDGETS),
+            trace_payload=trace_payload,
+            compilation_watermark=watermark,
+            input_digest=hashlib.sha256(canonical_json_bytes(input_payload)).hexdigest(),
+            expires_at=context_as_of + _CONTEXT_TTL,
+        )
+
+    async def materialize_context_in_session(
+        self,
+        session: AsyncSession,
+        *,
+        command: CompileDemoContext,
+        expected: DemoContextInputSnapshot,
+        demo_job_binding_id: str,
+        audit_now: datetime,
+    ) -> DemoContextCompilationResult:
+        """Re-freeze and exactly verify queued input before creating Context authority."""
+        actual = await self.freeze_context_inputs_in_session(session, command)
+        if actual != expected:
+            raise DemoMemoryConflict("frozen Context input no longer matches request authority")
+        _require_id(demo_job_binding_id, "demo_job_binding_id")
+        authority_payload = {
+            "aesthetic_profile_id": expected.aesthetic_profile_id,
+            "budgets": dict(expected.budgets),
+            "compilation_watermark": expected.compilation_watermark,
+            "compiler_version": expected.compiler_version,
+            "context_as_of_time": _canonical_time(expected.context_as_of_time),
+            "current_instruction_digest": expected.current_instruction_digest,
+            "demo_actor_id": command.demo_actor_id,
+            "demo_job_binding_id": demo_job_binding_id,
+            "demo_session_id": command.demo_session_id,
+            "expires_at": _canonical_time(expected.expires_at),
+            "rejected_evidence": list(expected.rejected_evidence),
+            "selected_evidence": list(expected.selected_evidence),
+            "trace_payload": dict(expected.trace_payload),
+        }
+        context = DemoContextCompilation(
+            id=new_id(),
+            schema_version=DEMO_CONTEXT_COMPILATION_SCHEMA,
+            canonical_payload=authority_payload,
+            content_digest=_authority_digest(DEMO_CONTEXT_COMPILATION_SCHEMA, authority_payload),
+            created_at=audit_now,
+            aesthetic_profile_id=expected.aesthetic_profile_id,
+            budgets=dict(expected.budgets),
+            compilation_watermark=expected.compilation_watermark,
+            compiler_version=expected.compiler_version,
+            context_as_of_time=expected.context_as_of_time,
+            current_instruction_digest=expected.current_instruction_digest,
+            demo_actor_id=command.demo_actor_id,
+            demo_job_binding_id=demo_job_binding_id,
+            demo_session_id=command.demo_session_id,
+            expires_at=expected.expires_at,
+            rejected_evidence=list(expected.rejected_evidence),
+            selected_evidence=list(expected.selected_evidence),
+            trace_payload=dict(expected.trace_payload),
+        )
+        session.add(context)
+        await session.flush()
+        self._run_post_write_probe("CONTEXT")
+        return DemoContextCompilationResult(
+            job_id="",
+            context_compilation_id=context.id,
+            aesthetic_profile_id=context.aesthetic_profile_id,
+            compilation_watermark=context.compilation_watermark,
+            context_digest=context.content_digest,
+            expires_at=context.expires_at,
+            replayed=False,
+        )
+
     async def compile_context(self, command: CompileDemoContext) -> DemoContextCompilationResult:
         command.validate()
         context_as_of = _normalize_explicit_time(command.context_as_of_time, "context_as_of_time")
@@ -563,40 +729,12 @@ class DemoMemoryService:
                         request_digest=request_digest,
                     )
 
-                events = await _events(session, command.demo_actor_id)
-                profiles = await _aesthetic_profiles(session, command.demo_actor_id)
-                projection = _project_lifecycle(events, profiles)
-                profile = next(
-                    (item for item in profiles if item.id == command.aesthetic_profile_id), None
-                )
-                if profile is None or not _profile_is_active(profile, projection):
-                    raise DemoMemoryUnavailable("AestheticProfile is unavailable for Context")
-
-                selected, rejected = await _context_evidence(
-                    session,
-                    actor_id=command.demo_actor_id,
-                    session_id=command.demo_session_id,
-                    profile=profile,
-                    projection=projection,
-                    context_as_of=context_as_of,
-                )
-                context_input = {
-                    "aesthetic_profile_digest": profile.content_digest,
-                    "compiler_version": command.compiler_version,
-                    "context_as_of_time": _canonical_time(context_as_of),
-                    "current_instruction_digest": command.current_instruction_digest,
-                    "rejected_evidence": rejected,
-                    "selected_evidence": selected,
-                    "session_id": command.demo_session_id,
-                }
-                compilation_watermark = hashlib.sha256(
-                    canonical_json_bytes(context_input)
-                ).hexdigest()
+                frozen = await self.freeze_context_inputs_in_session(session, command)
                 same_input = await session.scalar(
                     select(DemoContextCompilation).where(
                         DemoContextCompilation.demo_actor_id == command.demo_actor_id,
                         DemoContextCompilation.demo_session_id == command.demo_session_id,
-                        DemoContextCompilation.context_as_of_time == context_as_of,
+                        DemoContextCompilation.context_as_of_time == frozen.context_as_of_time,
                         DemoContextCompilation.compiler_version == command.compiler_version,
                     )
                 )
@@ -617,64 +755,13 @@ class DemoMemoryService:
                     request_id=command.request_id,
                     audit_now=self._normalized_audit_now(),
                 )
-                expires_at = context_as_of + _CONTEXT_TTL
-                trace_payload = {
-                    "current_instruction_priority": 1,
-                    "evidence_precedence": [
-                        "CURRENT_INSTRUCTION",
-                        "EXPLICIT_LOCK_OR_OVERRIDE",
-                        "ACCEPTED_SELF_TRANSFER_OR_REFERENCE",
-                        "ACCEPTED_VISUAL_EPISODE",
-                        "QUESTIONNAIRE",
-                    ],
-                    "next_session_recall": any(
-                        entry.get("source_session_id") not in {None, command.demo_session_id}
-                        for entry in selected
-                    ),
-                    "profile_generation": profile.generation,
-                    "rejected_count": len(rejected),
-                    "selected_count": len(selected),
-                }
-                authority_payload = {
-                    "aesthetic_profile_id": profile.id,
-                    "budgets": dict(_CONTEXT_BUDGETS),
-                    "compilation_watermark": compilation_watermark,
-                    "compiler_version": command.compiler_version,
-                    "context_as_of_time": _canonical_time(context_as_of),
-                    "current_instruction_digest": command.current_instruction_digest,
-                    "demo_actor_id": command.demo_actor_id,
-                    "demo_job_binding_id": binding.id,
-                    "demo_session_id": command.demo_session_id,
-                    "expires_at": _canonical_time(expires_at),
-                    "rejected_evidence": rejected,
-                    "selected_evidence": selected,
-                    "trace_payload": trace_payload,
-                }
-                context = DemoContextCompilation(
-                    id=new_id(),
-                    schema_version=DEMO_CONTEXT_COMPILATION_SCHEMA,
-                    canonical_payload=authority_payload,
-                    content_digest=_authority_digest(
-                        DEMO_CONTEXT_COMPILATION_SCHEMA, authority_payload
-                    ),
-                    created_at=audit_now,
-                    aesthetic_profile_id=profile.id,
-                    budgets=dict(_CONTEXT_BUDGETS),
-                    compilation_watermark=compilation_watermark,
-                    compiler_version=command.compiler_version,
-                    context_as_of_time=context_as_of,
-                    current_instruction_digest=command.current_instruction_digest,
-                    demo_actor_id=command.demo_actor_id,
+                context = await self.materialize_context_in_session(
+                    session,
+                    command=command,
+                    expected=frozen,
                     demo_job_binding_id=binding.id,
-                    demo_session_id=command.demo_session_id,
-                    expires_at=expires_at,
-                    rejected_evidence=rejected,
-                    selected_evidence=selected,
-                    trace_payload=trace_payload,
+                    audit_now=audit_now,
                 )
-                session.add(context)
-                await session.flush()
-                self._run_post_write_probe("CONTEXT")
                 _finish_execution(
                     job,
                     attempt,
@@ -684,10 +771,10 @@ class DemoMemoryService:
                 await session.flush()
                 return DemoContextCompilationResult(
                     job_id=job.id,
-                    context_compilation_id=context.id,
-                    aesthetic_profile_id=profile.id,
+                    context_compilation_id=context.context_compilation_id,
+                    aesthetic_profile_id=context.aesthetic_profile_id,
                     compilation_watermark=context.compilation_watermark,
-                    context_digest=context.content_digest,
+                    context_digest=context.context_digest,
                     expires_at=context.expires_at,
                     replayed=False,
                 )

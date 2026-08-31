@@ -3313,6 +3313,101 @@ class DemoAestheticProfile(DemoAuthorityMixin, Base):
     )
 
 
+class DemoContextCompileRequest(DemoAuthorityMixin, Base):
+    __tablename__ = "demo_context_compile_requests"
+
+    demo_actor_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_actors.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    demo_session_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    demo_job_binding_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_job_bindings.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    aesthetic_profile_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_aesthetic_profiles.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    aesthetic_profile_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    context_as_of_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    current_instruction_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    compiler_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    selected_evidence: Mapped[list[Any]] = mapped_column(JSONB, nullable=False)
+    rejected_evidence: Mapped[list[Any]] = mapped_column(JSONB, nullable=False)
+    budgets: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    trace_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    compilation_watermark: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    execution_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    max_attempts: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    lease_timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        ForeignKeyConstraint(
+            ["demo_session_id", "demo_actor_id"],
+            ["demo_sessions.id", "demo_sessions.demo_actor_id"],
+            name="fk_demo_context_compile_requests_session_actor",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "demo_job_binding_id",
+            name="uq_demo_context_compile_requests_demo_job_binding_id",
+        ),
+        UniqueConstraint(
+            "demo_actor_id",
+            "input_digest",
+            name="uq_demo_context_compile_requests_actor_input_digest",
+        ),
+        UniqueConstraint(
+            "id",
+            "demo_actor_id",
+            "demo_session_id",
+            name="uq_demo_context_compile_requests_id_actor_session",
+        ),
+        CheckConstraint(
+            "aesthetic_profile_digest ~ '^[0-9a-f]{64}$'",
+            name="profile_digest_shape",
+        ),
+        CheckConstraint(
+            "current_instruction_digest ~ '^[0-9a-f]{64}$'",
+            name="instruction_digest_shape",
+        ),
+        CheckConstraint(
+            "compiler_version = 'demo-context-compiler-v1'",
+            name="compiler_version",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(selected_evidence) = 'array'",
+            name="selected_evidence_array",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(rejected_evidence) = 'array'",
+            name="rejected_evidence_array",
+        ),
+        CheckConstraint("jsonb_typeof(budgets) = 'object'", name="budgets_object"),
+        CheckConstraint(
+            "jsonb_typeof(trace_payload) = 'object'",
+            name="trace_payload_object",
+        ),
+        CheckConstraint(
+            "compilation_watermark ~ '^[0-9a-f]{64}$'",
+            name="watermark_shape",
+        ),
+        CheckConstraint("input_digest ~ '^[0-9a-f]{64}$'", name="input_digest_shape"),
+        CheckConstraint("expires_at >= context_as_of_time", name="expiry_order"),
+        CheckConstraint(
+            "execution_policy_version = 'demo-context-queue-v1'",
+            name="execution_policy_version",
+        ),
+        CheckConstraint("max_attempts = 3", name="max_attempts"),
+        CheckConstraint("lease_timeout_seconds = 300", name="lease_timeout_seconds"),
+    )
+
+
 class DemoContextCompilation(DemoAuthorityMixin, Base):
     __tablename__ = "demo_context_compilations"
 
@@ -3383,6 +3478,58 @@ class DemoContextCompilation(DemoAuthorityMixin, Base):
             "demo_actor_id",
             "context_as_of_time",
             "compiler_version",
+        ),
+    )
+
+
+class DemoContextCompileResult(DemoAuthorityMixin, Base):
+    __tablename__ = "demo_context_compile_results"
+
+    demo_actor_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_actors.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    demo_session_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    compile_request_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_context_compile_requests.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    demo_job_binding_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_job_bindings.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    context_compilation_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_context_compilations.id", ondelete="RESTRICT"),
+        index=True,
+        unique=True,
+        nullable=False,
+    )
+    context_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_code: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        ForeignKeyConstraint(
+            ["demo_session_id", "demo_actor_id"],
+            ["demo_sessions.id", "demo_sessions.demo_actor_id"],
+            name="fk_demo_context_compile_results_session_actor",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "compile_request_id",
+            name="uq_demo_context_compile_results_compile_request_id",
+        ),
+        UniqueConstraint(
+            "demo_job_binding_id",
+            name="uq_demo_context_compile_results_demo_job_binding_id",
+        ),
+        CheckConstraint("context_digest ~ '^[0-9a-f]{64}$'", name="context_digest_shape"),
+        CheckConstraint("input_digest ~ '^[0-9a-f]{64}$'", name="input_digest_shape"),
+        CheckConstraint(
+            "result_code = 'CONTEXT_COMPILED'",
+            name="result_code",
         ),
     )
 
@@ -3554,7 +3701,9 @@ DEMO_TABLE_NAMES = frozenset(
         "demo_preference_events",
         "demo_accepted_visual_episodes",
         "demo_aesthetic_profiles",
+        "demo_context_compile_requests",
         "demo_context_compilations",
+        "demo_context_compile_results",
         "demo_job_bindings",
         "demo_command_bindings",
     }

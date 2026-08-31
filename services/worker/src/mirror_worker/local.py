@@ -8,6 +8,7 @@ from mirror_api.data_rights.task_contract import (
     AccountDeletionTaskMessage,
     DataExportTaskMessage,
 )
+from mirror_api.demo_context_task_contract import DemoContextTaskMessage
 from mirror_api.demo_editing_task_contract import DemoEditingTaskMessage
 from mirror_api.demo_memory_task_contract import DemoMemoryTaskMessage
 from mirror_api.demo_profile_task_contract import DemoProfileTaskMessage
@@ -23,6 +24,7 @@ from mirror_worker.runtime import (
     run_account_deletion_message,
     run_asset_deletion_message,
     run_data_export_message,
+    run_demo_context_message,
     run_demo_editing_message,
     run_demo_memory_message,
     run_demo_profile_message,
@@ -79,6 +81,11 @@ class LocalTaskRunner:
                 settings=self.settings,
             )
         )
+        return message.job_id
+
+    def dispatch_demo_context(self, message: DemoContextTaskMessage) -> str:
+        message.validate()
+        asyncio.run(run_demo_context_message(message.to_message(), settings=self.settings))
         return message.job_id
 
     def dispatch_demo_memory(self, message: DemoMemoryTaskMessage) -> str:

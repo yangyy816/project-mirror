@@ -483,6 +483,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/demo/sessions/{session_id}/context/compile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compile Session Context */
+        post: operations["demoCompileSessionContext"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/demo/identities": {
         parameters: {
             query?: never;
@@ -1140,6 +1157,24 @@ export interface components {
             locks: components["schemas"]["DemoLockRequest"][];
             /** Prohibited Operations */
             prohibited_operations?: ("CROP" | "ROTATE" | "EXPOSURE" | "CONTRAST" | "SATURATION" | "TEMPERATURE" | "GEOMETRY" | "MAKEUP" | "GENERATIVE")[];
+        };
+        /** DemoContextCompileRequest */
+        DemoContextCompileRequest: {
+            /** Aesthetic Profile Id */
+            aesthetic_profile_id: string;
+            /** Current Instruction Digest */
+            current_instruction_digest: string;
+            /**
+             * Context As Of Time
+             * Format: date-time
+             */
+            context_as_of_time: string;
+            /**
+             * Compiler Version
+             * @default demo-context-compiler-v1
+             * @constant
+             */
+            compiler_version: "demo-context-compiler-v1";
         };
         /** DemoContextResponse */
         DemoContextResponse: {
@@ -3451,6 +3486,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DemoContextResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    demoCompileSessionContext: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DemoContextCompileRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoJobAcceptedResponse"];
                 };
             };
             /** @description Unauthorized */

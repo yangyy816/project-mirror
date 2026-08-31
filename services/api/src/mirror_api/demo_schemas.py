@@ -47,6 +47,13 @@ class DemoContextResponse(StrictContractModel):
     expires_at: datetime
 
 
+class DemoContextCompileRequest(StrictContractModel):
+    aesthetic_profile_id: DemoId
+    current_instruction_digest: DemoDigest
+    context_as_of_time: datetime
+    compiler_version: Literal["demo-context-compiler-v1"] = "demo-context-compiler-v1"
+
+
 class DemoIdentityResponse(StrictContractModel):
     identity_id: DemoId
     canonical_asset_digest: DemoDigest

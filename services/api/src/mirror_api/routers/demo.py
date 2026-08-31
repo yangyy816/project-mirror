@@ -17,6 +17,15 @@ from mirror_api.demo_analysis_service import (
     DemoAnalysisPayloadConflict,
     DemoAnalysisUnavailable,
 )
+from mirror_api.demo_context_coordinator import DemoContextCoordinator
+from mirror_api.demo_context_dependencies import get_demo_context_coordinator
+from mirror_api.demo_context_queue_service import (
+    CreateDemoContextCompilation,
+    DemoContextQueueAuthorityCorruption,
+    DemoContextQueueConflict,
+    DemoContextQueueInputError,
+    DemoContextQueueUnavailable,
+)
 from mirror_api.demo_dependencies import get_demo_actor
 from mirror_api.demo_editing_commands import (
     CreateDemoEditingSession,
@@ -125,6 +134,7 @@ from mirror_api.demo_schemas import (
     DemoCapabilitiesResponse,
     DemoCapability,
     DemoConstraintsCreateRequest,
+    DemoContextCompileRequest,
     DemoContextResponse,
     DemoEditingSessionCreateRequest,
     DemoEditPlanCreateRequest,
@@ -437,6 +447,38 @@ def _raise_memory_error(error: Exception) -> NoReturn:
     ) from error
 
 
+def _raise_context_queue_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoContextQueueConflict):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code=error.code,
+            message="Context 编译请求与既有不可变 authority 冲突。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoContextQueueInputError):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code=error.code,
+            message="Context 编译请求不符合 Demo contract。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, (DemoContextQueueUnavailable, DemoJobUnavailable)):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_CONTEXT_AUTHORITY_UNAVAILABLE",
+            message="Context authority 不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, (DemoContextQueueAuthorityCorruption, DemoJobAuthorityCorruption)):
+        raise APIError(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="DEMO_CONTEXT_AUTHORITY_CORRUPT",
+            message="Context authority 无法安全读取。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise error
+
+
 def _raise_editing_error(error: Exception) -> NoReturn:
     if isinstance(error, DemoIdempotencyPayloadConflict):
         raise APIError(
@@ -582,7 +624,7 @@ async def get_capabilities() -> DemoCapabilitiesResponse:
                 reason="Makeup transfer remains deferred pending its dedicated research gate.",
             ),
             DemoCapability(code="P6_GENERATIVE_EDITOR", status="CAPABILITY_UNAVAILABLE"),
-            DemoCapability(code="P7_PREFERENCE_MEMORY", status="NOT_IMPLEMENTED"),
+            DemoCapability(code="P7_PREFERENCE_MEMORY", status="AVAILABLE"),
         ]
     )
 
@@ -633,6 +675,47 @@ async def get_session_context(
         compilation_digest=recalled.context_digest,
         expires_at=recalled.expires_at,
     )
+
+
+@router.post(
+    "/sessions/{session_id}/context/compile",
+    status_code=202,
+    response_model=DemoJobAcceptedResponse,
+    operation_id="demoCompileSessionContext",
+    openapi_extra=DEMO_OPENAPI,
+    responses=DEMO_ERRORS,
+)
+async def compile_session_context(
+    session_id: DemoId,
+    payload: DemoContextCompileRequest,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoContextCoordinator = Depends(get_demo_context_coordinator),
+) -> DemoJobAcceptedResponse:
+    try:
+        result = await coordinator.create(
+            CreateDemoContextCompilation(
+                demo_actor_id=actor.id,
+                demo_session_id=session_id,
+                aesthetic_profile_id=payload.aesthetic_profile_id,
+                current_instruction_digest=payload.current_instruction_digest,
+                context_as_of_time=payload.context_as_of_time,
+                compiler_version=payload.compiler_version,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+    except (
+        DemoContextQueueInputError,
+        DemoContextQueueUnavailable,
+        DemoContextQueueConflict,
+        DemoContextQueueAuthorityCorruption,
+        DemoJobUnavailable,
+        DemoJobAuthorityCorruption,
+    ) as exc:
+        _raise_context_queue_error(exc)
+    return _job_accepted(result.job)
 
 
 @router.get(

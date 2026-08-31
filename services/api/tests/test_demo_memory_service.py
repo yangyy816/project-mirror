@@ -4,10 +4,14 @@ import asyncio
 import os
 from collections.abc import Callable, Generator
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any, Literal, cast
 
 import pytest
-from sqlalchemy import create_engine, func, select
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import create_engine, delete, func, select, update
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -23,6 +27,13 @@ from test_demo_schema_authority_invariants import (
     _truncate_formal_synthetic_fixture_authority,
 )
 
+from mirror_api.demo_context_queue_service import (
+    CreateDemoContextCompilation,
+    DemoContextCompilationAccepted,
+    DemoContextQueueConflict,
+    DemoContextQueueService,
+    DemoContextReconciliationCandidate,
+)
 from mirror_api.demo_job_service import DemoJobService
 from mirror_api.demo_memory_service import (
     CompileDemoContext,
@@ -36,6 +47,8 @@ from mirror_api.demo_memory_service import (
 from mirror_api.demo_models import (
     DemoAestheticProfile,
     DemoContextCompilation,
+    DemoContextCompileRequest,
+    DemoContextCompileResult,
     DemoJobBinding,
     DemoPreferenceEvent,
     DemoReferenceProfile,
@@ -127,6 +140,25 @@ def _context(
         context_as_of_time=as_of,
         idempotency_key=key,
         request_id=f"d10-context-{key}",
+    )
+
+
+def _queued_context(
+    graph: dict[str, Any],
+    profile_id: str,
+    *,
+    key: str = "d10-context-queue-key-0001",
+    as_of: datetime = AS_OF,
+    instruction: str = "a" * 64,
+) -> CreateDemoContextCompilation:
+    return CreateDemoContextCompilation(
+        demo_actor_id=graph["actor"].id,
+        demo_session_id=graph["session"].id,
+        aesthetic_profile_id=profile_id,
+        current_instruction_digest=instruction,
+        context_as_of_time=as_of,
+        idempotency_key=key,
+        request_id=f"d10-context-queue-{key}",
     )
 
 
@@ -269,6 +301,522 @@ async def test_profile_context_and_recall_are_exactly_replayable(
                     .where(JobAttempt.job_id.in_((profile.job_id, context.job_id)))
                 )
                 == 2
+            )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_context_queue_admission_execution_and_terminal_replay_are_atomic(
+    postgres_session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    memory, sessions, engine = _service()
+    try:
+        profile = await _rebuild_execute(memory, _rebuild(graph))
+        queue = DemoContextQueueService(session_factory=sessions)
+        command = _queued_context(graph, profile.aesthetic_profile_id)
+
+        admitted = await queue.admit(command)
+        replay = await queue.admit(command)
+        assert replay == DemoContextCompilationAccepted(
+            admitted.job_id,
+            admitted.context_request_id,
+            admitted.request_id,
+            True,
+        )
+        with pytest.raises(
+            DemoContextQueueConflict,
+            match="key is bound to another request",
+        ):
+            await queue.admit(
+                _queued_context(
+                    graph,
+                    profile.aesthetic_profile_id,
+                    key=command.idempotency_key,
+                    instruction="f" * 64,
+                )
+            )
+
+        assert await queue.reconciliation_candidates() == (
+            DemoContextReconciliationCandidate(
+                command.demo_actor_id,
+                admitted.job_id,
+                admitted.context_request_id,
+                admitted.request_id,
+            ),
+        )
+        snapshot = await DemoJobService(session_factory=sessions).get(
+            demo_actor_id=command.demo_actor_id,
+            job_id=admitted.job_id,
+        )
+        assert snapshot.capability == "P7_CONTEXT_COMPILER"
+        assert (
+            snapshot.target.target_type,
+            snapshot.target.target_id,
+        ) == ("DEMO_SESSION", command.demo_session_id)
+
+        async with sessions() as session:
+            job = await session.get(Job, admitted.job_id)
+            request = await session.get(DemoContextCompileRequest, admitted.context_request_id)
+            assert job is not None and (job.status, job.attempt_count, job.payload) == (
+                "PENDING",
+                0,
+                {},
+            )
+            assert request is not None and request.demo_actor_id == graph["actor"].id
+            assert set(request.canonical_payload) == {
+                "aesthetic_profile_digest",
+                "aesthetic_profile_id",
+                "budgets",
+                "compilation_watermark",
+                "compiler_version",
+                "context_as_of_time",
+                "current_instruction_digest",
+                "demo_actor_id",
+                "demo_job_binding_id",
+                "demo_session_id",
+                "execution_policy_version",
+                "expires_at",
+                "input_digest",
+                "lease_timeout_seconds",
+                "max_attempts",
+                "rejected_evidence",
+                "selected_evidence",
+                "trace_payload",
+            }
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoContextCompilation)
+                    .where(
+                        DemoContextCompilation.demo_job_binding_id == request.demo_job_binding_id
+                    )
+                )
+                == 0
+            )
+
+        completed = await queue.execute_task(
+            demo_actor_id=graph["actor"].id,
+            job_id=admitted.job_id,
+            context_request_id=admitted.context_request_id,
+        )
+        terminal_replay = await queue.execute_task(
+            demo_actor_id=graph["actor"].id,
+            job_id=admitted.job_id,
+            context_request_id=admitted.context_request_id,
+        )
+        assert completed.status == "COMPLETED"
+        assert completed.context_compilation_id is not None
+        assert terminal_replay == type(completed)(
+            completed.demo_actor_id,
+            completed.job_id,
+            completed.context_request_id,
+            completed.status,
+            completed.result_code,
+            completed.context_compilation_id,
+            completed.context_digest,
+            True,
+        )
+        assert await queue.reconciliation_candidates() == ()
+
+        async with sessions() as session:
+            job = await session.get(Job, admitted.job_id)
+            result = await session.scalar(
+                select(DemoContextCompileResult).where(
+                    DemoContextCompileResult.compile_request_id == admitted.context_request_id
+                )
+            )
+            assert job is not None and (job.status, job.attempt_count, job.result_code) == (
+                "COMPLETED",
+                1,
+                "CONTEXT_COMPILED",
+            )
+            assert result is not None
+            assert result.context_compilation_id == completed.context_compilation_id
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(JobAttempt)
+                    .where(JobAttempt.job_id == admitted.job_id)
+                )
+                == 1
+            )
+        async with sessions() as session:
+            with pytest.raises(DBAPIError):
+                async with session.begin():
+                    await session.execute(
+                        update(DemoContextCompileRequest)
+                        .where(DemoContextCompileRequest.id == admitted.context_request_id)
+                        .values(content_digest="0" * 64)
+                    )
+        async with sessions() as session:
+            with pytest.raises(DBAPIError):
+                async with session.begin():
+                    await session.execute(
+                        delete(DemoContextCompileResult).where(
+                            DemoContextCompileResult.compile_request_id
+                            == admitted.context_request_id
+                        )
+                    )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_context_queue_populated_downgrade_fails_closed(
+    postgres_session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    memory, sessions, engine = _service()
+    try:
+        profile = await _rebuild_execute(memory, _rebuild(graph))
+        queue = DemoContextQueueService(session_factory=sessions)
+        admitted = await queue.admit(
+            _queued_context(
+                graph,
+                profile.aesthetic_profile_id,
+                key="d10-context-populated-downgrade",
+                instruction="9" * 64,
+            )
+        )
+        await engine.dispose()
+
+        root = Path(__file__).resolve().parents[3]
+        config = Config(root / "services" / "api" / "alembic.ini")
+        config.set_main_option(
+            "script_location",
+            str(root / "services" / "api" / "migrations"),
+        )
+        with pytest.raises(DBAPIError, match="D10 queued Context authority exists"):
+            await asyncio.to_thread(
+                command.downgrade,
+                config,
+                "demo_0016_d06_ref_profile_queue",
+            )
+
+        sync_engine = create_engine(os.environ["TEST_DATABASE_URL"])
+        try:
+            with sync_engine.connect() as connection:
+                assert (
+                    connection.exec_driver_sql(
+                        "SELECT version_num FROM alembic_version"
+                    ).scalar_one()
+                    == "demo_0017_d10_context_queue"
+                )
+                assert (
+                    connection.exec_driver_sql(
+                        "SELECT count(*) FROM demo_context_compile_requests WHERE id = %s",
+                        (admitted.context_request_id,),
+                    ).scalar_one()
+                    == 1
+                )
+        finally:
+            sync_engine.dispose()
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_context_queue_pending_cancel_wins_without_partial_context(
+    postgres_session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    memory, sessions, engine = _service()
+    try:
+        profile = await _rebuild_execute(memory, _rebuild(graph))
+        queue = DemoContextQueueService(session_factory=sessions)
+        admitted = await queue.admit(
+            _queued_context(
+                graph,
+                profile.aesthetic_profile_id,
+                key="d10-context-cancel-pending",
+                instruction="c" * 64,
+            )
+        )
+        cancelled = await DemoJobService(session_factory=sessions).cancel(
+            demo_actor_id=graph["actor"].id,
+            job_id=admitted.job_id,
+            expected_status="PENDING",
+            reason="USER_REQUEST",
+            idempotency_key="d10-context-cancel-command",
+        )
+        executed = await queue.execute_task(
+            demo_actor_id=graph["actor"].id,
+            job_id=admitted.job_id,
+            context_request_id=admitted.context_request_id,
+        )
+        assert cancelled.status == "CANCELLED"
+        assert executed.status == "CANCELLED" and executed.replayed is True
+
+        async with sessions() as session:
+            request = await session.get(DemoContextCompileRequest, admitted.context_request_id)
+            assert request is not None
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoContextCompilation)
+                    .where(
+                        DemoContextCompilation.demo_job_binding_id == request.demo_job_binding_id
+                    )
+                )
+                == 0
+            )
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoContextCompileResult)
+                    .where(
+                        DemoContextCompileResult.compile_request_id == admitted.context_request_id
+                    )
+                )
+                == 0
+            )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_context_queue_rejects_stale_frozen_snapshot_without_partial_result(
+    postgres_session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    memory, sessions, engine = _service()
+    try:
+        profile = await _rebuild_execute(memory, _rebuild(graph))
+        queue = DemoContextQueueService(session_factory=sessions)
+        admitted = await queue.admit(
+            _queued_context(
+                graph,
+                profile.aesthetic_profile_id,
+                key="d10-context-stale-snapshot",
+                instruction="d" * 64,
+            )
+        )
+        await _append(
+            sessions,
+            graph,
+            event_type=DemoPreferenceEventType.RESET,
+            source_type=DemoPreferenceSourceType.SYSTEM_LIFECYCLE,
+            target_type=DemoPreferenceTargetType.DEMO_ACTOR,
+            target_id=graph["actor"].id,
+            signal={"reset_watermark": graph["accepted_event"].event_sequence},
+        )
+
+        rejected = await queue.execute_task(
+            demo_actor_id=graph["actor"].id,
+            job_id=admitted.job_id,
+            context_request_id=admitted.context_request_id,
+        )
+        assert (rejected.status, rejected.result_code) == ("REJECTED", "CONTEXT_REJECTED")
+        async with sessions() as session:
+            request = await session.get(DemoContextCompileRequest, admitted.context_request_id)
+            job = await session.get(Job, admitted.job_id)
+            assert request is not None
+            assert job is not None and (job.status, job.result_code) == (
+                "REJECTED",
+                "CONTEXT_REJECTED",
+            )
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoContextCompilation)
+                    .where(
+                        DemoContextCompilation.demo_job_binding_id == request.demo_job_binding_id
+                    )
+                )
+                == 0
+            )
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoContextCompileResult)
+                    .where(
+                        DemoContextCompileResult.compile_request_id == admitted.context_request_id
+                    )
+                )
+                == 0
+            )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_context_queue_cross_path_collision_rejects_without_stranding_running_job(
+    postgres_session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    memory, sessions, engine = _service()
+    try:
+        profile = await _rebuild_execute(memory, _rebuild(graph))
+        queue = DemoContextQueueService(session_factory=sessions)
+        queued = await queue.admit(
+            _queued_context(
+                graph,
+                profile.aesthetic_profile_id,
+                key="d10-context-cross-path-queued",
+                instruction="8" * 64,
+            )
+        )
+        direct = await memory.compile_context(
+            _context(
+                graph,
+                profile.aesthetic_profile_id,
+                key="d10-context-cross-path-direct",
+                instruction="8" * 64,
+            )
+        )
+        rejected = await queue.execute_task(
+            demo_actor_id=graph["actor"].id,
+            job_id=queued.job_id,
+            context_request_id=queued.context_request_id,
+        )
+        assert direct.context_compilation_id is not None
+        assert (rejected.status, rejected.result_code) == ("REJECTED", "CONTEXT_REJECTED")
+
+        async with sessions() as session:
+            job = await session.get(Job, queued.job_id)
+            result_count = await session.scalar(
+                select(func.count())
+                .select_from(DemoContextCompileResult)
+                .where(DemoContextCompileResult.compile_request_id == queued.context_request_id)
+            )
+            assert job is not None and (job.status, job.result_code) == (
+                "REJECTED",
+                "CONTEXT_REJECTED",
+            )
+            assert result_count == 0
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_context_queue_expired_leases_exhaust_exactly_three_attempts(
+    postgres_session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    memory, sessions, engine = _service()
+    try:
+        profile = await _rebuild_execute(memory, _rebuild(graph))
+        clock = [datetime(2026, 9, 1, 12, 0, tzinfo=UTC)]
+        queue = DemoContextQueueService(session_factory=sessions, now=lambda: clock[0])
+        admitted = await queue.admit(
+            _queued_context(
+                graph,
+                profile.aesthetic_profile_id,
+                key="d10-context-lease-exhaustion",
+                instruction="e" * 64,
+            )
+        )
+
+        first = await queue.reserve(
+            demo_actor_id=graph["actor"].id,
+            job_id=admitted.job_id,
+            context_request_id=admitted.context_request_id,
+        )
+        active = await queue.reserve(
+            demo_actor_id=graph["actor"].id,
+            job_id=admitted.job_id,
+            context_request_id=admitted.context_request_id,
+        )
+        assert (first.state, first.attempt) == ("RESERVED", 1)
+        assert active.state == "ACTIVE"
+
+        for expected_attempt in (2, 3):
+            clock[0] += timedelta(seconds=301)
+            retried = await queue.reserve(
+                demo_actor_id=graph["actor"].id,
+                job_id=admitted.job_id,
+                context_request_id=admitted.context_request_id,
+            )
+            assert (retried.state, retried.attempt) == ("RESERVED", expected_attempt)
+        clock[0] += timedelta(seconds=301)
+        exhausted = await queue.reserve(
+            demo_actor_id=graph["actor"].id,
+            job_id=admitted.job_id,
+            context_request_id=admitted.context_request_id,
+        )
+        assert (exhausted.state, exhausted.terminal_status) == ("TERMINAL", "FAILED")
+
+        async with sessions() as session:
+            job = await session.get(Job, admitted.job_id)
+            attempts = list(
+                (
+                    await session.scalars(
+                        select(JobAttempt)
+                        .where(JobAttempt.job_id == admitted.job_id)
+                        .order_by(JobAttempt.attempt)
+                    )
+                ).all()
+            )
+            assert job is not None and (job.status, job.attempt_count, job.result_code) == (
+                "FAILED",
+                3,
+                "CONTEXT_MAX_ATTEMPTS",
+            )
+            assert [(item.attempt, item.status, item.error_code) for item in attempts] == [
+                (1, "FAILED", "LEASE_EXPIRED"),
+                (2, "FAILED", "LEASE_EXPIRED"),
+                (3, "FAILED", "LEASE_EXPIRED"),
+            ]
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_context_queue_same_input_different_keys_has_one_admission_winner(
+    postgres_session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    memory, sessions, engine = _service()
+    try:
+        profile = await _rebuild_execute(memory, _rebuild(graph))
+        queue = DemoContextQueueService(session_factory=sessions)
+        results = await asyncio.gather(
+            queue.admit(
+                _queued_context(
+                    graph,
+                    profile.aesthetic_profile_id,
+                    key="d10-context-input-winner-a",
+                    instruction="b" * 64,
+                )
+            ),
+            queue.admit(
+                _queued_context(
+                    graph,
+                    profile.aesthetic_profile_id,
+                    key="d10-context-input-winner-b",
+                    instruction="b" * 64,
+                )
+            ),
+            return_exceptions=True,
+        )
+        assert sum(isinstance(item, DemoContextCompilationAccepted) for item in results) == 1
+        assert sum(isinstance(item, DemoContextQueueConflict) for item in results) == 1
+
+        async with sessions() as session:
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoContextCompileRequest)
+                    .where(DemoContextCompileRequest.demo_actor_id == graph["actor"].id)
+                )
+                == 1
+            )
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoJobBinding)
+                    .join(
+                        DemoContextCompileRequest,
+                        DemoContextCompileRequest.demo_job_binding_id == DemoJobBinding.id,
+                    )
+                    .where(
+                        DemoJobBinding.demo_actor_id == graph["actor"].id,
+                        DemoJobBinding.endpoint_operation == "context.compile",
+                    )
+                )
+                == 1
             )
     finally:
         await engine.dispose()

@@ -20,6 +20,11 @@ from mirror_api.demo_analysis_task_contract import (
     DemoAnalysisDispatcher,
     DemoAnalysisTaskMessage,
 )
+from mirror_api.demo_context_queue_service import DemoContextQueueService
+from mirror_api.demo_context_task_contract import (
+    DemoContextDispatcher,
+    DemoContextTaskMessage,
+)
 from mirror_api.demo_editing_asset_loader import LocalDemoAssetByteLoader
 from mirror_api.demo_editing_commands import DemoEditingCommandService
 from mirror_api.demo_editing_runtime import DemoEditingRuntime as DemoEditingApplication
@@ -88,6 +93,7 @@ from mirror_worker.cleanup import SqlAlchemyIngestionCleanup
 from mirror_worker.data_rights import AccountDeletionTaskExecutor, DataExportTaskExecutor
 from mirror_worker.demo_analysis import DemoAnalysisTaskExecutor
 from mirror_worker.demo_analysis_runtime import DeferredDemoAnalysisRuntime
+from mirror_worker.demo_context import DemoContextTaskExecutor
 from mirror_worker.demo_memory import DemoMemoryTaskExecutor
 from mirror_worker.demo_profile import DemoProfileTaskExecutor
 from mirror_worker.demo_reference_profile import DemoReferenceProfileTaskExecutor
@@ -153,6 +159,12 @@ class DemoProfileRuntime:
 class DemoReferenceProfileRuntime:
     engine: AsyncEngine
     application: DemoReferenceProfileService
+
+
+@dataclass(frozen=True)
+class DemoContextRuntime:
+    engine: AsyncEngine
+    application: DemoContextQueueService
 
 
 @dataclass(frozen=True)
@@ -333,6 +345,17 @@ def create_demo_reference_profile_runtime(settings: Settings) -> DemoReferencePr
     )
 
 
+def create_demo_context_runtime(settings: Settings) -> DemoContextRuntime:
+    """Compose queued D10 Context authority without a Provider or private input."""
+
+    engine = create_async_engine(settings.database_url)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    return DemoContextRuntime(
+        engine=engine,
+        application=DemoContextQueueService(session_factory=sessions),
+    )
+
+
 def create_demo_memory_runtime(settings: Settings) -> DemoMemoryRuntime:
     """Compose deterministic D10 authority without a Provider or private input."""
 
@@ -488,6 +511,42 @@ async def run_demo_reference_profile_reconciliation(
                 request_id=candidate.request_id,
             )
             dispatcher.dispatch_demo_reference_profile(message)
+            dispatched.append(candidate.job_id)
+        return tuple(dispatched)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_demo_context_message(
+    message: dict[str, Any], *, settings: Settings | None = None
+) -> dict[str, str | None]:
+    runtime = create_demo_context_runtime(settings or get_settings())
+    try:
+        result = await DemoContextTaskExecutor(application=runtime.application).execute(
+            DemoContextTaskMessage.from_message(message)
+        )
+        return asdict(result)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_demo_context_reconciliation(
+    *,
+    dispatcher: DemoContextDispatcher,
+    limit: int = 100,
+    settings: Settings | None = None,
+) -> tuple[str, ...]:
+    runtime = create_demo_context_runtime(settings or get_settings())
+    try:
+        dispatched: list[str] = []
+        for candidate in await runtime.application.reconciliation_candidates(limit=limit):
+            message = DemoContextTaskMessage(
+                demo_actor_id=candidate.demo_actor_id,
+                job_id=candidate.job_id,
+                context_request_id=candidate.context_request_id,
+                request_id=candidate.request_id,
+            )
+            dispatcher.dispatch_demo_context(message)
             dispatched.append(candidate.job_id)
         return tuple(dispatched)
     finally:

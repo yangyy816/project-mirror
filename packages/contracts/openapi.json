@@ -2354,6 +2354,127 @@
         "x-demo-only": true
       }
     },
+    "/api/v1/demo/sessions/{session_id}/context/compile": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Compile Session Context",
+        "operationId": "demoCompileSessionContext",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoContextCompileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoJobAcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
     "/api/v1/demo/identities": {
       "get": {
         "tags": [
@@ -5587,6 +5708,39 @@
           "locks"
         ],
         "title": "DemoConstraintsCreateRequest"
+      },
+      "DemoContextCompileRequest": {
+        "properties": {
+          "aesthetic_profile_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Aesthetic Profile Id"
+          },
+          "current_instruction_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Current Instruction Digest"
+          },
+          "context_as_of_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Context As Of Time"
+          },
+          "compiler_version": {
+            "type": "string",
+            "const": "demo-context-compiler-v1",
+            "title": "Compiler Version",
+            "default": "demo-context-compiler-v1"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "aesthetic_profile_id",
+          "current_instruction_digest",
+          "context_as_of_time"
+        ],
+        "title": "DemoContextCompileRequest"
       },
       "DemoContextResponse": {
         "properties": {

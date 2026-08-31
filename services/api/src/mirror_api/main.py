@@ -15,6 +15,7 @@ from mirror_api.auth_dependencies import create_auth_infrastructure
 from mirror_api.config import get_settings
 from mirror_api.data_rights_dependencies import create_data_rights_infrastructure
 from mirror_api.demo_analysis_dependencies import create_demo_analysis_infrastructure
+from mirror_api.demo_context_dependencies import create_demo_context_infrastructure
 from mirror_api.demo_editing_dependencies import create_demo_editing_infrastructure
 from mirror_api.demo_image_feedback_dependencies import (
     create_demo_image_feedback_infrastructure,
@@ -110,6 +111,10 @@ def create_app() -> FastAPI:
         settings=settings,
         sessions=auth_infrastructure.sessions,
     )
+    demo_context_infrastructure = create_demo_context_infrastructure(
+        settings=settings,
+        sessions=auth_infrastructure.sessions,
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -140,6 +145,7 @@ def create_app() -> FastAPI:
     app.state.demo_editing_infrastructure = demo_editing_infrastructure
     app.state.demo_image_feedback_infrastructure = demo_image_feedback_infrastructure
     app.state.demo_memory_infrastructure = demo_memory_infrastructure
+    app.state.demo_context_infrastructure = demo_context_infrastructure
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
