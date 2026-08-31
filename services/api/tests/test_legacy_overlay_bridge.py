@@ -5,7 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -412,6 +412,81 @@ def test_v2_rejects_forged_request_reference_digest(tmp_path: Path) -> None:
             request_reference=forged,
             timestamp="2026-09-01T00:03:00Z",
         )
+
+
+def test_v2_uses_a_frozen_request_authority_snapshot(tmp_path: Path) -> None:
+    fixture, bridge, verifier_sha256, entry = _v2_entry(tmp_path)
+    valid = _request_reference(fixture, bridge)
+    caller_mapping = dict(valid.authority)
+    snapshotted = PostRegistrationRequestReference(
+        reference=valid.reference,
+        sha256=valid.sha256,
+        authority=caller_mapping,
+    )
+    caller_mapping["source_output_sha256"] = "0" * 64
+    assert snapshotted.authority["source_output_sha256"] == valid.authority["source_output_sha256"]
+    assert (
+        append_v2_transition(
+            handle=entry,
+            expected_verifier_sha256=verifier_sha256,
+            request_reference=snapshotted,
+            timestamp="2026-09-01T00:03:00Z",
+        ).state_sha256
+        != entry.state_sha256
+    )
+
+
+def test_v2_rejects_stateful_mapping_and_malformed_idempotent_replay(tmp_path: Path) -> None:
+    fixture, bridge, verifier_sha256, entry = _v2_entry(tmp_path)
+    valid = _request_reference(fixture, bridge)
+    forged_authority = dict(valid.authority)
+    forged_authority["source_output_sha256"] = "0" * 64
+    forged = build_request_reference(**forged_authority)
+
+    class _FlipMapping(Mapping[str, str]):
+        def __init__(self, first: Mapping[str, str], second: Mapping[str, str]) -> None:
+            self._first = first
+            self._second = second
+            self._reads = 0
+
+        def __iter__(self) -> Iterator[str]:
+            return iter(self._first)
+
+        def __len__(self) -> int:
+            return len(self._first)
+
+        def __getitem__(self, key: str) -> str:
+            self._reads += 1
+            values = self._first if self._reads <= len(self._first) else self._second
+            return values[key]
+
+    object.__setattr__(forged, "authority", _FlipMapping(forged_authority, valid.authority))
+    with pytest.raises(PostRegistrationVerifierV2Error, match="REQUEST_REFERENCE_BINDING_INVALID"):
+        append_v2_transition(
+            handle=entry,
+            expected_verifier_sha256=verifier_sha256,
+            request_reference=forged,
+            timestamp="2026-09-01T00:03:00Z",
+        )
+    bound = append_v2_transition(
+        handle=entry,
+        expected_verifier_sha256=verifier_sha256,
+        request_reference=valid,
+        timestamp="2026-09-01T00:03:00Z",
+    )
+    malformed = PostRegistrationRequestReference(
+        reference=valid.reference,
+        sha256=valid.sha256,
+        authority=forged_authority,
+    )
+    with pytest.raises(PostRegistrationVerifierV2Error, match="REQUEST_REFERENCE_BINDING_INVALID"):
+        append_v2_transition(
+            handle=entry,
+            expected_verifier_sha256=verifier_sha256,
+            request_reference=malformed,
+            timestamp="2026-09-01T00:04:00Z",
+        )
+    assert bound.state_sha256 != entry.state_sha256
 
 
 def test_v2_rejects_tampered_bridge(tmp_path: Path) -> None:

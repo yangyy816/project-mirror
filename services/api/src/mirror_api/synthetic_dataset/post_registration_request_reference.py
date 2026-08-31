@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from mirror_api.synthetic_dataset import private_execution_overlay as _legacy
 
@@ -17,6 +18,15 @@ class PostRegistrationRequestReference:
     reference: str
     sha256: str
     authority: Mapping[str, str]
+
+    def __post_init__(self) -> None:
+        """Snapshot authority once so digest and bridge checks share identical facts."""
+        authority = dict(self.authority)
+        if not all(
+            isinstance(key, str) and isinstance(value, str) for key, value in authority.items()
+        ):
+            raise RequestReferenceError("REQUEST_REFERENCE_AUTHORITY_INVALID")
+        object.__setattr__(self, "authority", MappingProxyType(authority))
 
 
 def build_request_reference(

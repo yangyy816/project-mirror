@@ -30,6 +30,7 @@ from mirror_api.synthetic_dataset.legacy_overlay_bridge import (
 )
 from mirror_api.synthetic_dataset.post_registration_request_reference import (
     PostRegistrationRequestReference,
+    RequestReferenceError,
 )
 
 VERIFIER_V2_VERSION: Final = "p2-m5-post-registration-verifier-v2"
@@ -293,6 +294,7 @@ def append_v2_transition(
     """Durably bind the exact request reference once, without performing work."""
     root = handle.receipt_path.parent
     with _r64_exclusive_lease(root.parent):
+        request_reference = _materialize_request_reference(request_reference)
         _validate_digest(request_reference.sha256, "REQUEST_REFERENCE_SHA256")
         successor_path = _safe_child(root, _receipt_name(1))
         if handle.receipt_path.name == _receipt_name(0) and successor_path.exists():
@@ -309,9 +311,14 @@ def append_v2_transition(
             _verify_v2_chain_unleased(
                 handle=successor, expected_verifier_sha256=expected_verifier_sha256
             )
-            if successor_state.get("request_reference_sha256") == request_reference.sha256:
+            if (
+                request_reference.reference == f"request-{request_reference.sha256[:48]}"
+                and _request_reference_digest_is_canonical(request_reference)
+                and _request_reference_matches_bridge(request_reference, successor_state)
+                and successor_state.get("request_reference_sha256") == request_reference.sha256
+            ):
                 return successor
-            raise PostRegistrationVerifierV2Error("V2_STALE_HANDLE_OR_REQUEST_REFERENCE_MISMATCH")
+            raise PostRegistrationVerifierV2Error("V2_REQUEST_REFERENCE_BINDING_INVALID")
         verified = _verify_v2_chain_unleased(
             handle=handle, expected_verifier_sha256=expected_verifier_sha256
         )
@@ -345,6 +352,20 @@ def append_v2_transition(
             }
         )
         return _commit_state(root=root, state=next_state, verifier_sha256=expected_verifier_sha256)
+
+
+def _materialize_request_reference(
+    request_reference: PostRegistrationRequestReference,
+) -> PostRegistrationRequestReference:
+    """Consume an authority mapping exactly once before any security decision."""
+    try:
+        return PostRegistrationRequestReference(
+            reference=request_reference.reference,
+            sha256=request_reference.sha256,
+            authority=dict(request_reference.authority),
+        )
+    except (RequestReferenceError, TypeError, ValueError) as error:
+        raise PostRegistrationVerifierV2Error("V2_REQUEST_REFERENCE_BINDING_INVALID") from error
 
 
 def _request_reference_digest_is_canonical(
