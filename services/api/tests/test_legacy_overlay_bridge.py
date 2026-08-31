@@ -25,7 +25,10 @@ from mirror_api.synthetic_dataset.post_registration_repeatability import (
     RepeatabilityRecord,
     aggregate_repeatability,
 )
-from mirror_api.synthetic_dataset.post_registration_request_reference import build_request_reference
+from mirror_api.synthetic_dataset.post_registration_request_reference import (
+    PostRegistrationRequestReference,
+    build_request_reference,
+)
 from mirror_api.synthetic_dataset.private_post_registration_verifier_v2 import (
     PostRegistrationVerifierV2Error,
     append_v2_transition,
@@ -390,6 +393,23 @@ def test_v2_rejects_request_reference_with_wrong_source_digest(tmp_path: Path) -
             handle=entry,
             expected_verifier_sha256=verifier_sha256,
             request_reference=invalid,
+            timestamp="2026-09-01T00:03:00Z",
+        )
+
+
+def test_v2_rejects_forged_request_reference_digest(tmp_path: Path) -> None:
+    fixture, bridge, verifier_sha256, entry = _v2_entry(tmp_path)
+    valid = _request_reference(fixture, bridge)
+    forged = PostRegistrationRequestReference(
+        reference="request-" + "f" * 48,
+        sha256="f" * 64,
+        authority=valid.authority,
+    )
+    with pytest.raises(PostRegistrationVerifierV2Error, match="REQUEST_REFERENCE_BINDING_INVALID"):
+        append_v2_transition(
+            handle=entry,
+            expected_verifier_sha256=verifier_sha256,
+            request_reference=forged,
             timestamp="2026-09-01T00:03:00Z",
         )
 

@@ -328,6 +328,7 @@ def append_v2_transition(
             or state.get("allowed_next_transition") != _BOUND_PHASE
             or state.get("request_reference_sha256") is not None
             or request_reference.reference != f"request-{request_reference.sha256[:48]}"
+            or not _request_reference_digest_is_canonical(request_reference)
             or not _request_reference_matches_bridge(request_reference, state)
         ):
             raise PostRegistrationVerifierV2Error("V2_REQUEST_REFERENCE_BINDING_INVALID")
@@ -344,6 +345,15 @@ def append_v2_transition(
             }
         )
         return _commit_state(root=root, state=next_state, verifier_sha256=expected_verifier_sha256)
+
+
+def _request_reference_digest_is_canonical(
+    request_reference: PostRegistrationRequestReference,
+) -> bool:
+    authority = request_reference.authority
+    if not all(isinstance(key, str) and isinstance(value, str) for key, value in authority.items()):
+        return False
+    return request_reference.sha256 == _sha256_bytes(_canonical_json_bytes(dict(authority)))
 
 
 def _request_reference_matches_bridge(
