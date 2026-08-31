@@ -1,9 +1,9 @@
 {
   "schema_version": "mirror.demo/P3P7DemoExecutionState/v1",
   "goal_epoch": "P3_P7_COMPLETE_DEMO_EPOCH_02",
-  "integration_branch": "codex/p3-p7-core-demo",
-  "integration_head": "002af481df5b957a31d207de72b3a07942f34c81",
-  "migration_head": "demo_0014_d02_r2_e3_versioning",
+  "integration_branch": "codex/p3-p7-product-forward",
+  "integration_head": "17abe5beebde5083d12c394d70e0516595f8a887",
+  "migration_head": "demo_0016_d06_ref_profile_queue",
   "delivery_policy": "PRODUCT_AND_ALGORITHM_FIRST_RISK_TIERED",
   "evidence_custody_host_binding": "FROZEN_DEFERRED",
   "closed_checkpoints": [
@@ -36,9 +36,13 @@
     "D10_PROFILE_REBUILD_API_WIRING",
     "D09_IMAGE_FEEDBACK_FINAL_SAVE_API",
     "D10_CONTEXT_TRACE_EXPLICIT_RECALL_API",
-    "D11_TRACE_UI_CONTRACT_SLICE_AND_SERVER_BRIDGE"
+    "D11_TRACE_UI_CONTRACT_SLICE_AND_SERVER_BRIDGE",
+    "D02_AUTONOMY_BOOTSTRAP_INTEGRATED",
+    "D02_COMMON_BASE_ACKNOWLEDGED",
+    "D11_BEFORE_AFTER_VERSION_HISTORY_SHELL",
+    "D06_REFERENCE_PROFILE_QUEUED_ORCHESTRATION"
   ],
-  "active_checkpoint": "D11_BEFORE_AFTER_VERSION_HISTORY_SHELL",
+  "active_checkpoint": "D10_CONTEXT_QUEUED_COMPILER_AND_REBUILD",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -60,7 +64,10 @@
     "D05_PROFILE_AUTHORITY_INTEGRATION": "3987e9dfed69c50c15fbea86959831799a8c38a7",
     "D05_API_WORKER_WIRING_AND_CONTRACT": "41d3d718b2afc98c1d8cdbdca0b2ebf9f55726e2",
     "D10_CONTEXT_TRACE_EXPLICIT_RECALL_API": "cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd",
-    "D11_TRACE_UI_CONTRACT_SLICE": "c89cc16e0b1338004074b0b71a89e314fa61d8cd"
+    "D11_TRACE_UI_CONTRACT_SLICE": "c89cc16e0b1338004074b0b71a89e314fa61d8cd",
+    "D02_AUTONOMY_BOOTSTRAP_COMMON_BASE": "012ee5ac48bebefb3a7e2ba6395f25146b4a77e0",
+    "D11_BEFORE_AFTER_VERSION_HISTORY_SHELL": "19304f4aaf9407f57c14033904a7862d99ed911f",
+    "D06_REFERENCE_PROFILE_QUEUED_ORCHESTRATION": "4367fe12a43816ed1a463eef7e2c2925bee5ff6c"
   },
   "implementation_checkpoint_shas": {
     "D03_D04_B_D07_B_DOMAIN_SLICES": "93919f47ea391694d4ed952cec8a3e7d5683dc4a",
@@ -75,7 +82,9 @@
     "D10_PROFILE_REBUILD_API_WIRING": "98ddfc47e74a894e25142c9cc677e23178d91776",
     "D09_IMAGE_FEEDBACK_FINAL_SAVE_API": "32cb1e9d62c99d33f898357617264b23c6f7d06d",
     "D10_CONTEXT_TRACE_EXPLICIT_RECALL_API": "cf5b2086d9e386a0ffac7207a1a8b1ae9f5459bd",
-    "D11_TRACE_UI_CONTRACT_SLICE": "c89cc16e0b1338004074b0b71a89e314fa61d8cd"
+    "D11_TRACE_UI_CONTRACT_SLICE": "c89cc16e0b1338004074b0b71a89e314fa61d8cd",
+    "D11_BEFORE_AFTER_VERSION_HISTORY_INTEGRATION": "17abe5beebde5083d12c394d70e0516595f8a887",
+    "D06_REFERENCE_PROFILE_QUEUE_INTEGRATION": "17abe5beebde5083d12c394d70e0516595f8a887"
   },
   "accepted_ci_runs": {
     "D09": 32701906246,
@@ -93,7 +102,10 @@
     "D05_PROFILE_AUTHORITY": 33275794207,
     "D05_API_WORKER_WIRING_AND_CONTRACT": 33278449485,
     "D10_CONTEXT_TRACE_FORWARD_VALIDATED_SUCCESSOR": 33379004528,
-    "D11_TRACE_UI_CONTRACT_SLICE_INTEGRATION": 33384367990
+    "D11_TRACE_UI_CONTRACT_SLICE_INTEGRATION": 33384367990,
+    "D02_AUTONOMY_BOOTSTRAP_INTEGRATION": 33408104901,
+    "D11_BEFORE_AFTER_VERSION_HISTORY_SHELL": 33419815815,
+    "D06_REFERENCE_PROFILE_QUEUE_INTEGRATION": 33436654662
   },
   "generation_capability_candidate": {
     "authority_id": "P3_P7_D02_R2_GENERATION_CAPABILITY_AUTHORITY_01",
@@ -352,15 +364,19 @@
     },
     "D06_SELF_TRANSFER_REFERENCE_PROFILE": {
       "code_sha": "53cbac335a6a0008fbb4395a10715d0e6512d1ad",
-      "implementation": "COMPLETE_INTERNAL_APPLICATION_SLICE",
+      "queued_orchestration_sha": "4367fe12a43816ed1a463eef7e2c2925bee5ff6c",
+      "integration_sha": "17abe5beebde5083d12c394d70e0516595f8a887",
+      "integration_ci": "PASS_33436654662",
+      "migration_head": "demo_0016_d06_ref_profile_queue",
+      "implementation": "TASK_ACCEPTED_QUEUED_API_WORKER_POSTGRESQL",
       "real_postgresql_integration": "PASS",
       "published_image_and_verifier_bridge": "PASS_FIXTURE_AUTHORITY",
       "real_d02_runtime_integration": "DEFERRED_TO_D02_FINAL_GATE",
-      "public_api_worker_wiring": "DEFERRED_REQUIRES_NEW_IMMUTABLE_COMPILE_REQUEST_AUTHORITY_AFTER_D02_MIGRATION_LEASE",
+      "public_api_worker_wiring": "PASS_REFERENCE_ONLY_JOB_BINDING_CELERY_LOCAL_RECONCILIATION",
       "final_acceptance": "NOT_VERIFIED",
       "review": "ONE_BLOCKING_DUPLICATE_DIMENSION_FINDING_REPAIRED_AND_PRINCIPAL_VERIFIED",
-      "validation": "PASS_D06_POSTGRESQL_6_D05_D07_D06_COMBINED_REGRESSION_RUFF_STRICT_MYPY_DIFF_CHECK_CHANGED_FILE_SECRET_PATTERN_SCAN",
-      "task_acceptance_claimed": false
+      "validation": "PASS_POSTGRESQL_MIGRATION_DRIFT_QUEUE_SERVICE_API_WORKER_CANCEL_REDELIVERY_207_SOURCE_MYPY_RUFF_OPENAPI_PLAYWRIGHT_GITLEAKS",
+      "task_acceptance_claimed": true
     },
     "D10_MEMORY_CONTEXT_COMPILER_RECALL": {
       "code_sha": "0aebd6c1ffe9a2a6692f253c5e33a8d5c1efb6cb",
@@ -414,19 +430,23 @@
       "trace_ui_integration_head": "7472438fdf29006294355ffd7446dfd9977ce0eb",
       "trace_ui_integration_ci": "PASS_33384367990",
       "trace_ui_contract_slice": "TASK_ACCEPTED",
+      "version_history_code_sha": "19304f4aaf9407f57c14033904a7862d99ed911f",
+      "version_history_integration_sha": "17abe5beebde5083d12c394d70e0516595f8a887",
+      "version_history_ci": "PASS_33419815815_AND_33436654662",
+      "version_history_contract_slice": "TASK_ACCEPTED_UI_CONTRACT_ONLY",
       "server_side_credential_bridge": "PASS_BEARER_SERVER_ONLY_BROWSER_OPAQUE_HANDLE",
       "explicit_recall_at": "PASS_IDENTICAL_CONTEXT_AND_TRACE_ANCHOR",
       "browser_storage": "PASS_NO_BEARER_LOCAL_SESSION_INDEXEDDB_OR_DOM",
       "real_e2e_claimed": false,
       "final_acceptance": "NOT_VERIFIED",
-      "validation": "PASS_WEB_VITEST_70_LINT_TYPECHECK_PRODUCTION_BUILD_PLAYWRIGHT_8_FULL_HISTORY_GITLEAKS_EXACT_SHA_CI",
-      "task_acceptance_claimed": false
+      "validation": "PASS_WEB_VITEST_80_LINT_TYPECHECK_PRODUCTION_BUILD_PLAYWRIGHT_VERSION_HISTORY_FULL_HISTORY_GITLEAKS_EXACT_SHA_CI",
+      "task_acceptance_claimed": true
     }
   },
   "d02_autonomous_execution_envelope": {
     "version": "D02_AUTONOMOUS_EXECUTION_ENVELOPE_V1",
     "subsystem_owner": "D02_SUBSYSTEM_PRINCIPAL",
-    "status": "AUTONOMY_BOOTSTRAP_PENDING_FORWARD_INTEGRATION",
+    "status": "AUTONOMY_BOOTSTRAP_INTEGRATED_ACQUISITION_READY",
     "cohort_authority": "DATA_DRIVEN_IMMUTABLE_REGISTERED_SPEC",
     "unknown_cohort_policy": "FAIL_CLOSED",
     "provider_budget_authority": {
@@ -437,11 +457,14 @@
     },
     "migration_lease": {
       "lease_id": "D02_AUTONOMY_BOOTSTRAP",
-      "status": "GRANTED",
+      "status": "RELEASED_ACKNOWLEDGED",
       "granted_from_integration_sha": "9d090c99b4e768276c5a0452c4cc6179e73fa61c",
       "entry_migration_head": "demo_0014_d02_r2_e3_versioning",
       "entry_head_count": 1,
-      "release_condition": "BOOTSTRAP_FORWARD_INTEGRATED_AND_NEW_COMMON_BASE_PUBLISHED"
+      "release_condition": "FULFILLED",
+      "common_base_sha": "012ee5ac48bebefb3a7e2ba6395f25146b4a77e0",
+      "d02_common_base_ack": true,
+      "current_owner": "INTEGRATION_PRINCIPAL"
     },
     "main_process_bootstrap_integration": "ONE_FORWARD_INTEGRATION_ONLY",
     "main_process_final_candidate_integration": "ONE_FINAL_INTEGRATION_AND_DAG_UNLOCK",
@@ -450,23 +473,21 @@
   },
   "ownership_split": {
     "status": "D02_AUTONOMOUS_EXECUTION_ENVELOPE_ACTIVE_PRODUCT_FORWARD_ACTIVE",
-    "common_base_sha": "002af481df5b957a31d207de72b3a07942f34c81",
+    "common_base_sha": "012ee5ac48bebefb3a7e2ba6395f25146b4a77e0",
     "d02_branch": "codex/p3-p7-d02-final-gate",
-    "d02_tracked_checkpoint_sha": "5f759c4e48f5d45493519c8cfdaeb33864f1e067",
+    "d02_tracked_checkpoint_sha": "012ee5ac48bebefb3a7e2ba6395f25146b4a77e0",
     "product_branch": "codex/p3-p7-product-forward",
-    "product_code_head": "7472438fdf29006294355ffd7446dfd9977ce0eb",
+    "product_code_head": "17abe5beebde5083d12c394d70e0516595f8a887",
     "private_execution_owner": "D02_SUBSYSTEM_PRINCIPAL",
-    "main_process_d02_access": "FORBIDDEN_UNTIL_INTEGRATION_RETURN"
+    "main_process_d02_access": "FORBIDDEN_PERMANENT_AUTONOMY_BOUNDARY"
   },
   "current_blockers": {
     "D02_FINAL_GATE": "OWNED_BY_D02_SUBSYSTEM_PRINCIPAL_NOT_VERIFIED",
     "D03_REAL_RUNTIME_INTEGRATION": "BLOCKED_BY_D02",
     "D04_B_REAL_BANK_INTEGRATION": "BLOCKED_BY_D02",
-    "D07_B_REAL_D02_ASSET_AND_M4_INTEGRATION": "BLOCKED_BY_D02",
-    "D06_REFERENCE_PROFILE_QUEUED_ORCHESTRATION": "DEFERRED_UNTIL_D02_MIGRATION_LEASE_RELEASE_REQUIRES_NEW_IMMUTABLE_REQUEST_AUTHORITY",
-    "D10_CONTEXT_QUEUED_COMPILER": "DEFERRED_UNTIL_D02_MIGRATION_LEASE_RELEASE_REQUIRES_DURABLE_EXPLICIT_AS_OF_REQUEST_AUTHORITY"
+    "D07_B_REAL_D02_ASSET_AND_M4_INTEGRATION": "BLOCKED_BY_D02"
   },
-  "next_ready_nodes": ["D11_BEFORE_AFTER_VERSION_HISTORY_SHELL"],
+  "next_ready_nodes": ["D10_CONTEXT_QUEUED_COMPILER_AND_REBUILD"],
   "runtime_evidence_blocked_nodes": [
     "D02_FINAL_RUNTIME_GATE",
     "D03_FRESH_M3_RUNTIME_INTEGRATION_GATE",

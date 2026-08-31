@@ -830,3 +830,16 @@
   60–900秒、容量64、支持过期清理/配置轮换/logout；同一显式`recall_at`同时用于Context与Trace，digest不一致
   fail closed。该slice固定为`UI_CONTRACT_ONLY`、`SYNTHETIC_DEMO`、`RUNTIME_EVIDENCE_DEFERRED`，不构成真实
   D02、真实用户、`LOCAL_WEB_AGENT`或production E2E PASS。
+
+- 2026-09-01：D02 autonomy bootstrap candidate `6bea83742346e6ae817dd53812ab003b33712b21` 经正常双亲
+  merge 与 CI successor 收口，共同基线为 `012ee5ac48bebefb3a7e2ba6395f25146b4a77e0`；D02 branch 已
+  ff-only ACK，Provider calls/budget/accepted sources 仍为 `0 / 50 / 0`，migration lease 已回到 Integration
+  Principal，D02 后续 acquisition 继续由 Subsystem Principal 自治。D11 Before/After version-history shell
+  `19304f4aaf9407f57c14033904a7862d99ed911f` 通过 run `33419815815` 并以 `UI_CONTRACT_ONLY` 接受；失败、
+  取消和 unsupported 仅表示未发布 execution event，不能伪装成 ImageVersion。D06 queued Reference Profile
+  以前向 migration `demo_0016_d06_ref_profile_queue` 建立 immutable request/result link、operation
+  `reference_profile.compile`、target `REFERENCE_PROFILE_REQUEST`、3 attempts/300s lease、owner-bound Job/
+  cancellation/reconciliation/Celery+Local/API authority；code SHA `4367fe12a43816ed1a463eef7e2c2925bee5ff6c`
+  与 integration successor `17abe5beebde5083d12c394d70e0516595f8a887` 的 run `33436654662` 全绿后
+  `TASK_ACCEPTED`。真实 D02 asset/runtime integration 仍未宣称，下一串行 migration 节点为 D10 Context queued
+  compiler/rebuild。
