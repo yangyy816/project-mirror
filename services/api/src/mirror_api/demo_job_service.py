@@ -37,6 +37,7 @@ from mirror_api.demo_models import (
     DemoImageVersion,
     DemoJobBinding,
     DemoQuestionnaireRun,
+    DemoReferenceProfileCompileRequest,
     DemoSelfTransferRun,
     DemoSession,
     DemoToolRun,
@@ -56,6 +57,7 @@ DemoJobTargetType = Literal[
     "EDIT_PLAN",
     "EDIT_OPERATION",
     "TOOL_RUN",
+    "REFERENCE_PROFILE_REQUEST",
 ]
 
 DEMO_JOB_BINDING_SCHEMA: Final = "mirror.demo/DemoJobBinding/v1"
@@ -77,6 +79,7 @@ _TARGET_MODELS: Mapping[str, type[DemoAuthorityMixin]] = {
     "EDIT_PLAN": DemoEditPlan,
     "EDIT_OPERATION": DemoEditOperation,
     "TOOL_RUN": DemoToolRun,
+    "REFERENCE_PROFILE_REQUEST": DemoReferenceProfileCompileRequest,
 }
 _EXPECTED_TARGETS: Mapping[str, str] = {
     "analysis.create": "ANALYSIS_RUN",
@@ -90,6 +93,7 @@ _EXPECTED_TARGETS: Mapping[str, str] = {
     "self_transfer.execute": "SELF_TRANSFER_RUN",
     "tool.verify": "TOOL_RUN",
     "context.compile": "DEMO_SESSION",
+    "reference_profile.compile": "REFERENCE_PROFILE_REQUEST",
 }
 _CAPABILITIES: Mapping[str, str] = {
     "analysis.create": "P3_FACE_ANALYSIS",
@@ -103,6 +107,7 @@ _CAPABILITIES: Mapping[str, str] = {
     "self_transfer.execute": "P5_SELF_TRANSFER",
     "tool.verify": "P6_TOOL_VERIFY",
     "context.compile": "P7_CONTEXT_COMPILER",
+    "reference_profile.compile": "P5_REFERENCE_PROFILE",
 }
 
 

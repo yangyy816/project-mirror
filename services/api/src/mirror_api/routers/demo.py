@@ -104,8 +104,22 @@ from mirror_api.demo_questionnaire_service import (
     DemoQuestionnaireService,
     DemoQuestionnaireUnavailable,
 )
+from mirror_api.demo_reference_profile_coordinator import DemoReferenceProfileCoordinator
+from mirror_api.demo_reference_profile_dependencies import (
+    get_demo_reference_profile_coordinator,
+    get_demo_reference_profile_service,
+)
+from mirror_api.demo_reference_profile_service import (
+    CreateDemoReferenceProfileCompilation,
+    DemoReferenceProfileAuthorityCorruption,
+    DemoReferenceProfileConflict,
+    DemoReferenceProfileInputError,
+    DemoReferenceProfileService,
+    DemoReferenceProfileUnavailable,
+)
 from mirror_api.demo_schemas import (
     DemoActiveProfilesResponse,
+    DemoActiveReferenceProfilesResponse,
     DemoAnalysisCreateRequest,
     DemoAnalysisResponse,
     DemoCapabilitiesResponse,
@@ -133,6 +147,8 @@ from mirror_api.demo_schemas import (
     DemoQuestionNextResponse,
     DemoQuestionResponseRequest,
     DemoQuestionSideResponse,
+    DemoReferenceProfileCompileRequest,
+    DemoReferenceProfileResponse,
     DemoRestoreRequest,
     DemoRoutingComponents,
     DemoSessionCreateRequest,
@@ -141,6 +157,7 @@ from mirror_api.demo_schemas import (
     DemoToolRunResponse,
     DemoTraceResponse,
 )
+from mirror_api.demo_self_transfer_service import DemoReferenceSource
 from mirror_api.errors import APIError, ErrorEnvelope
 
 router = APIRouter(
@@ -360,6 +377,36 @@ def _raise_profile_error(error: Exception) -> NoReturn:
     ) from error
 
 
+def _raise_reference_profile_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoReferenceProfileConflict):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code=error.code,
+            message="Reference Profile 请求与既有不可变 authority 冲突。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoReferenceProfileInputError):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code=error.code,
+            message="Reference Profile 请求不符合 Demo contract。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, (DemoReferenceProfileUnavailable, DemoJobUnavailable)):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_REFERENCE_PROFILE_UNAVAILABLE",
+            message="Reference Profile authority 不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise APIError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="DEMO_REFERENCE_PROFILE_AUTHORITY_CORRUPT",
+        message="Reference Profile authority 无法安全读取。",
+        details={"track": "DEMO_PROTOTYPE"},
+    ) from error
+
+
 def _raise_memory_error(error: Exception) -> NoReturn:
     if isinstance(error, DemoMemoryConflict):
         raise APIError(
@@ -526,6 +573,7 @@ async def get_capabilities() -> DemoCapabilitiesResponse:
             DemoCapability(code="P3_FACE_ANALYSIS", status="NOT_IMPLEMENTED"),
             DemoCapability(code="P4_QUESTIONNAIRE", status="NOT_IMPLEMENTED"),
             DemoCapability(code="P5_COMPILER", status="AVAILABLE"),
+            DemoCapability(code="P5_REFERENCE_PROFILE", status="AVAILABLE"),
             DemoCapability(code="P6_DETERMINISTIC_RASTER", status="NOT_IMPLEMENTED"),
             DemoCapability(code="P6_GEOMETRY", status="NOT_IMPLEMENTED"),
             DemoCapability(
@@ -874,6 +922,81 @@ async def get_active_profiles(
                 generation=item.generation,
                 compilation_watermark=item.compilation_watermark,
                 learning_enabled=item.learning_enabled,
+            )
+            for item in profiles
+        ]
+    )
+
+
+@router.post(
+    "/reference-profiles/compile",
+    status_code=202,
+    response_model=DemoJobAcceptedResponse,
+    operation_id="demoCompileReferenceProfile",
+    openapi_extra=DEMO_OPENAPI,
+    responses=DEMO_ERRORS,
+)
+async def compile_reference_profile(
+    payload: DemoReferenceProfileCompileRequest,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoReferenceProfileCoordinator = Depends(get_demo_reference_profile_coordinator),
+) -> DemoJobAcceptedResponse:
+    try:
+        result = await coordinator.create(
+            CreateDemoReferenceProfileCompilation(
+                demo_actor_id=actor.id,
+                demo_session_id=payload.session_id,
+                desired_delta_profile_id=payload.desired_delta_profile_id,
+                style_profile_id=payload.style_profile_id,
+                identity_constraints_id=payload.identity_constraints_id,
+                sources=tuple(
+                    DemoReferenceSource(item.asset_id, item.view) for item in payload.sources
+                ),
+                compiler_version=payload.compiler_version,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+    except (
+        DemoReferenceProfileInputError,
+        DemoReferenceProfileUnavailable,
+        DemoReferenceProfileConflict,
+        DemoReferenceProfileAuthorityCorruption,
+        DemoJobUnavailable,
+        DemoJobAuthorityCorruption,
+    ) as exc:
+        _raise_reference_profile_error(exc)
+    return _job_accepted(result.job)
+
+
+@router.get(
+    "/reference-profiles/active",
+    response_model=DemoActiveReferenceProfilesResponse,
+    operation_id="demoGetActiveReferenceProfiles",
+    openapi_extra=DEMO_OPENAPI,
+    responses=DEMO_ERRORS,
+)
+async def get_active_reference_profiles(
+    actor: DemoActor = Depends(get_demo_actor),
+    service: DemoReferenceProfileService = Depends(get_demo_reference_profile_service),
+) -> DemoActiveReferenceProfilesResponse:
+    try:
+        profiles = await service.active_profiles(demo_actor_id=actor.id)
+    except (
+        DemoReferenceProfileInputError,
+        DemoReferenceProfileUnavailable,
+        DemoReferenceProfileAuthorityCorruption,
+    ) as exc:
+        _raise_reference_profile_error(exc)
+    return DemoActiveReferenceProfilesResponse(
+        profiles=[
+            DemoReferenceProfileResponse(
+                reference_profile_id=item.reference_profile_id,
+                version=item.version,
+                content_digest=item.content_digest,
+                source_count=item.source_count,
             )
             for item in profiles
         ]

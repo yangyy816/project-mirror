@@ -3195,6 +3195,204 @@
         "x-demo-only": true
       }
     },
+    "/api/v1/demo/reference-profiles/compile": {
+      "post": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Compile Reference Profile",
+        "operationId": "demoCompileReferenceProfile",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "pattern": "^[!-~]{8,128}$",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoReferenceProfileCompileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoJobAcceptedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
+    "/api/v1/demo/reference-profiles/active": {
+      "get": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Get Active Reference Profiles",
+        "operationId": "demoGetActiveReferenceProfiles",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoActiveReferenceProfilesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not Implemented",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "x-demo-only": true
+      }
+    },
     "/api/v1/demo/style-feedback": {
       "post": {
         "tags": [
@@ -5179,6 +5377,23 @@
         ],
         "title": "DemoActiveProfilesResponse"
       },
+      "DemoActiveReferenceProfilesResponse": {
+        "properties": {
+          "profiles": {
+            "items": {
+              "$ref": "#/components/schemas/DemoReferenceProfileResponse"
+            },
+            "type": "array",
+            "title": "Profiles"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "profiles"
+        ],
+        "title": "DemoActiveReferenceProfilesResponse"
+      },
       "DemoAnalysisCreateRequest": {
         "properties": {
           "session_id": {
@@ -5274,6 +5489,7 @@
               "P3_FACE_ANALYSIS",
               "P4_QUESTIONNAIRE",
               "P5_COMPILER",
+              "P5_REFERENCE_PROFILE",
               "P6_DETERMINISTIC_RASTER",
               "P6_GEOMETRY",
               "P6_MAKEUP",
@@ -5834,7 +6050,8 @@
               "IMAGE_VERSION",
               "EDIT_PLAN",
               "EDIT_OPERATION",
-              "TOOL_RUN"
+              "TOOL_RUN",
+              "REFERENCE_PROFILE_REQUEST"
             ],
             "title": "Target Type"
           },
@@ -6358,6 +6575,126 @@
           "run_version"
         ],
         "title": "DemoQuestionnaireStepResponse"
+      },
+      "DemoReferenceProfileCompileRequest": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Session Id"
+          },
+          "desired_delta_profile_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Desired Delta Profile Id"
+          },
+          "style_profile_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style Profile Id"
+          },
+          "identity_constraints_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity Constraints Id"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/DemoReferenceProfileSourceRequest"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Sources"
+          },
+          "compiler_version": {
+            "type": "string",
+            "const": "demo-reference-profile-compiler-v1",
+            "title": "Compiler Version",
+            "default": "demo-reference-profile-compiler-v1"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "desired_delta_profile_id",
+          "sources"
+        ],
+        "title": "DemoReferenceProfileCompileRequest"
+      },
+      "DemoReferenceProfileResponse": {
+        "properties": {
+          "reference_profile_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Reference Profile Id"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "content_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Content Digest"
+          },
+          "source_count": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Source Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reference_profile_id",
+          "version",
+          "content_digest",
+          "source_count"
+        ],
+        "title": "DemoReferenceProfileResponse"
+      },
+      "DemoReferenceProfileSourceRequest": {
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Asset Id"
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "FRONT",
+              "THREE_QUARTER",
+              "SIDE"
+            ],
+            "title": "View"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "asset_id",
+          "view"
+        ],
+        "title": "DemoReferenceProfileSourceRequest"
       },
       "DemoRestoreRequest": {
         "properties": {

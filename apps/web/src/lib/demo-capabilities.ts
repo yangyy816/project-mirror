@@ -7,6 +7,7 @@ const capabilitySchema = z
       "P3_FACE_ANALYSIS",
       "P4_QUESTIONNAIRE",
       "P5_COMPILER",
+      "P5_REFERENCE_PROFILE",
       "P6_DETERMINISTIC_RASTER",
       "P6_GEOMETRY",
       "P6_MAKEUP",

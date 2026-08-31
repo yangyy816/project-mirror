@@ -24,6 +24,9 @@ from mirror_api.demo_profile_dependencies import create_demo_profile_infrastruct
 from mirror_api.demo_questionnaire_dependencies import (
     create_demo_questionnaire_infrastructure,
 )
+from mirror_api.demo_reference_profile_dependencies import (
+    create_demo_reference_profile_infrastructure,
+)
 from mirror_api.errors import (
     APIError,
     api_error_handler,
@@ -92,6 +95,10 @@ def create_app() -> FastAPI:
         settings=settings,
         sessions=auth_infrastructure.sessions,
     )
+    demo_reference_profile_infrastructure = create_demo_reference_profile_infrastructure(
+        settings=settings,
+        sessions=auth_infrastructure.sessions,
+    )
     demo_editing_infrastructure = create_demo_editing_infrastructure(
         settings=settings,
         sessions=auth_infrastructure.sessions,
@@ -129,6 +136,7 @@ def create_app() -> FastAPI:
     app.state.demo_analysis_infrastructure = demo_analysis_infrastructure
     app.state.demo_questionnaire_infrastructure = demo_questionnaire_infrastructure
     app.state.demo_profile_infrastructure = demo_profile_infrastructure
+    app.state.demo_reference_profile_infrastructure = demo_reference_profile_infrastructure
     app.state.demo_editing_infrastructure = demo_editing_infrastructure
     app.state.demo_image_feedback_infrastructure = demo_image_feedback_infrastructure
     app.state.demo_memory_infrastructure = demo_memory_infrastructure

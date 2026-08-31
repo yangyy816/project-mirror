@@ -41,6 +41,11 @@ from mirror_api.demo_profile_task_contract import (
     DemoProfileDispatcher,
     DemoProfileTaskMessage,
 )
+from mirror_api.demo_reference_profile_service import DemoReferenceProfileService
+from mirror_api.demo_reference_profile_task_contract import (
+    DemoReferenceProfileDispatcher,
+    DemoReferenceProfileTaskMessage,
+)
 from mirror_api.geometry_dependencies import create_geometry_transform_provider
 from mirror_api.ingestion.service import IngestionService
 from mirror_api.ingestion.task_contract import IngestionDispatcher, IngestionTaskMessage
@@ -85,6 +90,7 @@ from mirror_worker.demo_analysis import DemoAnalysisTaskExecutor
 from mirror_worker.demo_analysis_runtime import DeferredDemoAnalysisRuntime
 from mirror_worker.demo_memory import DemoMemoryTaskExecutor
 from mirror_worker.demo_profile import DemoProfileTaskExecutor
+from mirror_worker.demo_reference_profile import DemoReferenceProfileTaskExecutor
 from mirror_worker.ingestion import (
     IngestionMaintenance,
     IngestionReconciler,
@@ -141,6 +147,12 @@ class DemoProfileRuntime:
     engine: AsyncEngine
     application: DemoProfileCompilationService
     commands: DemoProfileCommandService
+
+
+@dataclass(frozen=True)
+class DemoReferenceProfileRuntime:
+    engine: AsyncEngine
+    application: DemoReferenceProfileService
 
 
 @dataclass(frozen=True)
@@ -310,6 +322,17 @@ def create_demo_profile_runtime(settings: Settings) -> DemoProfileRuntime:
     )
 
 
+def create_demo_reference_profile_runtime(settings: Settings) -> DemoReferenceProfileRuntime:
+    """Compose D06 queued compilation without private bytes or a Provider."""
+
+    engine = create_async_engine(settings.database_url)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    return DemoReferenceProfileRuntime(
+        engine=engine,
+        application=DemoReferenceProfileService(session_factory=sessions),
+    )
+
+
 def create_demo_memory_runtime(settings: Settings) -> DemoMemoryRuntime:
     """Compose deterministic D10 authority without a Provider or private input."""
 
@@ -429,6 +452,42 @@ async def run_demo_profile_reconciliation(
                 request_id=candidate.request_id,
             )
             dispatcher.dispatch_demo_profile(message)
+            dispatched.append(candidate.job_id)
+        return tuple(dispatched)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_demo_reference_profile_message(
+    message: dict[str, Any], *, settings: Settings | None = None
+) -> dict[str, str | None]:
+    runtime = create_demo_reference_profile_runtime(settings or get_settings())
+    try:
+        result = await DemoReferenceProfileTaskExecutor(application=runtime.application).execute(
+            DemoReferenceProfileTaskMessage.from_message(message)
+        )
+        return asdict(result)
+    finally:
+        await runtime.engine.dispose()
+
+
+async def run_demo_reference_profile_reconciliation(
+    *,
+    dispatcher: DemoReferenceProfileDispatcher,
+    limit: int = 100,
+    settings: Settings | None = None,
+) -> tuple[str, ...]:
+    runtime = create_demo_reference_profile_runtime(settings or get_settings())
+    try:
+        dispatched: list[str] = []
+        for candidate in await runtime.application.reconciliation_candidates(limit=limit):
+            message = DemoReferenceProfileTaskMessage(
+                demo_actor_id=candidate.demo_actor_id,
+                job_id=candidate.job_id,
+                compile_request_id=candidate.compile_request_id,
+                request_id=candidate.request_id,
+            )
+            dispatcher.dispatch_demo_reference_profile(message)
             dispatched.append(candidate.job_id)
         return tuple(dispatched)
     finally:

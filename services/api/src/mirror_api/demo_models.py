@@ -2288,6 +2288,78 @@ class DemoSelfTransferDimensionEvidence(DemoAuthorityMixin, Base):
     )
 
 
+class DemoReferenceProfileCompileRequest(DemoAuthorityMixin, Base):
+    __tablename__ = "demo_reference_compile_requests"
+
+    demo_actor_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_actors.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    demo_session_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    demo_job_binding_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "demo_job_bindings.id",
+            ondelete="RESTRICT",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        index=True,
+        nullable=False,
+    )
+    desired_delta_profile_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_desired_delta_profiles.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    style_profile_id: Mapped[str | None] = mapped_column(
+        ForeignKey("demo_style_profiles.id", ondelete="RESTRICT"), index=True
+    )
+    identity_constraints_id: Mapped[str | None] = mapped_column(
+        ForeignKey("demo_identity_constraints.id", ondelete="RESTRICT"), index=True
+    )
+    compiler_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_bindings: Mapped[list[Any]] = mapped_column(JSONB, nullable=False)
+    input_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    execution_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    max_attempts: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    lease_timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        ForeignKeyConstraint(
+            ["demo_session_id", "demo_actor_id"],
+            ["demo_sessions.id", "demo_sessions.demo_actor_id"],
+            name="fk_demo_reference_compile_requests_session_actor",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "id",
+            "demo_actor_id",
+            "demo_session_id",
+            name="uq_demo_reference_compile_requests_id_actor_session",
+        ),
+        UniqueConstraint(
+            "demo_job_binding_id",
+            name="uq_demo_reference_compile_requests_demo_job_binding_id",
+        ),
+        CheckConstraint(
+            "compiler_version = 'demo-reference-profile-compiler-v1'",
+            name="compiler_version",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(source_bindings) = 'array' "
+            "AND jsonb_array_length(source_bindings) BETWEEN 1 AND 3",
+            name="source_bindings_array",
+        ),
+        CheckConstraint("input_digest ~ '^[0-9a-f]{64}$'", name="input_digest_shape"),
+        CheckConstraint(
+            "execution_policy_version = 'demo-reference-profile-queue-v1'",
+            name="execution_policy_version",
+        ),
+        CheckConstraint("max_attempts = 3", name="max_attempts"),
+        CheckConstraint("lease_timeout_seconds = 300", name="lease_timeout_seconds"),
+    )
+
+
 class DemoReferenceProfile(DemoAuthorityMixin, Base):
     __tablename__ = "demo_reference_profiles"
 
@@ -2335,6 +2407,60 @@ class DemoReferenceProfile(DemoAuthorityMixin, Base):
         CheckConstraint(
             "jsonb_typeof(evidence_digests) = 'array'",
             name="evidence_digests_array",
+        ),
+    )
+
+
+class DemoReferenceProfileCompileResult(DemoAuthorityMixin, Base):
+    __tablename__ = "demo_reference_compile_results"
+
+    demo_actor_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_actors.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    demo_session_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    compile_request_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_reference_compile_requests.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    demo_job_binding_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_job_bindings.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    reference_profile_id: Mapped[str] = mapped_column(
+        ForeignKey("demo_reference_profiles.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    reference_profile_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_code: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    __table_args__ = (
+        *_authority_constraints(__tablename__),
+        ForeignKeyConstraint(
+            ["demo_session_id", "demo_actor_id"],
+            ["demo_sessions.id", "demo_sessions.demo_actor_id"],
+            name="fk_demo_reference_compile_results_session_actor",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "compile_request_id",
+            name="uq_demo_reference_compile_results_compile_request_id",
+        ),
+        UniqueConstraint(
+            "demo_job_binding_id",
+            name="uq_demo_reference_compile_results_demo_job_binding_id",
+        ),
+        CheckConstraint(
+            "reference_profile_digest ~ '^[0-9a-f]{64}$'",
+            name="reference_digest_shape",
+        ),
+        CheckConstraint("input_digest ~ '^[0-9a-f]{64}$'", name="input_digest_shape"),
+        CheckConstraint(
+            "result_code = 'REFERENCE_PROFILE_COMPILED'",
+            name="result_code",
         ),
     )
 
@@ -3301,7 +3427,7 @@ class DemoJobBinding(DemoAuthorityMixin, Base):
             "endpoint_operation IN ('analysis.create','questionnaire.run.create','profile.compile',"
             "'editing_session.create','edit_plan.create','edit_plan.execute',"
             "'image_version.restore','profile.rebuild','self_transfer.execute','tool.verify',"
-            "'context.compile')",
+            "'context.compile','reference_profile.compile')",
             name="endpoint_operation",
         ),
         CheckConstraint(
@@ -3312,7 +3438,7 @@ class DemoJobBinding(DemoAuthorityMixin, Base):
         CheckConstraint(
             "target_type IN ('DEMO_ACTOR','DEMO_SESSION','ANALYSIS_RUN','FACE_OBSERVATION',"
             "'QUESTIONNAIRE_RUN','SELF_TRANSFER_RUN','EDITING_SESSION','IMAGE_VERSION',"
-            "'EDIT_PLAN','EDIT_OPERATION','TOOL_RUN')",
+            "'EDIT_PLAN','EDIT_OPERATION','TOOL_RUN','REFERENCE_PROFILE_REQUEST')",
             name="target_type",
         ),
         CheckConstraint("target_id ~ '^[0-9a-f]{32}$'", name="target_id_shape"),
@@ -3322,6 +3448,13 @@ class DemoJobBinding(DemoAuthorityMixin, Base):
             "target_id",
             unique=True,
             postgresql_where=text("target_type = 'ANALYSIS_RUN'"),
+        ),
+        Index(
+            "uq_demo_job_bindings_reference_profile_request_target",
+            "target_type",
+            "target_id",
+            unique=True,
+            postgresql_where=text("target_type = 'REFERENCE_PROFILE_REQUEST'"),
         ),
     )
 
@@ -3407,7 +3540,9 @@ DEMO_TABLE_NAMES = frozenset(
         "demo_profile_compilation_bundles",
         "demo_self_transfer_runs",
         "demo_self_transfer_evidence",
+        "demo_reference_compile_requests",
         "demo_reference_profiles",
+        "demo_reference_compile_results",
         "demo_editing_sessions",
         "demo_image_versions",
         "demo_edit_plans",

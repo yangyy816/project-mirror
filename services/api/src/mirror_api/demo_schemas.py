@@ -24,6 +24,7 @@ DemoJobTargetType = Literal[
     "EDIT_PLAN",
     "EDIT_OPERATION",
     "TOOL_RUN",
+    "REFERENCE_PROFILE_REQUEST",
 ]
 
 
@@ -185,6 +186,33 @@ class DemoActiveProfilesResponse(StrictContractModel):
     profiles: list[DemoProfileResponse]
 
 
+class DemoReferenceProfileSourceRequest(StrictContractModel):
+    asset_id: DemoId
+    view: Literal["FRONT", "THREE_QUARTER", "SIDE"]
+
+
+class DemoReferenceProfileCompileRequest(StrictContractModel):
+    session_id: DemoId
+    desired_delta_profile_id: DemoId
+    style_profile_id: DemoId | None = None
+    identity_constraints_id: DemoId | None = None
+    sources: list[DemoReferenceProfileSourceRequest] = Field(min_length=1, max_length=3)
+    compiler_version: Literal["demo-reference-profile-compiler-v1"] = (
+        "demo-reference-profile-compiler-v1"
+    )
+
+
+class DemoReferenceProfileResponse(StrictContractModel):
+    reference_profile_id: DemoId
+    version: int = Field(ge=1)
+    content_digest: DemoDigest
+    source_count: int = Field(ge=1, le=3)
+
+
+class DemoActiveReferenceProfilesResponse(StrictContractModel):
+    profiles: list[DemoReferenceProfileResponse]
+
+
 class DemoExplicitStyleSelectionRequest(StrictContractModel):
     event_type: Literal["EXPLICIT_STYLE_SELECTION"]
     session_id: DemoId | None = None
@@ -334,6 +362,7 @@ class DemoCapability(StrictContractModel):
         "P3_FACE_ANALYSIS",
         "P4_QUESTIONNAIRE",
         "P5_COMPILER",
+        "P5_REFERENCE_PROFILE",
         "P6_DETERMINISTIC_RASTER",
         "P6_GEOMETRY",
         "P6_MAKEUP",

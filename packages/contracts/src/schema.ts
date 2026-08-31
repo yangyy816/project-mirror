@@ -619,6 +619,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/demo/reference-profiles/compile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compile Reference Profile */
+        post: operations["demoCompileReferenceProfile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/demo/reference-profiles/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Active Reference Profiles */
+        get: operations["demoGetActiveReferenceProfiles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/demo/style-feedback": {
         parameters: {
             query?: never;
@@ -1041,6 +1075,11 @@ export interface components {
             /** Profiles */
             profiles: components["schemas"]["DemoProfileResponse"][];
         };
+        /** DemoActiveReferenceProfilesResponse */
+        DemoActiveReferenceProfilesResponse: {
+            /** Profiles */
+            profiles: components["schemas"]["DemoReferenceProfileResponse"][];
+        };
         /** DemoAnalysisCreateRequest */
         DemoAnalysisCreateRequest: {
             /** Session Id */
@@ -1079,7 +1118,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "P3_FACE_ANALYSIS" | "P4_QUESTIONNAIRE" | "P5_COMPILER" | "P6_DETERMINISTIC_RASTER" | "P6_GEOMETRY" | "P6_MAKEUP" | "P6_GENERATIVE_EDITOR" | "P7_PREFERENCE_MEMORY";
+            code: "P3_FACE_ANALYSIS" | "P4_QUESTIONNAIRE" | "P5_COMPILER" | "P5_REFERENCE_PROFILE" | "P6_DETERMINISTIC_RASTER" | "P6_GEOMETRY" | "P6_MAKEUP" | "P6_GENERATIVE_EDITOR" | "P7_PREFERENCE_MEMORY";
             /**
              * Status
              * @enum {string}
@@ -1261,7 +1300,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "DEMO_ACTOR" | "DEMO_SESSION" | "ANALYSIS_RUN" | "FACE_OBSERVATION" | "QUESTIONNAIRE_RUN" | "SELF_TRANSFER_RUN" | "EDITING_SESSION" | "IMAGE_VERSION" | "EDIT_PLAN" | "EDIT_OPERATION" | "TOOL_RUN";
+            target_type: "DEMO_ACTOR" | "DEMO_SESSION" | "ANALYSIS_RUN" | "FACE_OBSERVATION" | "QUESTIONNAIRE_RUN" | "SELF_TRANSFER_RUN" | "EDITING_SESSION" | "IMAGE_VERSION" | "EDIT_PLAN" | "EDIT_OPERATION" | "TOOL_RUN" | "REFERENCE_PROFILE_REQUEST";
             /** Target Id */
             target_id: string;
             /** Authority Digest */
@@ -1441,6 +1480,46 @@ export interface components {
             step_sequence: number;
             /** Run Version */
             run_version: number;
+        };
+        /** DemoReferenceProfileCompileRequest */
+        DemoReferenceProfileCompileRequest: {
+            /** Session Id */
+            session_id: string;
+            /** Desired Delta Profile Id */
+            desired_delta_profile_id: string;
+            /** Style Profile Id */
+            style_profile_id?: string | null;
+            /** Identity Constraints Id */
+            identity_constraints_id?: string | null;
+            /** Sources */
+            sources: components["schemas"]["DemoReferenceProfileSourceRequest"][];
+            /**
+             * Compiler Version
+             * @default demo-reference-profile-compiler-v1
+             * @constant
+             */
+            compiler_version: "demo-reference-profile-compiler-v1";
+        };
+        /** DemoReferenceProfileResponse */
+        DemoReferenceProfileResponse: {
+            /** Reference Profile Id */
+            reference_profile_id: string;
+            /** Version */
+            version: number;
+            /** Content Digest */
+            content_digest: string;
+            /** Source Count */
+            source_count: number;
+        };
+        /** DemoReferenceProfileSourceRequest */
+        DemoReferenceProfileSourceRequest: {
+            /** Asset Id */
+            asset_id: string;
+            /**
+             * View
+             * @enum {string}
+             */
+            view: "FRONT" | "THREE_QUARTER" | "SIDE";
         };
         /** DemoRestoreRequest */
         DemoRestoreRequest: {
@@ -3994,6 +4073,160 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DemoActiveProfilesResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    demoCompileReferenceProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DemoReferenceProfileCompileRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoJobAcceptedResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    demoGetActiveReferenceProfiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoActiveReferenceProfilesResponse"];
                 };
             };
             /** @description Unauthorized */

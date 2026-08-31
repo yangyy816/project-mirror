@@ -230,6 +230,14 @@ class DemoReferenceProfileAccepted:
 
 
 @dataclass(frozen=True, slots=True)
+class DemoReferenceProfileInputSnapshot:
+    """Immutable, byte-free D06 compiler input frozen at queued admission."""
+
+    source_bindings: tuple[dict[str, Any], ...]
+    input_digest: str
+
+
+@dataclass(frozen=True, slots=True)
 class _DesiredDimension:
     dimension_key: str
     desired_delta_ppm: int
@@ -558,101 +566,173 @@ class DemoSelfTransferService:
         self, command: CompileDemoReferenceProfile
     ) -> DemoReferenceProfileAccepted:
         command.validate()
-        sources = tuple(sorted(command.sources, key=lambda item: _VIEW_ORDER[item.view]))
         async with self._sessions() as session:
             async with session.begin():
-                actor = await session.scalar(
-                    select(DemoActor).where(DemoActor.id == command.demo_actor_id).with_for_update()
+                snapshot = await self.freeze_reference_profile_inputs(session, command)
+                return await self.compile_reference_profile_in_session(
+                    session,
+                    command=command,
+                    expected_source_bindings=snapshot.source_bindings,
+                    expected_input_digest=snapshot.input_digest,
                 )
-                if actor is None or actor.tombstoned_at is not None:
-                    raise DemoSelfTransferUnavailable(
-                        "ACTOR_UNAVAILABLE", "Demo actor is unavailable"
-                    )
-                owner_session = await session.get(DemoSession, command.demo_session_id)
-                if (
-                    owner_session is None
-                    or owner_session.demo_actor_id != command.demo_actor_id
-                    or owner_session.tombstoned_at is not None
-                ):
-                    raise DemoSelfTransferUnavailable(
-                        "SESSION_UNAVAILABLE", "Demo session is unavailable"
-                    )
-                desired, style, constraints = await self._reference_inputs(session, command)
-                authorities = tuple(
-                    [
-                        await self._accepted_reference_authority(
-                            session,
-                            actor_id=command.demo_actor_id,
-                            session_id=command.demo_session_id,
-                            desired_profile_id=desired.id,
-                            asset_id=source.asset_id,
-                        )
-                        for source in sources
-                    ]
-                )
-                source_assets = [
-                    {
-                        "asset_id": authority.source_asset.id,
-                        "sha256": authority.source_asset.sha256,
-                        "view": source.view,
-                    }
-                    for source, authority in zip(sources, authorities, strict=True)
-                ]
-                structured, evidence_digests = _reference_structure(
-                    desired=desired,
-                    style=style,
-                    constraints=constraints,
-                    sources=sources,
-                    authorities=authorities,
-                )
-                existing = await self._matching_reference_profile(
+
+    async def freeze_reference_profile_inputs(
+        self, session: AsyncSession, command: CompileDemoReferenceProfile
+    ) -> DemoReferenceProfileInputSnapshot:
+        """Recompute the complete byte-free compiler input in the caller's transaction."""
+        command.validate()
+        sources = tuple(sorted(command.sources, key=lambda item: _VIEW_ORDER[item.view]))
+        actor = await session.scalar(
+            select(DemoActor).where(DemoActor.id == command.demo_actor_id).with_for_update()
+        )
+        if actor is None or actor.tombstoned_at is not None:
+            raise DemoSelfTransferUnavailable("ACTOR_UNAVAILABLE", "Demo actor is unavailable")
+        owner_session = await session.get(DemoSession, command.demo_session_id)
+        if (
+            owner_session is None
+            or owner_session.demo_actor_id != command.demo_actor_id
+            or owner_session.tombstoned_at is not None
+        ):
+            raise DemoSelfTransferUnavailable("SESSION_UNAVAILABLE", "Demo session is unavailable")
+        desired, style, constraints = await self._reference_inputs(session, command)
+        authorities = tuple(
+            [
+                await self._accepted_reference_authority(
                     session,
                     actor_id=command.demo_actor_id,
                     session_id=command.demo_session_id,
-                    desired_id=desired.id,
-                    style_id=None if style is None else style.id,
-                    constraints_id=None if constraints is None else constraints.id,
-                    source_assets=source_assets,
-                    structured_profile=structured,
-                    evidence_digests=evidence_digests,
+                    desired_profile_id=desired.id,
+                    asset_id=source.asset_id,
                 )
-                if existing is not None:
-                    return DemoReferenceProfileAccepted(
-                        existing.id, existing.version, existing.content_digest, True
-                    )
-                max_version = await session.scalar(
-                    select(func.coalesce(func.max(DemoReferenceProfile.version), 0)).where(
-                        DemoReferenceProfile.demo_actor_id == command.demo_actor_id
-                    )
+                for source in sources
+            ]
+        )
+        source_bindings = tuple(
+            {
+                "asset_id": authority.source_asset.id,
+                "asset_sha256": authority.source_asset.sha256,
+                "view": source.view,
+                "self_transfer_run_id": authority.transfer_run.id,
+                "self_transfer_run_digest": authority.transfer_run.content_digest,
+                "image_version_id": authority.image_version.id,
+                "image_version_digest": authority.image_version.content_digest,
+                "verifier_digest": authority.verifier.content_digest,
+                "evidence_digests": [item.content_digest for item in authority.evidence],
+            }
+            for source, authority in zip(sources, authorities, strict=True)
+        )
+        input_payload = {
+            "desired_delta_profile_digest": desired.content_digest,
+            "style_profile_digest": None if style is None else style.content_digest,
+            "identity_constraints_digest": None
+            if constraints is None
+            else constraints.content_digest,
+            "source_bindings": list(source_bindings),
+            "analysis_version": DEMO_REFERENCE_ANALYSIS_VERSION,
+            "compiler_version": DEMO_REFERENCE_COMPILER_VERSION,
+        }
+        return DemoReferenceProfileInputSnapshot(
+            source_bindings=source_bindings,
+            input_digest=_authority_digest("mirror.demo/ReferenceProfileInput/v1", input_payload),
+        )
+
+    async def compile_reference_profile_in_session(
+        self,
+        session: AsyncSession,
+        *,
+        command: CompileDemoReferenceProfile,
+        expected_source_bindings: Sequence[Mapping[str, Any]],
+        expected_input_digest: str,
+    ) -> DemoReferenceProfileAccepted:
+        """Materialize a legacy or queued profile without owning the transaction."""
+        snapshot = await self.freeze_reference_profile_inputs(session, command)
+        if (
+            tuple(dict(item) for item in expected_source_bindings) != snapshot.source_bindings
+            or expected_input_digest != snapshot.input_digest
+        ):
+            raise DemoSelfTransferConflict(
+                "REFERENCE_INPUT_SNAPSHOT_MISMATCH", "frozen Reference Profile input changed"
+            )
+        sources = tuple(sorted(command.sources, key=lambda item: _VIEW_ORDER[item.view]))
+        desired, style, constraints = await self._reference_inputs(session, command)
+        authorities = tuple(
+            [
+                await self._accepted_reference_authority(
+                    session,
+                    actor_id=command.demo_actor_id,
+                    session_id=command.demo_session_id,
+                    desired_profile_id=desired.id,
+                    asset_id=source.asset_id,
                 )
-                if type(max_version) is not int:
-                    raise DemoSelfTransferAuthorityCorruption(
-                        "REFERENCE_VERSION_INVALID", "Reference Profile version is invalid"
-                    )
-                payload = {
-                    "demo_actor_id": command.demo_actor_id,
-                    "demo_session_id": command.demo_session_id,
-                    "desired_delta_profile_id": desired.id,
-                    "style_profile_id": None if style is None else style.id,
-                    "identity_constraints_id": None if constraints is None else constraints.id,
-                    "version": max_version + 1,
-                    "source_assets": source_assets,
-                    "analysis_version": DEMO_REFERENCE_ANALYSIS_VERSION,
-                    "compiler_version": DEMO_REFERENCE_COMPILER_VERSION,
-                    "structured_profile": structured,
-                    "evidence_digests": evidence_digests,
-                }
-                reference = _authority_row(
-                    DemoReferenceProfile,
-                    schema_version=DEMO_REFERENCE_PROFILE_SCHEMA,
-                    created_at=self._normalized_now(),
-                    fields=payload,
-                )
-                session.add(reference)
-                await session.flush()
-                return DemoReferenceProfileAccepted(
-                    reference.id, reference.version, reference.content_digest, False
-                )
+                for source in sources
+            ]
+        )
+        source_assets = [
+            {
+                "asset_id": authority.source_asset.id,
+                "sha256": authority.source_asset.sha256,
+                "view": source.view,
+            }
+            for source, authority in zip(sources, authorities, strict=True)
+        ]
+        structured, evidence_digests = _reference_structure(
+            desired=desired,
+            style=style,
+            constraints=constraints,
+            sources=sources,
+            authorities=authorities,
+        )
+        existing = await self._matching_reference_profile(
+            session,
+            actor_id=command.demo_actor_id,
+            session_id=command.demo_session_id,
+            desired_id=desired.id,
+            style_id=None if style is None else style.id,
+            constraints_id=None if constraints is None else constraints.id,
+            source_assets=source_assets,
+            structured_profile=structured,
+            evidence_digests=evidence_digests,
+        )
+        if existing is not None:
+            return DemoReferenceProfileAccepted(
+                existing.id,
+                existing.version,
+                existing.content_digest,
+                True,
+            )
+        max_version = await session.scalar(
+            select(func.coalesce(func.max(DemoReferenceProfile.version), 0)).where(
+                DemoReferenceProfile.demo_actor_id == command.demo_actor_id
+            )
+        )
+        if type(max_version) is not int:
+            raise DemoSelfTransferAuthorityCorruption(
+                "REFERENCE_VERSION_INVALID", "Reference Profile version is invalid"
+            )
+        payload = {
+            "demo_actor_id": command.demo_actor_id,
+            "demo_session_id": command.demo_session_id,
+            "desired_delta_profile_id": desired.id,
+            "style_profile_id": None if style is None else style.id,
+            "identity_constraints_id": None if constraints is None else constraints.id,
+            "version": max_version + 1,
+            "source_assets": source_assets,
+            "analysis_version": DEMO_REFERENCE_ANALYSIS_VERSION,
+            "compiler_version": DEMO_REFERENCE_COMPILER_VERSION,
+            "structured_profile": structured,
+            "evidence_digests": evidence_digests,
+        }
+        reference = _authority_row(
+            DemoReferenceProfile,
+            schema_version=DEMO_REFERENCE_PROFILE_SCHEMA,
+            created_at=self._normalized_now(),
+            fields=payload,
+        )
+        session.add(reference)
+        await session.flush()
+        return DemoReferenceProfileAccepted(
+            reference.id, reference.version, reference.content_digest, False
+        )
 
     async def _create_context(
         self, session: AsyncSession, command: CreateDemoSelfTransferRequest
@@ -1424,6 +1504,7 @@ __all__ = [
     "CompileDemoReferenceProfile",
     "CreateDemoSelfTransferRequest",
     "DemoReferenceProfileAccepted",
+    "DemoReferenceProfileInputSnapshot",
     "DemoReferenceSource",
     "DemoSelfTransferAuthorityCorruption",
     "DemoSelfTransferConflict",
