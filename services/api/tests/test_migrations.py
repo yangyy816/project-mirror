@@ -86,7 +86,14 @@ def test_ci_evidence_tracks_current_migration_head() -> None:
     assert workflow.count(expected_argument) == 4
     assert "--expected-migration-head 0009_generation_batch_pipeline" not in workflow
     assert "D02_AUTONOMY_BOOTSTRAP_TRACK" in workflow
-    assert workflow.count("demo_0015_d02_source_acq_pool") == 3
+    demo_boundary = workflow.split("- name: Validate Demo prototype evidence boundary", 1)[1].split(
+        "- name: Validate D02 autonomy bootstrap evidence boundary", 1
+    )[0]
+    d02_boundary = workflow.split("- name: Validate D02 autonomy bootstrap evidence boundary", 1)[
+        1
+    ].split("- name: Generate Phase 1 CI evidence", 1)[0]
+    assert demo_boundary.count("demo_0015_d02_source_acq_pool") == 3
+    assert d02_boundary.count("demo_0015_d02_source_acq_pool") == 3
     assert "TRACK: D02_AUTONOMY_BOOTSTRAP" in workflow
     assert (
         workflow.count(
