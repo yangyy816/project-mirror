@@ -44,7 +44,8 @@ export function DemoShell({ result }: DemoShellProps) {
       <section className="mt-8 rounded-[2rem] border border-amber-300 bg-amber-50 p-6 text-sm leading-6 text-amber-950">
         <p className="font-semibold">此页面仅展示只读能力状态。</p>
         <p className="mt-2">
-          不创建会话、不上传图片、不提交问卷，也不会启动任何编辑、Provider 或后台任务。
+          不创建会话、不上传图片、不提交问卷，也不会启动任何编辑、Provider
+          或后台任务。
         </p>
       </section>
 
@@ -56,9 +57,7 @@ export function DemoShell({ result }: DemoShellProps) {
               唯一读取来源：GET /api/v1/demo/capabilities
             </p>
           </div>
-          <Badge tone={data ? "success" : "warning"}>
-            {connectionLabel}
-          </Badge>
+          <Badge tone={data ? "success" : "warning"}>{connectionLabel}</Badge>
         </div>
 
         {data ? (
@@ -86,11 +85,14 @@ export function DemoShell({ result }: DemoShellProps) {
           </ul>
         ) : result.kind === "AUTH_REQUIRED" ? (
           <p className="mt-6 rounded-2xl border border-dashed border-black/20 p-4 text-sm leading-6 text-black/65">
-            API 已明确要求 Demo Bearer，当前能力状态未验证。此页面不会请求、存储或向浏览器暴露 Demo Bearer。
+            API 已明确要求 Demo
+            Bearer，当前能力状态未验证。此页面不会请求、存储或向浏览器暴露 Demo
+            Bearer。
           </p>
         ) : (
           <p className="mt-6 rounded-2xl border border-dashed border-black/20 p-4 text-sm leading-6 text-black/65">
-            当前无法验证 capability 状态。页面不会以缓存、fixture 或推测结果替代真实 API 响应。
+            当前无法验证 capability 状态。页面不会以缓存、fixture
+            或推测结果替代真实 API 响应。
           </p>
         )}
       </section>
@@ -104,7 +106,8 @@ export function DemoShell({ result }: DemoShellProps) {
             REAL_D02_INTEGRATION_PENDING
           </h2>
           <p className="mt-3 text-sm leading-6 text-black/65">
-            D02 私有运行时不通过此公开只读接口暴露。此 Demo 不代表真实 D02 执行、题库准入或生产授权。
+            D02 私有运行时不通过此公开只读接口暴露。此 Demo 不代表真实 D02
+            执行、题库准入或生产授权。
           </p>
         </article>
 

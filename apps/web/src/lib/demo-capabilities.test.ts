@@ -34,7 +34,9 @@ describe("demo capabilities server adapter", () => {
   });
 
   it("reports the tracked bearer boundary without sending a credential", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 401 }));
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(getDemoCapabilities()).resolves.toEqual({
@@ -65,9 +67,11 @@ describe("demo capabilities server adapter", () => {
   ])("fails closed for an invalid response %#", async (payload) => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify(payload), { status: 200 }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify(payload), { status: 200 }),
+        ),
     );
 
     await expect(getDemoCapabilities()).resolves.toEqual({

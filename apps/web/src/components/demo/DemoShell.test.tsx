@@ -32,18 +32,20 @@ describe("DemoShell", () => {
 
     expect(screen.getByText("P5_COMPILER")).toBeInTheDocument();
     expect(screen.getByText("AVAILABLE")).toBeInTheDocument();
-    expect(screen.getByText("REAL_D02_INTEGRATION_PENDING")).toBeInTheDocument();
-    expect(screen.getByText("UI_CONTRACT_ONLY")).toBeInTheDocument();
     expect(
-      screen.getByText(/问卷路由.*UI_CONTRACT_ONLY/),
+      screen.getByText("REAL_D02_INTEGRATION_PENDING"),
     ).toBeInTheDocument();
+    expect(screen.getByText("UI_CONTRACT_ONLY")).toBeInTheDocument();
+    expect(screen.getByText(/问卷路由.*UI_CONTRACT_ONLY/)).toBeInTheDocument();
   });
 
   it("makes the bearer boundary explicit without exposing a credential", () => {
     render(<DemoShell result={{ kind: "AUTH_REQUIRED", data: null }} />);
 
     expect(screen.getByText("DEMO_AUTH_REQUIRED")).toBeInTheDocument();
-    expect(screen.getByText(/不会请求、存储或向浏览器暴露 Demo Bearer/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/不会请求、存储或向浏览器暴露 Demo Bearer/),
+    ).toBeInTheDocument();
     expect(screen.queryByText("P5_COMPILER")).toBeNull();
   });
 
