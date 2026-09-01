@@ -26,12 +26,16 @@ from test_demo_schema_authority_invariants import (
     _truncate_demo_authority,
     _truncate_formal_synthetic_fixture_authority,
 )
+from test_demo_schema_authority_invariants import (
+    _insert_preference_event as _insert_preference_event_authority,
+)
 
 from mirror_api.demo_context_queue_service import (
     CreateDemoContextCompilation,
     DemoContextCompilationAccepted,
     DemoContextQueueConflict,
     DemoContextQueueService,
+    DemoContextQueueUnavailable,
     DemoContextReconciliationCandidate,
 )
 from mirror_api.demo_job_service import DemoJobService
@@ -45,6 +49,7 @@ from mirror_api.demo_memory_service import (
     RebuildDemoAestheticProfile,
 )
 from mirror_api.demo_models import (
+    DemoActor,
     DemoAestheticProfile,
     DemoContextCompilation,
     DemoContextCompileRequest,
@@ -52,6 +57,7 @@ from mirror_api.demo_models import (
     DemoJobBinding,
     DemoPreferenceEvent,
     DemoReferenceProfile,
+    DemoSession,
 )
 from mirror_api.demo_preference_ledger import (
     AppendDemoPreferenceEvent,
@@ -162,6 +168,14 @@ def _queued_context(
     )
 
 
+def _context_queue(
+    sessions: async_sessionmaker[AsyncSession],
+    *,
+    now: datetime = AS_OF + timedelta(minutes=5),
+) -> DemoContextQueueService:
+    return DemoContextQueueService(session_factory=sessions, now=lambda: now)
+
+
 async def _append(
     sessions: async_sessionmaker[AsyncSession],
     graph: dict[str, Any],
@@ -190,6 +204,94 @@ async def _append(
                 ),
             )
             return result.event
+
+
+async def _terminalize_context_owner(
+    sessions: async_sessionmaker[AsyncSession],
+    authority_session: Session,
+    graph: dict[str, Any],
+    *,
+    state: Literal["ACTOR_TOMBSTONED", "SESSION_CLOSED", "SESSION_TOMBSTONED"],
+    occurred_at: datetime,
+) -> None:
+    if state == "ACTOR_TOMBSTONED":
+        async with sessions() as session:
+            async with session.begin():
+                await append_demo_preference_event(
+                    session,
+                    AppendDemoPreferenceEvent(
+                        demo_actor_id=graph["actor"].id,
+                        demo_session_id=None,
+                        event_type=DemoPreferenceEventType.ACTOR_TOMBSTONED,
+                        source_type=DemoPreferenceSourceType.SYSTEM_LIFECYCLE,
+                        target_type=DemoPreferenceTargetType.DEMO_ACTOR,
+                        target_id=graph["actor"].id,
+                        signal={},
+                        occurred_at=occurred_at,
+                    ),
+                )
+                await session.execute(
+                    update(DemoActor)
+                    .where(DemoActor.id == graph["actor"].id)
+                    .values(tombstoned_at=occurred_at)
+                )
+        return
+
+    async with sessions() as session:
+        async with session.begin():
+            await append_demo_preference_event(
+                session,
+                AppendDemoPreferenceEvent(
+                    demo_actor_id=graph["actor"].id,
+                    demo_session_id=graph["session"].id,
+                    event_type=DemoPreferenceEventType.SESSION_CLOSED,
+                    source_type=DemoPreferenceSourceType.SYSTEM_LIFECYCLE,
+                    target_type=None,
+                    target_id=None,
+                    signal={},
+                    occurred_at=occurred_at,
+                ),
+            )
+            await session.execute(
+                update(DemoSession)
+                .where(DemoSession.id == graph["session"].id)
+                .values(closed_at=occurred_at)
+            )
+    if state == "SESSION_CLOSED":
+        return
+
+    tombstoned_at = occurred_at + timedelta(minutes=1)
+    authority_session.rollback()
+    actor = authority_session.get(DemoActor, graph["actor"].id)
+    demo_session = authority_session.get(DemoSession, graph["session"].id)
+    tail = authority_session.scalar(
+        select(DemoPreferenceEvent)
+        .where(DemoPreferenceEvent.demo_actor_id == graph["actor"].id)
+        .order_by(DemoPreferenceEvent.event_sequence.desc())
+        .limit(1)
+    )
+    assert actor is not None and demo_session is not None and tail is not None
+    _insert_preference_event_authority(
+        authority_session,
+        actor,
+        sequence=tail.event_sequence + 1,
+        previous_digest=tail.content_digest,
+        signal={
+            "authority_id": demo_session.id,
+            "authority_type": "DEMO_SESSION",
+        },
+        demo_session=demo_session,
+        event_type="TOMBSTONE",
+        source_type="SYSTEM_LIFECYCLE",
+        occurred_at=tombstoned_at,
+        commit=False,
+    )
+    authority_session.execute(
+        update(DemoSession)
+        .where(DemoSession.id == demo_session.id)
+        .values(tombstoned_at=tombstoned_at)
+    )
+    authority_session.commit()
 
 
 def _insert_valid_reference(session: Session, graph: dict[str, Any]) -> DemoReferenceProfile:
@@ -314,7 +416,7 @@ async def test_context_queue_admission_execution_and_terminal_replay_are_atomic(
     memory, sessions, engine = _service()
     try:
         profile = await _rebuild_execute(memory, _rebuild(graph))
-        queue = DemoContextQueueService(session_factory=sessions)
+        queue = _context_queue(sessions)
         command = _queued_context(graph, profile.aesthetic_profile_id)
 
         admitted = await queue.admit(command)
@@ -464,6 +566,198 @@ async def test_context_queue_admission_execution_and_terminal_replay_are_atomic(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "terminal_state",
+    ["ACTOR_TOMBSTONED", "SESSION_CLOSED", "SESSION_TOMBSTONED"],
+)
+async def test_context_queue_finalize_rechecks_current_actor_and_session_lifecycle(
+    postgres_session: Session,
+    terminal_state: Literal["ACTOR_TOMBSTONED", "SESSION_CLOSED", "SESSION_TOMBSTONED"],
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    memory, sessions, engine = _service()
+    try:
+        profile = await _rebuild_execute(memory, _rebuild(graph))
+        clock = [AS_OF + timedelta(minutes=5)]
+        queue = DemoContextQueueService(session_factory=sessions, now=lambda: clock[0])
+        admitted = await queue.admit(
+            _queued_context(
+                graph,
+                profile.aesthetic_profile_id,
+                key=f"d10-context-lifecycle-{terminal_state.lower()}",
+                instruction="7" * 64,
+            )
+        )
+        await _terminalize_context_owner(
+            sessions,
+            postgres_session,
+            graph,
+            state=terminal_state,
+            occurred_at=AS_OF + timedelta(minutes=10),
+        )
+        clock[0] = AS_OF + timedelta(minutes=20)
+
+        rejected = await queue.execute_task(
+            demo_actor_id=graph["actor"].id,
+            job_id=admitted.job_id,
+            context_request_id=admitted.context_request_id,
+        )
+        assert (rejected.status, rejected.result_code) == ("REJECTED", "CONTEXT_REJECTED")
+        async with sessions() as session:
+            request = await session.get(DemoContextCompileRequest, admitted.context_request_id)
+            job = await session.get(Job, admitted.job_id)
+            assert request is not None
+            assert job is not None and (job.status, job.result_code) == (
+                "REJECTED",
+                "CONTEXT_REJECTED",
+            )
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoContextCompilation)
+                    .where(
+                        DemoContextCompilation.demo_job_binding_id == request.demo_job_binding_id
+                    )
+                )
+                == 0
+            )
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoContextCompileResult)
+                    .where(
+                        DemoContextCompileResult.compile_request_id == admitted.context_request_id
+                    )
+                )
+                == 0
+            )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_context_queue_finalize_and_actor_tombstone_have_one_consistent_winner(
+    postgres_session: Session,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    memory, sessions, engine = _service()
+    try:
+        profile = await _rebuild_execute(memory, _rebuild(graph))
+        clock = [AS_OF + timedelta(minutes=5)]
+        queue = DemoContextQueueService(session_factory=sessions, now=lambda: clock[0])
+        admitted = await queue.admit(
+            _queued_context(
+                graph,
+                profile.aesthetic_profile_id,
+                key="d10-context-lifecycle-race",
+                instruction="5" * 64,
+            )
+        )
+        clock[0] = AS_OF + timedelta(minutes=20)
+
+        executed, _ = await asyncio.gather(
+            queue.execute_task(
+                demo_actor_id=graph["actor"].id,
+                job_id=admitted.job_id,
+                context_request_id=admitted.context_request_id,
+            ),
+            _terminalize_context_owner(
+                sessions,
+                postgres_session,
+                graph,
+                state="ACTOR_TOMBSTONED",
+                occurred_at=AS_OF + timedelta(minutes=10),
+            ),
+        )
+        assert executed.status in {"COMPLETED", "REJECTED"}
+
+        async with sessions() as session:
+            actor = await session.get(DemoActor, graph["actor"].id)
+            request = await session.get(DemoContextCompileRequest, admitted.context_request_id)
+            job = await session.get(Job, admitted.job_id)
+            assert actor is not None and actor.tombstoned_at is not None
+            assert request is not None and job is not None
+            context_count = await session.scalar(
+                select(func.count())
+                .select_from(DemoContextCompilation)
+                .where(DemoContextCompilation.demo_job_binding_id == request.demo_job_binding_id)
+            )
+            result_count = await session.scalar(
+                select(func.count())
+                .select_from(DemoContextCompileResult)
+                .where(DemoContextCompileResult.compile_request_id == admitted.context_request_id)
+            )
+            if executed.status == "COMPLETED":
+                assert (job.status, context_count, result_count) == ("COMPLETED", 1, 1)
+            else:
+                assert (job.status, job.result_code, context_count, result_count) == (
+                    "REJECTED",
+                    "CONTEXT_REJECTED",
+                    0,
+                    0,
+                )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("terminal_state", ["ACTOR_TOMBSTONED", "SESSION_EXPIRED"])
+async def test_context_queue_admission_requires_current_actor_and_session(
+    postgres_session: Session,
+    terminal_state: Literal["ACTOR_TOMBSTONED", "SESSION_EXPIRED"],
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    memory, sessions, engine = _service()
+    try:
+        profile = await _rebuild_execute(memory, _rebuild(graph))
+        if terminal_state == "ACTOR_TOMBSTONED":
+            await _terminalize_context_owner(
+                sessions,
+                postgres_session,
+                graph,
+                state="ACTOR_TOMBSTONED",
+                occurred_at=AS_OF + timedelta(minutes=10),
+            )
+            audit_now = AS_OF + timedelta(minutes=20)
+        else:
+            audit_now = graph["session"].expires_at + timedelta(minutes=1)
+        queue = _context_queue(sessions, now=audit_now)
+
+        with pytest.raises(DemoContextQueueUnavailable, match="unavailable"):
+            await queue.admit(
+                _queued_context(
+                    graph,
+                    profile.aesthetic_profile_id,
+                    key=f"d10-context-admission-{terminal_state.lower()}",
+                    instruction="6" * 64,
+                )
+            )
+        async with sessions() as session:
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(DemoContextCompileRequest)
+                    .where(DemoContextCompileRequest.demo_actor_id == graph["actor"].id)
+                )
+                == 0
+            )
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(Job)
+                    .where(
+                        Job.job_type == "demo_p3_p7.context.compile",
+                        Job.request_id
+                        == f"d10-context-queue-d10-context-admission-{terminal_state.lower()}",
+                    )
+                )
+                == 0
+            )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_context_queue_populated_downgrade_fails_closed(
     postgres_session: Session,
 ) -> None:
@@ -471,7 +765,7 @@ async def test_context_queue_populated_downgrade_fails_closed(
     memory, sessions, engine = _service()
     try:
         profile = await _rebuild_execute(memory, _rebuild(graph))
-        queue = DemoContextQueueService(session_factory=sessions)
+        queue = _context_queue(sessions)
         admitted = await queue.admit(
             _queued_context(
                 graph,
@@ -525,7 +819,7 @@ async def test_context_queue_pending_cancel_wins_without_partial_context(
     memory, sessions, engine = _service()
     try:
         profile = await _rebuild_execute(memory, _rebuild(graph))
-        queue = DemoContextQueueService(session_factory=sessions)
+        queue = _context_queue(sessions)
         admitted = await queue.admit(
             _queued_context(
                 graph,
@@ -584,7 +878,7 @@ async def test_context_queue_rejects_stale_frozen_snapshot_without_partial_resul
     memory, sessions, engine = _service()
     try:
         profile = await _rebuild_execute(memory, _rebuild(graph))
-        queue = DemoContextQueueService(session_factory=sessions)
+        queue = _context_queue(sessions)
         admitted = await queue.admit(
             _queued_context(
                 graph,
@@ -649,7 +943,7 @@ async def test_context_queue_cross_path_collision_rejects_without_stranding_runn
     memory, sessions, engine = _service()
     try:
         profile = await _rebuild_execute(memory, _rebuild(graph))
-        queue = DemoContextQueueService(session_factory=sessions)
+        queue = _context_queue(sessions)
         queued = await queue.admit(
             _queued_context(
                 graph,
@@ -698,7 +992,7 @@ async def test_context_queue_expired_leases_exhaust_exactly_three_attempts(
     memory, sessions, engine = _service()
     try:
         profile = await _rebuild_execute(memory, _rebuild(graph))
-        clock = [datetime(2026, 9, 1, 12, 0, tzinfo=UTC)]
+        clock = [AS_OF + timedelta(hours=1)]
         queue = DemoContextQueueService(session_factory=sessions, now=lambda: clock[0])
         admitted = await queue.admit(
             _queued_context(
@@ -771,7 +1065,7 @@ async def test_context_queue_same_input_different_keys_has_one_admission_winner(
     memory, sessions, engine = _service()
     try:
         profile = await _rebuild_execute(memory, _rebuild(graph))
-        queue = DemoContextQueueService(session_factory=sessions)
+        queue = _context_queue(sessions)
         results = await asyncio.gather(
             queue.admit(
                 _queued_context(

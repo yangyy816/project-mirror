@@ -30,6 +30,7 @@ from mirror_api.demo_memory_service import (
     DemoMemoryService,
     DemoMemoryUnavailable,
     _acquire_actor_lock,
+    _lock_active_actor,
     _lock_active_session,
 )
 from mirror_api.demo_models import (
@@ -170,13 +171,18 @@ class DemoContextQueueService:
         )
         async with self._sessions() as session:
             async with session.begin():
+                now = self._normalized_now()
                 await _acquire_actor_lock(session, command.demo_actor_id)
-                await _lock_active_session(
-                    session,
-                    actor_id=command.demo_actor_id,
-                    session_id=command.demo_session_id,
-                    as_of=command.context_as_of_time,
-                )
+                try:
+                    await _lock_active_actor(session, command.demo_actor_id)
+                    await _lock_active_session(
+                        session,
+                        actor_id=command.demo_actor_id,
+                        session_id=command.demo_session_id,
+                        as_of=max(command.context_as_of_time.astimezone(UTC), now),
+                    )
+                except DemoMemoryUnavailable as exc:
+                    raise DemoContextQueueUnavailable("CONTEXT_UNAVAILABLE", str(exc)) from exc
                 existing = await self._binding_for_key(session, command.demo_actor_id, key_hash)
                 if existing is not None:
                     return await self._replay_admission(session, existing, request_digest)
@@ -212,7 +218,6 @@ class DemoContextQueueService:
                         "IMMUTABLE_CONTEXT_INPUT_EXISTS",
                         "Context input is already bound to another immutable request",
                     )
-                now = self._normalized_now()
                 job_id, request_id, binding_id = new_id(), new_id(), new_id()
                 job = Job(
                     id=job_id,
@@ -444,6 +449,21 @@ class DemoContextQueueService:
                 if await self._result(session, request.id) is not None:
                     raise DemoContextQueueAuthorityCorruption(
                         "ACTIVE_RESULT_EXISTS", "active Context Job already has result"
+                    )
+                try:
+                    await _acquire_actor_lock(session, demo_actor_id)
+                    await _lock_active_actor(session, demo_actor_id)
+                    await _lock_active_session(
+                        session,
+                        actor_id=demo_actor_id,
+                        session_id=request.demo_session_id,
+                        as_of=max(request.context_as_of_time.astimezone(UTC), now),
+                    )
+                except DemoMemoryUnavailable:
+                    _finish(job, attempt, "REJECTED", "CONTEXT_REJECTED", None, now)
+                    await session.flush()
+                    return DemoContextExecutionResult(
+                        demo_actor_id, job.id, request.id, "REJECTED", job.result_code
                     )
                 try:
                     async with session.begin_nested():

@@ -34,7 +34,9 @@ The queued extension is frozen as follows:
   reconciliation, and generic owner-bound cancellation;
 - determinism: the request freezes the complete selected/rejected evidence, budgets, trace, profile digest,
   compilation watermark, explicit timezone-aware as-of, instruction digest and expiry. Execution must re-freeze and
-  compare that complete snapshot before materialization; the queue clock is audit/lease metadata only;
+  compare that complete snapshot before materialization; the queue clock is audit/lease metadata only. Admission and
+  execution must also lock and revalidate the current actor/session lifecycle at the later of explicit as-of and audit
+  time; tombstoned actors and closed, tombstoned or expired sessions reject without Context/result authority;
 - idempotency: an exact key replays, a key/payload collision is rejected, and a second key for the same actor/frozen
   input is rejected with one PostgreSQL winner;
 - atomicity: ContextCompilation, result authority, JobAttempt and Job terminalization commit together or not at all;
