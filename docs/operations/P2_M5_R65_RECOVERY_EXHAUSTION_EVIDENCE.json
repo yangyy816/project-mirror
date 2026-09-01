@@ -1,0 +1,18 @@
+{
+  "schema_version": "mirror.p2-m5.r65-recovery-exhaustion/v1",
+  "owner_decision_id": "OD-P2-M5-R64-CAL004-FINAL-INDEXED-RECOVERY-001",
+  "recovery_result": "UNRECOVERABLE_WITHIN_FINAL_AUTHORIZED_PROJECT_PRIVATE_SCOPE",
+  "path_entries_enumerated": 200000,
+  "metadata_content_reads": 0,
+  "reparse_points_followed": 0,
+  "imagegen_calls": 0,
+  "decode_calls": 0,
+  "m3_calls": 0,
+  "cal_req_004_bytes_claim": "UNKNOWN_NOT_CLAIMED",
+  "resource_ledger_expected": {
+    "next_unused_formal_ordinal": "CAL-REQ-005",
+    "formal_calls_remaining": 28,
+    "formal_raw_capacity_remaining": 28,
+    "global_native_output_capacity_remaining": 59
+  }
+}

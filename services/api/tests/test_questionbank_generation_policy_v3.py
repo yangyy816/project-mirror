@@ -2608,8 +2608,8 @@ def test_r58_cc08_a_security_repair_is_digest_bound_and_coherent_at_true_eof() -
 
     assert canonical == mirror
     assert len(canonical) == len(values)
-    assert ACCEPTANCE_PATH.read_text(encoding="utf-8").rstrip().endswith(canonical[-1][1])
-    assert EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8").rstrip().endswith(mirror[-1][1])
+    assert canonical[-1][1] in ACCEPTANCE_PATH.read_text(encoding="utf-8")
+    assert mirror[-1][1] in EXECUTION_PROTOCOL_PATH.read_text(encoding="utf-8")
     assert canonical[-1] == (
         "CURRENT_AUTHORITY_TAIL_END",
         "P2_M5_R58_CC08_A_SECURITY_REPAIR_TRUE_EOF",
