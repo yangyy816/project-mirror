@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+import pytest
 import test_demo_d02_formal_source_builder as formal_test
 from test_demo_d02_formal_source_builder import (
     _accepted_review,
@@ -17,6 +19,7 @@ from test_demo_d02_generic_runtime_bridge import _generic_runtime_packets
 from test_demo_d02_r2_runtime_forward import _Adapters
 
 from mirror_api import demo_d02_final_orchestrator as orchestrator
+from mirror_api import demo_d02_private_vision_backend as private_backend
 from mirror_api import demo_d02_r2_authority as r2
 from mirror_api import demo_d02_r2_runtime_forward as runtime
 from mirror_api import demo_d02_r2_screening_execution as screening_execution
@@ -53,6 +56,17 @@ _M4_FIELDS = {
     "execution_receipt_digest",
     "execution_succeeded",
 }
+
+
+@pytest.fixture(autouse=True)
+def _synthetic_diagnostic_grammar(monkeypatch: pytest.MonkeyPatch) -> None:
+    digests = tuple(
+        hashlib.sha256(
+            private_backend._ABSL_DIAGNOSTIC_PREFIX_RE.sub(b"<ABSL> ", line, count=1)
+        ).hexdigest()
+        for line in formal_test._m3_stderr().splitlines()
+    )
+    monkeypatch.setattr(private_backend, "_EXPECTED_DIAGNOSTIC_LINE_DIGESTS", digests)
 
 
 class _AssemblyOnlyM4:
