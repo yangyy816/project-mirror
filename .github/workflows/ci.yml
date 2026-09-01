@@ -161,7 +161,7 @@ jobs:
                 pnpm --filter @mirror/web exec playwright install-deps chromium 2>&1 \
                   | sed -E \
                     -e "s#file:/[^[:space:]]+#<redacted-file-uri>#g" \
-                    -e "s#(^|[[:space:]])/[^[:space:]]+#\\1<redacted-path>#g" \
+                    -e "s#(^|[^[:alnum:]_:/.-])/[A-Za-z0-9_./-]+#\\1<redacted-path>#g" \
                     -e "s#([A-Za-z]:\\\\|\\\\\\\\)[^[:space:]]+#<redacted-path>#g" \
                   | tee -a "$PLAYWRIGHT_INSTALL_LOG"
                 exit "${PIPESTATUS[0]}"
@@ -223,7 +223,7 @@ jobs:
                 pnpm --filter @mirror/web exec playwright install chromium 2>&1 \
                   | sed -E \
                     -e "s#file:/[^[:space:]]+#<redacted-file-uri>#g" \
-                    -e "s#(^|[[:space:]])/[^[:space:]]+#\\1<redacted-path>#g" \
+                    -e "s#(^|[^[:alnum:]_:/.-])/[A-Za-z0-9_./-]+#\\1<redacted-path>#g" \
                     -e "s#([A-Za-z]:\\\\|\\\\\\\\)[^[:space:]]+#<redacted-path>#g" \
                   | tee -a "$PLAYWRIGHT_INSTALL_LOG"
                 exit "${PIPESTATUS[0]}"
@@ -400,7 +400,12 @@ jobs:
         if: always()
         run: |
           docker compose -f compose.yaml ps --all
-          docker compose -f compose.yaml logs --no-color > docker-compose.log
+          docker compose -f compose.yaml logs --no-color \
+            | sed -E \
+              -e "s#file:/[^[:space:]]+#<redacted-file-uri>#g" \
+              -e "s#(^|[^[:alnum:]_:/.-])/[A-Za-z0-9_./-]+#\\1<redacted-path>#g" \
+              -e "s#([A-Za-z]:\\\\|\\\\\\\\)[^[:space:]]+#<redacted-path>#g" \
+            > docker-compose.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:

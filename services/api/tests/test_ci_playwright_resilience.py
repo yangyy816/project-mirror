@@ -50,6 +50,7 @@ def test_playwright_system_dependencies_timeout_owns_each_logging_pipeline_and_r
     assert '| tee -a "$PLAYWRIGHT_INSTALL_LOG"' in step
     assert "<redacted-file-uri>" in step
     assert "<redacted-path>" in step
+    assert "[^[:alnum:]_:/.-]" in step
     assert 'exit "${PIPESTATUS[0]}"' in step
     assert 'install_status="$?"' in step
     assert success_branch in step
@@ -142,6 +143,7 @@ def test_playwright_download_timeout_owns_each_logging_pipeline_and_keeps_retry_
     assert '| tee -a "$PLAYWRIGHT_INSTALL_LOG"' in step
     assert "<redacted-file-uri>" in step
     assert "<redacted-path>" in step
+    assert "[^[:alnum:]_:/.-]" in step
     sanitizer_start = step.index("sed -E", step.index(pnpm_command))
     assert sanitizer_start < step.index('| tee -a "$PLAYWRIGHT_INSTALL_LOG"', sanitizer_start)
     assert 'exit "${PIPESTATUS[0]}"' in step
