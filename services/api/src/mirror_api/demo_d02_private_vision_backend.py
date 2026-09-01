@@ -615,28 +615,41 @@ def _parse_success(outcome: object) -> tuple[dict[str, str], ...]:
         or type(outcome.stderr) is not bytes
         or len(outcome.stdout) > _MAX_STDOUT_BYTES
         or len(outcome.stderr) > _MAX_STDERR_BYTES
-        or outcome.stderr
     ):
         _fail()
+    _validate_bounded_stderr(outcome.stderr)
     try:
         lines = outcome.stdout.decode("ascii", errors="strict").splitlines()
     except UnicodeDecodeError:
         _fail()
-    if len(lines) != 5:
+    if len(lines) != 8:
         _fail()
-    expected_prefixes = (
-        "create_status=ok",
-        "detect_status=ok",
-        "face_count=1",
-        "face_0_landmarks=",
-        "close_status=ok",
-    )
-    if lines[:3] != list(expected_prefixes[:3]) or lines[4] != expected_prefixes[4]:
+    if (
+        lines[0] != "detect_status=ok"
+        or lines[1] != "face_count=1"
+        or not lines[2].startswith("detect_latency_us=")
+        or lines[3] != "face_0_landmark_count=478"
+        or not lines[4].startswith("face_0_landmarks=")
+        or lines[5] != "matrix_count=1"
+        or not lines[6].startswith("matrix_0=")
+        or lines[7] != "close_status=ok"
+    ):
         _fail()
-    encoded = lines[3]
-    if not encoded.startswith(expected_prefixes[3]):
+    latency = lines[2].removeprefix("detect_latency_us=")
+    if not latency.isascii() or not latency.isdecimal() or not 0 <= int(latency) <= 30_000_000:
         _fail()
-    points = encoded.removeprefix(expected_prefixes[3]).split(";")
+    matrix_tokens = lines[6].removeprefix("matrix_0=").split(",")
+    if len(matrix_tokens) != 18 or any(
+        _DECIMAL_RE.fullmatch(token) is None for token in matrix_tokens
+    ):
+        _fail()
+    try:
+        matrix = tuple(measurement.parse_raw_decimal_token(token) for token in matrix_tokens)
+    except ValueError:
+        _fail()
+    if not all(value.is_finite() for value in matrix):
+        _fail()
+    points = lines[4].removeprefix("face_0_landmarks=").split(";")
     if len(points) != 478 or any(not point for point in points):
         _fail()
     parsed: list[dict[str, str]] = []
@@ -654,6 +667,20 @@ def _parse_success(outcome: object) -> tuple[dict[str, str], ...]:
             _fail()
         parsed.append({"x": values[0], "y": values[1], "z": values[2]})
     return tuple(parsed)
+
+
+def _validate_bounded_stderr(value: bytes) -> None:
+    if b"\x00" in value:
+        _fail()
+    try:
+        text = value.decode("ascii", errors="strict")
+    except UnicodeDecodeError:
+        _fail()
+    lines = text.splitlines()
+    if len(lines) > 64 or any(len(line) > 1024 for line in lines):
+        _fail()
+    if any(character not in "\t\r\n" and not 32 <= ord(character) <= 126 for character in text):
+        _fail()
 
 
 def _observation_state(observation: Mapping[str, object]) -> str:

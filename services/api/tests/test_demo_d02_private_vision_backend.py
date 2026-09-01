@@ -46,24 +46,31 @@ def _stdout(*, invalid_token: bool = False, extra_face: bool = False) -> bytes:
     if invalid_token:
         points[10] = "NaN,0.100000,0.000000"
     lines = [
-        "create_status=ok",
         "detect_status=ok",
         "face_count=1",
+        "detect_latency_us=12345",
+        "face_0_landmark_count=478",
         f"face_0_landmarks={';'.join(points)}",
+        "matrix_count=1",
+        "matrix_0=" + ",".join("1.000000" for _ in range(18)),
         "close_status=ok",
     ]
     if extra_face:
-        lines.insert(4, "face_1_landmarks=unexpected")
+        lines.insert(5, "face_1_landmarks=unexpected")
     return "\n".join(lines).encode("ascii")
 
 
 def _runner(
-    calls: list[tuple[str, ...]], *, stdout: bytes | None = None
+    calls: list[tuple[str, ...]], *, stdout: bytes | None = None, stderr: bytes = b""
 ) -> Callable[[tuple[str, ...], float, int], private_backend.ProcessOutcome]:
     def run(command: tuple[str, ...], _: float, __: int) -> private_backend.ProcessOutcome:
         calls.append(command)
         assert Path(command[2]).is_file()
-        return private_backend.ProcessOutcome(returncode=0, stdout=stdout or _stdout(), stderr=b"")
+        return private_backend.ProcessOutcome(
+            returncode=0,
+            stdout=stdout or _stdout(),
+            stderr=stderr,
+        )
 
     return run
 
@@ -183,6 +190,38 @@ def test_invalid_or_partial_process_output_fails_closed(tmp_path: Path, stdout: 
     assert str(tmp_path) not in str(error.value)
     assert len(calls) == 1
     assert not list(tmp_path.glob("*.rgb"))
+
+
+def test_actual_wrapper_shape_accepts_bounded_ascii_diagnostics(tmp_path: Path) -> None:
+    calls: list[tuple[str, ...]] = []
+    content = _jpeg()
+    backend = private_backend.WindowsFaceLandmarkerOfflineM3Backend.for_testing(
+        staging_root=tmp_path,
+        runner=_runner(
+            calls,
+            stderr=(
+                b"WARNING: runtime diagnostics are emitted before initialization\n"
+                b"INFO: Created TensorFlow Lite XNNPACK delegate for CPU.\n"
+            ),
+        ),
+    )
+    result = backend.inspect_candidate_once(content=content, descriptor=_descriptor(content))
+    assert result.result.fields["face_count"] == 1
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [b"invalid\x00diagnostic", b"non-ascii-\xff", b"x" * 1025],
+)
+def test_unbounded_or_non_ascii_stderr_fails_closed(tmp_path: Path, stderr: bytes) -> None:
+    content = _jpeg()
+    backend = private_backend.WindowsFaceLandmarkerOfflineM3Backend.for_testing(
+        staging_root=tmp_path,
+        runner=_runner([], stderr=stderr),
+    )
+    with pytest.raises(private_backend.PrivateVisionBackendError):
+        backend.inspect_candidate_once(content=content, descriptor=_descriptor(content))
 
 
 def test_runner_timeout_and_artifact_digest_mismatch_fail_closed(tmp_path: Path) -> None:

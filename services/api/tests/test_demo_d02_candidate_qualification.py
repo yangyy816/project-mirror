@@ -116,10 +116,13 @@ def _m3_stdout() -> bytes:
         points[index] = f"{x:.6f},{y:.6f},0.000000"
     return "\n".join(
         (
-            "create_status=ok",
             "detect_status=ok",
             "face_count=1",
+            "detect_latency_us=12345",
+            "face_0_landmark_count=478",
             f"face_0_landmarks={';'.join(points)}",
+            "matrix_count=1",
+            "matrix_0=" + ",".join("1.000000" for _ in range(18)),
             "close_status=ok",
         )
     ).encode("ascii")
