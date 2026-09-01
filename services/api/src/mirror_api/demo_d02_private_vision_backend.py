@@ -29,6 +29,14 @@ from mirror_api.image_sanitizer import decode_canonical_rgb_image
 _DIGEST_RE: Final = re.compile(r"[0-9a-f]{64}\Z")
 _ID_RE: Final = re.compile(r"[0-9a-f]{32}\Z")
 _DECIMAL_RE: Final = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?\Z")
+_ABSL_DIAGNOSTIC_PREFIX_RE: Final = re.compile(rb"^W0000 [0-9]{2}:[0-9]{2}:[0-9]+\.[0-9]+ +[0-9]+ ")
+_PATH_LIKE_DIAGNOSTIC_RE: Final = re.compile(
+    rb"(?:[A-Za-z]:[\\/]|\\\\|file://|%[A-Za-z_][A-Za-z0-9_]*%[\\/]"
+    rb"|\$[A-Za-z_][A-Za-z0-9_]*[\\/]|~[\\/]"
+    rb"|(?:^|[\s\"'(=])/(?:[^/\s]+/)+)",
+    re.MULTILINE,
+)
+_DYNAMIC_DIAGNOSTIC_LINE_INDEXES: Final = frozenset({1, 9, 15})
 _MAX_STDOUT_BYTES: Final = 256_000
 _MAX_STDERR_BYTES: Final = 64_000
 _DEFAULT_TIMEOUT_SECONDS: Final = 30.0
@@ -39,6 +47,31 @@ _PROVISIONAL_STATE: Final = "PROVISIONAL_SINGLE_CANDIDATE_INSPECTION"
 _CANDIDATE_INSPECTION_SCHEMA: Final = "mirror.demo/D02CandidateM3Inspection/v1"
 _CANDIDATE_INSPECTION_FACTORY_TOKEN: Final = object()
 _PREPARED_SOURCE_FACTORY_TOKEN: Final = object()
+
+_EXPECTED_DIAGNOSTIC_LINE_DIGESTS: Final = (
+    "bfb0a815c602261d36bff73dfbe45065e6ed05c3b1993456862e81df6b724a0a",
+    "67564e6d7f5f36d437b88f7456e7a49ee9fd0cfe38c90f513dc59c1091365498",
+    "d5dec22c58ca73c50b0dc198f9a6c3e01dc5cf3f8a54a8a373c8c94948e32938",
+    "0d06dfe01dd490e25a336d35807ff08fc7a054d518a6c3bf2bd881f8fba4d4b5",
+    "0413219755c1a0aebf7186f16b2b3e715fa81f4602ecafbde352dcd8c2b60331",
+    "ce23c3829ed3535cfc69e4bf980fbc4e8fc460c3c1940a8b2dccfe26eb38b48f",
+    "3b6f236cf301fdf3009d2d3dbc47ba63f7cc09cc99f740c94a6bf43d1f5a96c2",
+    "a007eafc18fb60909660a7fcfec43d26c4d6a014af16a17d9e15858d86084e17",
+    "cb757e8320c68bd3b385b7e6ff67d7956c0b031a7709ac168e4824d473c8d4fd",
+    "e25f81350b959ce1330bce923bc2bf6856d0245eb6a7da552e25b9764aacf493",
+    "0d06dfe01dd490e25a336d35807ff08fc7a054d518a6c3bf2bd881f8fba4d4b5",
+    "ce23c3829ed3535cfc69e4bf980fbc4e8fc460c3c1940a8b2dccfe26eb38b48f",
+    "003d5c78fc82721cc572c1f2625a1ea00689b42428ec142c3b3468314c2341bc",
+    "a007eafc18fb60909660a7fcfec43d26c4d6a014af16a17d9e15858d86084e17",
+    "cb757e8320c68bd3b385b7e6ff67d7956c0b031a7709ac168e4824d473c8d4fd",
+    "e25f81350b959ce1330bce923bc2bf6856d0245eb6a7da552e25b9764aacf493",
+    "ce23c3829ed3535cfc69e4bf980fbc4e8fc460c3c1940a8b2dccfe26eb38b48f",
+    "06f5326c48d7b80831288041468d2e4c418dbed3cebcc00dc131b82b1d361ae6",
+    "0d06dfe01dd490e25a336d35807ff08fc7a054d518a6c3bf2bd881f8fba4d4b5",
+    "ce23c3829ed3535cfc69e4bf980fbc4e8fc460c3c1940a8b2dccfe26eb38b48f",
+    "a007eafc18fb60909660a7fcfec43d26c4d6a014af16a17d9e15858d86084e17",
+    "cb757e8320c68bd3b385b7e6ff67d7956c0b031a7709ac168e4824d473c8d4fd",
+)
 
 _ACCEPTED_ARTIFACT_DIGESTS: Final[dict[str, str]] = {
     "executable": "d7d656252b4311fc617802340bd81f0350805f481092f28774f32f9496794e83",
@@ -636,18 +669,23 @@ def _parse_success(outcome: object) -> tuple[dict[str, str], ...]:
     ):
         _fail()
     latency = lines[2].removeprefix("detect_latency_us=")
-    if not latency.isascii() or not latency.isdecimal() or not 0 <= int(latency) <= 30_000_000:
+    if (
+        not latency.isascii()
+        or not latency.isdecimal()
+        or len(latency) > 8
+        or not 0 <= int(latency) <= 30_000_000
+    ):
         _fail()
     matrix_tokens = lines[6].removeprefix("matrix_0=").split(",")
     if len(matrix_tokens) != 18 or any(
-        _DECIMAL_RE.fullmatch(token) is None for token in matrix_tokens
+        len(token) > 64 or _DECIMAL_RE.fullmatch(token) is None for token in matrix_tokens
     ):
         _fail()
     try:
         matrix = tuple(measurement.parse_raw_decimal_token(token) for token in matrix_tokens)
     except ValueError:
         _fail()
-    if not all(value.is_finite() for value in matrix):
+    if not all(value.is_finite() and abs(value) <= 1_000_000 for value in matrix):
         _fail()
     points = lines[4].removeprefix("face_0_landmarks=").split(";")
     if len(points) != 478 or any(not point for point in points):
@@ -655,14 +693,16 @@ def _parse_success(outcome: object) -> tuple[dict[str, str], ...]:
     parsed: list[dict[str, str]] = []
     for point in points:
         values = point.split(",")
-        if len(values) != 3 or any(_DECIMAL_RE.fullmatch(value) is None for value in values):
+        if len(values) != 3 or any(
+            len(value) > 64 or _DECIMAL_RE.fullmatch(value) is None for value in values
+        ):
             _fail()
         try:
             numeric = tuple(measurement.parse_raw_decimal_token(value) for value in values)
         except ValueError:
             _fail()
         if not all(value.is_finite() for value in numeric) or not (
-            0 <= numeric[0] <= 1 and 0 <= numeric[1] <= 1
+            0 <= numeric[0] <= 1 and 0 <= numeric[1] <= 1 and abs(numeric[2]) <= 10
         ):
             _fail()
         parsed.append({"x": values[0], "y": values[1], "z": values[2]})
@@ -670,16 +710,31 @@ def _parse_success(outcome: object) -> tuple[dict[str, str], ...]:
 
 
 def _validate_bounded_stderr(value: bytes) -> None:
-    if b"\x00" in value:
+    if b"\x00" in value or _PATH_LIKE_DIAGNOSTIC_RE.search(value) is not None:
         _fail()
     try:
         text = value.decode("ascii", errors="strict")
     except UnicodeDecodeError:
         _fail()
     lines = text.splitlines()
-    if len(lines) > 64 or any(len(line) > 1024 for line in lines):
+    if len(lines) != len(_EXPECTED_DIAGNOSTIC_LINE_DIGESTS) or any(
+        len(line) > 1024 for line in lines
+    ):
         _fail()
     if any(character not in "\t\r\n" and not 32 <= ord(character) <= 126 for character in text):
+        _fail()
+    encoded_lines = tuple(line.encode("ascii") for line in lines)
+    if any(
+        (index in _DYNAMIC_DIAGNOSTIC_LINE_INDEXES)
+        != (_ABSL_DIAGNOSTIC_PREFIX_RE.match(line) is not None)
+        for index, line in enumerate(encoded_lines)
+    ):
+        _fail()
+    canonical_digests = tuple(
+        hashlib.sha256(_ABSL_DIAGNOSTIC_PREFIX_RE.sub(b"<ABSL> ", line, count=1)).hexdigest()
+        for line in encoded_lines
+    )
+    if canonical_digests != _EXPECTED_DIAGNOSTIC_LINE_DIGESTS:
         _fail()
 
 

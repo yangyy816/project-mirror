@@ -14,6 +14,7 @@ from PIL import Image
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from mirror_api import demo_d02_private_vision_backend as private_backend
 from mirror_api.demo_d02_acquisition_operator import (
     D02AcquisitionOperator,
     D02LocalDurableIndex,
@@ -58,6 +59,25 @@ from mirror_api.demo_models import (
 pytestmark = pytest.mark.integration
 
 
+def _m3_stderr() -> bytes:
+    lines = [f"INFO: synthetic diagnostic {index:02d}" for index in range(22)]
+    lines[1] = "W0000 00:00:1234567890.123456 100 source.cc:10] synthetic warning one"
+    lines[9] = "W0000 00:00:1234567890.234567 101 source.cc:20] synthetic warning two"
+    lines[15] = "W0000 00:00:1234567890.345678 102 source.cc:30] synthetic warning three"
+    return "\n".join(lines).encode("ascii")
+
+
+@pytest.fixture(autouse=True)
+def _synthetic_diagnostic_grammar(monkeypatch: pytest.MonkeyPatch) -> None:
+    digests = tuple(
+        hashlib.sha256(
+            private_backend._ABSL_DIAGNOSTIC_PREFIX_RE.sub(b"<ABSL> ", line, count=1)
+        ).hexdigest()
+        for line in _m3_stderr().splitlines()
+    )
+    monkeypatch.setattr(private_backend, "_EXPECTED_DIAGNOSTIC_LINE_DIGESTS", digests)
+
+
 def _digest(seed: str) -> str:
     return hashlib.sha256(seed.encode("utf-8")).hexdigest()
 
@@ -100,10 +120,13 @@ def _m3_stdout() -> bytes:
         points[index] = f"{x:.6f},{y:.6f},0.000000"
     return "\n".join(
         (
-            "create_status=ok",
             "detect_status=ok",
             "face_count=1",
+            "detect_latency_us=12345",
+            "face_0_landmark_count=478",
             f"face_0_landmarks={';'.join(points)}",
+            "matrix_count=1",
+            "matrix_0=" + ",".join("1.000000" for _ in range(18)),
             "close_status=ok",
         )
     ).encode("ascii")
@@ -115,7 +138,7 @@ def _runner(
     def run(command: tuple[str, ...], _timeout: float, _limit: int) -> ProcessOutcome:
         calls.append(command)
         assert Path(command[2]).is_file()
-        return ProcessOutcome(returncode=0, stdout=_m3_stdout(), stderr=b"")
+        return ProcessOutcome(returncode=0, stdout=_m3_stdout(), stderr=_m3_stderr())
 
     return run
 

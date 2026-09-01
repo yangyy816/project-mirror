@@ -13,6 +13,7 @@ from PIL import Image
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from mirror_api import demo_d02_private_vision_backend as private_backend
 from mirror_api.demo_d02_acquisition_identity import CANDIDATE_QA_POLICY_DIGEST
 from mirror_api.demo_d02_acquisition_operator import (
     D02AcquisitionOperator,
@@ -40,6 +41,25 @@ from mirror_api.demo_d02_r2_runtime_forward import M3ExecutionOutput
 from mirror_api.demo_models import D02SourceCandidate
 
 pytestmark = pytest.mark.integration
+
+
+def _m3_stderr() -> bytes:
+    lines = [f"INFO: synthetic diagnostic {index:02d}" for index in range(22)]
+    lines[1] = "W0000 00:00:1234567890.123456 100 source.cc:10] synthetic warning one"
+    lines[9] = "W0000 00:00:1234567890.234567 101 source.cc:20] synthetic warning two"
+    lines[15] = "W0000 00:00:1234567890.345678 102 source.cc:30] synthetic warning three"
+    return "\n".join(lines).encode("ascii")
+
+
+@pytest.fixture(autouse=True)
+def _synthetic_diagnostic_grammar(monkeypatch: pytest.MonkeyPatch) -> None:
+    digests = tuple(
+        hashlib.sha256(
+            private_backend._ABSL_DIAGNOSTIC_PREFIX_RE.sub(b"<ABSL> ", line, count=1)
+        ).hexdigest()
+        for line in _m3_stderr().splitlines()
+    )
+    monkeypatch.setattr(private_backend, "_EXPECTED_DIAGNOSTIC_LINE_DIGESTS", digests)
 
 
 @pytest.fixture
@@ -134,7 +154,7 @@ def _m3_runner(
     def run(command: tuple[str, ...], _timeout: float, _limit: int) -> ProcessOutcome:
         calls.append(command)
         assert Path(command[2]).is_file()
-        return ProcessOutcome(returncode=0, stdout=_m3_stdout(), stderr=b"")
+        return ProcessOutcome(returncode=0, stdout=_m3_stdout(), stderr=_m3_stderr())
 
     return run
 

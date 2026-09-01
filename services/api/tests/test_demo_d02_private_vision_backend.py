@@ -13,6 +13,32 @@ from mirror_api import demo_d02_r2_authority as authority
 from mirror_api import demo_d02_r2_runtime_forward as runtime
 
 
+def _stderr() -> bytes:
+    lines = [f"INFO: synthetic diagnostic {index:02d}" for index in range(22)]
+    lines[1] = "W0000 00:00:1234567890.123456 100 source.cc:10] synthetic warning one"
+    lines[9] = "W0000 00:00:1234567890.234567 101 source.cc:20] synthetic warning two"
+    lines[15] = "W0000 00:00:1234567890.345678 102 source.cc:30] synthetic warning three"
+    return "\n".join(lines).encode("ascii")
+
+
+def _stderr_digests(value: bytes) -> tuple[str, ...]:
+    return tuple(
+        hashlib.sha256(
+            private_backend._ABSL_DIAGNOSTIC_PREFIX_RE.sub(b"<ABSL> ", line, count=1)
+        ).hexdigest()
+        for line in value.splitlines()
+    )
+
+
+@pytest.fixture(autouse=True)
+def _synthetic_diagnostic_grammar(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        private_backend,
+        "_EXPECTED_DIAGNOSTIC_LINE_DIGESTS",
+        _stderr_digests(_stderr()),
+    )
+
+
 def _jpeg() -> bytes:
     image = Image.new("RGB", (64, 64), (80, 110, 140))
     output = io.BytesIO()
@@ -61,7 +87,7 @@ def _stdout(*, invalid_token: bool = False, extra_face: bool = False) -> bytes:
 
 
 def _runner(
-    calls: list[tuple[str, ...]], *, stdout: bytes | None = None, stderr: bytes = b""
+    calls: list[tuple[str, ...]], *, stdout: bytes | None = None, stderr: bytes | None = None
 ) -> Callable[[tuple[str, ...], float, int], private_backend.ProcessOutcome]:
     def run(command: tuple[str, ...], _: float, __: int) -> private_backend.ProcessOutcome:
         calls.append(command)
@@ -69,7 +95,7 @@ def _runner(
         return private_backend.ProcessOutcome(
             returncode=0,
             stdout=stdout or _stdout(),
-            stderr=stderr,
+            stderr=_stderr() if stderr is None else stderr,
         )
 
     return run
@@ -197,13 +223,7 @@ def test_actual_wrapper_shape_accepts_bounded_ascii_diagnostics(tmp_path: Path) 
     content = _jpeg()
     backend = private_backend.WindowsFaceLandmarkerOfflineM3Backend.for_testing(
         staging_root=tmp_path,
-        runner=_runner(
-            calls,
-            stderr=(
-                b"WARNING: runtime diagnostics are emitted before initialization\n"
-                b"INFO: Created TensorFlow Lite XNNPACK delegate for CPU.\n"
-            ),
-        ),
+        runner=_runner(calls),
     )
     result = backend.inspect_candidate_once(content=content, descriptor=_descriptor(content))
     assert result.result.fields["face_count"] == 1
@@ -212,13 +232,71 @@ def test_actual_wrapper_shape_accepts_bounded_ascii_diagnostics(tmp_path: Path) 
 
 @pytest.mark.parametrize(
     "stderr",
-    [b"invalid\x00diagnostic", b"non-ascii-\xff", b"x" * 1025],
+    [
+        b"invalid\x00diagnostic",
+        b"non-ascii-\xff",
+        b"x" * 1025,
+        _stderr() + b"\nINFO: unknown diagnostic",
+        b"\n".join(_stderr().splitlines()[:-1]),
+        b"\n".join(reversed(_stderr().splitlines())),
+        _stderr().replace(b"synthetic diagnostic 02", b"unknown diagnostic", 1),
+        _stderr().replace(b"synthetic diagnostic 02", b"C:\\private\\leak", 1),
+        _stderr().replace(b"synthetic diagnostic 02", b"/private/runtime/leak", 1),
+        _stderr().replace(b"synthetic diagnostic 02", b"%TEMP%\\private", 1),
+        _stderr().replace(b"synthetic diagnostic 02", b"$HOME/private", 1),
+        _stderr().replace(b"synthetic diagnostic 02", b"~/private", 1),
+        _stderr().replace(
+            b"W0000 00:00:1234567890.123456 100 ",
+            b"<ABSL> ",
+            1,
+        ),
+    ],
 )
 def test_unbounded_or_non_ascii_stderr_fails_closed(tmp_path: Path, stderr: bytes) -> None:
     content = _jpeg()
     backend = private_backend.WindowsFaceLandmarkerOfflineM3Backend.for_testing(
         staging_root=tmp_path,
         runner=_runner([], stderr=stderr),
+    )
+    with pytest.raises(private_backend.PrivateVisionBackendError):
+        backend.inspect_candidate_once(content=content, descriptor=_descriptor(content))
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        _stdout().replace(b"detect_latency_us=12345", b"detect_latency_us=30000001"),
+        _stdout().replace(b"detect_latency_us=12345", b"detect_latency_us=-1"),
+        _stdout().replace(b"face_0_landmark_count=478", b"face_0_landmark_count=477"),
+        _stdout().replace(b"matrix_count=1", b"matrix_count=2"),
+        _stdout().replace(b"1.000000", b"1e999999999", 1),
+        _stdout().replace(b",0.000000;", b",11.000000;", 1),
+        _stdout().replace(b"face_count=1\n", b"face_count=1\nface_count=1\n", 1),
+        _stdout() + b"\nunknown_key=value",
+        _stdout().replace(b"detect_status=ok", b"detect_status=ok\xff"),
+    ],
+)
+def test_stdout_protocol_mutations_fail_closed(tmp_path: Path, stdout: bytes) -> None:
+    content = _jpeg()
+    backend = private_backend.WindowsFaceLandmarkerOfflineM3Backend.for_testing(
+        staging_root=tmp_path,
+        runner=_runner([], stdout=stdout),
+    )
+    with pytest.raises(private_backend.PrivateVisionBackendError):
+        backend.inspect_candidate_once(content=content, descriptor=_descriptor(content))
+
+
+def test_nonzero_process_returncode_fails_closed(tmp_path: Path) -> None:
+    content = _jpeg()
+
+    def failed(
+        _command: tuple[str, ...], _timeout: float, _limit: int
+    ) -> private_backend.ProcessOutcome:
+        return private_backend.ProcessOutcome(returncode=1, stdout=_stdout(), stderr=_stderr())
+
+    backend = private_backend.WindowsFaceLandmarkerOfflineM3Backend.for_testing(
+        staging_root=tmp_path,
+        runner=failed,
     )
     with pytest.raises(private_backend.PrivateVisionBackendError):
         backend.inspect_candidate_once(content=content, descriptor=_descriptor(content))
