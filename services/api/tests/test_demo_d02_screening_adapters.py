@@ -7,8 +7,10 @@ from typing import cast
 
 import pytest
 from PIL import Image
+from test_demo_d02_authority import _resign_observation, _source_certificate
 from test_demo_d02_r2_authority import _report_input_template
 
+from mirror_api import demo_d02_authority as legacy
 from mirror_api import demo_d02_r2_authority as authority
 from mirror_api import demo_d02_screening_adapters as adapters
 
@@ -55,6 +57,57 @@ def test_measurement_adapter_replays_supported_fixed18_gate() -> None:
         complete,
         result_records=records,
         facts=cast(dict[str, object], packet["facts"]),
+    )
+
+
+def test_source_projection_preserves_raw_confidence_precision() -> None:
+    packet, _, _, _ = _gate_inputs()
+    facts = deepcopy(cast(dict[str, object], packet["facts"]))
+    observation = deepcopy(cast(dict[str, object], facts["source_measurement_observation"]))
+    observed = cast(list[dict[str, object]], observation["ordered_measurements"])
+    raw_units = legacy._fixed18_units(observed[0]["raw_observability_fixed18"], "raw observability")
+    observed[0]["raw_observability_fixed18"] = adapters._fixed18(raw_units - 1)
+    _resign_observation(observation)
+    prior_certificate = cast(dict[str, object], facts["source_repeat_certification"])
+    prior_bindings = cast(list[dict[str, object]], prior_certificate["ordered_repeat_bindings"])
+    certificate = _source_certificate(
+        observation,
+        execution_receipt_digest=cast(str, prior_bindings[0]["execution_receipt_digest"]),
+    )
+    raw = legacy.build_raw_measurement_authority(
+        observation,
+        certificate,
+        source_p2_candidate_manifest_content_digest=cast(
+            str, facts["source_p2_candidate_manifest_content_digest"]
+        ),
+        dimension_authority_manifest_content_digest=cast(
+            str, facts["dimension_authority_manifest_content_digest"]
+        ),
+    )
+    projection = legacy.build_morphology_projection(raw)
+    facts.update(
+        source_landmark_digest=observation["landmark_digest"],
+        source_measurement_digest=observation["measurement_observation_digest"],
+        source_measurement_observation=observation,
+        source_measurement_observation_digest=observation["measurement_observation_digest"],
+        source_repeat_certification=certificate,
+        source_repeat_certification_digest=certificate["source_repeat_certification_digest"],
+        raw_measurement_authority=raw,
+        raw_measurement_authority_digest=legacy.digest_raw_measurement_authority(raw),
+        source_measurement_projection=projection,
+        source_measurement_projection_digest=legacy.digest_morphology_projection(projection),
+    )
+    authority.validate_r2_facts(facts)
+    entries = cast(list[dict[str, object]], raw["ordered_entries"])
+    projected = cast(list[dict[str, object]], projection["ordered_entries"])
+
+    measurements = adapters._source_measurements_from_facts(cast(dict[str, object], facts))
+    first = measurements[cast(str, entries[0]["dimension_key"])]
+
+    assert first["raw_confidence_fixed18"] == entries[0]["raw_confidence_fixed18"]
+    assert first["confidence_ppm"] == projected[0]["confidence_ppm"]
+    assert first["raw_confidence_fixed18"] != adapters._fixed18(
+        cast(int, projected[0]["confidence_ppm"]) * 1_000_000_000_000
     )
 
 

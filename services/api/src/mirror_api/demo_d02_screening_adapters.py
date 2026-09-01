@@ -92,49 +92,14 @@ def _source_measurements_from_facts(facts: Mapping[str, Any]) -> dict[str, Mappi
     """Rebuild the legacy source measurement projection without trusting its copy."""
 
     try:
-        projection = _required_mapping(facts["source_measurement_projection"])
-        projection_entries = projection["ordered_entries"]
-        observation = legacy.validate_measurement_observation(
-            facts["source_measurement_observation"], role="SOURCE"
-        )
-        observations = observation["ordered_measurements"]
-        if not isinstance(projection_entries, list) or not isinstance(observations, list):
+        entries = authority._r2_supported_measurements_from_facts(facts)
+        if len(entries) != len(legacy.DIMENSIONS):
             _fail()
         result: dict[str, Mapping[str, Any]] = {}
-        for dimension, projection_entry, observation_entry in zip(
-            legacy.DIMENSIONS, projection_entries, observations, strict=True
-        ):
-            projected = _required_mapping(projection_entry)
-            observed = _required_mapping(observation_entry)
-            if (
-                projected.get("dimension_key") != dimension
-                or observed.get("dimension_key") != dimension
-                or projected.get("support_state") != "SUPPORTED"
-                or observed.get("support_state") != "SUPPORTED"
-                or projected.get("unit") != "FACE_HEIGHT_PPM"
-            ):
+        for dimension, entry in zip(legacy.DIMENSIONS, entries, strict=True):
+            if entry.get("dimension_key") != dimension:
                 _fail()
-            value_ppm = projected.get("value_ppm")
-            confidence_ppm = projected.get("confidence_ppm")
-            reliability_ppm = projected.get("reliability_ppm")
-            if any(
-                type(value) is not int or isinstance(value, bool)
-                for value in (value_ppm, confidence_ppm, reliability_ppm)
-            ):
-                _fail()
-            entry: Mapping[str, Any] = {
-                "schema_version": "mirror.demo/D02SupportedSourceMeasurement/v1",
-                "dimension_key": dimension,
-                "raw_value_fixed18": observed["raw_value_fixed18"],
-                "raw_confidence_fixed18": _fixed18(cast(int, confidence_ppm) * 1_000_000_000_000),
-                "raw_reliability_fixed18": _fixed18(cast(int, reliability_ppm) * 1_000_000_000_000),
-                "value_ppm": value_ppm,
-                "confidence_ppm": confidence_ppm,
-                "reliability_ppm": reliability_ppm,
-                "unit": "FACE_HEIGHT_PPM",
-            }
-            legacy._validate_supported_measurement(entry, dimension=dimension)
-            result[dimension] = entry
+            result[dimension] = legacy._validate_supported_measurement(entry, dimension=dimension)
         if len(result) != len(legacy.DIMENSIONS):
             _fail()
         return result
