@@ -742,6 +742,10 @@ def finalize_runtime_evidence(
         _fail("PREPARED_RUNTIME_EVIDENCE_INVALID")
     if set(artifact_decisions) != {subject.case_id for subject in prepared.review_subjects}:
         _fail("ARTIFACT_REVIEW_CARDINALITY_INVALID")
+    screening_decisions = _screening_artifact_decisions(
+        prepared=prepared,
+        artifact_decisions=artifact_decisions,
+    )
     adapter = _PreparedRuntimeReplayAdapter(prepared)
     jpeg_by_digest = {
         material.descriptor.content_sha256: material.content
@@ -760,7 +764,7 @@ def finalize_runtime_evidence(
                 vision_m3=adapter,
                 m4=adapter,
                 measurement_gate=MeasurementGateAdapter(),
-                manual_review=ManualReviewAdapter(artifact_decisions),
+                manual_review=ManualReviewAdapter(screening_decisions),
                 phash=PHashAdapter(jpeg_by_digest),
             )
         )
@@ -781,6 +785,39 @@ def finalize_runtime_evidence(
         raise
     except (KeyError, TypeError, ValueError) as error:
         raise D02FinalOrchestratorError("FORMAL_RUNTIME_SCREENING_FAILED") from error
+
+
+def _screening_artifact_decisions(
+    *,
+    prepared: PreparedRuntimeEvidence,
+    artifact_decisions: Mapping[str, PrincipalArtifactDecision],
+) -> dict[str, PrincipalArtifactDecision]:
+    """Project sealed review observations into the runner's canonical order."""
+
+    subjects = {subject.case_id: subject for subject in prepared.review_subjects}
+    if set(artifact_decisions) != set(subjects):
+        _fail("ARTIFACT_REVIEW_CARDINALITY_INVALID")
+    result: dict[str, PrincipalArtifactDecision] = {}
+    for decision_sequence, case_id in enumerate(sorted(subjects), start=1):
+        subject = subjects[case_id]
+        decision = artifact_decisions[case_id]
+        if decision.result_sha256 != subject.result_sha256:
+            _fail("ARTIFACT_REVIEW_BINDING_INVALID")
+        if decision.decision_sequence == decision_sequence:
+            result[case_id] = decision
+            continue
+        result[case_id] = PrincipalArtifactDecision.seal(
+            case_id=decision.case_id,
+            result_sha256=decision.result_sha256,
+            decision_sequence=decision_sequence,
+            manual_review_version=decision.manual_review_version,
+            manual_review_policy_digest=decision.manual_review_policy_digest,
+            background_seam=decision.background_seam,
+            disconnected_contour=decision.disconnected_contour,
+            duplicated_feature=decision.duplicated_feature,
+            warp_tear=decision.warp_tear,
+        )
+    return result
 
 
 def _fail(code: str) -> NoReturn:

@@ -25,6 +25,7 @@ from mirror_api import demo_d02_r2_runtime_forward as runtime
 from mirror_api import demo_d02_r2_screening_execution as screening_execution
 from mirror_api.demo_d02_formal_source_builder import FormalSourceRuntimeBundle
 from mirror_api.demo_d02_private_vision_backend import WindowsFaceLandmarkerOfflineM3Backend
+from mirror_api.demo_d02_screening_adapters import PrincipalArtifactDecision
 
 _SOURCE_M3_FIELDS = {
     "execution_receipt_digest",
@@ -255,3 +256,70 @@ def test_prepared_runtime_replay_finalizes_without_backend_reexecution() -> None
     assert report["source_m3_repeat_count"] == 12
     assert report["m4_execution_count"] == 96
     assert report["result_m3_repeat_count"] == 144
+
+
+def test_review_decisions_project_to_screening_case_order() -> None:
+    prepared, _, _ = _prepared_runtime()
+    decisions = {
+        subject.case_id: PrincipalArtifactDecision.seal(
+            case_id=subject.case_id,
+            result_sha256=subject.result_sha256,
+            decision_sequence=subject.decision_sequence,
+            manual_review_version="test-review-v1",
+            manual_review_policy_digest="a" * 64,
+            background_seam=subject.decision_sequence == 1,
+            disconnected_contour=False,
+            duplicated_feature=False,
+            warp_tear=False,
+        )
+        for subject in prepared.review_subjects
+    }
+
+    projected = orchestrator._screening_artifact_decisions(
+        prepared=prepared,
+        artifact_decisions=decisions,
+    )
+
+    assert list(projected) == sorted(decisions)
+    for decision_sequence, case_id in enumerate(sorted(decisions), start=1):
+        original = decisions[case_id]
+        current = projected[case_id]
+        assert current.case_id == original.case_id
+        assert current.result_sha256 == original.result_sha256
+        assert current.decision_sequence == decision_sequence
+        assert current.background_seam == original.background_seam
+        assert current.disconnected_contour == original.disconnected_contour
+        assert current.duplicated_feature == original.duplicated_feature
+        assert current.warp_tear == original.warp_tear
+
+
+def test_finalize_projects_review_order_without_backend_reexecution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepared, _, fields = _prepared_runtime()
+    decisions = {
+        subject.case_id: PrincipalArtifactDecision.seal(
+            case_id=subject.case_id,
+            result_sha256=subject.result_sha256,
+            decision_sequence=subject.decision_sequence,
+            manual_review_version="test-review-v1",
+            manual_review_policy_digest=cast(
+                str, prepared.execution_authority["manual_review_policy_digest"]
+            ),
+            background_seam=False,
+            disconnected_contour=False,
+            duplicated_feature=False,
+            warp_tear=False,
+        )
+        for subject in prepared.review_subjects
+    }
+    fixture_adapters = _Adapters(deepcopy(fields))
+    monkeypatch.setattr(orchestrator, "PHashAdapter", lambda _: fixture_adapters)
+
+    result = orchestrator.finalize_runtime_evidence(
+        prepared=prepared,
+        artifact_decisions=decisions,
+    )
+
+    assert result.admission_ready
+    assert len(result.result_outputs) == 48
