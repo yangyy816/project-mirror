@@ -24,6 +24,8 @@ def test_r65_retirement_and_preflight_contract_is_fail_closed() -> None:
         "CAL_REQ_004_COUNTER_REFUND: PROHIBITED",
         "p2-m5-cal-req-005-end-to-end-durable-handle-v1",
         "REQUIRED_ZERO_IMAGE_ZERO_ORDINAL",
+        "not an end-to-end durable preflight",
+        "zero-impact proof is performed against the real durable chain",
         "real M3 executor handle",
         "NEXT_READY_TASK: EXECUTE_CAL_REQ_005",
     ):

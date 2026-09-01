@@ -48,6 +48,13 @@ fresh-process recovery while formal calls, raw capacity and ordinal impact all
 remain zero. A decoder stub may only validate orchestration; it cannot replace
 the real decode or M3 Gate.
 
+The tracked temporary transport harness is not an end-to-end durable preflight.
+It only exercises isolated orchestration with synthetic state and has no
+authority to mutate, prove, or substitute for the formal private ledger,
+runtime, model, zero-egress, or real M3 executor. A formal CAL-REQ-005
+preflight remains incomplete until those exact task-scoped authorities are
+resolved and the zero-impact proof is performed against the real durable chain.
+
 Before any CAL-REQ-005 dispatch, an exact accepted runtime, model, zero-egress
 authority and real M3 executor handle remain required. Missing authority keeps
 dispatch fail closed. R65 cannot use Mock, rebuild or download a runtime, or

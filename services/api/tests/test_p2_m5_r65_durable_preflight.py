@@ -10,9 +10,10 @@ from typing import Any, cast
 from mirror_api.synthetic_dataset import private_execution_overlay as overlay
 
 
-def test_cal_req_005_durable_preflight_is_zero_image_and_fresh_process_recoverable(
+def test_r65_temporary_transport_harness_is_non_authoritative_and_recoverable(
     tmp_path: Path,
 ) -> None:
+    """Exercise isolated orchestration only; this is not a formal preflight."""
     project = tmp_path / "project"
     project.mkdir()
     (project / ".git").write_text("gitdir: durable-preflight-test\n", encoding="utf-8")
