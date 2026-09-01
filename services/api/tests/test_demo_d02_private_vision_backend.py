@@ -18,7 +18,7 @@ def _stderr() -> bytes:
     lines[1] = "W0000 00:00:1234567890.123456 100 source.cc:10] synthetic warning one"
     lines[9] = "W0000 00:00:1234567890.234567 101 source.cc:20] synthetic warning two"
     lines[15] = "W0000 00:00:1234567890.345678 102 source.cc:30] synthetic warning three"
-    return "\n".join(lines).encode("ascii")
+    return ("\r\n".join(lines) + "\r\n").encode("ascii")
 
 
 def _stderr_digests(value: bytes) -> tuple[str, ...]:
@@ -26,7 +26,7 @@ def _stderr_digests(value: bytes) -> tuple[str, ...]:
         hashlib.sha256(
             private_backend._ABSL_DIAGNOSTIC_PREFIX_RE.sub(b"<ABSL> ", line, count=1)
         ).hexdigest()
-        for line in value.splitlines()
+        for line in value[:-2].split(b"\r\n")
     )
 
 
@@ -83,7 +83,7 @@ def _stdout(*, invalid_token: bool = False, extra_face: bool = False) -> bytes:
     ]
     if extra_face:
         lines.insert(5, "face_1_landmarks=unexpected")
-    return "\n".join(lines).encode("ascii")
+    return ("\r\n".join(lines) + "\r\n").encode("ascii")
 
 
 def _runner(
@@ -236,9 +236,9 @@ def test_actual_wrapper_shape_accepts_bounded_ascii_diagnostics(tmp_path: Path) 
         b"invalid\x00diagnostic",
         b"non-ascii-\xff",
         b"x" * 1025,
-        _stderr() + b"\nINFO: unknown diagnostic",
-        b"\n".join(_stderr().splitlines()[:-1]),
-        b"\n".join(reversed(_stderr().splitlines())),
+        _stderr() + b"INFO: unknown diagnostic\r\n",
+        b"\r\n".join(_stderr().splitlines()[:-1]) + b"\r\n",
+        b"\r\n".join(reversed(_stderr().splitlines())) + b"\r\n",
         _stderr().replace(b"synthetic diagnostic 02", b"unknown diagnostic", 1),
         _stderr().replace(b"synthetic diagnostic 02", b"C:\\private\\leak", 1),
         _stderr().replace(b"synthetic diagnostic 02", b"/private/runtime/leak", 1),
@@ -250,6 +250,12 @@ def test_actual_wrapper_shape_accepts_bounded_ascii_diagnostics(tmp_path: Path) 
             b"<ABSL> ",
             1,
         ),
+        _stderr().replace(b"\r\n", b"\x0b"),
+        _stderr().replace(b"\r\n", b"\n"),
+        _stderr().replace(b"\r\n", b"\r"),
+        _stderr()[:-2],
+        _stderr() + b"\r\n",
+        _stderr()[:-2] + b"\x0b\r\n",
     ],
 )
 def test_unbounded_or_non_ascii_stderr_fails_closed(tmp_path: Path, stderr: bytes) -> None:
@@ -271,9 +277,20 @@ def test_unbounded_or_non_ascii_stderr_fails_closed(tmp_path: Path, stderr: byte
         _stdout().replace(b"matrix_count=1", b"matrix_count=2"),
         _stdout().replace(b"1.000000", b"1e999999999", 1),
         _stdout().replace(b",0.000000;", b",11.000000;", 1),
-        _stdout().replace(b"face_count=1\n", b"face_count=1\nface_count=1\n", 1),
-        _stdout() + b"\nunknown_key=value",
+        _stdout().replace(
+            b"face_count=1\r\n",
+            b"face_count=1\r\nface_count=1\r\n",
+            1,
+        ),
+        _stdout() + b"unknown_key=value\r\n",
         _stdout().replace(b"detect_status=ok", b"detect_status=ok\xff"),
+        _stdout().replace(b"\r\n", b"\x0b"),
+        _stdout().replace(b"\r\n", b"\n"),
+        _stdout().replace(b"\r\n", b"\r"),
+        _stdout()[:-2],
+        _stdout() + b"\r\n",
+        _stdout()[:-2] + b"\x0b\r\n",
+        _stdout() + b"\x0b",
     ],
 )
 def test_stdout_protocol_mutations_fail_closed(tmp_path: Path, stdout: bytes) -> None:

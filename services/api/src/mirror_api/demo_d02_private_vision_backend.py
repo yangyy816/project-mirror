@@ -651,11 +651,16 @@ def _parse_success(outcome: object) -> tuple[dict[str, str], ...]:
     ):
         _fail()
     _validate_bounded_stderr(outcome.stderr)
-    try:
-        lines = outcome.stdout.decode("ascii", errors="strict").splitlines()
-    except UnicodeDecodeError:
+    if outcome.stdout.count(b"\r\n") != 8 or not outcome.stdout.endswith(b"\r\n"):
         _fail()
-    if len(lines) != 8:
+    encoded_lines = outcome.stdout[:-2].split(b"\r\n")
+    if len(encoded_lines) != 8 or any(
+        not line or any(byte < 32 or byte > 126 for byte in line) for line in encoded_lines
+    ):
+        _fail()
+    try:
+        lines = [line.decode("ascii", errors="strict") for line in encoded_lines]
+    except UnicodeDecodeError:
         _fail()
     if (
         lines[0] != "detect_status=ok"
@@ -712,18 +717,16 @@ def _parse_success(outcome: object) -> tuple[dict[str, str], ...]:
 def _validate_bounded_stderr(value: bytes) -> None:
     if b"\x00" in value or _PATH_LIKE_DIAGNOSTIC_RE.search(value) is not None:
         _fail()
-    try:
-        text = value.decode("ascii", errors="strict")
-    except UnicodeDecodeError:
-        _fail()
-    lines = text.splitlines()
-    if len(lines) != len(_EXPECTED_DIAGNOSTIC_LINE_DIGESTS) or any(
-        len(line) > 1024 for line in lines
+    if value.count(b"\r\n") != len(_EXPECTED_DIAGNOSTIC_LINE_DIGESTS) or not value.endswith(
+        b"\r\n"
     ):
         _fail()
-    if any(character not in "\t\r\n" and not 32 <= ord(character) <= 126 for character in text):
+    encoded_lines = tuple(value[:-2].split(b"\r\n"))
+    if len(encoded_lines) != len(_EXPECTED_DIAGNOSTIC_LINE_DIGESTS) or any(
+        not line or len(line) > 1024 or any(byte < 32 or byte > 126 for byte in line)
+        for line in encoded_lines
+    ):
         _fail()
-    encoded_lines = tuple(line.encode("ascii") for line in lines)
     if any(
         (index in _DYNAMIC_DIAGNOSTIC_LINE_INDEXES)
         != (_ABSL_DIAGNOSTIC_PREFIX_RE.match(line) is not None)

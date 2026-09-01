@@ -64,7 +64,7 @@ def _m3_stderr() -> bytes:
     lines[1] = "W0000 00:00:1234567890.123456 100 source.cc:10] synthetic warning one"
     lines[9] = "W0000 00:00:1234567890.234567 101 source.cc:20] synthetic warning two"
     lines[15] = "W0000 00:00:1234567890.345678 102 source.cc:30] synthetic warning three"
-    return "\n".join(lines).encode("ascii")
+    return ("\r\n".join(lines) + "\r\n").encode("ascii")
 
 
 @pytest.fixture(autouse=True)
@@ -118,17 +118,20 @@ def _m3_stdout() -> bytes:
     }
     for index, (x, y) in anchors.items():
         points[index] = f"{x:.6f},{y:.6f},0.000000"
-    return "\n".join(
-        (
-            "detect_status=ok",
-            "face_count=1",
-            "detect_latency_us=12345",
-            "face_0_landmark_count=478",
-            f"face_0_landmarks={';'.join(points)}",
-            "matrix_count=1",
-            "matrix_0=" + ",".join("1.000000" for _ in range(18)),
-            "close_status=ok",
+    return (
+        "\r\n".join(
+            (
+                "detect_status=ok",
+                "face_count=1",
+                "detect_latency_us=12345",
+                "face_0_landmark_count=478",
+                f"face_0_landmarks={';'.join(points)}",
+                "matrix_count=1",
+                "matrix_0=" + ",".join("1.000000" for _ in range(18)),
+                "close_status=ok",
+            )
         )
+        + "\r\n"
     ).encode("ascii")
 
 
