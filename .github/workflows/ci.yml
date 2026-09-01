@@ -398,7 +398,9 @@ jobs:
           docker compose -f compose.yaml exec -T api alembic check
       - name: Capture container evidence
         if: always()
+        shell: bash
         run: |
+          set -o pipefail
           docker compose -f compose.yaml ps --all
           docker compose -f compose.yaml logs --no-color \
             | sed -E \

@@ -15,11 +15,18 @@ def test_docker_log_artifact_is_sanitized_before_write() -> None:
 
     raw_command = "docker compose -f compose.yaml logs --no-color"
     assert raw_command in step
+    assert "shell: bash" in step
+    assert "set -o pipefail" in step
     assert "| sed -E" in step
     assert "<redacted-file-uri>" in step
     assert "<redacted-path>" in step
     assert "[^[:alnum:]_:/.-]" in step
-    assert step.index(raw_command) < step.index("| sed -E") < step.index("> docker-compose.log")
+    assert (
+        step.index("set -o pipefail")
+        < step.index(raw_command)
+        < step.index("| sed -E")
+        < step.index("> docker-compose.log")
+    )
 
 
 def test_artifact_sanitizer_redacts_file_unix_windows_and_unc_paths() -> None:
@@ -52,3 +59,17 @@ def test_artifact_sanitizer_redacts_file_unix_windows_and_unc_paths() -> None:
     assert "<redacted-file-uri>" in result.stdout
     assert result.stdout.count("<redacted-path>") == 4
     assert re.search(r"file:/\S+|(^|\s)/|[A-Za-z]:\\|\\\\", result.stdout, re.MULTILINE) is None
+
+
+def test_pipefail_makes_a_failed_capture_producer_fail_the_pipeline() -> None:
+    result = subprocess.run(
+        [
+            "/bin/bash",
+            "-c",
+            "set -o pipefail; false | /bin/sed -E 's/x/y/' >/dev/null",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0, result.stderr
