@@ -159,6 +159,10 @@ jobs:
             timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" \
               bash -o pipefail -c '
                 pnpm --filter @mirror/web exec playwright install-deps chromium 2>&1 \
+                  | sed -E \
+                    -e "s#file:/[^[:space:]]+#<redacted-file-uri>#g" \
+                    -e "s#(^|[[:space:]])/[^[:space:]]+#\\1<redacted-path>#g" \
+                    -e "s#([A-Za-z]:\\\\|\\\\\\\\)[^[:space:]]+#<redacted-path>#g" \
                   | tee -a "$PLAYWRIGHT_INSTALL_LOG"
                 exit "${PIPESTATUS[0]}"
               '
@@ -217,6 +221,10 @@ jobs:
             timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" \
               bash -o pipefail -c '
                 pnpm --filter @mirror/web exec playwright install chromium 2>&1 \
+                  | sed -E \
+                    -e "s#file:/[^[:space:]]+#<redacted-file-uri>#g" \
+                    -e "s#(^|[[:space:]])/[^[:space:]]+#\\1<redacted-path>#g" \
+                    -e "s#([A-Za-z]:\\\\|\\\\\\\\)[^[:space:]]+#<redacted-path>#g" \
                   | tee -a "$PLAYWRIGHT_INSTALL_LOG"
                 exit "${PIPESTATUS[0]}"
               '

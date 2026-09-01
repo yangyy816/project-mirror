@@ -48,6 +48,8 @@ def test_playwright_system_dependencies_timeout_owns_each_logging_pipeline_and_r
     assert child_shell in step
     assert pnpm_command in step
     assert '| tee -a "$PLAYWRIGHT_INSTALL_LOG"' in step
+    assert "<redacted-file-uri>" in step
+    assert "<redacted-path>" in step
     assert 'exit "${PIPESTATUS[0]}"' in step
     assert 'install_status="$?"' in step
     assert success_branch in step
@@ -58,6 +60,8 @@ def test_playwright_system_dependencies_timeout_owns_each_logging_pipeline_and_r
     timeout_start = step.index(timeout, loop_start)
     child_start = step.index(child_shell, timeout_start)
     command_start = step.index(pnpm_command, child_start)
+    sanitizer_start = step.index("sed -E", command_start)
+    assert sanitizer_start < step.index('| tee -a "$PLAYWRIGHT_INSTALL_LOG"', sanitizer_start)
     success_start = step.index(success_branch, command_start)
     backoff_start = step.index(backoff_branch, success_start)
     sleep_start = step.index('sleep "$backoff"', backoff_start)
@@ -136,6 +140,10 @@ def test_playwright_download_timeout_owns_each_logging_pipeline_and_keeps_retry_
     assert child_shell in step
     assert pnpm_command in step
     assert '| tee -a "$PLAYWRIGHT_INSTALL_LOG"' in step
+    assert "<redacted-file-uri>" in step
+    assert "<redacted-path>" in step
+    sanitizer_start = step.index("sed -E", step.index(pnpm_command))
+    assert sanitizer_start < step.index('| tee -a "$PLAYWRIGHT_INSTALL_LOG"', sanitizer_start)
     assert 'exit "${PIPESTATUS[0]}"' in step
     assert 'install_status="$?"' in step
     assert 'if [[ "$install_status" -eq 0 ]]; then' in step
