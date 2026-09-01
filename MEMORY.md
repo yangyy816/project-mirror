@@ -843,3 +843,13 @@
   与 integration successor `17abe5beebde5083d12c394d70e0516595f8a887` 的 run `33436654662` 全绿后
   `TASK_ACCEPTED`。真实 D02 asset/runtime integration 仍未宣称，下一串行 migration 节点为 D10 Context queued
   compiler/rebuild。
+
+- 2026-09-01：D10 queued Context compiler/rebuild 以 migration `demo_0017_d10_context_queue`、successor
+  `aaa8eb69a18e0ce0b0b8639fbe4ba589e6f44f86` 和 exact-SHA run `33455652850` 完成并 `TASK_ACCEPTED`。
+  冻结 `context.compile` / `DEMO_SESSION` / `P7_CONTEXT_COMPILER`、immutable request/result、3 attempts/300s
+  lease、Celery+Local reconciliation、显式 timezone-aware as-of、完整 frozen snapshot、同输入单一 winner及
+  Context/result/Job/Attempt 同事务。最终审查发现并修复 queued finalize 在 actor/session 生命周期终止后仍可能
+  发布 Context 的缺陷；admission/finalize 现均锁定并复核 current actor/session，tombstone/close/expiry及其并发竞争
+  fail closed且零部分持久化。D10 后当前没有可提前执行的 non-D02 产品节点；D07-B/D08 acceptance、D11 real E2E
+  和 D12 继续等待 D02 Subsystem Principal 的 final runtime candidate，项目状态为
+  `ACTIVE_WITH_DEFERRED_RUNTIME_GATE`，不是全局 BLOCKED。
