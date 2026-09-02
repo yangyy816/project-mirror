@@ -91,15 +91,12 @@ services:
       - mirror-private:/var/lib/mirror-private
     healthcheck:
       test:
-        - CMD
-        - celery
-        - -A
-        - mirror_worker.app:celery_app
-        - inspect
-        - ping
-        - --timeout=5
+        - CMD-SHELL
+        - >-
+          celery -A mirror_worker.app:celery_app inspect ping
+          --destination "celery@$$(hostname)" --timeout=2
       interval: 10s
-      timeout: 8s
+      timeout: 12s
       retries: 12
       start_period: 10s
 
