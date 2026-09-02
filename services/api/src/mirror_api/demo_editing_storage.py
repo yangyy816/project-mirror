@@ -1,4 +1,4 @@
-"""Local, private quarantine storage for the D07 editing service.
+"""Local immutable storage for D07 editing and admitted D02 source bytes.
 
 This adapter intentionally stores only opaque private payload bytes below the
 injected root.  It is a development/test adapter, not a public file service.
@@ -22,6 +22,7 @@ _QUARANTINE_KEY: Final = re.compile(
 )
 _PUBLISHED_KEY: Final = re.compile(rf"demo-published/v1/{_KEY_COMPONENT}/[0-9a-f]{{64}}\Z")
 _ORIGINAL_KEY: Final = re.compile(rf"demo-original/v1/{_KEY_COMPONENT}/[0-9a-f]{{64}}\Z")
+_D02_SOURCE_KEY: Final = re.compile(rf"internal-synthetic/v1/d02/source/{_KEY_COMPONENT}\Z")
 
 
 class DemoEditingStorageError(RuntimeError):
@@ -33,7 +34,7 @@ class DemoEditingStorageError(RuntimeError):
 
 
 class DemoLocalPrivateObjectStorage:
-    """Atomic immutable storage for one D07 quarantine-object key shape."""
+    """Atomic immutable storage for the closed Demo object-key allowlist."""
 
     def __init__(self, *, root: Path) -> None:
         raw_root = root.absolute()
@@ -203,7 +204,12 @@ class DemoLocalPrivateObjectStorage:
 
     @staticmethod
     def _validate_write(*, key: str, content: bytes, sha256: str) -> None:
-        DemoLocalPrivateObjectStorage._validate_quarantine_key(key)
+        if not isinstance(key, str) or (
+            _QUARANTINE_KEY.fullmatch(key) is None and _D02_SOURCE_KEY.fullmatch(key) is None
+        ):
+            raise DemoEditingStorageError("STORAGE_KEY_INVALID", "private storage key is invalid")
+        if "\\" in key or key.startswith("/") or "//" in key or "/../" in key:
+            raise DemoEditingStorageError("STORAGE_KEY_INVALID", "private storage key is invalid")
         DemoLocalPrivateObjectStorage._validate_content(content=content, sha256=sha256)
 
     @staticmethod
@@ -239,6 +245,7 @@ class DemoLocalPrivateObjectStorage:
             _QUARANTINE_KEY.fullmatch(key) is None
             and _PUBLISHED_KEY.fullmatch(key) is None
             and _ORIGINAL_KEY.fullmatch(key) is None
+            and _D02_SOURCE_KEY.fullmatch(key) is None
         ):
             raise DemoEditingStorageError("STORAGE_KEY_INVALID", "private storage key is invalid")
         if "\\" in key or key.startswith("/") or "//" in key or "/../" in key:
