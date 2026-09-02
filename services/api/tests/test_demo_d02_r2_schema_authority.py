@@ -42,7 +42,7 @@ from mirror_api.demo_models import (
 )
 from mirror_api.models import Asset, AssetVariant, new_id
 
-_HEAD = "demo_0017_d10_context_queue"
+_HEAD = "demo_0018_d03_pose_evidence"
 _DOWN = "demo_0007_d02_recovered_qa"
 _R2_TOUCHED_TABLES = (
     "demo_synthetic_identities",

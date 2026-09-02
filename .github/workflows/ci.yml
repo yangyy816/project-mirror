@@ -320,9 +320,10 @@ jobs:
         if: env.DEMO_PROTOTYPE_TRACK == 'true'
         run: |
           python -m alembic -c services/api/alembic.ini heads > demo-prototype-migration-head.txt
-          test "$(tr -d '\r\n' < demo-prototype-migration-head.txt)" = "demo_0017_d10_context_queue (head)"
+          test "$(tr -d '\r\n' < demo-prototype-migration-head.txt)" = "demo_0018_d03_pose_evidence (head)"
           python -m alembic -c services/api/alembic.ini history > demo-prototype-migration-history.txt
-          grep -Fqx "demo_0016_d06_ref_profile_queue -> demo_0017_d10_context_queue (head), Add queued D10 Context compilation authority." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0017_d10_context_queue -> demo_0018_d03_pose_evidence (head), Add truthful versioned D03 repeat pose evidence." demo-prototype-migration-history.txt
+          grep -Fqx "demo_0016_d06_ref_profile_queue -> demo_0017_d10_context_queue, Add queued D10 Context compilation authority." demo-prototype-migration-history.txt
           grep -Fqx "demo_0015_d02_source_acq_pool -> demo_0016_d06_ref_profile_queue, Add queued D06 Reference Profile orchestration authority." demo-prototype-migration-history.txt
           grep -Fqx "demo_0014_d02_r2_e3_versioning -> demo_0015_d02_source_acq_pool, Add the D02 autonomous source acquisition budget pool." demo-prototype-migration-history.txt
           grep -Fqx "demo_0013_d07_publish_auth -> demo_0014_d02_r2_e3_versioning, Add the bounded D02-R2 Epoch 03 authority branches." demo-prototype-migration-history.txt
@@ -342,7 +343,7 @@ jobs:
           printf '%s\n' \
             "TRACK: DEMO_PROTOTYPE" \
             "COMMIT_SHA: $GITHUB_SHA" \
-            "DEMO_MIGRATION_HEAD: demo_0017_d10_context_queue" \
+            "DEMO_MIGRATION_HEAD: demo_0018_d03_pose_evidence" \
             "FORMAL_EVIDENCE_GENERATORS: NOT_RUN_ON_PROTOTYPE_HEAD" \
             "FORMAL_HEAD_AUTHORITY: 0014_m5_eval_authority" \
             "PRODUCTION_RELEASE: NOT_AUTHORIZED" \

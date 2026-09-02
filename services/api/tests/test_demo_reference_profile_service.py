@@ -424,7 +424,7 @@ async def test_populated_d06_downgrade_fails_closed(postgres_session: Session) -
         alembic_command.downgrade(config, "demo_0015_d02_source_acq_pool")
     postgres_session.expire_all()
     assert postgres_session.scalar(text("SELECT version_num FROM alembic_version")) == (
-        "demo_0017_d10_context_queue"
+        "demo_0018_d03_pose_evidence"
     )
 
 

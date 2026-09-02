@@ -796,7 +796,7 @@ async def test_context_queue_populated_downgrade_fails_closed(
                     connection.exec_driver_sql(
                         "SELECT version_num FROM alembic_version"
                     ).scalar_one()
-                    == "demo_0017_d10_context_queue"
+                    == "demo_0018_d03_pose_evidence"
                 )
                 assert (
                     connection.exec_driver_sql(

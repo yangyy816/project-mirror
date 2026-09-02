@@ -66,7 +66,7 @@ _AUTHORITY_EXCLUDED_COLUMNS = {
     "tombstoned_at",
 }
 
-_HEAD_DEMO_REVISION = "demo_0017_d10_context_queue"
+_HEAD_DEMO_REVISION = "demo_0018_d03_pose_evidence"
 
 
 @pytest.fixture
