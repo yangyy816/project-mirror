@@ -790,6 +790,16 @@ def validate_r2_admission_packet(value: object) -> None:
     deterministic equality checks.
     """
     if isinstance(value, Mapping):
+        supporting_row = value.get("supporting_row")
+        if (
+            isinstance(supporting_row, Mapping)
+            and supporting_row.get("schema_version")
+            == "mirror.demo/D02GenericSourceAuthorityRecord/v1"
+        ):
+            from mirror_api.demo_d02_generic_screening import validate_generic_runtime_packet
+
+            validate_generic_runtime_packet(value)
+            return
         generation_receipt = value.get("generation_receipt")
         if (
             isinstance(generation_receipt, Mapping)
@@ -1455,7 +1465,14 @@ def _validate_r2_source_m3_record(
     ):
         if record[key] != source[key]:
             _fail("R2 SourceM3 source authority binding is invalid")
-    verified_facts = validate_r2_facts(facts)
+    generic_source = source.get("schema_version") == "mirror.demo/D02GenericSourceManifestEntry/v1"
+    if generic_source:
+        verified_facts = facts
+        for key in ("source_measurement_observation", "source_repeat_certification"):
+            if not isinstance(verified_facts.get(key), Mapping):
+                _fail(f"generic SourceM3 facts lack {key}")
+    else:
+        verified_facts = validate_r2_facts(facts)
     observation = legacy.validate_measurement_observation(
         verified_facts["source_measurement_observation"], role="SOURCE"
     )
@@ -1469,8 +1486,8 @@ def _validate_r2_source_m3_record(
     for key in ("vision_model_manifest_digest", "runtime_manifest_digest", "topology_digest"):
         if (
             record[key] != observation[key]
-            or record[key] != source[key]
             or record[key] != execution_authority[key]
+            or (not generic_source and record[key] != source[key])
         ):
             _fail("R2 SourceM3 runtime authority is invalid")
     if (
@@ -1999,6 +2016,9 @@ def _validate_r2_upstream_execution_graph(
         source = sources[index // 3]
         packet = source_packets[index // 3]
         facts = packet.get("facts")
+        if not isinstance(facts, Mapping):
+            source_input = packet.get("source_input")
+            facts = source_input.get("formal_facts") if isinstance(source_input, Mapping) else None
         if not isinstance(facts, Mapping):
             _fail("R2 SourceM3 admission facts are invalid")
         record = _validate_r2_source_m3_record(
@@ -3622,6 +3642,25 @@ def validate_r2_report_payload(value: object) -> Mapping[str, Any]:
     payload = _exact(value, R2_REPORT_PAYLOAD_KEYS, "R2 Report v3 payload")
     for name, schema, count in R2_REPORT_GROUPS:
         group = payload[name]
+        if name == "ordered_source_manifest":
+            if not isinstance(group, list) or len(group) != 4:
+                _fail("R2 Report v3 ordered source manifest count is invalid")
+            for item in group:
+                if not isinstance(item, Mapping):
+                    _fail("R2 Report v3 source manifest entry is invalid")
+                member = item
+                member_schema = member.get("schema_version")
+                if member_schema == R2_SOURCE_ENTRY_SCHEMA:
+                    _replay_member(member, R2_SOURCE_ENTRY_SCHEMA, name)
+                elif member_schema == "mirror.demo/D02GenericSourceManifestEntry/v1":
+                    _replay_member(
+                        member,
+                        "mirror.demo/D02GenericSourceManifestEntry/v1",
+                        name,
+                    )
+                else:
+                    _fail("ordered_source_manifest schema is invalid")
+            continue
         if name == "pair_quality_evidence":
             _pair_records(group)
             continue

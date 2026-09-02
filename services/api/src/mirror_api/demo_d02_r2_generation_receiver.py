@@ -220,6 +220,17 @@ class BoundPngFile:
     def validate(self) -> ReceivedPng:
         """Re-read the bound file and replay its PNG facts without copying it."""
 
+        data = self.read_png_bytes()
+        return _validate_png_bytes(data)
+
+    def read_png_bytes(self) -> bytes:
+        """Return exact validated bytes to an in-process D02 runtime consumer.
+
+        The file locator remains encapsulated.  Callers receive only the bytes
+        of this already-bound identity after the same no-follow and ancestor
+        replay used by :meth:`validate`.
+        """
+
         _validate_ancestor_identities(self._ancestor_identities, code="INVALID_PROVIDER_FILE")
         data = _read_file_bytes_no_follow(
             self._path,
@@ -232,9 +243,9 @@ class BoundPngFile:
             self._identity,
             code="INVALID_PROVIDER_FILE",
         )
-        facts = _validate_png_bytes(data)
+        _validate_png_bytes(data)
         _validate_ancestor_identities(self._ancestor_identities, code="INVALID_PROVIDER_FILE")
-        return facts
+        return data
 
     def copy_create_new(self, *, destination: PreallocatedDestination) -> ReceivedPng:
         """Copy only this bound identity into a create-new durable destination."""

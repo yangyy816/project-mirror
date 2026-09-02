@@ -76,6 +76,7 @@ class ManualReviewAdapter(Protocol):
         case_entry: Mapping[str, object],
         m4_record: Mapping[str, object],
         decision_sequence: int,
+        manual_review_policy_digest: str,
     ) -> Mapping[str, object]: ...
 
 
@@ -490,6 +491,10 @@ def _build_manuals(
     m4_records: Sequence[Mapping[str, object]],
     execution_authority: Mapping[str, object],
 ) -> list[dict[str, Any]]:
+    manual_review_policy_digest = cast(
+        str,
+        authority._r2_execution_authority(execution_authority)["manual_review_policy_digest"],
+    )
     ordered = sorted(enumerate(cases), key=lambda item: cast(str, item[1]["case_id"]))
     records: list[dict[str, Any]] = []
     for decision_sequence, (index, case) in enumerate(ordered, start=1):
@@ -499,6 +504,7 @@ def _build_manuals(
                 case_entry=case,
                 m4_record=m4_records[index * 2],
                 decision_sequence=decision_sequence,
+                manual_review_policy_digest=manual_review_policy_digest,
             )
         )
         fields["decision_sequence"] = decision_sequence
@@ -529,10 +535,24 @@ def _measurement_bindings(observation: Mapping[str, object]) -> measurement.Auth
     )
 
 
+def _packet_facts(packet: Mapping[str, object]) -> Mapping[str, object]:
+    """Read facts from either a legacy packet or its generic input projection."""
+
+    facts = packet.get("facts")
+    if isinstance(facts, Mapping):
+        return facts
+    source_input = packet.get("source_input")
+    if isinstance(source_input, Mapping):
+        generic_facts = source_input.get("formal_facts")
+        if isinstance(generic_facts, Mapping):
+            return generic_facts
+    raise ScreeningExecutionError("source packet facts are invalid")
+
+
 def _replay_source_certificate(
     packet: Mapping[str, object], records: Sequence[Mapping[str, object]]
 ) -> None:
-    facts = _required_mapping(packet, "facts")
+    facts = _packet_facts(packet)
     expected = _required_mapping(facts, "source_repeat_certification")
     observation = _required_mapping(records[0], "measurement_observation")
     replay = measurement.build_source_repeat_certification(
