@@ -18,6 +18,8 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from mirror_api import demo_d02_generic_admission as d02_generic
+from mirror_api import demo_d02_generic_screening as d02_screening
 from mirror_api.demo_editing_service import (
     ArtifactState,
     EditArtifact,
@@ -34,8 +36,13 @@ from mirror_api.demo_effect_verifier import (
     VerificationStatus,
 )
 from mirror_api.demo_idempotency import canonical_json_bytes, semantic_request_digest
+from mirror_api.demo_measurement_quality import JsonValue, mirror_demo_digest
 from mirror_api.demo_models import (
+    D02SelectedSourceManifest,
+    D02SourceAcquisitionRun,
     DemoActor,
+    DemoD02R2Epoch2Admission,
+    DemoD02R2SourceAuthority,
     DemoDesiredDeltaProfile,
     DemoEditArtifact,
     DemoEditArtifactEvent,
@@ -45,6 +52,7 @@ from mirror_api.demo_models import (
     DemoIdentityConstraints,
     DemoImageVersion,
     DemoJobBinding,
+    DemoPairScreeningReport,
     DemoSession,
     DemoStyleProfile,
     DemoToolRun,
@@ -71,6 +79,7 @@ _TERMINAL_EVENTS = frozenset({"PROMOTED", "REJECTED", "CANCELLED", "CLEANED"})
 _ID = re.compile(r"^[0-9a-f]{32}$")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _PUBLISHED_KEY = re.compile(r"^demo-published/v1/[0-9a-f]{32}/[0-9a-f]{64}$")
+_D02_INTERNAL_STORAGE_PREFIX = "internal-synthetic/v1/d02/"
 _NON_AUTHORITY_COLUMNS = frozenset(
     {
         "id",
@@ -113,6 +122,8 @@ class SqlAlchemyDemoEditingRepository:
                     raise DemoEditingRepositoryError(
                         "SOURCE_ASSET_UNAVAILABLE", "editing source authority is unavailable"
                     )
+                if _is_d02_internal_asset(source):
+                    await self._require_generic_d02_source_authority(session, source)
                 await self._require_profile_digest(
                     session,
                     DemoDesiredDeltaProfile,
@@ -668,6 +679,13 @@ class SqlAlchemyDemoEditingRepository:
             raise DemoEditingRepositoryError(
                 "EXECUTION_AUTHORITY_MISMATCH", "execution authority does not match command"
             )
+        source = await session.get(Asset, command.source_asset_id)
+        if source is None or source.sha256 != command.source_asset_sha256:
+            raise DemoEditingRepositoryError(
+                "SOURCE_AUTHORITY_MISMATCH", "execution source authority is unavailable"
+            )
+        if _is_d02_internal_asset(source):
+            await self._require_generic_d02_source_authority(session, source)
         if (command.parent_job_id is None) != (command.parent_job_attempt_id is None):
             raise DemoEditingRepositoryError(
                 "PARENT_EXECUTION_AUTHORITY_MISMATCH",
@@ -1226,6 +1244,212 @@ class SqlAlchemyDemoEditingRepository:
             )
 
     @staticmethod
+    async def _require_generic_d02_source_authority(session: AsyncSession, source: Asset) -> None:
+        """Require a completed public D02 generic admission for a D02 source."""
+        if (
+            source.deleted_at is not None
+            or not source.synthetic
+            or source.asset_role != "synthetic"
+            or source.internal_purpose != "synthetic_dataset"
+            or source.mime_type != "image/jpeg"
+        ):
+            raise DemoEditingRepositoryError(
+                "D02_SOURCE_AUTHORITY_MISMATCH", "D02 source Asset is invalid"
+            )
+        authorities = list(
+            await session.scalars(
+                select(DemoD02R2SourceAuthority).where(
+                    DemoD02R2SourceAuthority.source_asset_id == source.id,
+                    DemoD02R2SourceAuthority.source_asset_sha256 == source.sha256,
+                    DemoD02R2SourceAuthority.schema_version == d02_generic.SOURCE_SCHEMA,
+                )
+            )
+        )
+        if len(authorities) != 1:
+            raise DemoEditingRepositoryError(
+                "D02_SOURCE_AUTHORITY_UNAVAILABLE", "D02 source authority is unavailable"
+            )
+        authority = authorities[0]
+        if (
+            authority.selected_source_manifest_id is None
+            or authority.execution_epoch != "D02_AUTONOMOUS_V1"
+            or not _canonical_authority_matches(authority, d02_generic.SOURCE_SCHEMA)
+        ):
+            raise DemoEditingRepositoryError(
+                "D02_SOURCE_AUTHORITY_MISMATCH", "D02 source authority is invalid"
+            )
+        manifest = await session.scalar(
+            select(D02SelectedSourceManifest).where(
+                D02SelectedSourceManifest.id == authority.selected_source_manifest_id,
+                D02SelectedSourceManifest.schema_version
+                == "mirror.demo/D02SelectedSourceManifest/v1",
+                D02SelectedSourceManifest.manifest_state == "FINALIZED",
+            )
+        )
+        if manifest is None:
+            raise DemoEditingRepositoryError(
+                "D02_ADMISSION_UNAVAILABLE", "completed D02 admission is unavailable"
+            )
+        admission = await session.scalar(
+            select(DemoD02R2Epoch2Admission).where(
+                DemoD02R2Epoch2Admission.selected_source_manifest_id == manifest.id,
+                DemoD02R2Epoch2Admission.schema_version == d02_generic.ADMISSION_SCHEMA,
+                DemoD02R2Epoch2Admission.execution_epoch == "D02_AUTONOMOUS_V1",
+                DemoD02R2Epoch2Admission.admission_state == "COMPLETED",
+            )
+        )
+        if admission is None:
+            raise DemoEditingRepositoryError(
+                "D02_ADMISSION_UNAVAILABLE", "completed D02 admission is unavailable"
+            )
+        report = await session.scalar(
+            select(DemoPairScreeningReport).where(
+                DemoPairScreeningReport.id == admission.screening_report_id,
+                DemoPairScreeningReport.schema_version == d02_screening.REPORT_SCHEMA,
+                DemoPairScreeningReport.status == "PASSED",
+                DemoPairScreeningReport.report_digest == admission.screening_report_digest,
+            )
+        )
+        run = await session.get(D02SourceAcquisitionRun, manifest.acquisition_run_id)
+        if (
+            report is None
+            or run is None
+            or run.run_state != "ADMITTED"
+            or manifest.acquisition_run_id != run.id
+            or manifest.cohort_spec_id != run.cohort_spec_id
+            or not _canonical_authority_matches(
+                manifest, "mirror.demo/D02SelectedSourceManifest/v1"
+            )
+            or not _canonical_authority_matches(run, "mirror.demo/D02SourceAcquisitionRun/v1")
+            or not _canonical_authority_matches(admission, d02_generic.ADMISSION_SCHEMA)
+            or not _canonical_authority_matches(report, d02_screening.REPORT_SCHEMA)
+            or report.report_digest
+            != mirror_demo_digest(
+                d02_screening.REPORT_SCHEMA,
+                cast(Mapping[str, JsonValue], report.report_payload),
+            )
+            or admission.selected_source_manifest_id != manifest.id
+            or admission.source_manifest_digest != report.source_manifest_digest
+            or admission.source_authority_count != 4
+            or admission.synthetic_identity_count != 4
+            or admission.question_pair_count != 16
+            or admission.selected_result_side_count != 32
+            or report.source_count != 4
+            or report.case_count != 48
+            or report.source_m3_repeat_count != 12
+            or report.m4_execution_count != 96
+            or report.result_m3_repeat_count != 144
+            or report.selected_pair_count != 16
+            or report.selected_result_side_count != 32
+        ):
+            raise DemoEditingRepositoryError(
+                "D02_ADMISSION_UNAVAILABLE", "completed D02 admission is unavailable"
+            )
+        formal_sources = list(
+            await session.scalars(
+                select(DemoD02R2SourceAuthority).where(
+                    DemoD02R2SourceAuthority.selected_source_manifest_id == manifest.id,
+                    DemoD02R2SourceAuthority.schema_version == d02_generic.SOURCE_SCHEMA,
+                )
+            )
+        )
+        if (
+            len(formal_sources) != 4
+            or len({row.source_asset_id for row in formal_sources}) != 4
+            or {row.acquisition_candidate_id for row in formal_sources}
+            != set(manifest.ordered_candidate_ids)
+            or {row.manifest_position for row in formal_sources} != {1, 2, 3, 4}
+        ):
+            raise DemoEditingRepositoryError(
+                "D02_SOURCE_AUTHORITY_MISMATCH", "D02 formal source set is invalid"
+            )
+        await SqlAlchemyDemoEditingRepository._validate_d02_report_assets(
+            session, report, source.id
+        )
+
+    @staticmethod
+    async def _validate_d02_report_assets(
+        session: AsyncSession, report: DemoPairScreeningReport, source_asset_id: str
+    ) -> None:
+        payload = report.report_payload
+        asset_entries = payload.get("asset_authority_manifest")
+        variant_entries = payload.get("asset_variant_manifest")
+        if (
+            not isinstance(asset_entries, list)
+            or not isinstance(variant_entries, list)
+            or len(asset_entries) != 52
+            or len(variant_entries) != 48
+        ):
+            raise DemoEditingRepositoryError(
+                "D02_REPORT_AUTHORITY_MISMATCH", "D02 Report cardinality is invalid"
+            )
+        if not all(isinstance(item, Mapping) for item in asset_entries + variant_entries):
+            raise DemoEditingRepositoryError(
+                "D02_REPORT_AUTHORITY_MISMATCH", "D02 Report entries are invalid"
+            )
+        asset_ids = [cast(str, item.get("asset_id")) for item in asset_entries]
+        variant_ids = [cast(str, item.get("variant_id")) for item in variant_entries]
+        if len(set(asset_ids)) != 52 or len(set(variant_ids)) != 48:
+            raise DemoEditingRepositoryError(
+                "D02_REPORT_AUTHORITY_MISMATCH", "D02 Report identifiers are invalid"
+            )
+        asset_rows = list(await session.scalars(select(Asset).where(Asset.id.in_(asset_ids))))
+        variant_rows = list(
+            await session.scalars(select(AssetVariant).where(AssetVariant.id.in_(variant_ids)))
+        )
+        if len(asset_rows) != 52 or len(variant_rows) != 48:
+            raise DemoEditingRepositoryError(
+                "D02_REPORT_AUTHORITY_MISMATCH", "D02 Report rows are unavailable"
+            )
+        assets = {row.id: row for row in asset_rows}
+        variants = {row.id: row for row in variant_rows}
+        source_ids: set[str] = set()
+        for item in asset_entries:
+            asset_row = assets.get(cast(str, item.get("asset_id")))
+            if asset_row is None or asset_row.deleted_at is not None:
+                raise DemoEditingRepositoryError(
+                    "D02_REPORT_AUTHORITY_MISMATCH", "D02 Asset is unavailable"
+                )
+            expected = d02_screening.build_asset_manifest_entry(
+                asset_id=asset_row.id,
+                sha256=asset_row.sha256,
+                byte_size=asset_row.byte_size,
+                mime_type=asset_row.mime_type,
+                width=asset_row.width,
+                height=asset_row.height,
+                asset_kind=cast(str, item.get("asset_kind")),
+                source_ordinal=cast(int, item.get("source_ordinal")),
+                case_ordinal=cast(int | None, item.get("case_ordinal")),
+            )
+            if dict(item) != expected:
+                raise DemoEditingRepositoryError(
+                    "D02_REPORT_AUTHORITY_MISMATCH", "D02 Asset does not replay"
+                )
+            if item.get("asset_kind") == "SOURCE":
+                source_ids.add(asset_row.id)
+        if source_asset_id not in source_ids or len(source_ids) != 4:
+            raise DemoEditingRepositoryError(
+                "D02_REPORT_AUTHORITY_MISMATCH", "D02 source is not admitted"
+            )
+        for item in variant_entries:
+            variant_row = variants.get(cast(str, item.get("variant_id")))
+            if variant_row is None:
+                raise DemoEditingRepositoryError(
+                    "D02_REPORT_AUTHORITY_MISMATCH", "D02 AssetVariant is unavailable"
+                )
+            expected = d02_screening.build_variant_manifest_entry(
+                variant_id=variant_row.id,
+                source_asset_id=variant_row.source_asset_id,
+                result_asset_id=variant_row.result_asset_id,
+                source_ordinal=cast(int, item.get("source_ordinal")),
+                case_ordinal=cast(int, item.get("case_ordinal")),
+            )
+            if variant_row.variant_type != expected["variant_type"] or dict(item) != expected:
+                raise DemoEditingRepositoryError(
+                    "D02_REPORT_AUTHORITY_MISMATCH", "D02 AssetVariant does not replay"
+                )
+
+    @staticmethod
     async def _require_profile_digest(
         session: AsyncSession,
         model: type[DemoDesiredDeltaProfile]
@@ -1330,6 +1554,20 @@ def _validate_materialized_replay(artifact: EditArtifact, materialized: Material
         raise DemoEditingRepositoryError(
             "MATERIALIZATION_REPLAY_MISMATCH", "materialization replay is inconsistent"
         )
+
+
+def _is_d02_internal_asset(asset: Asset) -> bool:
+    return asset.storage_key.startswith(_D02_INTERNAL_STORAGE_PREFIX)
+
+
+def _canonical_authority_matches(row: Any, schema: str) -> bool:
+    payload = getattr(row, "canonical_payload", None)
+    return (
+        getattr(row, "schema_version", None) == schema
+        and isinstance(payload, Mapping)
+        and getattr(row, "content_digest", None)
+        == mirror_demo_digest(schema, cast(Mapping[str, JsonValue], payload))
+    )
 
 
 def _validate_published_asset(

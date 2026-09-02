@@ -7,6 +7,7 @@ import hashlib
 import io
 import os
 from collections.abc import Generator
+from copy import deepcopy
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -16,6 +17,7 @@ from PIL import Image
 from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session
+from test_demo_d02_generic_admission import _generic_admission_bundle
 from test_demo_schema_authority_invariants import (
     _insert_demo_row,
     _insert_full_demo_graph,
@@ -23,6 +25,7 @@ from test_demo_schema_authority_invariants import (
     _truncate_formal_synthetic_fixture_authority,
 )
 
+from mirror_api.demo_d02_generic_admission_coordinator import D02GenericAdmissionCoordinator
 from mirror_api.demo_editing_asset_loader import LocalDemoAssetByteLoader
 from mirror_api.demo_editing_commands import (
     CreateDemoEditingSession,
@@ -31,6 +34,10 @@ from mirror_api.demo_editing_commands import (
     DemoEditingCommandService,
     ExecuteDemoEditPlan,
     RestoreDemoImageVersion,
+)
+from mirror_api.demo_editing_repository import (
+    DemoEditingRepositoryError,
+    SqlAlchemyDemoEditingRepository,
 )
 from mirror_api.demo_editing_runtime import DemoEditingRuntime
 from mirror_api.demo_editing_storage import (
@@ -41,11 +48,13 @@ from mirror_api.demo_editing_task_contract import DemoEditingOperation, DemoEdit
 from mirror_api.demo_editing_verifier_adapter import DemoDeterministicEditVerifier
 from mirror_api.demo_idempotency import DemoIdempotencyPayloadConflict
 from mirror_api.demo_models import (
+    D02SelectedSourceManifest,
     DemoEditArtifact,
     DemoEditingSession,
     DemoIdentityConstraints,
     DemoImageVersion,
     DemoJobBinding,
+    DemoPairScreeningReport,
     DemoToolRun,
     DemoVerificationResult,
 )
@@ -156,6 +165,82 @@ def _message(
         operation=operation,
         request_id=accepted.request_id,
     )
+
+
+@pytest.mark.asyncio
+async def test_d02_generic_source_authority_is_required_and_revalidated(
+    postgres_session: Session, tmp_path: Path
+) -> None:
+    """D07 accepts only a complete public generic D02 SOURCE authority."""
+    bundle = _generic_admission_bundle(postgres_session, tmp_path)
+    database_url = os.environ["TEST_DATABASE_URL"]
+    engine = create_async_engine(database_url)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        postgres_session.commit()
+        await D02GenericAdmissionCoordinator(session_factory=sessions).admit(
+            idempotency_key="d07-generic-source", bundle=bundle
+        )
+        source_id = cast(str, bundle.source_rows[0]["source_asset_id"])
+        result_entry = next(
+            entry
+            for entry in cast(
+                list[dict[str, object]],
+                bundle.report_row["report_payload"]["asset_authority_manifest"],
+            )
+            if entry["asset_kind"] == "RESULT"
+        )
+        repository = SqlAlchemyDemoEditingRepository(session_factory=sessions)
+        async with sessions() as session:
+            source = await session.get(Asset, source_id)
+            result = await session.get(Asset, cast(str, result_entry["asset_id"]))
+            assert source is not None and result is not None
+            await repository._require_generic_d02_source_authority(session, source)
+            with pytest.raises(DemoEditingRepositoryError) as result_rejected:
+                await repository._require_generic_d02_source_authority(session, result)
+            assert result_rejected.value.code == "D02_SOURCE_AUTHORITY_UNAVAILABLE"
+
+        async with sessions() as session:
+            source = await session.get(Asset, source_id)
+            report = await session.get(DemoPairScreeningReport, cast(str, bundle.report_row["id"]))
+            assert source is not None and report is not None
+            tampered_report = deepcopy(report.report_payload)
+            assets = cast(list[dict[str, object]], tampered_report["asset_authority_manifest"])
+            tampered_report["asset_authority_manifest"] = assets[:-1]
+            report.report_payload = tampered_report
+            with session.no_autoflush:
+                with pytest.raises(DemoEditingRepositoryError) as report_rejected:
+                    await repository._require_generic_d02_source_authority(session, source)
+            assert report_rejected.value.code == "D02_ADMISSION_UNAVAILABLE"
+            await session.rollback()
+
+        async with sessions() as session:
+            source = await session.get(Asset, source_id)
+            manifest = await session.get(
+                D02SelectedSourceManifest, cast(str, bundle.selected_manifest["id"])
+            )
+            assert source is not None and manifest is not None
+            manifest.canonical_payload = {
+                **manifest.canonical_payload,
+                "source_count": 3,
+            }
+            with session.no_autoflush:
+                with pytest.raises(DemoEditingRepositoryError) as manifest_rejected:
+                    await repository._require_generic_d02_source_authority(session, source)
+            assert manifest_rejected.value.code == "D02_ADMISSION_UNAVAILABLE"
+            await session.rollback()
+
+        async with sessions() as session:
+            source = await session.get(Asset, source_id)
+            assert source is not None
+            source.sha256 = hashlib.sha256(b"wrong-d02-source-sha").hexdigest()
+            with session.no_autoflush:
+                with pytest.raises(DemoEditingRepositoryError) as changed_rejected:
+                    await repository._require_generic_d02_source_authority(session, source)
+            assert changed_rejected.value.code == "D02_SOURCE_AUTHORITY_UNAVAILABLE"
+            await session.rollback()
+    finally:
+        await engine.dispose()
 
 
 @pytest.mark.asyncio
