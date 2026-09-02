@@ -32,6 +32,7 @@ from mirror_api.demo_editing_commands import (
     CreateDemoEditPlan,
     DemoEditingCommandAccepted,
     DemoEditingCommandService,
+    DemoEditingCommandUnavailable,
     ExecuteDemoEditPlan,
     RestoreDemoImageVersion,
 )
@@ -169,7 +170,7 @@ def _message(
 
 @pytest.mark.asyncio
 async def test_d02_generic_source_authority_is_required_and_revalidated(
-    postgres_session: Session, tmp_path: Path
+    postgres_session: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """D07 accepts only a complete public generic D02 SOURCE authority."""
     bundle = _generic_admission_bundle(postgres_session, tmp_path)
@@ -190,11 +191,39 @@ async def test_d02_generic_source_authority_is_required_and_revalidated(
             )
             if entry["asset_kind"] == "RESULT"
         )
+        result_id = cast(str, result_entry["asset_id"])
+        monkeypatch.setattr(
+            "mirror_api.demo_editing_repository._is_d02_internal_asset",
+            lambda asset: asset.id in {source_id, result_id},
+        )
         repository = SqlAlchemyDemoEditingRepository(session_factory=sessions)
+        commands = DemoEditingCommandService(session_factory=sessions)
         async with sessions() as session:
             source = await session.get(Asset, source_id)
-            result = await session.get(Asset, cast(str, result_entry["asset_id"]))
+            result = await session.get(Asset, result_id)
             assert source is not None and result is not None
+            selected = await commands._source_asset(
+                session,
+                CreateDemoEditingSession(
+                    "a" * 32,
+                    "b" * 32,
+                    "d07-d02-source-selection",
+                    "d07-d02-source-selection-request",
+                    source_asset_id=source.id,
+                ),
+            )
+            assert selected.id == source.id
+            with pytest.raises(DemoEditingCommandUnavailable):
+                await commands._source_asset(
+                    session,
+                    CreateDemoEditingSession(
+                        "a" * 32,
+                        "b" * 32,
+                        "d07-d02-result-selection",
+                        "d07-d02-result-selection-request",
+                        source_asset_id=result.id,
+                    ),
+                )
             await repository._require_generic_d02_source_authority(session, source)
             with pytest.raises(DemoEditingRepositoryError) as result_rejected:
                 await repository._require_generic_d02_source_authority(session, result)

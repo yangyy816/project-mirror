@@ -35,6 +35,8 @@ def _write(root: Path, reference: DemoAssetByteReference, content: bytes) -> Pat
     [
         f"internal-synthetic/v1/normalized/{'1' * 64}",
         f"internal-synthetic/v1/variants/{'2' * 64}",
+        f"internal-synthetic/v1/d02/source/{'7' * 32}",
+        f"internal-synthetic/v1/d02/result/{'8' * 32}",
         f"demo-original/v1/{'3' * 32}/{'4' * 64}",
         f"demo-published/v1/{'5' * 32}/{'6' * 64}",
     ],

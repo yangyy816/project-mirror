@@ -122,8 +122,7 @@ class SqlAlchemyDemoEditingRepository:
                     raise DemoEditingRepositoryError(
                         "SOURCE_ASSET_UNAVAILABLE", "editing source authority is unavailable"
                     )
-                if _is_d02_internal_asset(source):
-                    await self._require_generic_d02_source_authority(session, source)
+                await require_d02_source_authority_if_applicable(session, source)
                 await self._require_profile_digest(
                     session,
                     DemoDesiredDeltaProfile,
@@ -684,8 +683,22 @@ class SqlAlchemyDemoEditingRepository:
             raise DemoEditingRepositoryError(
                 "SOURCE_AUTHORITY_MISMATCH", "execution source authority is unavailable"
             )
-        if _is_d02_internal_asset(source):
-            await self._require_generic_d02_source_authority(session, source)
+        await require_d02_source_authority_if_applicable(session, source)
+        editing = await session.get(DemoEditingSession, plan.editing_session_id)
+        root_source = (
+            await session.get(Asset, editing.source_asset_id) if editing is not None else None
+        )
+        if (
+            editing is None
+            or root_source is None
+            or root_source.deleted_at is not None
+            or root_source.sha256 != editing.source_asset_sha256
+        ):
+            raise DemoEditingRepositoryError(
+                "ROOT_SOURCE_AUTHORITY_MISMATCH",
+                "editing root source authority is unavailable",
+            )
+        await require_d02_source_authority_if_applicable(session, root_source)
         if (command.parent_job_id is None) != (command.parent_job_attempt_id is None):
             raise DemoEditingRepositoryError(
                 "PARENT_EXECUTION_AUTHORITY_MISMATCH",
@@ -1560,6 +1573,13 @@ def _is_d02_internal_asset(asset: Asset) -> bool:
     return asset.storage_key.startswith(_D02_INTERNAL_STORAGE_PREFIX)
 
 
+async def require_d02_source_authority_if_applicable(session: AsyncSession, source: Asset) -> None:
+    """Revalidate D02 terminal authority without affecting ordinary synthetic Assets."""
+
+    if _is_d02_internal_asset(source):
+        await SqlAlchemyDemoEditingRepository._require_generic_d02_source_authority(session, source)
+
+
 def _canonical_authority_matches(row: Any, schema: str) -> bool:
     payload = getattr(row, "canonical_payload", None)
     return (
@@ -1686,4 +1706,8 @@ def _raise_unreachable(message: str) -> NoReturn:
     raise DemoEditingRepositoryError("UNREACHABLE", message)
 
 
-__all__ = ["DemoEditingRepositoryError", "SqlAlchemyDemoEditingRepository"]
+__all__ = [
+    "DemoEditingRepositoryError",
+    "SqlAlchemyDemoEditingRepository",
+    "require_d02_source_authority_if_applicable",
+]

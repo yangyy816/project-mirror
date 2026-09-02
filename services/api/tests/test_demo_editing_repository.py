@@ -38,8 +38,11 @@ from mirror_api.demo_effect_verifier import (
 )
 from mirror_api.demo_job_service import DemoJobService
 from mirror_api.demo_models import (
+    DemoEditArtifact,
     DemoEditArtifactEvent,
+    DemoEditingSession,
     DemoEditOperation,
+    DemoEditPlan,
     DemoImageVersion,
     DemoJobBinding,
     DemoToolRun,
@@ -220,6 +223,47 @@ def _materialized(command: ExecutionCommand) -> MaterializedObject:
         engine_digest=command.engine_digest,
         config_digest=command.config_digest,
     )
+
+
+@pytest.mark.asyncio
+async def test_execution_revalidates_root_source_before_reservation(
+    postgres_session: Session,
+) -> None:
+    command, repository, engine = await _execution_context(postgres_session)
+    try:
+        operation = postgres_session.get(DemoEditOperation, command.operation_id)
+        assert operation is not None
+        plan = postgres_session.get(DemoEditPlan, operation.edit_plan_id)
+        assert plan is not None
+        editing = postgres_session.get(DemoEditingSession, plan.editing_session_id)
+        assert editing is not None
+        root_source = postgres_session.get(Asset, editing.source_asset_id)
+        assert root_source is not None
+        root_source.deleted_at = utcnow()
+        postgres_session.commit()
+        before = {
+            DemoEditArtifact: postgres_session.scalar(
+                select(func.count()).select_from(DemoEditArtifact)
+            ),
+            DemoEditArtifactEvent: postgres_session.scalar(
+                select(func.count()).select_from(DemoEditArtifactEvent)
+            ),
+            DemoImageVersion: postgres_session.scalar(
+                select(func.count()).select_from(DemoImageVersion)
+            ),
+            AssetVariant: postgres_session.scalar(select(func.count()).select_from(AssetVariant)),
+        }
+        key = f"demo-quarantine/{command.actor_id}/{command.execution_job_binding_id}/"
+        with pytest.raises(DemoEditingRepositoryError) as rejected:
+            await repository.reserve_execution(
+                command, key + f"{command.operation_id}/{command.formal_job_attempt_id}"
+            )
+        assert rejected.value.code == "ROOT_SOURCE_AUTHORITY_MISMATCH"
+        postgres_session.expire_all()
+        for model, count in before.items():
+            assert postgres_session.scalar(select(func.count()).select_from(model)) == count
+    finally:
+        await engine.dispose()
 
 
 def _verification(

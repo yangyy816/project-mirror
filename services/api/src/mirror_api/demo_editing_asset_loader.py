@@ -14,6 +14,7 @@ _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _ALLOWED_DIRECTORY_KEY: Final = re.compile(
     r"^(?:"
     r"internal-synthetic/v1/(?:normalized|variants)/[0-9a-f]{64}|"
+    r"internal-synthetic/v1/d02/(?:source|result)/[0-9a-f]{32}|"
     r"demo-original/v1/[0-9a-f]{32}/[0-9a-f]{64}|"
     r"demo-published/v1/[0-9a-f]{32}/[0-9a-f]{64}"
     r")$"

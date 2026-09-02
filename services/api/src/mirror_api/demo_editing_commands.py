@@ -21,6 +21,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mirror_api.demo_edit_planner import TypedPlanInput, plan_operation
+from mirror_api.demo_editing_repository import (
+    DemoEditingRepositoryError,
+    require_d02_source_authority_if_applicable,
+)
 from mirror_api.demo_idempotency import (
     DemoIdempotencyPayloadConflict,
     canonical_json_bytes,
@@ -823,6 +827,7 @@ class DemoEditingCommandService:
             asset = await session.get(Asset, c.source_asset_id)
             if asset is None or not asset.synthetic or asset.deleted_at is not None:
                 raise DemoEditingCommandUnavailable("source Asset is unavailable")
+            await _require_d02_source_authority(session, asset)
             return asset
         image = await session.scalar(
             select(DemoImageVersion).where(
@@ -841,6 +846,7 @@ class DemoEditingCommandService:
             or asset.sha256 != image.result_asset_sha256
         ):
             raise DemoEditingCommandAuthorityCorruption("source ImageVersion Asset is invalid")
+        await _require_d02_source_authority(session, asset)
         return asset
 
     async def _profiles(
@@ -1037,6 +1043,13 @@ def restore_operation_id(parent_job_id: str, index: int = 0) -> str:
     if type(index) is not int or index < 0:
         raise DemoEditingCommandInputError("restore operation index is invalid")
     return _deterministic_id("D07RestoreOperation", parent_job_id, str(index))
+
+
+async def _require_d02_source_authority(session: AsyncSession, asset: Asset) -> None:
+    try:
+        await require_d02_source_authority_if_applicable(session, asset)
+    except DemoEditingRepositoryError as exc:
+        raise DemoEditingCommandUnavailable("source Asset is unavailable") from exc
 
 
 def _require_id(value: str, name: str) -> None:
