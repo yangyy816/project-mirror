@@ -23,6 +23,7 @@ from mirror_api.demo_d08_geometry_adapter import (
     GeometryExecutionAuthority,
     GeometryJobAttemptBinding,
     GeometryStableMaterializationCore,
+    operation_spec_digest,
     stable_config_digest,
     stable_engine_digest,
 )
@@ -111,9 +112,9 @@ class GeometryExecutionRequest:
             raise GeometryExecutionError(
                 "SOURCE_DIGEST_MISMATCH", "source bytes do not match authority root"
             )
-        if _operation_digest(self.operation) != self.authority.operation_digest:
+        if operation_spec_digest(self.operation) != self.authority.operation_spec_digest:
             raise GeometryExecutionError(
-                "OPERATION_DIGEST_MISMATCH", "operation is not authority-bound"
+                "OPERATION_SPEC_DIGEST_MISMATCH", "operation spec is not authority-bound"
             )
         parameters = self.operation.parameters
         if (
@@ -147,7 +148,8 @@ class GeometryExecutionRequest:
         return {
             "authority_digest": self.authority.authority_digest,
             "job_attempt": self.job_attempt.canonical_payload(),
-            "operation_digest": self.authority.operation_digest,
+            "operation_authority_digest": self.authority.operation_authority_digest,
+            "operation_spec_digest": self.authority.operation_spec_digest,
             "schema_version": GEOMETRY_EXECUTION_SCHEMA_VERSION,
         }
 
@@ -160,14 +162,19 @@ class GeometryAdapterRequest:
     """The only payload a fixed-case backend may receive."""
 
     authority: GeometryExecutionAuthority
-    operation_digest: str
+    operation_authority_digest: str
+    operation_spec_digest: str
     source_bytes: bytes = field(repr=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.authority, GeometryExecutionAuthority):
             raise GeometryExecutionError("INVALID_AUTHORITY", "adapter authority must be typed")
-        _digest(self.operation_digest, "operation_digest")
-        if self.operation_digest != self.authority.operation_digest:
+        _digest(self.operation_authority_digest, "operation_authority_digest")
+        _digest(self.operation_spec_digest, "operation_spec_digest")
+        if (
+            self.operation_authority_digest != self.authority.operation_authority_digest
+            or self.operation_spec_digest != self.authority.operation_spec_digest
+        ):
             raise GeometryExecutionError(
                 "OPERATION_DIGEST_MISMATCH", "adapter operation is not authority-bound"
             )
@@ -189,6 +196,8 @@ class GeometryAdapterResult:
     identity: GeometryBackendIdentity
     backend_execution_receipt: str
     authority_digest: str
+    operation_authority_digest: str
+    operation_spec_digest: str
     case_record_digest: str
     case_specification_digest: str
     case_binding_digest: str
@@ -317,7 +326,8 @@ def execute_geometry_operation(
 def _adapter_request(request: GeometryExecutionRequest) -> GeometryAdapterRequest:
     return GeometryAdapterRequest(
         authority=request.authority,
-        operation_digest=request.authority.operation_digest,
+        operation_authority_digest=request.authority.operation_authority_digest,
+        operation_spec_digest=request.authority.operation_spec_digest,
         source_bytes=request.source_bytes,
     )
 
@@ -332,6 +342,13 @@ def _validated_success(
         raise GeometryExecutionError("BACKEND_IDENTITY_MISMATCH", "result backend identity changed")
     if result.authority_digest != authority.authority_digest:
         raise GeometryExecutionError("AUTHORITY_MISMATCH", "result authority binding changed")
+    if (
+        result.operation_authority_digest != authority.operation_authority_digest
+        or result.operation_spec_digest != authority.operation_spec_digest
+    ):
+        raise GeometryExecutionError(
+            "OPERATION_DIGEST_MISMATCH", "result operation binding changed"
+        )
     case = authority.fixed_case
     if (
         result.case_record_digest != case.case_record_digest
@@ -384,7 +401,8 @@ def _validated_success(
     config_digest = stable_config_digest(authority, D08_VERIFIER_POLICY_VERSION)
     core = GeometryStableMaterializationCore(
         operation_id=authority.operation_id,
-        operation_digest=authority.operation_digest,
+        operation_authority_digest=authority.operation_authority_digest,
+        operation_spec_digest=authority.operation_spec_digest,
         authority_digest=authority.authority_digest,
         case_id=case.case_id,
         case_record_digest=case.case_record_digest,
@@ -415,7 +433,8 @@ def _validated_success(
     evidence = GeometryAttemptExecutionEvidence(
         job_attempt=request.job_attempt,
         operation_id=authority.operation_id,
-        operation_digest=authority.operation_digest,
+        operation_authority_digest=authority.operation_authority_digest,
+        operation_spec_digest=authority.operation_spec_digest,
         authority_digest=authority.authority_digest,
         stable_core_digest=core.stable_core_digest,
         backend_execution_receipt=result.backend_execution_receipt,
@@ -448,10 +467,6 @@ def _validate_geometry_operation(operation: OperationSpec) -> None:
         raise GeometryExecutionError(
             "INVALID_MAGNITUDE", "delta must be exactly plus or minus 15000 or 30000"
         )
-
-
-def _operation_digest(operation: OperationSpec) -> str:
-    return _content_digest(operation.canonical_payload())
 
 
 def _failure(

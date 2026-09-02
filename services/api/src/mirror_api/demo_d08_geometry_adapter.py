@@ -14,10 +14,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final
 
-from mirror_api.demo_operation_graph import canonical_json_bytes
+from mirror_api.demo_operation_graph import OperationSpec, canonical_json_bytes
 
 D08_SCHEMA_VERSION: Final = "mirror.demo/D08GeometryAdapter/v1"
 D08_VERIFIER_POLICY_VERSION: Final = "d08-independent-geometry-verifier-v1"
+D08_OPERATION_SPEC_DIGEST_SCHEMA_VERSION: Final = "mirror.demo/D08OperationSpecDigest/v1"
 FIXED_GEOMETRY_DIMENSIONS: Final = frozenset({"jaw_width", "chin_height", "eye_spacing"})
 FIXED_GEOMETRY_MAGNITUDES_PPM: Final = frozenset({15_000, 30_000})
 FIXED_RESULT_MEDIA_TYPE: Final = "image/jpeg"
@@ -145,7 +146,8 @@ class GeometryExecutionAuthority:
     plan_id: str
     plan_digest: str
     operation_id: str
-    operation_digest: str
+    operation_authority_digest: str
+    operation_spec_digest: str
     input_image_version_id: str
     input_image_version_digest: str
     input_sequence: int
@@ -175,7 +177,8 @@ class GeometryExecutionAuthority:
         for name in (
             "editing_session_digest",
             "plan_digest",
-            "operation_digest",
+            "operation_authority_digest",
+            "operation_spec_digest",
             "input_image_version_digest",
             "input_asset_sha256",
             "root_source_asset_sha256",
@@ -236,7 +239,8 @@ class GeometryExecutionAuthority:
             "input_image_version_digest": self.input_image_version_digest,
             "input_image_version_id": self.input_image_version_id,
             "input_sequence": self.input_sequence,
-            "operation_digest": self.operation_digest,
+            "operation_authority_digest": self.operation_authority_digest,
+            "operation_spec_digest": self.operation_spec_digest,
             "operation_id": self.operation_id,
             "plan_digest": self.plan_digest,
             "plan_id": self.plan_id,
@@ -279,7 +283,8 @@ class GeometryStableMaterializationCore:
     """Attempt-independent materialization identity; it has no receipt or Job."""
 
     operation_id: str
-    operation_digest: str
+    operation_authority_digest: str
+    operation_spec_digest: str
     authority_digest: str
     case_id: str
     case_record_digest: str
@@ -316,7 +321,8 @@ class GeometryStableMaterializationCore:
         ):
             _id(getattr(self, name), name)
         for name in (
-            "operation_digest",
+            "operation_authority_digest",
+            "operation_spec_digest",
             "authority_digest",
             "case_record_digest",
             "case_specification_digest",
@@ -376,7 +382,8 @@ class GeometryStableMaterializationCore:
                 "input_asset_sha256",
                 "input_image_version_digest",
                 "input_image_version_id",
-                "operation_digest",
+                "operation_authority_digest",
+                "operation_spec_digest",
                 "operation_id",
                 "result_byte_size",
                 "result_height",
@@ -399,7 +406,8 @@ class GeometryAttemptExecutionEvidence:
 
     job_attempt: GeometryJobAttemptBinding
     operation_id: str
-    operation_digest: str
+    operation_authority_digest: str
+    operation_spec_digest: str
     authority_digest: str
     stable_core_digest: str
     backend_execution_receipt: str
@@ -410,7 +418,8 @@ class GeometryAttemptExecutionEvidence:
             raise GeometryAdapterAuthorityError("INVALID_JOB_ATTEMPT", "job attempt must be typed")
         _id(self.operation_id, "operation_id")
         for name in (
-            "operation_digest",
+            "operation_authority_digest",
+            "operation_spec_digest",
             "authority_digest",
             "stable_core_digest",
             "attempt_receipt_digest",
@@ -430,7 +439,8 @@ class GeometryAttemptExecutionEvidence:
             "authority_digest": self.authority_digest,
             "backend_execution_receipt": self.backend_execution_receipt,
             "job_attempt": self.job_attempt.canonical_payload(),
-            "operation_digest": self.operation_digest,
+            "operation_authority_digest": self.operation_authority_digest,
+            "operation_spec_digest": self.operation_spec_digest,
             "operation_id": self.operation_id,
             "schema_version": D08_SCHEMA_VERSION,
             "stable_core_digest": self.stable_core_digest,
@@ -464,7 +474,8 @@ def stable_config_digest(
             "case_binding_digest": case.case_binding_digest,
             "case_record_digest": case.case_record_digest,
             "case_specification_digest": case.case_specification_digest,
-            "operation_digest": authority.operation_digest,
+            "operation_authority_digest": authority.operation_authority_digest,
+            "operation_spec_digest": authority.operation_spec_digest,
             "output_policy_version": case.output_policy_version,
             "plan_digest": authority.plan_digest,
             "schema_version": D08_SCHEMA_VERSION,
@@ -472,6 +483,20 @@ def stable_config_digest(
             "warp_plan_digest": case.warp_plan_digest,
         }
     )
+
+
+def operation_spec_digest(operation: OperationSpec) -> str:
+    """Digest a frozen OperationSpec projection without reading repository state."""
+
+    if not isinstance(operation, OperationSpec):
+        raise GeometryAdapterAuthorityError(
+            "INVALID_OPERATION_SPEC", "operation spec must be typed"
+        )
+    return hashlib.sha256(
+        D08_OPERATION_SPEC_DIGEST_SCHEMA_VERSION.encode("utf-8")
+        + b"\n"
+        + canonical_json_bytes(operation.canonical_payload())
+    ).hexdigest()
 
 
 def _content_digest(payload: dict[str, object]) -> str:

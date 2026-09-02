@@ -51,7 +51,8 @@ def _authority() -> GeometryExecutionAuthority:
         plan_id="a" * 32,
         plan_digest="b" * 64,
         operation_id="c" * 32,
-        operation_digest="d" * 64,
+        operation_authority_digest="d" * 64,
+        operation_spec_digest="e" * 64,
         input_image_version_id="e" * 32,
         input_image_version_digest="f" * 64,
         input_sequence=0,
@@ -88,7 +89,8 @@ def test_stable_and_attempt_surfaces_are_separate_and_canonical() -> None:
     authority = _authority()
     core = GeometryStableMaterializationCore(
         operation_id=authority.operation_id,
-        operation_digest=authority.operation_digest,
+        operation_authority_digest=authority.operation_authority_digest,
+        operation_spec_digest=authority.operation_spec_digest,
         authority_digest=authority.authority_digest,
         case_id=authority.fixed_case.case_id,
         case_record_digest=authority.fixed_case.case_record_digest,
@@ -118,7 +120,8 @@ def test_stable_and_attempt_surfaces_are_separate_and_canonical() -> None:
     first = GeometryAttemptExecutionEvidence(
         GeometryJobAttemptBinding("6" * 32, "7" * 32, "7" * 64, "8" * 32, "9" * 64),
         authority.operation_id,
-        authority.operation_digest,
+        authority.operation_authority_digest,
+        authority.operation_spec_digest,
         authority.authority_digest,
         core.stable_core_digest,
         "a" * 64,
@@ -127,7 +130,8 @@ def test_stable_and_attempt_surfaces_are_separate_and_canonical() -> None:
     second = GeometryAttemptExecutionEvidence(
         GeometryJobAttemptBinding("6" * 32, "7" * 32, "7" * 64, "a" * 32, "b" * 64),
         authority.operation_id,
-        authority.operation_digest,
+        authority.operation_authority_digest,
+        authority.operation_spec_digest,
         authority.authority_digest,
         core.stable_core_digest,
         "b" * 64,

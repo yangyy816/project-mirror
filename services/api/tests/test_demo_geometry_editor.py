@@ -11,9 +11,9 @@ from mirror_api.demo_d08_geometry_adapter import (
     GeometryDirection,
     GeometryExecutionAuthority,
     GeometryJobAttemptBinding,
+    operation_spec_digest,
 )
 from mirror_api.demo_geometry_editor import (
-    GEOMETRY_EXECUTION_SCHEMA_VERSION,
     M4_QUALIFIED_ALGORITHM_VERSION,
     M4_QUALIFIED_CANDIDATE_ID,
     PENDING_INDEPENDENT_VERIFIER,
@@ -30,17 +30,12 @@ from mirror_api.demo_operation_graph import (
     OperationSpec,
     OperationType,
     PreserveKey,
-    canonical_json_bytes,
 )
 
 _SOURCE = b"canonical-source-jpeg-bytes"
 _RESULT = b"fresh-canonical-result-jpeg-bytes"
 _RUNTIME_DIGEST = "1" * 64
 _CONFIG_DIGEST = "2" * 64
-
-
-def _digest(value: object) -> str:
-    return hashlib.sha256(canonical_json_bytes(value)).hexdigest()
 
 
 def _identity() -> GeometryBackendIdentity:
@@ -65,14 +60,6 @@ def _operation(*, dimension: str = "jaw_width", delta: int = 15_000) -> Operatio
             "delta_ppm": delta,
         },
     )
-
-
-def _operation_digest(operation: OperationSpec) -> str:
-    return hashlib.sha256(
-        GEOMETRY_EXECUTION_SCHEMA_VERSION.encode()
-        + b"\n"
-        + canonical_json_bytes(operation.canonical_payload())
-    ).hexdigest()
 
 
 def _authority(operation: OperationSpec | None = None) -> GeometryExecutionAuthority:
@@ -109,7 +96,8 @@ def _authority(operation: OperationSpec | None = None) -> GeometryExecutionAutho
         plan_id="8" * 32,
         plan_digest="9" * 64,
         operation_id="a" * 32,
-        operation_digest=_operation_digest(operation),
+        operation_authority_digest="a" * 64,
+        operation_spec_digest=operation_spec_digest(operation),
         input_image_version_id="b" * 32,
         input_image_version_digest="c" * 64,
         input_sequence=0,
@@ -161,6 +149,8 @@ def _result(
         identity=_identity(),
         backend_execution_receipt=receipt,
         authority_digest=request.authority.authority_digest,
+        operation_authority_digest=request.authority.operation_authority_digest,
+        operation_spec_digest=request.authority.operation_spec_digest,
         case_record_digest=request.authority.fixed_case.case_record_digest,
         case_specification_digest=request.authority.fixed_case.case_specification_digest,
         case_binding_digest=request.authority.fixed_case.case_binding_digest,
@@ -189,6 +179,7 @@ def test_fixed_case_execution_is_pending_verifier_and_never_publishable() -> Non
     assert outcome.publishable is False
     assert outcome.ready_for_verification is True
     assert outcome.success is not None
+    assert request.authority.operation_authority_digest != request.authority.operation_spec_digest
     assert outcome.success.result_sha256 == hashlib.sha256(_RESULT).hexdigest()
     assert outcome.success.stable_core.authority_digest == request.authority.authority_digest
     assert (
@@ -203,6 +194,13 @@ def test_fixed_case_execution_is_pending_verifier_and_never_publishable() -> Non
         outcome.success.stable_core.case_binding_digest
         == request.authority.fixed_case.case_binding_digest
     )
+    assert (
+        outcome.success.stable_core.operation_authority_digest
+        == request.authority.operation_authority_digest
+    )
+    assert (
+        outcome.success.stable_core.operation_spec_digest == request.authority.operation_spec_digest
+    )
     assert outcome.success.attempt_evidence.job_attempt == request.job_attempt
     assert backend.received is not None
     assert backend.received.authority is request.authority
@@ -212,6 +210,14 @@ def test_fixed_case_execution_is_pending_verifier_and_never_publishable() -> Non
             "execution_job_binding_id"
         ]
         == request.job_attempt.execution_job_binding_id
+    )
+    assert (
+        outcome.success.attempt_evidence.operation_authority_digest
+        == request.authority.operation_authority_digest
+    )
+    assert (
+        outcome.success.attempt_evidence.operation_spec_digest
+        == request.authority.operation_spec_digest
     )
     assert {"measured_delta_ppm", "non_target_drift_ppm", "artifact_status"}.isdisjoint(
         {field.name for field in fields(GeometryAdapterResult)}
@@ -253,6 +259,8 @@ def test_stable_core_replays_across_attempts_but_receipts_are_attempt_specific()
         ({"backend_execution_receipt": "receipt-not-a-digest"}, "INVALID_DIGEST"),
         ({"source_asset_sha256": "a" * 64}, "SOURCE_LINEAGE_MISMATCH"),
         ({"authority_digest": "b" * 64}, "AUTHORITY_MISMATCH"),
+        ({"operation_authority_digest": "b" * 64}, "OPERATION_DIGEST_MISMATCH"),
+        ({"operation_spec_digest": "b" * 64}, "OPERATION_DIGEST_MISMATCH"),
         ({"case_binding_digest": "c" * 64}, "CASE_MISMATCH"),
         (
             {
@@ -291,7 +299,7 @@ def test_mismatched_operation_and_missing_or_wrong_backend_fail_closed() -> None
             job_attempt=GeometryJobAttemptBinding("4" * 32, "5" * 32, "5" * 64, "3" * 32, "6" * 64),
             source_bytes=_SOURCE,
         )
-    assert error.value.code == "OPERATION_DIGEST_MISMATCH"
+    assert error.value.code == "OPERATION_SPEC_DIGEST_MISMATCH"
     request = _request()
     assert (
         execute_geometry_operation(request, None).state
