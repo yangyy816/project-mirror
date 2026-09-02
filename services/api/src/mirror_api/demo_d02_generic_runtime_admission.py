@@ -129,6 +129,26 @@ def _mapping(value: object, label: str) -> Mapping[str, object]:
     return cast(Mapping[str, object], value)
 
 
+def _nominal_question_pair_deltas(pair: Mapping[str, object]) -> tuple[int, int]:
+    magnitude = pair.get("magnitude_ppm")
+    left = _mapping(pair.get("left"), "LEFT_PAIR_SIDE")
+    right = _mapping(pair.get("right"), "RIGHT_PAIR_SIDE")
+    left_measured = left.get("measured_signed_delta_ppm")
+    right_measured = right.get("measured_signed_delta_ppm")
+    if (
+        type(magnitude) is not int
+        or magnitude <= 0
+        or left.get("requested_direction") != "DECREASE"
+        or right.get("requested_direction") != "INCREASE"
+        or type(left_measured) is not int
+        or type(right_measured) is not int
+        or left_measured >= 0
+        or right_measured <= 0
+    ):
+        _fail("QUESTION_PAIR_DIRECTION_BINDING_INVALID")
+    return -magnitude, magnitude
+
+
 def _selected_manifest_row(manifest: D02SelectedSourceManifest) -> dict[str, object]:
     if manifest.manifest_state != "FINALIZED" or manifest.source_count != 4:
         _fail("SELECTED_SOURCE_MANIFEST_INVALID")
@@ -437,6 +457,7 @@ def build_generic_runtime_admission_bundle(
             }
             left = _mapping(pair["left"], "LEFT_PAIR_SIDE")
             right = _mapping(pair["right"], "RIGHT_PAIR_SIDE")
+            left_nominal_delta, right_nominal_delta = _nominal_question_pair_deltas(pair)
             pair_rows.append(
                 screening.build_question_pair_row(
                     {
@@ -453,8 +474,8 @@ def build_generic_runtime_admission_bundle(
                         "right_asset_variant_id": right["asset_variant_id"],
                         "dimension_key": pair["dimension_key"],
                         "magnitude_ppm": pair["magnitude_ppm"],
-                        "left_delta_ppm": left["measured_signed_delta_ppm"],
-                        "right_delta_ppm": right["measured_signed_delta_ppm"],
+                        "left_delta_ppm": left_nominal_delta,
+                        "right_delta_ppm": right_nominal_delta,
                         "pair_quality_ppm": pair["pair_quality_ppm"],
                         "qa_payload": qa,
                         "screening_report_id": report["id"],

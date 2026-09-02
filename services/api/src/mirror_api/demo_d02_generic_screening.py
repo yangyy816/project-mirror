@@ -1217,6 +1217,13 @@ def build_question_pair_row(
         != pair_wrapper.get("pair_screening_record_digest")
     ):
         _fail("generic QuestionPair source or screening projection is invalid")
+    magnitude_ppm = pair_payload.get("magnitude_ppm")
+    if (
+        type(magnitude_ppm) is not int
+        or pair.get("left_delta_ppm") != -magnitude_ppm
+        or pair.get("right_delta_ppm") != magnitude_ppm
+    ):
+        _fail("generic QuestionPair nominal delta projection is invalid")
     for side, prefix in (("left", "left"), ("right", "right")):
         side_payload = _mapping(pair_payload.get(side), f"{side} pair side")
         for field, side_field in (

@@ -107,6 +107,7 @@ class RecoveredFinalRuntime:
     prepared: PreparedRuntimeEvidence
     artifact_decisions: Mapping[str, PrincipalArtifactDecision] | None
     stage: str
+    checkpoint_payload_digest: str
 
 
 class D02FinalRuntimeCheckpoint:
@@ -329,6 +330,7 @@ class D02FinalRuntimeCheckpoint:
             prepared=prepared,
             artifact_decisions=decisions,
             stage=stage,
+            checkpoint_payload_digest=cast(str, document["payload_digest"]),
         )
 
     def _document(

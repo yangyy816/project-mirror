@@ -15,6 +15,7 @@ from test_demo_d02_r2_runtime_forward import (
 )
 
 from mirror_api import demo_d02_generic_admission_coordinator as coordinator
+from mirror_api import demo_d02_generic_runtime_admission as runtime_admission
 from mirror_api import demo_d02_generic_screening as generic_screening
 from mirror_api import demo_d02_r2_runtime_forward as runtime
 from mirror_api.demo_d02_final_orchestrator import ResultPersistence
@@ -133,6 +134,29 @@ def test_runtime_result_builds_complete_generic_admission_bundle() -> None:
     assert bundle.report_row["source_count"] == 4
     assert bundle.report_row["m4_execution_count"] == 96
     assert bundle.report_row["result_m3_repeat_count"] == 144
+    original_payload = cast(dict[str, object], result.report_row["report_payload"])
+    original_wrappers = {
+        cast(str, item["pair_screening_record_digest"]): item
+        for item in cast(list[dict[str, object]], original_payload["pair_quality_evidence"])
+    }
+    for row in bundle.question_pair_rows:
+        magnitude = cast(int, row["magnitude_ppm"])
+        assert row["left_delta_ppm"] == -magnitude
+        assert row["right_delta_ppm"] == magnitude
+        qa = cast(dict[str, object], row["qa_payload"])
+        wrapper = cast(dict[str, object], qa["pair_screening_record_payload"])
+        measured = cast(dict[str, object], wrapper["pair_screening_record_payload"])
+        original = cast(
+            dict[str, object],
+            original_wrappers[cast(str, wrapper["pair_screening_record_digest"])][
+                "pair_screening_record_payload"
+            ],
+        )
+        for side in ("left", "right"):
+            assert (
+                cast(dict[str, object], measured[side])["measured_signed_delta_ppm"]
+                == cast(dict[str, object], original[side])["measured_signed_delta_ppm"]
+            )
     coordinator.validate_generic_admission_bundle(
         idempotency_key="d02-final-runtime-test", bundle=bundle
     )
@@ -154,3 +178,56 @@ def test_runtime_bundle_rejects_result_digest_substitution() -> None:
             result_persistence=cast(ResultPersistence, _VerifiedResults()),
             configuration=D02QuestionBankConfiguration(created_at="2026-09-01T00:00:00Z"),
         )
+
+
+def test_question_pair_rejects_measured_delta_substitution() -> None:
+    result, formal, selected = _runtime_result()
+    bundle = build_generic_runtime_admission_bundle(
+        runtime_result=result,
+        formal_bundle=formal,
+        selected_manifest=selected,
+        result_persistence=cast(ResultPersistence, _VerifiedResults()),
+        configuration=D02QuestionBankConfiguration(created_at="2026-09-01T00:00:00Z"),
+    )
+    row = deepcopy(bundle.question_pair_rows[0])
+    row["left_delta_ppm"] = cast(int, row["left_delta_ppm"]) + 1
+    with pytest.raises(ValueError, match="nominal delta projection"):
+        generic_screening.validate_question_pair_row(
+            row,
+            report=bundle.report_row,
+            bank=bundle.question_bank_row,
+        )
+
+
+def test_nominal_pair_projection_preserves_non_nominal_measured_evidence() -> None:
+    pair = {
+        "magnitude_ppm": 15_000,
+        "left": {
+            "requested_direction": "DECREASE",
+            "measured_signed_delta_ppm": -5_747,
+        },
+        "right": {
+            "requested_direction": "INCREASE",
+            "measured_signed_delta_ppm": 7_149,
+        },
+    }
+
+    assert runtime_admission._nominal_question_pair_deltas(pair) == (-15_000, 15_000)
+    assert cast(dict[str, object], pair["left"])["measured_signed_delta_ppm"] == -5_747
+    assert cast(dict[str, object], pair["right"])["measured_signed_delta_ppm"] == 7_149
+
+    swapped = deepcopy(pair)
+    cast(dict[str, object], swapped["left"])["requested_direction"] = "INCREASE"
+    with pytest.raises(
+        D02GenericRuntimeAdmissionError,
+        match="QUESTION_PAIR_DIRECTION_BINDING_INVALID",
+    ):
+        runtime_admission._nominal_question_pair_deltas(swapped)
+
+    wrong_sign = deepcopy(pair)
+    cast(dict[str, object], wrong_sign["left"])["measured_signed_delta_ppm"] = 5_747
+    with pytest.raises(
+        D02GenericRuntimeAdmissionError,
+        match="QUESTION_PAIR_DIRECTION_BINDING_INVALID",
+    ):
+        runtime_admission._nominal_question_pair_deltas(wrong_sign)
