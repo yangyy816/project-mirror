@@ -72,6 +72,13 @@ The repository reconstructs, from locked PostgreSQL rows, an immutable
 - accepted backend identity; and
 - a canonical authority digest over every preceding field.
 
+The case supplies the accepted algorithm, runtime-manifest and configuration
+digests. The backend candidate ID is not present in the generic D02 report, so
+it comes only from the already accepted tracked
+`providers.opencv_geometry.CANDIDATE_ID` constant. It cannot come from HTTP,
+the task message or an untrusted database scalar, and the installed backend
+must match the resulting complete identity.
+
 `ExecutionCommand` receives the repository-derived Session, plan, both
 operation digests, input
 ImageVersion and root bindings plus the typed authority. HTTP and Celery
