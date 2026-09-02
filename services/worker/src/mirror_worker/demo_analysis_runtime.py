@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import math
+import threading
 from collections.abc import Mapping
 from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation, localcontext
 from typing import Protocol, cast
@@ -73,6 +74,50 @@ class PreparedSourceM3BackendFactory(Protocol):
     """Create an attempt-scoped backend. Implementations must not cache it."""
 
     def create(self) -> PreparedSourceM3Backend: ...
+
+
+class DemoAnalysisM3CapabilityUnavailable(RuntimeError):
+    """The current process has no explicitly installed private M3 capability."""
+
+    def __init__(self) -> None:
+        super().__init__("D03_M3_CAPABILITY_NOT_INSTALLED")
+
+
+class DemoAnalysisM3CapabilityRegistry:
+    """One-shot process-local holder; the factory is never serialized or logged."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._factory: PreparedSourceM3BackendFactory | None = None
+
+    def install(self, factory: PreparedSourceM3BackendFactory) -> None:
+        if not callable(getattr(factory, "create", None)):
+            raise TypeError("D03 M3 backend factory is invalid")
+        with self._lock:
+            if self._factory is not None:
+                raise RuntimeError("D03_M3_CAPABILITY_ALREADY_INSTALLED")
+            self._factory = factory
+
+    def require(self) -> PreparedSourceM3BackendFactory:
+        with self._lock:
+            if self._factory is None:
+                raise DemoAnalysisM3CapabilityUnavailable()
+            return self._factory
+
+
+_PROCESS_M3_CAPABILITY = DemoAnalysisM3CapabilityRegistry()
+
+
+def install_demo_analysis_m3_backend_factory(factory: PreparedSourceM3BackendFactory) -> None:
+    """Install one task-scoped capability before starting the dedicated Worker."""
+
+    _PROCESS_M3_CAPABILITY.install(factory)
+
+
+def require_demo_analysis_m3_backend_factory() -> PreparedSourceM3BackendFactory:
+    """Fail before Job claim when the dedicated Worker lacks its capability."""
+
+    return _PROCESS_M3_CAPABILITY.require()
 
 
 class LiveDemoAnalysisRuntime:

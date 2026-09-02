@@ -8,6 +8,7 @@ from mirror_api.data_rights.task_contract import (
     AccountDeletionTaskMessage,
     DataExportTaskMessage,
 )
+from mirror_api.demo_analysis_task_contract import DemoAnalysisTaskMessage
 from mirror_api.demo_context_task_contract import DemoContextTaskMessage
 from mirror_api.demo_editing_task_contract import DemoEditingTaskMessage
 from mirror_api.demo_memory_task_contract import DemoMemoryTaskMessage
@@ -20,10 +21,15 @@ from mirror_api.synthetic_dataset.task_contract import (
 )
 
 from mirror_worker.application import FoundationProbeService, TaskEnvelope
+from mirror_worker.demo_analysis_runtime import (
+    DemoAnalysisM3CapabilityUnavailable,
+    PreparedSourceM3BackendFactory,
+)
 from mirror_worker.runtime import (
     run_account_deletion_message,
     run_asset_deletion_message,
     run_data_export_message,
+    run_demo_analysis_message,
     run_demo_context_message,
     run_demo_editing_message,
     run_demo_memory_message,
@@ -38,11 +44,17 @@ from mirror_worker.runtime import (
 class LocalTaskRunner:
     """Synchronous DEVELOPMENT ONLY task runner."""
 
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        *,
+        demo_analysis_backend_factory: PreparedSourceM3BackendFactory | None = None,
+    ) -> None:
         self.settings = settings or get_settings()
         if self.settings.app_env not in {"development", "test"}:
             raise RuntimeError("LocalTaskRunner is DEVELOPMENT ONLY")
         self.service = FoundationProbeService()
+        self._demo_analysis_backend_factory = demo_analysis_backend_factory
 
     def dispatch(self, envelope: TaskEnvelope) -> str:
         self.service.execute(envelope)
@@ -66,6 +78,19 @@ class LocalTaskRunner:
     def dispatch_account_deletion(self, message: AccountDeletionTaskMessage) -> str:
         message.validate()
         asyncio.run(run_account_deletion_message(message.to_message(), settings=self.settings))
+        return message.job_id
+
+    def dispatch_demo_analysis(self, message: DemoAnalysisTaskMessage) -> str:
+        message.validate()
+        if self._demo_analysis_backend_factory is None:
+            raise DemoAnalysisM3CapabilityUnavailable()
+        asyncio.run(
+            run_demo_analysis_message(
+                message.to_message(),
+                settings=self.settings,
+                backend_factory=self._demo_analysis_backend_factory,
+            )
+        )
         return message.job_id
 
     def dispatch_demo_profile(self, message: DemoProfileTaskMessage) -> str:

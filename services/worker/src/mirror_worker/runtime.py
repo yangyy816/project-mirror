@@ -16,6 +16,11 @@ from mirror_api.data_rights.task_contract import (
 )
 from mirror_api.demo_analysis_dependencies import accepted_demo_analysis_configuration
 from mirror_api.demo_analysis_service import DemoAnalysisService
+from mirror_api.demo_analysis_source_authority import (
+    AdmittedD02SourceReference,
+    LocalAdmittedD02SourceLoader,
+    resolve_admitted_d02_source,
+)
 from mirror_api.demo_analysis_task_contract import (
     DemoAnalysisDispatcher,
     DemoAnalysisTaskMessage,
@@ -86,13 +91,22 @@ from mirror_api.synthetic_dataset.task_contract import (
 )
 from mirror_api.synthetic_dataset.transform_service import SyntheticTransformService
 from mirror_api.upload_control.types import ConsentRequirement
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from mirror_worker.asset_deletion import AssetDeletionTaskExecutor
 from mirror_worker.cleanup import SqlAlchemyIngestionCleanup
 from mirror_worker.data_rights import AccountDeletionTaskExecutor, DataExportTaskExecutor
 from mirror_worker.demo_analysis import DemoAnalysisTaskExecutor
-from mirror_worker.demo_analysis_runtime import DeferredDemoAnalysisRuntime
+from mirror_worker.demo_analysis_runtime import (
+    LiveDemoAnalysisRuntime,
+    PreparedSourceM3BackendFactory,
+    require_demo_analysis_m3_backend_factory,
+)
 from mirror_worker.demo_context import DemoContextTaskExecutor
 from mirror_worker.demo_memory import DemoMemoryTaskExecutor
 from mirror_worker.demo_profile import DemoProfileTaskExecutor
@@ -145,7 +159,16 @@ class SyntheticM4Runtime:
 class DemoAnalysisRuntime:
     engine: AsyncEngine
     application: DemoAnalysisService
-    runtime: DeferredDemoAnalysisRuntime
+    runtime: LiveDemoAnalysisRuntime
+
+
+@dataclass(frozen=True)
+class _SqlAlchemyAdmittedD02SourceResolver:
+    sessions: async_sessionmaker[AsyncSession]
+
+    async def resolve(self, asset_id: str) -> AdmittedD02SourceReference:
+        async with self.sessions() as session:
+            return await resolve_admitted_d02_source(session, asset_id=asset_id)
 
 
 @dataclass(frozen=True)
@@ -307,18 +330,49 @@ def create_synthetic_m4_runtime(settings: Settings) -> SyntheticM4Runtime:
     )
 
 
-def create_demo_analysis_runtime(settings: Settings) -> DemoAnalysisRuntime:
-    """Compose D03 authority while keeping the ephemeral M3 handle fail-closed."""
+def create_demo_analysis_runtime(
+    settings: Settings,
+    *,
+    backend_factory: PreparedSourceM3BackendFactory | None = None,
+) -> DemoAnalysisRuntime:
+    """Compose D03 only after the current process proves its M3 capability."""
 
-    engine = create_async_engine(settings.database_url)
-    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    resolved_factory = (
+        backend_factory
+        if backend_factory is not None
+        else require_demo_analysis_m3_backend_factory()
+    )
+    if settings.storage_provider != "local" or settings.app_env not in {
+        "development",
+        "test",
+        "ci",
+    }:
+        raise RuntimeError("D03 live analysis requires the local private Demo storage boundary")
+    engine, sessions, application = _create_demo_analysis_application(settings)
+    storage = DemoLocalPrivateObjectStorage(root=settings.local_storage_root)
     return DemoAnalysisRuntime(
         engine=engine,
-        application=DemoAnalysisService(
+        application=application,
+        runtime=LiveDemoAnalysisRuntime(
+            source_resolver=_SqlAlchemyAdmittedD02SourceResolver(sessions),
+            source_loader=LocalAdmittedD02SourceLoader(storage=storage),
+            backend_factory=resolved_factory,
+        ),
+    )
+
+
+def _create_demo_analysis_application(
+    settings: Settings,
+) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession], DemoAnalysisService]:
+    engine = create_async_engine(settings.database_url)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    return (
+        engine,
+        sessions,
+        DemoAnalysisService(
             session_factory=sessions,
             configuration=accepted_demo_analysis_configuration(),
         ),
-        runtime=DeferredDemoAnalysisRuntime(),
     )
 
 
@@ -411,14 +465,21 @@ async def run_ingestion_message(
 
 
 async def run_demo_analysis_message(
-    message: dict[str, Any], *, settings: Settings | None = None
+    message: dict[str, Any],
+    *,
+    settings: Settings | None = None,
+    backend_factory: PreparedSourceM3BackendFactory | None = None,
 ) -> dict[str, str | None]:
-    runtime = create_demo_analysis_runtime(settings or get_settings())
+    parsed = DemoAnalysisTaskMessage.from_message(message)
+    runtime = create_demo_analysis_runtime(
+        settings or get_settings(),
+        backend_factory=backend_factory,
+    )
     try:
         result = await DemoAnalysisTaskExecutor(
             application=runtime.application,
             runtime=runtime.runtime,
-        ).execute(DemoAnalysisTaskMessage.from_message(message))
+        ).execute(parsed)
         return asdict(result)
     finally:
         await runtime.engine.dispose()
@@ -430,10 +491,10 @@ async def run_demo_analysis_reconciliation(
     limit: int = 100,
     settings: Settings | None = None,
 ) -> tuple[str, ...]:
-    runtime = create_demo_analysis_runtime(settings or get_settings())
+    engine, _, application = _create_demo_analysis_application(settings or get_settings())
     try:
         dispatched: list[str] = []
-        for candidate in await runtime.application.reconciliation_candidates(limit=limit):
+        for candidate in await application.reconciliation_candidates(limit=limit):
             message = DemoAnalysisTaskMessage(
                 analysis_run_id=candidate.analysis_run_id,
                 job_id=candidate.job_id,
@@ -443,7 +504,7 @@ async def run_demo_analysis_reconciliation(
             dispatched.append(candidate.job_id)
         return tuple(dispatched)
     finally:
-        await runtime.engine.dispose()
+        await engine.dispose()
 
 
 async def run_demo_profile_message(
