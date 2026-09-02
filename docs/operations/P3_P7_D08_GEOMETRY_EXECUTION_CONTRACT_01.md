@@ -80,23 +80,37 @@ case, warp plan, output policy, verifier policy and authority digest.
 
 ## Fresh execution evidence
 
-The approved adapter must create a new backend execution for the current
-JobAttempt and return typed `GeometryFreshExecutionEvidence` containing:
+The approved adapter creates a new backend execution for the current Attempt.
+Its evidence has two explicit layers.
+
+`GeometryStableMaterializationCore` excludes Job and Attempt identity and
+contains:
+
+- operation, authority, case, backend and warp-plan bindings;
+- input ImageVersion, input Asset and root SOURCE bindings;
+- result SHA-256, byte size, media type, dimensions and changed-pixel count;
+- engine and config digests; and
+- a canonical stable-core digest.
+
+`GeometryAttemptExecutionEvidence` contains:
 
 - Job binding, Attempt, operation and authority bindings;
-- case, backend and warp-plan bindings;
-- input ImageVersion, input Asset and root SOURCE bindings;
-- result SHA-256, media type, dimensions and changed-pixel count; and
-- a canonical execution-receipt digest.
+- the stable-core digest;
+- the fresh backend execution receipt; and
+- a canonical Attempt-specific receipt digest.
 
 `MaterializedObject` carries this evidence for Geometry and forbids it for
 Raster or transitions. The adapter writes new bytes to quarantine; it cannot
 accept a historical D02 result as an output input.
 
-The existing event table has no complete evidence column. If the process
-crashes after MATERIALIZED but before terminal publication, a later Attempt
-must re-execute the deterministic provider and prove byte, digest and evidence
-equality before verification. It must not invent missing evidence.
+The MATERIALIZED event already persists the stable replay surface: result
+digest, byte size, media type, dimensions, engine digest and config digest.
+If the process crashes after MATERIALIZED but before terminal publication, a
+later Attempt re-executes the deterministic provider and compares only its new
+stable core and bytes with that persisted surface. It then creates a new
+Attempt-specific execution receipt and fresh M3 verification bound to the new
+Attempt. The later Attempt never claims equality with the lost old
+Attempt-specific evidence and never invents an unpersisted receipt.
 
 ## Independent verifier
 
@@ -107,13 +121,16 @@ ResultM3 row. Its canonical evidence binds:
 - analyzer/runtime/model/topology/config identities;
 - source/result SHA-256 and landmark digests;
 - three fresh source and three fresh result repeat digests;
-- all six ordered aggregate measurements;
-- signed target delta and five ordered control drifts;
+- six ordered measurements for each of the three repeat indexes;
+- three ordered signed target deltas and five ordered control drifts per
+  repeat;
+- the per-repeat direction, minimum, maximum and control-drift Gate booleans;
 - max non-target drift and its dimension;
 - operation, case and JobAttempt; and
 - decode, artifact and original-immutability checks.
 
-The Geometry policy reuses the accepted D02 thresholds:
+The per-execution Geometry policy reuses the accepted D02 thresholds for each
+of the three repeat indexes independently:
 
 ```text
 target direction = requested direction
@@ -122,6 +139,23 @@ max control drift ppm <= 20_000
 decode/artifact/original immutability = PASS
 source digest != result digest
 ```
+
+An aggregate PASS cannot hide a failing repeat. The integrated 48-case Gate
+also produces canonical `GeometryMatrixQualification/v1` evidence ordered by
+source, dimension, direction, magnitude and repeat index. For every
+source/dimension/direction and each repeat index it requires:
+
+```text
+abs(target delta at magnitude 30_000) >=
+abs(target delta at magnitude 15_000)
+```
+
+The matrix evidence contains the ordered terminal Verification digests,
+ordered repeat deltas, every comparison boolean, policy version and a
+cross-case Gate digest. That digest is bound into the D08 integrated acceptance
+result and its policy digest. It is a qualification Gate over the fresh matrix,
+not a database prerequisite for an isolated post-qualification user operation.
+Negative tests must fail the Gate when any repeat violates monotonicity.
 
 The requested 15k/30k value is warp magnitude, not an assertion that measured
 delta equals that value. Geometry uses its dedicated evaluator and then emits
@@ -165,6 +199,10 @@ D08 can be `TASK_ACCEPTED` only after:
 
 - all 48 source × dimension × direction × magnitude cases execute fresh;
 - each case has fresh source/result M3 verification;
+- each repeat independently passes direction, 10–60,000 target magnitude and
+  20,000 maximum control-drift Gates;
+- each source/dimension/direction/repeat-index pair passes the 30k ≥ 15k
+  magnitude-monotonicity Gate and the cross-case digest replays;
 - substitution of any source, ImageVersion, plan, case, backend, warp plan,
   result or verifier identity fails closed;
 - target/control/decode/artifact/original checks each have negative coverage;
@@ -189,6 +227,10 @@ or production Geometry capability.
   M3 verification;
 - sending locators, bytes, landmarks or runtime handles in a task message;
 - falling back to fixed PASS or zero drift when the verifier is unavailable;
+- accepting aggregate measurements while any repeat or cross-magnitude
+  monotonicity comparison fails;
+- comparing a new Attempt receipt with unpersisted evidence from a crashed
+  prior Attempt;
 - adding persistence schema solely for intermediate in-process evidence; or
 - expanding this contract to a new Provider, dependency, production or real
   user scope.
