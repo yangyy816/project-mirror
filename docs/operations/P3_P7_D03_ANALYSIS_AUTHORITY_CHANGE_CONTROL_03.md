@@ -46,6 +46,13 @@ schema_version = mirror.demo/DemoFaceObservationRepeat/v1
 pose = legacy object
 ```
 
+The migration has an explicit predecessor-data predicate before it installs
+any new DDL: if any persisted `DemoFaceObservation/v2` graph is linked to a
+`DemoFaceObservationRepeat/v1` row, upgrade fails closed and leaves the
+predecessor schema unchanged. Those graphs are valid under the predecessor
+contract and must not be rewritten. The migration lifecycle suite must cover
+this populated negative case in real PostgreSQL.
+
 New D03 runtime publication uses:
 
 ```json
@@ -58,9 +65,17 @@ New D03 runtime publication uses:
 }
 ```
 
-The v2 union also reserves a strictly typed future `SUPPORTED` shape containing
-integer `yaw_ppm`, `pitch_ppm` and `roll_ppm`. The current accepted backend may
-only emit `UNAVAILABLE`. A v2 repeat may not use an empty object, numeric zeros
+The v2 union has exactly two legal shapes:
+
+- `UNAVAILABLE` has the exact key set `{state, reason}`, with
+  `state = "UNAVAILABLE"` and
+  `reason = "M3_RUNTIME_DOES_NOT_EMIT_POSE"`;
+- `SUPPORTED` has the exact key set
+  `{state, yaw_ppm, pitch_ppm, roll_ppm}`, with `state = "SUPPORTED"` and each
+  pose value a JSON integer in `[-1_000_000, 1_000_000]`.
+
+The current accepted backend may only emit `UNAVAILABLE`. A v2 repeat may not
+use an empty object, booleans or fractional values as integers, numeric zeros
 without `state`, additional keys or a free-form reason.
 
 A repeat attached to a v2 D03 observation must itself be v2. Historical v1
@@ -122,9 +137,15 @@ Implementation may modify only the following bounded areas:
 - one forward D03 migration and migration/schema tests;
 - `demo_models.py` repeat pose constraint;
 - `demo_analysis_service.py` typed v2 pose projection;
+- `services/api/src/mirror_api/demo_analysis_dispatcher.py` and its queue
+  routing tests;
 - a D03 source-authority/byte-loader adapter;
 - `mirror_worker/demo_analysis_runtime.py` and its tests;
 - Principal-owned Worker runtime, local and Celery registration files.
+
+The API's initial dispatch, maintenance reconciliation dispatch and Worker
+task route must each assert the exact `mirror.demo.analysis.m3` queue. No
+fallback to `mirror.demo` is permitted for live M3 work.
 
 It must not modify D02 historical operators, D02 private registries, public API
 schemas, OpenAPI, generated clients, production/formal tables or M3 historical
@@ -142,6 +163,8 @@ acceptance.
 - cancel, lost lease, retry, redelivery and publication failure leave no partial
   result graph;
 - incapable workers cannot claim D03 work;
+- initial dispatch, reconciliation and Worker registration all bind the exact
+  dedicated queue;
 - no message, log, exception, Git file or CI artifact contains private bytes or
   locators; and
 - a controlled Windows run on at least one admitted source plus same-SHA CI and
