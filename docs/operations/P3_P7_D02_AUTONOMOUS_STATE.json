@@ -64,10 +64,7 @@
     "successor_universe_digest": "b5cd2fb13c27ca705c02886e82ade747230bfd1a5b5e7bdcf6953436ce810b30",
     "provenance_envelope_digest": "41e3a374693fb54e1fd12e80637cd546dfd6935570de37fb2f51d31655201296",
     "screening": "PASSED",
-    "selected_dimensions": [
-      "jaw_width",
-      "eye_spacing"
-    ],
+    "selected_dimensions": ["jaw_width", "eye_spacing"],
     "question_pairs": 16,
     "selected_sides": 32,
     "assets": 52,

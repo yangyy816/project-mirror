@@ -75,10 +75,7 @@
     "artifact_review_reused": 47,
     "artifact_review_replacement": 1,
     "screening_result": "PASS",
-    "selected_dimensions": [
-      "jaw_width",
-      "eye_spacing"
-    ],
+    "selected_dimensions": ["jaw_width", "eye_spacing"],
     "successor_universe_digest": "b5cd2fb13c27ca705c02886e82ade747230bfd1a5b5e7bdcf6953436ce810b30",
     "provenance_envelope_digest": "41e3a374693fb54e1fd12e80637cd546dfd6935570de37fb2f51d31655201296"
   },
@@ -99,10 +96,7 @@
     "replay": "PASS_REAL_REPLAYED_TRUE",
     "run_state": "ADMITTED",
     "report_state": "PASSED",
-    "terminal_events": [
-      "FORMAL_SOURCES_READY",
-      "ADMISSION_COMPLETED"
-    ]
+    "terminal_events": ["FORMAL_SOURCES_READY", "ADMISSION_COMPLETED"]
   },
   "non_sensitive_integration_ids": {
     "acquisition_run_id": "ce7bbbb2833521cc46fed33e710a0022",
