@@ -255,24 +255,25 @@ def adapter_fields_from_records(
         _fail("TARGETED_RESULT_M3_CARDINALITY_INVALID")
     fields: list[Mapping[str, object]] = []
     for repeat_index, record in enumerate(records, start=1):
-        if record.get("repeat_index") != repeat_index:
+        normalized = normalize_public_tree(record)
+        if not isinstance(normalized, Mapping) or normalized.get("repeat_index") != repeat_index:
             _fail("TARGETED_RESULT_M3_RECORD_INVALID")
         try:
             replay = r2.build_r2_result_m3_record(
                 {
                     key: value
-                    for key, value in record.items()
+                    for key, value in normalized.items()
                     if key not in {"schema_version", "result_m3_record_id", "record_digest"}
                 }
             )
         except (KeyError, TypeError, ValueError, r2.D02R2AuthorityError) as error:
             raise D02TargetedM4RepairExecutionError("TARGETED_RESULT_M3_RECORD_INVALID") from error
-        if dict(record) != replay:
+        if dict(normalized) != replay:
             _fail("TARGETED_RESULT_M3_RECORD_INVALID")
         fields.append(
             {
                 key: value
-                for key, value in record.items()
+                for key, value in normalized.items()
                 if key
                 not in {
                     "schema_version",
@@ -291,6 +292,20 @@ def adapter_fields_from_records(
         tuple[Mapping[str, object], Mapping[str, object], Mapping[str, object]],
         tuple(fields),
     )
+
+
+def normalize_public_tree(value: object) -> object:
+    """Convert a defensively frozen public tree back to canonical JSON shapes."""
+
+    if isinstance(value, Mapping):
+        if any(not isinstance(key, str) for key in value):
+            _fail("TARGETED_PUBLIC_TREE_INVALID")
+        return {cast(str, key): normalize_public_tree(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [normalize_public_tree(item) for item in value]
+    if value is None or type(value) in {str, int, bool}:
+        return value
+    _fail("TARGETED_PUBLIC_TREE_INVALID")
 
 
 def evaluate_target_measurement(

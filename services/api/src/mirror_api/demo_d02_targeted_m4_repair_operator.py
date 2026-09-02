@@ -682,10 +682,13 @@ class D02TargetedM4RepairOperator:
         if recovered.artifact_decision is None:
             _fail("SUCCESSOR_REVIEW_MISSING")
         if _stage_at_least(recovered.stage, "SUCCESSOR_SCREENING_REPLAYED"):
-            if (
-                recovered.successor_universe != successor.successor_universe
-                or recovered.provenance_envelope != successor.provenance_envelope
-            ):
+            if repair_execution.normalize_public_tree(
+                recovered.successor_universe
+            ) != repair_execution.normalize_public_tree(
+                successor.successor_universe
+            ) or repair_execution.normalize_public_tree(
+                recovered.provenance_envelope
+            ) != repair_execution.normalize_public_tree(successor.provenance_envelope):
                 _fail("SUCCESSOR_SCREENING_CHECKPOINT_MISMATCH")
             return recovered
         checkpoint.advance(

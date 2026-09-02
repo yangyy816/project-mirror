@@ -3,11 +3,19 @@ from __future__ import annotations
 import io
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
-from test_demo_d02_targeted_m4_successor_checkpoint import _output, _setup
+from test_demo_d02_targeted_m4_successor_checkpoint import (
+    _actual_successor_evidence,
+    _output,
+    _screened_checkpoint,
+    _setup,
+)
 
+from mirror_api import demo_d02_targeted_m4_repair as repair
+from mirror_api import demo_d02_targeted_m4_repair_execution as repair_execution
 from mirror_api import demo_d02_targeted_m4_repair_operator as repair_operator
 from mirror_api.demo_d02_r2_runtime_forward import M4ExecutionOutput
 from mirror_api.demo_d02_screening_adapters import PrincipalArtifactDecision
@@ -108,3 +116,26 @@ def test_stage_order_is_exact_and_fail_closed() -> None:
         match="SUCCESSOR_STAGE_INVALID",
     ):
         repair_operator._stage_at_least("UNKNOWN", "TARGET_M4_DURABLE")
+
+
+def test_screened_checkpoint_resume_normalizes_frozen_public_trees(tmp_path: Path) -> None:
+    checkpoint, store = _screened_checkpoint(tmp_path)
+    recovered = checkpoint.load(store=store)
+    _, _, records, _, universe, envelope = _actual_successor_evidence()
+    assert len(repair_execution.adapter_fields_from_records(recovered.result_m3_records)) == 3
+
+    operator = object.__new__(repair_operator.D02TargetedM4RepairOperator)
+    successor = cast(
+        repair.TargetedM4RepairSuccessor,
+        SimpleNamespace(successor_universe=universe, provenance_envelope=envelope),
+    )
+    replayed = operator._ensure_screening_checkpoint(
+        checkpoint=checkpoint,
+        store=store,
+        recovered=recovered,
+        successor=successor,
+    )
+    assert replayed.stage == "SUCCESSOR_SCREENING_REPLAYED"
+    assert [item["record_digest"] for item in recovered.result_m3_records] == [
+        item["record_digest"] for item in records
+    ]
