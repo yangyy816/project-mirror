@@ -2,24 +2,34 @@ from __future__ import annotations
 
 import io
 from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
 import pytest
+from test_demo_d02_generic_runtime_admission import _runtime_result
+from test_demo_d02_targeted_m4_repair import _ordered_prepared_runtime, _replacement
 from test_demo_d02_targeted_m4_successor_checkpoint import (
     _actual_successor_evidence,
+    _bindings,
     _output,
     _screened_checkpoint,
     _setup,
 )
 
+import mirror_api.demo_d02_targeted_m4_successor_checkpoint as successor_checkpoint_module
+from mirror_api import demo_d02_r2_authority as r2
 from mirror_api import demo_d02_targeted_m4_repair as repair
 from mirror_api import demo_d02_targeted_m4_repair_execution as repair_execution
 from mirror_api import demo_d02_targeted_m4_repair_operator as repair_operator
 from mirror_api.demo_d02_r2_runtime_forward import M4ExecutionOutput
 from mirror_api.demo_d02_screening_adapters import PrincipalArtifactDecision
 from mirror_api.demo_d02_targeted_m4_repair_backend import D02TargetedM4RepairBackend
+from mirror_api.demo_d02_targeted_m4_successor_checkpoint import (
+    D02TargetedM4SuccessorCheckpoint,
+    D02TargetedM4SuccessorStore,
+)
 
 
 def _review_command(output: M4ExecutionOutput) -> dict[str, object]:
@@ -139,3 +149,81 @@ def test_screened_checkpoint_resume_normalizes_frozen_public_trees(tmp_path: Pat
     assert [item["record_digest"] for item in recovered.result_m3_records] == [
         item["record_digest"] for item in records
     ]
+
+
+def test_result_m3_checkpoint_resume_normalizes_before_measurement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    predecessor, report_fields = _ordered_prepared_runtime()
+    case_fields, outputs, result_fields, _ = _replacement(predecessor, report_fields)
+    replacement_case = repair.build_targeted_replacement_case(
+        predecessor=predecessor,
+        replacement_case_fields=case_fields,
+    )
+    first, second = outputs
+    monkeypatch.setattr(
+        successor_checkpoint_module,
+        "decode_canonical_rgb_image",
+        lambda content, *, expected_width, expected_height: SimpleNamespace(
+            bytes_value=content,
+            width=expected_width,
+            height=expected_height,
+        ),
+    )
+    records = tuple(
+        r2.build_r2_result_m3_record(
+            {
+                **fields,
+                "case_id": replacement_case["case_id"],
+                "case_specification_digest": replacement_case["case_specification_digest"],
+                "result_output_id": first.result_output_id,
+                "result_sha256": first.result_sha256,
+                "repeat_index": repeat_index,
+                "runtime_manifest_digest": replacement_case["runtime_manifest_digest"],
+            }
+        )
+        for repeat_index, fields in enumerate(result_fields, start=1)
+    )
+    (tmp_path / ".private-handoff").mkdir()
+    bindings = replace(_bindings(), successor_case_id=first.case_id)
+    checkpoint = D02TargetedM4SuccessorCheckpoint(
+        workspace_root=tmp_path,
+        bindings=bindings,
+    )
+    store = D02TargetedM4SuccessorStore(
+        workspace_root=tmp_path,
+        successor_case_id=first.case_id,
+    )
+    checkpoint.advance(stage="PREDECESSOR_REVIEWED_FAILED")
+    checkpoint.advance(stage="REPAIR_POLICY_VALIDATED")
+    store.persist(first, second)
+    checkpoint.advance(stage="TARGET_M4_DURABLE", m4_outputs=outputs)
+    checkpoint.advance(
+        stage="TARGET_RESULT_M3_COMPLETE",
+        m4_outputs=outputs,
+        result_m3_records=records,
+    )
+    recovered = checkpoint.load(store=store)
+
+    operator = object.__new__(repair_operator.D02TargetedM4RepairOperator)
+
+    def forbidden(**_: object) -> object:
+        raise AssertionError("completed Result-M3 must not execute a backend")
+
+    monkeypatch.setattr(operator, "_execution_context", forbidden)
+    replayed = operator._ensure_result_m3(
+        checkpoint=checkpoint,
+        store=store,
+        recovered=recovered,
+        predecessor=cast(repair_operator._Predecessor, object()),
+        m4_backend=cast(D02TargetedM4RepairBackend, object()),
+    )
+    original, _, _ = _runtime_result()
+    outcome = repair_execution.evaluate_target_measurement(
+        predecessor_report=original.report_row,
+        predecessor=predecessor,
+        replacement_case=replacement_case,
+        result_m3_records=replayed.result_m3_records,
+    )
+    assert outcome.passed

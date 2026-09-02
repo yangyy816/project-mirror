@@ -319,13 +319,16 @@ def evaluate_target_measurement(
 
     if len(result_m3_records) != 3:
         _fail("TARGETED_RESULT_M3_CARDINALITY_INVALID")
+    normalized_records = tuple(
+        cast(Mapping[str, object], normalize_public_tree(record)) for record in result_m3_records
+    )
     try:
-        certificate = screening._result_certificate(result_m3_records)
+        certificate = screening._result_certificate(normalized_records)
         packet = predecessor.formal_bundle.runtime_packets[repair.TARGET_SOURCE_ORDINAL - 1]
         gate = MeasurementGateAdapter().evaluate(
             source_packet=packet,
             case_entry=replacement_case,
-            result_m3_records=result_m3_records,
+            result_m3_records=normalized_records,
             result_repeat_certification=certificate,
         )
         measurements = cast(
@@ -346,7 +349,7 @@ def evaluate_target_measurement(
         measured_signed_delta_ppm=deltas,
         predecessor_case_26_absolute_delta_ppm=peer_absolute,
         repeat_consistent=(len(set(deltas)) == 1)
-        and all(record.get("repeat_gate_passed") is True for record in result_m3_records),
+        and all(record.get("repeat_gate_passed") is True for record in normalized_records),
         direction_and_margin_passed=all(value < -10 for value in deltas),
         predecessor_bound_passed=all(
             abs(value) <= bound for value, bound in zip(deltas, peer_absolute, strict=True)
