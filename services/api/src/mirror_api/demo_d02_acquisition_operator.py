@@ -57,6 +57,13 @@ from mirror_api.demo_models import (
 from mirror_api.image_sanitizer import ImageSanitizationError, decode_canonical_rgb_image
 
 MIGRATION_HEAD: Final = "demo_0015_d02_source_acq_pool"
+_COMPATIBLE_DATABASE_HEADS: Final = frozenset(
+    {
+        MIGRATION_HEAD,
+        "demo_0016_d06_ref_profile_queue",
+        "demo_0017_d10_context_queue",
+    }
+)
 LOCAL_INDEX_SCHEMA: Final = "mirror.private/D02LocalDurableIndex/v1"
 LOCAL_ENTRY_SCHEMA: Final = "mirror.private/D02LocalDurableEntry/v1"
 LOCAL_FILE_SCHEMA: Final = "mirror.private/D02LocalDurableFile/v1"
@@ -1503,7 +1510,7 @@ def _git_executable() -> str:
 
 def _require_database_head(session: Session) -> None:
     heads = list(session.scalars(text("SELECT version_num FROM alembic_version")))
-    if heads != [MIGRATION_HEAD]:
+    if len(heads) != 1 or heads[0] not in _COMPATIBLE_DATABASE_HEADS:
         _fail("DATABASE_MIGRATION_HEAD_MISMATCH")
 
 

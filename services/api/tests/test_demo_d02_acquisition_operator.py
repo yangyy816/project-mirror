@@ -6,6 +6,7 @@ import os
 from collections.abc import Generator
 from io import BytesIO, StringIO
 from pathlib import Path
+from typing import cast
 
 import pytest
 from PIL import Image
@@ -13,11 +14,13 @@ from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from mirror_api.demo_d02_acquisition_operator import (
+    _COMPATIBLE_DATABASE_HEADS,
     D02AcquisitionOperator,
     D02LocalDurableIndex,
     D02OperatorError,
     LocalDurableEntry,
     _checkpoint_lock,
+    _require_database_head,
 )
 from mirror_api.demo_d02_r2_generation_receiver import BoundPngFile
 from mirror_api.demo_d02_source_acquisition import DurableCandidateBytes
@@ -28,6 +31,32 @@ from mirror_api.demo_models import (
 )
 
 pytestmark = pytest.mark.integration
+
+
+class _MigrationHeadSession:
+    def __init__(self, heads: list[str]) -> None:
+        self._heads = heads
+
+    def scalars(self, _statement: object) -> list[str]:
+        return self._heads
+
+
+@pytest.mark.parametrize("head", sorted(_COMPATIBLE_DATABASE_HEADS))
+def test_database_head_guard_accepts_only_registered_forward_heads(head: str) -> None:
+    _require_database_head(cast(Session, _MigrationHeadSession([head])))
+
+
+@pytest.mark.parametrize(
+    "heads",
+    (
+        [],
+        ["demo_0018_unknown"],
+        ["demo_0016_d06_ref_profile_queue", "demo_0017_d10_context_queue"],
+    ),
+)
+def test_database_head_guard_rejects_unknown_or_multiple_heads(heads: list[str]) -> None:
+    with pytest.raises(D02OperatorError, match="DATABASE_MIGRATION_HEAD_MISMATCH"):
+        _require_database_head(cast(Session, _MigrationHeadSession(heads)))
 
 
 @pytest.fixture
