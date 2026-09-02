@@ -157,7 +157,7 @@ def _runtime_evidence(*, supported: bool = True) -> DemoAnalysisRuntimeEvidence:
                 repeat_index=repeat_index,
                 evidence_reference=f"d03-repeat-{repeat_index}",
                 landmarks=landmarks,
-                pose=DemoPose(yaw_ppm=0, pitch_ppm=0, roll_ppm=0),
+                pose=DemoPose(),
                 dimensions=dimensions,
             )
         )
@@ -500,7 +500,7 @@ async def test_task_mismatch_and_invalid_runtime_evidence_fail_closed() -> None:
                 repeat_index=1,
                 evidence_reference="d03-invalid",
                 landmarks=(),
-                pose=DemoPose(yaw_ppm=0, pitch_ppm=0, roll_ppm=0),
+                pose=DemoPose(),
                 dimensions=(
                     DimensionObservation(
                         dimension="jaw_width",

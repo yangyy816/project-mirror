@@ -1262,7 +1262,13 @@ class DemoFaceObservationRepeat(DemoAuthorityMixin, Base):
     measurements: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
 
     __table_args__ = (
-        *_authority_constraints(__tablename__),
+        *_authority_constraints(
+            __tablename__,
+            schema_version_expression=(
+                "schema_version IN ('mirror.demo/DemoFaceObservationRepeat/v1',"
+                "'mirror.demo/DemoFaceObservationRepeat/v2')"
+            ),
+        ),
         ForeignKeyConstraint(
             ["observation_id", "demo_actor_id", "demo_session_id"],
             [
@@ -1282,6 +1288,27 @@ class DemoFaceObservationRepeat(DemoAuthorityMixin, Base):
         CheckConstraint("jsonb_typeof(landmarks) = 'array'", name="landmarks_array"),
         CheckConstraint("jsonb_array_length(landmarks) = 478", name="landmark_count"),
         CheckConstraint("jsonb_typeof(pose) = 'object'", name="pose_object"),
+        CheckConstraint(
+            "schema_version = 'mirror.demo/DemoFaceObservationRepeat/v1' OR "
+            "((pose - ARRAY['state','reason']) = '{}'::jsonb "
+            "AND pose ? 'state' AND pose ? 'reason' "
+            "AND pose ->> 'state' = 'UNAVAILABLE' "
+            "AND pose ->> 'reason' = 'M3_RUNTIME_DOES_NOT_EMIT_POSE') OR "
+            "((pose - ARRAY['state','yaw_ppm','pitch_ppm','roll_ppm']) = '{}'::jsonb "
+            "AND pose ? 'state' AND pose ? 'yaw_ppm' "
+            "AND pose ? 'pitch_ppm' AND pose ? 'roll_ppm' "
+            "AND pose ->> 'state' = 'SUPPORTED' "
+            "AND jsonb_typeof(pose -> 'yaw_ppm') = 'number' "
+            "AND jsonb_typeof(pose -> 'pitch_ppm') = 'number' "
+            "AND jsonb_typeof(pose -> 'roll_ppm') = 'number' "
+            "AND pose ->> 'yaw_ppm' ~ '^-?(0|[1-9][0-9]*)$' "
+            "AND pose ->> 'pitch_ppm' ~ '^-?(0|[1-9][0-9]*)$' "
+            "AND pose ->> 'roll_ppm' ~ '^-?(0|[1-9][0-9]*)$' "
+            "AND (pose ->> 'yaw_ppm')::numeric BETWEEN -1000000 AND 1000000 "
+            "AND (pose ->> 'pitch_ppm')::numeric BETWEEN -1000000 AND 1000000 "
+            "AND (pose ->> 'roll_ppm')::numeric BETWEEN -1000000 AND 1000000)",
+            name="pose_v2_exact_union",
+        ),
         CheckConstraint("jsonb_typeof(quality) = 'object'", name="quality_object"),
         CheckConstraint("jsonb_typeof(measurements) = 'object'", name="measurements_object"),
     )

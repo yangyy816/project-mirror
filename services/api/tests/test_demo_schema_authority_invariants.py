@@ -98,7 +98,7 @@ _LEGACY_DEMO_GRAPH_TABLE_NAMES = set(DEMO_TABLE_NAMES) - {
     "demo_context_compile_results",
 }
 
-DEMO_REVISION = "demo_0017_d10_context_queue"
+DEMO_REVISION = "demo_0018_d03_pose_evidence"
 D02_RECOVERED_QA_DOWN_REVISION = "demo_0006_d02_private_exec"
 D02_PRIVATE_EXEC_DOWN_REVISION = "demo_0005_d02_quality_auth"
 D02_QUALITY_DOWN_REVISION = "demo_0004_d09_episode_prov"
@@ -3303,6 +3303,8 @@ def _insert_p3_authority_graph(
     actor: DemoActor,
     source_asset: Asset,
     synthetic_identity: DemoSyntheticIdentity,
+    repeat_schema_version: str = "mirror.demo/DemoFaceObservationRepeat/v2",
+    repeat_pose: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Insert the P3 graph supported by the database revision under test."""
 
@@ -3487,9 +3489,15 @@ def _insert_p3_authority_graph(
     )
     session.add(observation)
     session.flush()
+    resolved_repeat_pose = repeat_pose or (
+        {"state": "UNAVAILABLE", "reason": "M3_RUNTIME_DOES_NOT_EMIT_POSE"}
+        if repeat_schema_version == "mirror.demo/DemoFaceObservationRepeat/v2"
+        else {"yaw_ppm": 0}
+    )
     repeats = [
         _build_demo_row(
             DemoFaceObservationRepeat,
+            authority_schema_version=repeat_schema_version,
             demo_actor_id=actor.id,
             demo_session_id=demo_session.id,
             observation_id=observation.id,
@@ -3497,7 +3505,7 @@ def _insert_p3_authority_graph(
             runtime_manifest_digest=analysis_run.runtime_manifest_digest,
             model_manifest_digest=analysis_run.model_manifest_digest,
             landmarks=[0] * 478,
-            pose={"yaw_ppm": 0},
+            pose=resolved_repeat_pose,
             quality={"score_ppm": 1_000_000},
             measurements={"jaw_width_ppm": 0},
         )
@@ -3566,6 +3574,8 @@ def _insert_full_demo_graph(
     include_episode: bool = True,
     legacy_pre_d07: bool = False,
     plan_overrides: dict[str, Any] | None = None,
+    repeat_schema_version: str = "mirror.demo/DemoFaceObservationRepeat/v2",
+    repeat_pose: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Insert one valid authority lineage spanning every Demo table."""
 
@@ -3592,6 +3602,8 @@ def _insert_full_demo_graph(
         actor=actor,
         source_asset=source_asset,
         synthetic_identity=synthetic_identity,
+        repeat_schema_version=repeat_schema_version,
+        repeat_pose=repeat_pose,
     )
     demo_session = cast(DemoSession, p3_graph["session"])
     analysis_job = p3_graph["analysis_job"]
@@ -7927,3 +7939,206 @@ def test_populated_formal_demo_authority_blocks_downgrade(
             == 39
         )
     engine.dispose()
+
+
+def test_d03_pose_v2_upgrade_blocks_populated_predecessor_graph(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A v2 Observation/v1 Repeat graph is valid predecessor data, never rewrite it."""
+
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    _truncate_demo_authority(session)
+    session.close()
+    engine = create_engine(database_url)
+    try:
+        command.downgrade(config, "demo_0017_d10_context_queue")
+        with Session(engine) as migration_session:
+            graph = _insert_full_demo_graph(
+                migration_session,
+                include_episode=False,
+                repeat_schema_version="mirror.demo/DemoFaceObservationRepeat/v1",
+            )
+            observation = cast(DemoFaceObservation, graph["observation"])
+            before = migration_session.scalar(
+                text(
+                    "SELECT to_jsonb(repeat_row) FROM demo_face_observation_repeats repeat_row "
+                    "WHERE observation_id=:observation_id ORDER BY repeat_index LIMIT 1"
+                ),
+                {"observation_id": observation.id},
+            )
+            observation_id = observation.id
+            migration_session.commit()
+        with pytest.raises(
+            DBAPIError,
+            match=(
+                "D03 pose-v2 upgrade blocked by populated v2 Observation/v1 "
+                "Repeat predecessor graph"
+            ),
+        ):
+            command.upgrade(config, DEMO_REVISION)
+        with Session(engine) as migration_session:
+            assert migration_session.scalar(text("SELECT version_num FROM alembic_version")) == (
+                "demo_0017_d10_context_queue"
+            )
+            after = migration_session.scalar(
+                text(
+                    "SELECT to_jsonb(repeat_row) FROM demo_face_observation_repeats repeat_row "
+                    "WHERE observation_id=:observation_id ORDER BY repeat_index LIMIT 1"
+                ),
+                {"observation_id": observation_id},
+            )
+            assert after == before
+            _truncate_demo_authority(migration_session)
+    finally:
+        command.upgrade(config, DEMO_REVISION)
+        engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "pose",
+    (
+        {"state": "UNAVAILABLE", "reason": "M3_RUNTIME_DOES_NOT_EMIT_POSE", "extra": 1},
+        {"state": "SUPPORTED", "reason": "M3_RUNTIME_DOES_NOT_EMIT_POSE"},
+        {"state": "UNAVAILABLE", "reason": "WRONG_REASON"},
+        {"state": "SUPPORTED", "yaw_ppm": True, "pitch_ppm": 0, "roll_ppm": 0},
+        {"state": "SUPPORTED", "yaw_ppm": 0.5, "pitch_ppm": 0, "roll_ppm": 0},
+        {"state": "SUPPORTED", "yaw_ppm": 1_000_001, "pitch_ppm": 0, "roll_ppm": 0},
+    ),
+)
+def test_d03_pose_v2_postgresql_rejects_noncanonical_pose(
+    session: Session, pose: dict[str, Any]
+) -> None:
+    with pytest.raises(DBAPIError):
+        _insert_full_demo_graph(session, include_episode=False, repeat_pose=pose)
+    session.rollback()
+
+
+def test_d03_pose_v2_postgresql_accepts_exact_shapes_and_guards_downgrade(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    unavailable = _insert_full_demo_graph(session, include_episode=False)
+    assert all(
+        repeat.pose == {"state": "UNAVAILABLE", "reason": "M3_RUNTIME_DOES_NOT_EMIT_POSE"}
+        for repeat in cast(list[DemoFaceObservationRepeat], unavailable["repeats"])
+    )
+    _truncate_demo_authority(session)
+    supported = _insert_full_demo_graph(
+        session,
+        include_episode=False,
+        repeat_pose={
+            "state": "SUPPORTED",
+            "yaw_ppm": -1_000_000,
+            "pitch_ppm": 0,
+            "roll_ppm": 1_000_000,
+        },
+    )
+    assert all(
+        repeat.pose["state"] == "SUPPORTED"
+        for repeat in cast(list[DemoFaceObservationRepeat], supported["repeats"])
+    )
+
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    session.close()
+    try:
+        with pytest.raises(DBAPIError, match="D03 pose-v2 downgrade blocked"):
+            command.downgrade(config, "demo_0017_d10_context_queue")
+    finally:
+        engine = create_engine(database_url)
+        with Session(engine) as cleanup_session:
+            _truncate_demo_authority(cleanup_session)
+        command.downgrade(config, "demo_0017_d10_context_queue")
+        command.upgrade(config, DEMO_REVISION)
+        engine.dispose()
+
+
+def test_d03_pose_v2_postgresql_rejects_cross_version_repeat(session: Session) -> None:
+    with pytest.raises(DBAPIError, match="D03 Observation and Repeat schema versions must match"):
+        _insert_full_demo_graph(
+            session,
+            include_episode=False,
+            repeat_schema_version="mirror.demo/DemoFaceObservationRepeat/v1",
+        )
+    session.rollback()
+
+
+def test_d03_pose_v2_postgresql_rejects_v1_observation_with_v2_repeat(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Historical v1 observations remain readable but cannot acquire a v2 repeat."""
+
+    database_url = os.environ["TEST_DATABASE_URL"]
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    config = _demo_alembic_config(database_url)
+    _truncate_demo_authority(session)
+    session.close()
+    engine = create_engine(database_url)
+    try:
+        command.downgrade(config, "demo_0009_d02_r2_e2_adm")
+        with Session(engine) as historical_session:
+            actor = _insert_actor(historical_session)
+            source_asset, formal_identity = _accepted_synthetic_source(historical_session)
+            synthetic_identity = _insert_demo_row(
+                historical_session,
+                DemoSyntheticIdentity,
+                formal_synthetic_identity_id=formal_identity.id,
+                formal_canonical_asset_id=source_asset.id,
+                formal_canonical_asset_sha256=source_asset.sha256,
+                formal_accepted_qa_run_id=formal_identity.accepted_qa_run_id,
+                formal_accepted_qa_snapshot_digest=_formal_qa_snapshot_digest(
+                    historical_session, formal_identity
+                ),
+                admission_sequence=1,
+                admission_action="ADMIT",
+                admission_config_digest="1" * 64,
+                supersedes_id=None,
+            )
+            legacy = _insert_p3_authority_graph(
+                historical_session,
+                actor=actor,
+                source_asset=source_asset,
+                synthetic_identity=synthetic_identity,
+            )
+            observation = cast(DemoFaceObservation, legacy["observation"])
+            repeat = cast(list[DemoFaceObservationRepeat], legacy["repeats"])[0]
+            historical_session.commit()
+            observation_id = observation.id
+            actor_id = actor.id
+            session_id = observation.demo_session_id
+            source_runtime_digest = repeat.runtime_manifest_digest
+            source_model_digest = repeat.model_manifest_digest
+        command.upgrade(config, DEMO_REVISION)
+        with Session(engine) as current_session:
+            validator_definition = current_session.scalar(
+                text(
+                    "SELECT pg_get_functiondef("
+                    "'mirror_demo_validate_d03_pose_repeat_version()'::regprocedure)"
+                )
+            )
+            assert isinstance(validator_definition, str)
+            assert "DemoFaceObservation/v1" in validator_definition
+            assert "DemoFaceObservationRepeat/v2" in validator_definition
+            with pytest.raises(DBAPIError):
+                _insert_demo_row(
+                    current_session,
+                    DemoFaceObservationRepeat,
+                    authority_schema_version="mirror.demo/DemoFaceObservationRepeat/v2",
+                    demo_actor_id=actor_id,
+                    demo_session_id=session_id,
+                    observation_id=observation_id,
+                    repeat_index=1,
+                    runtime_manifest_digest=source_runtime_digest,
+                    model_manifest_digest=source_model_digest,
+                    landmarks=[0] * 478,
+                    pose={"state": "UNAVAILABLE", "reason": "M3_RUNTIME_DOES_NOT_EMIT_POSE"},
+                    quality={"score_ppm": 1_000_000},
+                    measurements={"jaw_width_ppm": 0},
+                )
+            current_session.rollback()
+            _truncate_demo_authority(current_session)
+    finally:
+        command.upgrade(config, DEMO_REVISION)
+        engine.dispose()

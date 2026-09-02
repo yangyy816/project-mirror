@@ -44,7 +44,7 @@ from mirror_api.models import Job, JobAttempt, new_id, utcnow
 
 DEMO_ANALYSIS_RUN_SCHEMA = "mirror.demo/DemoAnalysisRun/v1"
 DEMO_FACE_OBSERVATION_SCHEMA = "mirror.demo/DemoFaceObservation/v2"
-DEMO_FACE_OBSERVATION_REPEAT_SCHEMA = "mirror.demo/DemoFaceObservationRepeat/v1"
+DEMO_FACE_OBSERVATION_REPEAT_SCHEMA = "mirror.demo/DemoFaceObservationRepeat/v2"
 DEMO_BASELINE_FACE_MODEL_SCHEMA = "mirror.demo/DemoBaselineFaceModel/v1"
 DEMO_SELF_STATE_SCHEMA = "mirror.demo/DemoSelfState/v1"
 DEMO_JOB_BINDING_SCHEMA = "mirror.demo/DemoJobBinding/v1"
@@ -177,24 +177,19 @@ class DemoLandmark:
 
 @dataclass(frozen=True)
 class DemoPose:
-    yaw_ppm: int
-    pitch_ppm: int
-    roll_ppm: int
+    """Current D03 runtime truthfully records that M3 emits no pose evidence."""
+
+    state: Literal["UNAVAILABLE"] = "UNAVAILABLE"
+    reason: Literal["M3_RUNTIME_DOES_NOT_EMIT_POSE"] = "M3_RUNTIME_DOES_NOT_EMIT_POSE"
 
     def __post_init__(self) -> None:
-        for name, value in (
-            ("yaw_ppm", self.yaw_ppm),
-            ("pitch_ppm", self.pitch_ppm),
-            ("roll_ppm", self.roll_ppm),
-        ):
-            if type(value) is not int or not -1_000_000 <= value <= 1_000_000:
-                raise DemoAnalysisInputError(f"pose {name} is outside the fixed-point range")
+        if self.state != "UNAVAILABLE" or self.reason != "M3_RUNTIME_DOES_NOT_EMIT_POSE":
+            raise DemoAnalysisInputError("current D03 runtime may only emit unavailable pose")
 
-    def payload(self) -> dict[str, int]:
+    def payload(self) -> dict[str, str]:
         return {
-            "pitch_ppm": self.pitch_ppm,
-            "roll_ppm": self.roll_ppm,
-            "yaw_ppm": self.yaw_ppm,
+            "reason": self.reason,
+            "state": self.state,
         }
 
 
