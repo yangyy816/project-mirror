@@ -864,3 +864,12 @@
   M3、16 pairs/32 sides、52 Assets/48 AssetVariants、screening 与单事务 admission。D02-R2 与 D02
   均 `TASK_ACCEPTED`；主进程未调用 ImageGen、未读取 D02 private checkpoint，下一并行产品节点为
   D03 fresh M3、D04-B real QuestionBank 与 D07-B real D02 Asset/M4 integration。
+
+- 2026-09-03：D04-B business SHA `31169728d487b8176335d1cbdae3c3c50ec20c49` 已只读投影真实
+  D02 QuestionBank（16 pairs、2 dimensions）；D07-B business SHA
+  `4bd7bf57dc52e7ccf4f2c5edd673365122c51230` 已绑定 admitted D02 SOURCE authority、拒绝 RESULT
+  source，并重验 root/manifest/report lineage。D04 79 项、D07 109 项及独立审查均 PASS。首次 CI
+  `33671375720` 仅因 Worker ready probe 外层 8 秒超时出现 false negative；前向修复
+  `a669275890565e98075ed09d0adee63669b89ff3` 将探测限定本容器节点并设置 inner 2 秒/outer 12 秒，
+  exact-SHA run `33680811520` 三 jobs 全绿。Principal 接受 D04-B 与 D07-B；D03 fresh M3 与 D08
+  fresh geometry runtime 继续推进，禁止重跑 D02 admission、ImageGen 或读取 D02 private checkpoint。
