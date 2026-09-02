@@ -6,38 +6,74 @@
     "status": "REJECTED_CANDIDATE_WITH_KNOWN_MATERIALIZER_FINDINGS"
   },
   "run": {
-    "state": "READY_NOT_STARTED",
+    "state": "ADMITTED",
     "total_budget": 50,
-    "budget_consumed": 0,
+    "budget_consumed": 7,
     "tranche_size": 10,
     "concurrency": 1,
     "same_ordinal_retry": 0,
     "target_formal_sources": 4,
-    "accepted_formal_sources": 0,
+    "accepted_formal_sources": 4,
     "current_ordinal": null,
     "current_tranche": null,
-    "stage": "RUN",
+    "stage": "FINAL_ADMISSION",
     "pause_reason": null,
     "policy_digests": {
       "generation_policy": "58f385338b713a87d30dc2ef5be2e60b9c8850ab4f1505bf2aafc4e8af392705",
       "materializer": "93c21495fbf9a17a7a440522fcf8045d31fd4124b246bcf1dfe3cee714b870b6",
       "m3_prescreen": "e40d23b47551720fd1cd2630ac3e8bfdf65e8d3184e9c4b2e5127a4d09c30b09",
       "qa": "b79d03d6a738044cca032029ba2f84618c613e0539bd93ce8f19ac5dcc1cf178",
-      "status": "BOOTSTRAP_INTEGRATED"
+      "status": "FINAL_ADMISSION_COMPLETE"
     },
     "counts": {
-      "candidate_created": 0,
-      "candidate_consumed": 0,
-      "manifest_created": 0,
-      "formal_sources_admitted": 0,
-      "event_count": 0
+      "candidate_created": 5,
+      "candidate_consumed": 7,
+      "manifest_created": 1,
+      "formal_sources_admitted": 4,
+      "event_count": 44
     },
     "tranche_reconciliation": {
-      "completed": 0,
-      "opened": 0,
+      "completed": 1,
+      "opened": 1,
       "current": null,
-      "summary_status": "NOT_OPENED"
+      "summary_status": "ADMITTED"
     }
+  },
+  "final_public": {
+    "code_candidate_sha": "1c297a0c23074aa4253f1d4d3514a57a3d094ca0",
+    "exact_sha_gate": {
+      "sha": "4c62c497fac417f15b80e64ea29f6d873daaa6f8",
+      "ci_run": 33622266344,
+      "ci_result": "PASS",
+      "risk_review": "PASS_FINDINGS_NONE"
+    },
+    "post_gate_bounded_adapter_repair": {
+      "sha": "1c297a0c23074aa4253f1d4d3514a57a3d094ca0",
+      "scope": "WINDOWS_ASYNC_POSTGRESQL_SELECTOR_LOOP_ONLY",
+      "validation": "TARGETED_TESTS_AND_REAL_ASYNC_DATABASE_PASS",
+      "full_ci": "NOT_REPEATED_BY_OWNER_EFFICIENCY_POLICY"
+    },
+    "acquisition_run_id": "ce7bbbb2833521cc46fed33e710a0022",
+    "cohort_spec_id": "0413b81f74209d8aa64910818eb0b6f5",
+    "selected_manifest_id": "cfc314946de99959ba7472d33ef58e33",
+    "selected_manifest_digest": "1ac5423a50d2fa08c533f277f01e82ac66de2c2ab5b958d4ac4bbfd5bcccfd9d",
+    "screening_report_id": "6ed7a197767dadafba41d6dd6f439dc1",
+    "question_bank_id": "b4156fa5c9a9a1f3fbaa82e7ca62cc65",
+    "admission_id": "4096d86081e5f96d63b6bf3431ca76cf",
+    "asset_set_id": "16f99b62a628587d25c4cd215fd1f6bc80256f1ada76a7b1caed3af58b8a4bd5",
+    "successor_universe_digest": "b5cd2fb13c27ca705c02886e82ade747230bfd1a5b5e7bdcf6953436ce810b30",
+    "provenance_envelope_digest": "41e3a374693fb54e1fd12e80637cd546dfd6935570de37fb2f51d31655201296",
+    "screening": "PASSED",
+    "selected_dimensions": [
+      "jaw_width",
+      "eye_spacing"
+    ],
+    "question_pairs": 16,
+    "selected_sides": 32,
+    "assets": 52,
+    "asset_variants": 48,
+    "provider_calls": 7,
+    "private_state_disclosed": false
   },
   "legacy": {
     "e3": "FAILED_CLOSED",
