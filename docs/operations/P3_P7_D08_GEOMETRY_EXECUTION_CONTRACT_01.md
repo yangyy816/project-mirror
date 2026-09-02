@@ -57,7 +57,11 @@ Makeup and Generative remain unavailable. Geometry remains
 The repository reconstructs, from locked PostgreSQL rows, an immutable
 `GeometryExecutionAuthority` containing:
 
-- editing Session, plan and operation IDs and digests;
+- editing Session and plan IDs and authority digests;
+- operation ID plus two non-interchangeable digests:
+  `operation_authority_digest` is the persisted
+  `DemoEditOperation.content_digest`, while `operation_spec_digest` is the
+  deterministic digest of that row's frozen `OperationSpec` projection;
 - current input ImageVersion ID and digest;
 - input Asset and root SOURCE Asset IDs and SHA-256 values;
 - D02 admission and screening report IDs and digests;
@@ -68,7 +72,8 @@ The repository reconstructs, from locked PostgreSQL rows, an immutable
 - accepted backend identity; and
 - a canonical authority digest over every preceding field.
 
-`ExecutionCommand` receives the repository-derived Session, plan, input
+`ExecutionCommand` receives the repository-derived Session, plan, both
+operation digests, input
 ImageVersion and root bindings plus the typed authority. HTTP and Celery
 payloads cannot provide or override them. Geometry requires the authority;
 Raster and transition operations forbid it. Every plan/operation/image/root/
@@ -76,7 +81,9 @@ case/backend field must agree bidirectionally.
 
 Geometry `engine_digest` binds the registry engine version, accepted algorithm
 and runtime identity. Geometry `config_digest` binds the plan, operation,
-case, warp plan, output policy, verifier policy and authority digest.
+case, warp plan, output policy, verifier policy, both operation digests and
+authority digest. The two operation digests use different schemas and must
+never be compared as if they were the same value.
 
 ## Fresh execution evidence
 
@@ -86,7 +93,8 @@ Its evidence has two explicit layers.
 `GeometryStableMaterializationCore` excludes Job and Attempt identity and
 contains:
 
-- operation, authority, case, backend and warp-plan bindings;
+- operation ID, operation authority/spec digests, authority, case, backend and
+  warp-plan bindings;
 - input ImageVersion, input Asset and root SOURCE bindings;
 - result SHA-256, byte size, media type, dimensions and changed-pixel count;
 - engine and config digests; and
@@ -94,7 +102,8 @@ contains:
 
 `GeometryAttemptExecutionEvidence` contains:
 
-- Job binding, Attempt, operation and authority bindings;
+- Job binding, Attempt, operation ID, both operation digests and authority
+  bindings;
 - the stable-core digest;
 - the fresh backend execution receipt; and
 - a canonical Attempt-specific receipt digest.
