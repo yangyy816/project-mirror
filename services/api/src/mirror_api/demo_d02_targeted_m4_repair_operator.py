@@ -267,7 +267,7 @@ class D02TargetedM4RepairOperator:
             config_digest=config.digest,
             scope_digest=cast(str, scope["repair_scope_digest"]),
             predecessor_checkpoint_digest=predecessor.checkpoint_payload_digest,
-            predecessor_report_digest=cast(str, predecessor.report["content_digest"]),
+            predecessor_report_digest=cast(str, predecessor.report["report_digest"]),
             successor_case_id=cast(str, case_plan.replacement_case["case_id"]),
             successor_admission_idempotency_key_hash=idempotency_key_hash(
                 successor_idempotency_key

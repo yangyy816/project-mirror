@@ -5,6 +5,7 @@ import io
 import json
 from collections.abc import Callable
 from dataclasses import replace
+from functools import lru_cache
 from pathlib import Path
 from typing import cast
 
@@ -12,6 +13,7 @@ import pytest
 from PIL import Image
 
 import mirror_api.demo_d02_targeted_m4_successor_checkpoint as successor_checkpoint_module
+from mirror_api import demo_d02_r2_authority as r2
 from mirror_api.demo_d02_r2_runtime_forward import M4ExecutionOutput
 from mirror_api.demo_d02_screening_adapters import PrincipalArtifactDecision
 from mirror_api.demo_d02_targeted_m4_successor_checkpoint import (
@@ -21,6 +23,7 @@ from mirror_api.demo_d02_targeted_m4_successor_checkpoint import (
     D02TargetedM4SuccessorStore,
     SuccessorBindings,
 )
+from mirror_api.demo_idempotency import canonical_json_bytes
 from mirror_api.demo_measurement_quality import mirror_demo_digest
 
 CASE_ID = "25" * 16
@@ -73,6 +76,112 @@ def _record(name: str, digest_key: str) -> dict[str, object]:
     }
 
 
+@lru_cache
+def _actual_successor_evidence() -> tuple[
+    SuccessorBindings,
+    tuple[M4ExecutionOutput, M4ExecutionOutput],
+    tuple[dict[str, object], dict[str, object], dict[str, object]],
+    PrincipalArtifactDecision,
+    dict[str, object],
+    dict[str, object],
+]:
+    first, second = _output(1), _output(2)
+    case_specification_digest = "1" * 64
+    runtime_manifest_digest = "2" * 64
+    records: list[dict[str, object]] = []
+    for repeat_index in range(1, 4):
+        fields = {
+            "case_id": CASE_ID,
+            "case_specification_digest": case_specification_digest,
+            "result_output_id": first.result_output_id,
+            "result_sha256": first.result_sha256,
+            "repeat_index": repeat_index,
+            "runtime_manifest_digest": runtime_manifest_digest,
+            "vision_model_manifest_digest": "3" * 64,
+            "topology_digest": "4" * 64,
+            "canonical_output_digest": "5" * 64,
+            "landmark_digest": "6" * 64,
+            "measurement_observation": {"nested": {"repeat": repeat_index}},
+            "measurement_observation_digest": "7" * 64,
+            "execution_receipt_digest": "8" * 64,
+            "face_count": 1,
+            "landmark_count": 478,
+            "coordinates_finite": True,
+            "coordinates_in_bounds": True,
+            "observation_state": "SUPPORTED",
+            "repeat_gate_passed": True,
+        }
+        records.append(cast(dict[str, object], r2.build_r2_result_m3_record(fields)))
+    bindings = _bindings()
+    ordered_case_specification_digests = ["a" * 64 for _ in range(48)]
+    ordered_case_specification_digests[24] = case_specification_digest
+    ordered_slot_digests = ["b" * 64 for _ in range(48)]
+    universe_payload: dict[str, object] = {
+        "schema_version": "mirror.demo/D02TargetedM4RepairUniverse/v1",
+        "case_count": 48,
+        "case_manifest_digest": "c" * 64,
+        "ordered_case_specification_digests": ordered_case_specification_digests,
+        "ordered_slot_digests": ordered_slot_digests,
+        "reused_predecessor_slot_count": 47,
+        "replacement_case_ordinal": 25,
+        "replacement_slot_digest": ordered_slot_digests[24],
+    }
+    universe = {
+        **universe_payload,
+        "successor_universe_digest": _raw_digest(
+            "mirror.demo/D02TargetedM4RepairUniverse/v1", universe_payload
+        ),
+    }
+    envelope_payload: dict[str, object] = {
+        "schema_version": "mirror.demo/D02TargetedM4RepairProvenance/v1",
+        "predecessor_report_id": "report-25",
+        "predecessor_report_digest": bindings.predecessor_report_digest,
+        "predecessor_report_content_digest": "d" * 64,
+        "predecessor_status": "FAILED",
+        "predecessor_checkpoint_payload_digest": bindings.predecessor_checkpoint_digest,
+        "repair_policy_digest": bindings.policy_digest,
+        "repair_implementation_digest": bindings.implementation_digest,
+        "repair_scope_digest": bindings.scope_digest,
+        "backend_reexecution_case_ordinals": [25],
+        "provider_reexecution": False,
+        "predecessor_case_id": "ab" * 16,
+        "predecessor_case_specification_digest": "e" * 64,
+        "successor_case_id": CASE_ID,
+        "successor_case_specification_digest": case_specification_digest,
+        "replacement_result_output_digest": first.output_digest,
+        "replacement_result_sha256": first.result_sha256,
+        "successor_m4_record_digests": ["f" * 64, "0" * 64],
+        "successor_result_m3_record_digests": [record["record_digest"] for record in records],
+        "ordered_predecessor_reused_slot_digests": ["1" * 64 for _ in range(47)],
+        "replacement_slot_digest": universe["replacement_slot_digest"],
+        "predecessor_source_m3_record_digests": ["2" * 64 for _ in range(12)],
+        "source_m3_reexecution_count": 0,
+        "m4_reexecution_count": 2,
+        "result_m3_reexecution_count": 3,
+        "manual_review_count": 1,
+        "successor_universe_digest": universe["successor_universe_digest"],
+    }
+    envelope = {
+        **envelope_payload,
+        "provenance_envelope_digest": _raw_digest(
+            "mirror.demo/D02TargetedM4RepairProvenance/v1", envelope_payload
+        ),
+    }
+    return (
+        bindings,
+        (first, second),
+        (records[0], records[1], records[2]),
+        _decision(first),
+        universe,
+        envelope,
+    )
+
+
+def _raw_digest(schema: str, payload: dict[str, object]) -> str:
+    encoded = schema.encode("utf-8") + b"\n" + canonical_json_bytes(payload)
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _decision(
     first: M4ExecutionOutput,
     *,
@@ -108,10 +217,10 @@ def _resign_checkpoint(path: Path, mutate: Callable[[dict[str, object]], None]) 
 
 
 def _setup(
-    tmp_path: Path,
+    tmp_path: Path, bindings: SuccessorBindings | None = None
 ) -> tuple[D02TargetedM4SuccessorCheckpoint, D02TargetedM4SuccessorStore]:
     (tmp_path / ".private-handoff").mkdir()
-    bindings = _bindings()
+    bindings = _bindings() if bindings is None else bindings
     return (
         D02TargetedM4SuccessorCheckpoint(workspace_root=tmp_path, bindings=bindings),
         D02TargetedM4SuccessorStore(
@@ -137,21 +246,11 @@ def test_durable_crash_recovery_replays_same_bytes_without_backend(tmp_path: Pat
 
 
 def test_full_monotonic_successor_checkpoint_uses_exact_cardinalities(tmp_path: Path) -> None:
-    checkpoint, store = _setup(tmp_path)
-    first, second = _output(1), _output(2)
+    bindings, (first, second), records, decision, universe, envelope = _actual_successor_evidence()
+    checkpoint, store = _setup(tmp_path, bindings)
     checkpoint.advance(stage="PREDECESSOR_REVIEWED_FAILED")
     checkpoint.advance(stage="REPAIR_POLICY_VALIDATED")
     store.persist(first, second)
-    records = tuple(_record(f"m3-{index}", "record_digest") for index in range(3))
-    decision = _decision(first)
-    universe = {
-        "schema_version": "test/universe/v1",
-        "successor_universe_digest": "1" * 64,
-    }
-    envelope = {
-        "schema_version": "test/envelope/v1",
-        "provenance_envelope_digest": "2" * 64,
-    }
     checkpoint.advance(stage="TARGET_M4_DURABLE", m4_outputs=(first, second))
     checkpoint.advance(
         stage="TARGET_RESULT_M3_COMPLETE", m4_outputs=(first, second), result_m3_records=records
@@ -235,8 +334,8 @@ def test_nonempty_store_without_checkpoint_and_store_collision_fail_closed(tmp_p
 
 
 def test_private_payload_or_wrong_case_fails_closed(tmp_path: Path) -> None:
-    checkpoint, store = _setup(tmp_path)
-    first, second = _output(1), _output(2)
+    bindings, (first, second), records, _, _, _ = _actual_successor_evidence()
+    checkpoint, store = _setup(tmp_path, bindings)
     checkpoint.advance(stage="PREDECESSOR_REVIEWED_FAILED")
     checkpoint.advance(stage="REPAIR_POLICY_VALIDATED")
     store.persist(first, second)
@@ -249,9 +348,9 @@ def test_private_payload_or_wrong_case_fails_closed(tmp_path: Path) -> None:
             stage="TARGET_RESULT_M3_COMPLETE",
             m4_outputs=(first, second),
             result_m3_records=(
-                _record("one", "record_digest"),
-                _record("two", "record_digest"),
-                {"record_digest": "a" * 64, "path": "x"},
+                records[0],
+                records[1],
+                {**records[2], "prompt_text": "forbidden"},
             ),
         )
 
@@ -276,12 +375,8 @@ def test_orphan_store_files_are_nonempty_and_fail_closed(tmp_path: Path, name: s
 
 
 def test_recovered_checkpoint_evidence_is_complete_and_immutable(tmp_path: Path) -> None:
-    checkpoint, store = _setup(tmp_path)
-    first, second = _output(1), _output(2)
-    records = tuple(_record(f"m3-{index}", "record_digest") for index in range(3))
-    decision = _decision(first)
-    universe = {"schema_version": "test/universe/v1", "successor_universe_digest": "1" * 64}
-    envelope = {"schema_version": "test/envelope/v1", "provenance_envelope_digest": "2" * 64}
+    bindings, (first, second), records, decision, universe, envelope = _actual_successor_evidence()
+    checkpoint, store = _setup(tmp_path, bindings)
     checkpoint.advance(stage="PREDECESSOR_REVIEWED_FAILED")
     checkpoint.advance(stage="REPAIR_POLICY_VALIDATED")
     store.persist(first, second)
@@ -307,15 +402,159 @@ def test_recovered_checkpoint_evidence_is_complete_and_immutable(tmp_path: Path)
         provenance_envelope=envelope,
     )
     recovered = checkpoint.load(store=store)
-    assert recovered.result_m3_records == records
+    assert [item["record_digest"] for item in recovered.result_m3_records] == [
+        item["record_digest"] for item in records
+    ]
     assert recovered.artifact_decision == decision
-    assert recovered.successor_universe == universe
-    assert recovered.provenance_envelope == envelope
+    assert recovered.successor_universe is not None
+    assert (
+        recovered.successor_universe["successor_universe_digest"]
+        == universe["successor_universe_digest"]
+    )
+    assert recovered.provenance_envelope is not None
+    assert (
+        recovered.provenance_envelope["provenance_envelope_digest"]
+        == envelope["provenance_envelope_digest"]
+    )
+    checkpoint.advance(
+        stage="ADMISSION_READY",
+        m4_outputs=cast(tuple[M4ExecutionOutput, M4ExecutionOutput], recovered.m4_outputs),
+        result_m3_records=recovered.result_m3_records,
+        artifact_decision=recovered.artifact_decision,
+        successor_universe=recovered.successor_universe,
+        provenance_envelope=recovered.provenance_envelope,
+    )
+    assert checkpoint.load(store=store).stage == "ADMISSION_READY"
     with pytest.raises(TypeError):
         recovered.result_m3_records[0]["subject_id"] = "mutated"  # type: ignore[index]
-    assert recovered.successor_universe is not None
     with pytest.raises(TypeError):
         recovered.successor_universe["schema_version"] = "mutated"  # type: ignore[index]
+
+
+def _screened_checkpoint(
+    tmp_path: Path,
+) -> tuple[D02TargetedM4SuccessorCheckpoint, D02TargetedM4SuccessorStore]:
+    bindings, (first, second), records, decision, universe, envelope = _actual_successor_evidence()
+    checkpoint, store = _setup(tmp_path, bindings)
+    checkpoint.advance(stage="PREDECESSOR_REVIEWED_FAILED")
+    checkpoint.advance(stage="REPAIR_POLICY_VALIDATED")
+    store.persist(first, second)
+    checkpoint.advance(stage="TARGET_M4_DURABLE", m4_outputs=(first, second))
+    checkpoint.advance(
+        stage="TARGET_RESULT_M3_COMPLETE", m4_outputs=(first, second), result_m3_records=records
+    )
+    checkpoint.advance(
+        stage="TARGET_REVIEW_REQUIRED", m4_outputs=(first, second), result_m3_records=records
+    )
+    checkpoint.advance(
+        stage="SUCCESSOR_REVIEWED",
+        m4_outputs=(first, second),
+        result_m3_records=records,
+        artifact_decision=decision,
+    )
+    checkpoint.advance(
+        stage="SUCCESSOR_SCREENING_REPLAYED",
+        m4_outputs=(first, second),
+        result_m3_records=records,
+        artifact_decision=decision,
+        successor_universe=universe,
+        provenance_envelope=envelope,
+    )
+    return checkpoint, store
+
+
+def _result_record(document: dict[str, object], index: int) -> dict[str, object]:
+    return cast(list[dict[str, object]], document["result_m3_records"])[index]
+
+
+def _mutate_nested_result_field(document: dict[str, object]) -> None:
+    _result_record(document, 0)["landmark_count"] = 477
+
+
+def _mutate_nested_result_digest(document: dict[str, object]) -> None:
+    _result_record(document, 1)["record_digest"] = "0" * 64
+
+
+def _mutate_nested_result_repeat(document: dict[str, object]) -> None:
+    _result_record(document, 2)["repeat_index"] = 1
+
+
+def _mutate_universe(document: dict[str, object]) -> None:
+    cast(dict[str, object], document["successor_universe"])["case_count"] = 47
+
+
+def _mutate_envelope(document: dict[str, object]) -> None:
+    cast(dict[str, object], document["provenance_envelope"])["m4_reexecution_count"] = 1
+
+
+@pytest.mark.parametrize(
+    ("mutate", "code"),
+    (
+        (
+            _mutate_nested_result_field,
+            "SUCCESSOR_RESULT_M3_INVALID",
+        ),
+        (
+            _mutate_nested_result_digest,
+            "SUCCESSOR_RESULT_M3_INVALID",
+        ),
+        (
+            _mutate_nested_result_repeat,
+            "SUCCESSOR_RESULT_M3_INVALID",
+        ),
+        (
+            _mutate_universe,
+            "SUCCESSOR_UNIVERSE_BINDING_INVALID",
+        ),
+        (
+            _mutate_envelope,
+            "SUCCESSOR_PROVENANCE_BINDING_INVALID",
+        ),
+    ),
+)
+def test_resigned_checkpoint_nested_evidence_mutation_fails_closed(
+    tmp_path: Path,
+    mutate: Callable[[dict[str, object]], None],
+    code: str,
+) -> None:
+    checkpoint, store = _screened_checkpoint(tmp_path)
+    _resign_checkpoint(tmp_path / CHECKPOINT_RELATIVE, mutate)
+    with pytest.raises(D02TargetedM4SuccessorCheckpointError) as raised:
+        checkpoint.load(store=store)
+    assert raised.value.code == code
+
+
+@pytest.mark.parametrize(
+    ("alias", "value"),
+    (
+        ("prompt", "hidden"),
+        ("prompt_text", "hidden"),
+        ("signed_url", "https://private.invalid"),
+        ("private_locator", "opaque"),
+        ("absolute_path", "C:/private"),
+        ("object_key", "private-object"),
+        ("image_bytes", b"private"),
+    ),
+)
+def test_private_aliases_fail_closed_on_checkpoint_write(
+    tmp_path: Path, alias: str, value: object
+) -> None:
+    bindings, (first, second), records, _, _, _ = _actual_successor_evidence()
+    checkpoint, store = _setup(tmp_path, bindings)
+    checkpoint.advance(stage="PREDECESSOR_REVIEWED_FAILED")
+    checkpoint.advance(stage="REPAIR_POLICY_VALIDATED")
+    store.persist(first, second)
+    checkpoint.advance(stage="TARGET_M4_DURABLE", m4_outputs=(first, second))
+    bad_records = ({**records[0], alias: value}, records[1], records[2])
+    with pytest.raises(
+        D02TargetedM4SuccessorCheckpointError,
+        match="SUCCESSOR_PUBLIC_PAYLOAD_PRIVATE_FIELD",
+    ):
+        checkpoint.advance(
+            stage="TARGET_RESULT_M3_COMPLETE",
+            m4_outputs=(first, second),
+            result_m3_records=bad_records,
+        )
 
 
 @pytest.mark.parametrize(
@@ -364,11 +603,11 @@ def test_malformed_json_field_types_are_redacted_and_stable(
     ),
 )
 def test_artifact_decision_binding_drift_fails_closed(
-    tmp_path: Path, decision: Callable[[M4ExecutionOutput], PrincipalArtifactDecision]
+    tmp_path: Path,
+    decision: Callable[[M4ExecutionOutput], PrincipalArtifactDecision],
 ) -> None:
-    checkpoint, store = _setup(tmp_path)
-    first, second = _output(1), _output(2)
-    records = tuple(_record(f"m3-{index}", "record_digest") for index in range(3))
+    bindings, (first, second), records, _, _, _ = _actual_successor_evidence()
+    checkpoint, store = _setup(tmp_path, bindings)
     checkpoint.advance(stage="PREDECESSOR_REVIEWED_FAILED")
     checkpoint.advance(stage="REPAIR_POLICY_VALIDATED")
     store.persist(first, second)
@@ -391,9 +630,8 @@ def test_artifact_decision_binding_drift_fails_closed(
 
 
 def test_artifact_decision_digest_tamper_fails_closed(tmp_path: Path) -> None:
-    checkpoint, store = _setup(tmp_path)
-    first, second = _output(1), _output(2)
-    records = tuple(_record(f"m3-{index}", "record_digest") for index in range(3))
+    bindings, (first, second), records, decision, _, _ = _actual_successor_evidence()
+    checkpoint, store = _setup(tmp_path, bindings)
     checkpoint.advance(stage="PREDECESSOR_REVIEWED_FAILED")
     checkpoint.advance(stage="REPAIR_POLICY_VALIDATED")
     store.persist(first, second)
@@ -412,7 +650,7 @@ def test_artifact_decision_digest_tamper_fails_closed(tmp_path: Path) -> None:
         stage="SUCCESSOR_REVIEWED",
         m4_outputs=(first, second),
         result_m3_records=records,
-        artifact_decision=_decision(first),
+        artifact_decision=decision,
     )
     _resign_checkpoint(
         tmp_path / CHECKPOINT_RELATIVE,

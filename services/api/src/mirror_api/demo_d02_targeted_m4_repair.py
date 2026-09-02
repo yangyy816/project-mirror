@@ -24,6 +24,7 @@ from mirror_api.demo_measurement_quality import JsonValue, mirror_demo_digest
 
 REPAIR_POLICY_SCHEMA: Final = "mirror.demo/D02TargetedM4RepairPolicy/v1"
 REPAIR_IMPLEMENTATION_SCHEMA: Final = "mirror.demo/D02TargetedM4RepairImplementation/v1"
+REPAIR_PLAN_SCHEMA: Final = "mirror.demo/D02TargetedJawRepairPlan/v1"
 REPAIR_SCOPE_SCHEMA: Final = "mirror.demo/D02TargetedM4RepairScope/v1"
 SUCCESSOR_UNIVERSE_SCHEMA: Final = "mirror.demo/D02TargetedM4RepairUniverse/v1"
 SUCCESSOR_ENVELOPE_SCHEMA: Final = "mirror.demo/D02TargetedM4RepairProvenance/v1"
@@ -173,6 +174,46 @@ def build_repair_scope() -> dict[str, object]:
     return {**payload, "repair_scope_digest": _digest(REPAIR_SCOPE_SCHEMA, payload)}
 
 
+def build_repair_warp_plan_digest(
+    *,
+    algorithm_version: str,
+    implementation_digest: str,
+    repair_policy_digest: str,
+    configuration_digest: str,
+    source_descriptor_digest: str,
+    source_content_sha256: str,
+) -> str:
+    """Replay the public-safe Case-25 warp-plan binding."""
+
+    if (
+        not isinstance(algorithm_version, str)
+        or legacy._VERSION.fullmatch(algorithm_version) is None
+        or any(
+            not _is_digest(value)
+            for value in (
+                implementation_digest,
+                repair_policy_digest,
+                configuration_digest,
+                source_descriptor_digest,
+                source_content_sha256,
+            )
+        )
+    ):
+        _fail("REPAIR_WARP_PLAN_BINDING_INVALID")
+    return _digest(
+        REPAIR_PLAN_SCHEMA,
+        {
+            "algorithm_version": algorithm_version,
+            "implementation_digest": implementation_digest,
+            "repair_policy_digest": repair_policy_digest,
+            "config_digest": configuration_digest,
+            "source_descriptor_digest": source_descriptor_digest,
+            "source_content_sha256": source_content_sha256,
+            **TARGET_SELECTOR,
+        },
+    )
+
+
 def compose_targeted_m4_successor(
     *,
     predecessor: orchestrator.PreparedRuntimeEvidence,
@@ -212,7 +253,21 @@ def compose_targeted_m4_successor(
         or new_case["case_specification_digest"] == old_case["case_specification_digest"]
     ):
         _fail("REPLACEMENT_CASE_IDENTITY_UNCHANGED")
-    if new_case["geometry_algorithm_version"] != implementation["algorithm_version"]:
+    target_source = predecessor.source_materials[TARGET_SOURCE_ORDINAL - 1].descriptor
+    expected_warp_plan_digest = build_repair_warp_plan_digest(
+        algorithm_version=cast(str, implementation["algorithm_version"]),
+        implementation_digest=cast(str, implementation["implementation_digest"]),
+        repair_policy_digest=cast(str, policy["repair_policy_digest"]),
+        configuration_digest=cast(str, implementation["configuration_digest"]),
+        source_descriptor_digest=target_source.descriptor_digest,
+        source_content_sha256=target_source.content_sha256,
+    )
+    if (
+        new_case["geometry_algorithm_version"] != implementation["algorithm_version"]
+        or new_case["geometry_ontology_version_digest"] != implementation["implementation_digest"]
+        or new_case["runtime_config_digest"] != implementation["configuration_digest"]
+        or new_case["warp_plan_digest"] != expected_warp_plan_digest
+    ):
         _fail("REPLACEMENT_IMPLEMENTATION_MISMATCH")
     first, second = _validate_replacement_outputs(
         outputs=replacement_m4_outputs, case=new_case, predecessor=predecessor
@@ -324,6 +379,16 @@ def _validate_predecessor(
         or len(predecessor.formal_bundle.sources) != 4
     ):
         _fail("PREDECESSOR_CARDINALITY_INVALID")
+    if any(
+        output.case_id != case.get("case_id")
+        or output.result_output_id != f"m4-{case.get('case_id')}"
+        for case, output in zip(
+            predecessor.cases,
+            predecessor.result_outputs,
+            strict=True,
+        )
+    ):
+        _fail("PREDECESSOR_RESULT_ORDER_INVALID")
     try:
         payload = cast(Mapping[str, object], report["report_payload"])
         r2.validate_r2_report_payload(payload)
@@ -460,6 +525,8 @@ def _validate_replacement_outputs(
     if (
         first.case_id != case["case_id"]
         or second.case_id != case["case_id"]
+        or first.result_output_id != f"m4-{case['case_id']}"
+        or second.result_output_id != first.result_output_id
         or first.replay_index != 1
         or second.replay_index != 2
         or first.result_width != expected_width

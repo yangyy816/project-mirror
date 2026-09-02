@@ -20,14 +20,17 @@ from PIL import Image
 
 from mirror_api import demo_d02_r2_runtime_forward as runtime_forward
 from mirror_api import demo_measurement_quality as measurement
-from mirror_api.demo_d02_targeted_m4_repair import build_repair_policy
+from mirror_api.demo_d02_targeted_m4_repair import (
+    build_repair_policy,
+    build_repair_warp_plan_digest,
+)
 from mirror_api.image_sanitizer import ImageSanitizationError, decode_canonical_rgb_image
 
 _ALGORITHM_VERSION: Final = "d02-targeted-jaw-repair-v1"
 _CONFIG_VERSION: Final = "d02-targeted-jaw-repair-config-v1"
 _OUTPUT_POLICY_VERSION: Final = "d02-targeted-jpeg-q95-420-v1"
 _DETERMINISM_LEVEL: Final = "BIT_EXACT_SAME_PLATFORM"
-_IMPLEMENTATION_REVISION: Final = "d02-targeted-jaw-repair-implementation-20260902-2"
+_IMPLEMENTATION_REVISION: Final = "d02-targeted-jaw-repair-implementation-20260902-3"
 _TARGET_CASE_ORDINAL: Final = 25
 _TARGET_SOURCE_ORDINAL: Final = 3
 _TARGET_DIMENSION: Final = "jaw_width"
@@ -127,21 +130,13 @@ class D02TargetedM4RepairBackend:
         self._validate_canonical_source(material)
         self._material = material
         self._config = config
-        self._warp_plan_digest = _digest_payload(
-            "mirror.demo/D02TargetedJawRepairPlan/v1",
-            {
-                "algorithm_version": self.algorithm_version,
-                "implementation_digest": self.implementation_digest,
-                "repair_policy_digest": self.repair_policy_digest,
-                "config_digest": config.digest,
-                "source_descriptor_digest": descriptor.descriptor_digest,
-                "source_content_sha256": descriptor.content_sha256,
-                "case_ordinal": _TARGET_CASE_ORDINAL,
-                "source_ordinal": _TARGET_SOURCE_ORDINAL,
-                "dimension_key": _TARGET_DIMENSION,
-                "direction": _TARGET_DIRECTION,
-                "magnitude_ppm": _TARGET_MAGNITUDE_PPM,
-            },
+        self._warp_plan_digest = build_repair_warp_plan_digest(
+            algorithm_version=self.algorithm_version,
+            implementation_digest=self.implementation_digest,
+            repair_policy_digest=self.repair_policy_digest,
+            configuration_digest=config.digest,
+            source_descriptor_digest=descriptor.descriptor_digest,
+            source_content_sha256=descriptor.content_sha256,
         )
         self._replay: _ReplayState | None = None
         self._lock = threading.RLock()

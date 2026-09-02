@@ -18,6 +18,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Final, NoReturn, cast
 
+from mirror_api import demo_d02_r2_authority as r2
+from mirror_api import demo_d02_targeted_m4_repair as repair
 from mirror_api.demo_d02_r2_runtime_forward import (
     M4_EXECUTION_OUTPUT_SCHEMA,
     M4ExecutionOutput,
@@ -48,7 +50,24 @@ _STAGES: Final = (
     "ADMITTED",
 )
 _PRIVATE_KEYS: Final = frozenset(
-    {"bytes", "content", "path", "locator", "raw_bytes", "token", "secret", "url", "storage_key"}
+    {
+        "absolute_path",
+        "bytes",
+        "content",
+        "image_bytes",
+        "locator",
+        "object_key",
+        "path",
+        "private_locator",
+        "prompt",
+        "prompt_text",
+        "raw_bytes",
+        "secret",
+        "signed_url",
+        "storage_key",
+        "token",
+        "url",
+    }
 )
 
 
@@ -277,14 +296,14 @@ class D02TargetedM4SuccessorCheckpoint:
         if previous is not None:
             current = {
                 "m4_outputs": [_output_payload(item) for item in m4_outputs],
-                "result_m3_records": [dict(item) for item in result_m3_records],
+                "result_m3_records": [_thaw(item) for item in result_m3_records],
                 "artifact_decision": _decision_payload(artifact_decision),
                 "successor_universe": None
                 if successor_universe is None
-                else dict(successor_universe),
+                else _thaw(successor_universe),
                 "provenance_envelope": None
                 if provenance_envelope is None
-                else dict(provenance_envelope),
+                else _thaw(provenance_envelope),
             }
             for key, value in current.items():
                 if previous[key] not in ([], None) and previous[key] != value:
@@ -294,12 +313,12 @@ class D02TargetedM4SuccessorCheckpoint:
             "stage": stage,
             "bindings": self._bindings.payload(),
             "m4_outputs": [_output_payload(item) for item in m4_outputs],
-            "result_m3_records": [dict(item) for item in result_m3_records],
+            "result_m3_records": [_thaw(item) for item in result_m3_records],
             "artifact_decision": _decision_payload(artifact_decision),
-            "successor_universe": None if successor_universe is None else dict(successor_universe),
+            "successor_universe": None if successor_universe is None else _thaw(successor_universe),
             "provenance_envelope": None
             if provenance_envelope is None
-            else dict(provenance_envelope),
+            else _thaw(provenance_envelope),
         }
         document["document_digest"] = _digest(document)
         self._write(document)
@@ -376,8 +395,15 @@ class D02TargetedM4SuccessorCheckpoint:
             _validate_m4_pair(first, second, self._bindings.successor_case_id)
         if len(records) != 3 if completed else bool(records):
             _fail("SUCCESSOR_RESULT_M3_CARDINALITY_INVALID")
-        for record in records:
-            _validate_record(record, "record_digest")
+        if completed:
+            if first is None:  # pragma: no cover - completed stages are durable.
+                _fail("SUCCESSOR_M4_CARDINALITY_INVALID")
+            _validate_result_m3_records(
+                records,
+                case_id=self._bindings.successor_case_id,
+                result_output_id=first.result_output_id,
+                result_sha256=first.result_sha256,
+            )
         if (decision is None) == reviewed:
             _fail("SUCCESSOR_REVIEW_BINDING_INVALID")
         if decision is not None:
@@ -389,12 +415,19 @@ class D02TargetedM4SuccessorCheckpoint:
         replayed = _STAGES.index(stage) >= _STAGES.index("SUCCESSOR_SCREENING_REPLAYED")
         if (universe is None) == replayed:
             _fail("SUCCESSOR_UNIVERSE_BINDING_INVALID")
-        if universe is not None:
-            _validate_record(universe, "successor_universe_digest")
         if (envelope is None) == replayed:
             _fail("SUCCESSOR_PROVENANCE_BINDING_INVALID")
-        if envelope is not None:
-            _validate_record(envelope, "provenance_envelope_digest")
+        if universe is not None and envelope is not None:
+            if first is None:  # pragma: no cover - replayed stages are durable.
+                _fail("SUCCESSOR_M4_CARDINALITY_INVALID")
+            _validate_successor_provenance(
+                universe=universe,
+                envelope=envelope,
+                records=records,
+                bindings=self._bindings,
+                result_output_digest=first.output_digest,
+                result_sha256=first.result_sha256,
+            )
 
     def _read_optional(self) -> dict[str, object] | None:
         return None if not self.exists else self._read_required()
@@ -455,8 +488,13 @@ class D02TargetedM4SuccessorCheckpoint:
         completed = _STAGES.index(stage) >= _STAGES.index("TARGET_RESULT_M3_COMPLETE")
         if len(records) != 3 if completed else bool(records):
             _fail("SUCCESSOR_RESULT_M3_CARDINALITY_INVALID")
-        for record in records:
-            _validate_record(record, "record_digest")
+        if completed:
+            _validate_result_m3_records(
+                records,
+                case_id=self._bindings.successor_case_id,
+                result_output_id=cast(str, parsed[0]["result_output_id"]),
+                result_sha256=cast(str, parsed[0]["result_sha256"]),
+            )
         reviewed = _STAGES.index(stage) >= _STAGES.index("SUCCESSOR_REVIEWED")
         decision = document["artifact_decision"]
         if (decision is None) == reviewed or (
@@ -470,18 +508,24 @@ class D02TargetedM4SuccessorCheckpoint:
                 result_sha256=cast(str, parsed[0]["result_sha256"]) if durable else None,
             )
         replayed = _STAGES.index(stage) >= _STAGES.index("SUCCESSOR_SCREENING_REPLAYED")
-        pairs = (
-            ("successor_universe", "successor_universe_digest"),
-            ("provenance_envelope", "provenance_envelope_digest"),
-        )
-        for key, digest_key in pairs:
-            value = document[key]
-            if (value is None) == replayed or (
-                value is not None and not isinstance(value, Mapping)
-            ):
-                _fail("SUCCESSOR_PROVENANCE_BINDING_INVALID")
-            if isinstance(value, Mapping):
-                _validate_record(value, digest_key)
+        universe = document["successor_universe"]
+        envelope = document["provenance_envelope"]
+        if (
+            (universe is None) == replayed
+            or (envelope is None) == replayed
+            or (universe is not None and not isinstance(universe, Mapping))
+            or (envelope is not None and not isinstance(envelope, Mapping))
+        ):
+            _fail("SUCCESSOR_PROVENANCE_BINDING_INVALID")
+        if isinstance(universe, Mapping) and isinstance(envelope, Mapping):
+            _validate_successor_provenance(
+                universe=universe,
+                envelope=envelope,
+                records=records,
+                bindings=self._bindings,
+                result_output_digest=cast(str, parsed[0]["output_digest"]),
+                result_sha256=cast(str, parsed[0]["result_sha256"]),
+            )
 
     def _write(self, document: Mapping[str, object]) -> None:
         # create=True either returns a directory or raises a stable error.
@@ -716,14 +760,171 @@ def _validate_output_payload(value: object, case_id: str) -> Mapping[str, object
     return cast(Mapping[str, object], value)
 
 
-def _validate_record(value: object, digest_key: str) -> None:
+def _validate_result_m3_records(
+    values: Sequence[object], *, case_id: str, result_output_id: str, result_sha256: str
+) -> None:
+    if len(values) != 3:
+        _fail("SUCCESSOR_RESULT_M3_CARDINALITY_INVALID")
+    for expected_repeat, value in enumerate(values, start=1):
+        if not isinstance(value, Mapping):
+            _fail("SUCCESSOR_RESULT_M3_INVALID")
+        _reject_private(value)
+        fields = {
+            key: _thaw(item)
+            for key, item in value.items()
+            if key not in {"schema_version", "result_m3_record_id", "record_digest"}
+        }
+        try:
+            replayed = r2.build_r2_result_m3_record(fields)
+        except (KeyError, TypeError, ValueError, r2.D02R2AuthorityError) as error:
+            raise D02TargetedM4SuccessorCheckpointError("SUCCESSOR_RESULT_M3_INVALID") from error
+        if (
+            _thaw(value) != replayed
+            or value.get("case_id") != case_id
+            or value.get("result_output_id") != result_output_id
+            or value.get("result_sha256") != result_sha256
+            or value.get("repeat_index") != expected_repeat
+        ):
+            _fail("SUCCESSOR_RESULT_M3_INVALID")
+
+
+def _validate_successor_provenance(
+    *,
+    universe: Mapping[str, object],
+    envelope: Mapping[str, object],
+    records: Sequence[object],
+    bindings: SuccessorBindings,
+    result_output_digest: str,
+    result_sha256: str,
+) -> None:
+    universe = cast(Mapping[str, object], _thaw(universe))
+    envelope = cast(Mapping[str, object], _thaw(envelope))
+    records = cast(Sequence[object], _thaw(tuple(records)))
+    _reject_private(universe)
+    _reject_private(envelope)
+    universe_expected = {
+        "schema_version",
+        "case_count",
+        "case_manifest_digest",
+        "ordered_case_specification_digests",
+        "ordered_slot_digests",
+        "reused_predecessor_slot_count",
+        "replacement_case_ordinal",
+        "replacement_slot_digest",
+        "successor_universe_digest",
+    }
     if (
-        not isinstance(value, Mapping)
-        or digest_key not in value
-        or not _is_digest(value[digest_key])
+        set(universe) != universe_expected
+        or universe.get("schema_version") != repair.SUCCESSOR_UNIVERSE_SCHEMA
     ):
-        _fail("SUCCESSOR_PUBLIC_RECORD_INVALID")
-    _reject_private(value)
+        _fail("SUCCESSOR_UNIVERSE_BINDING_INVALID")
+    universe_payload = {
+        key: value for key, value in universe.items() if key != "successor_universe_digest"
+    }
+    if (
+        universe.get("successor_universe_digest")
+        != _schema_digest(repair.SUCCESSOR_UNIVERSE_SCHEMA, universe_payload)
+        or universe.get("case_count") != 48
+        or universe.get("reused_predecessor_slot_count") != 47
+        or universe.get("replacement_case_ordinal") != TARGET_CASE_ORDINAL
+        or not _digest_sequence(universe.get("ordered_case_specification_digests"), 48)
+        or not _digest_sequence(universe.get("ordered_slot_digests"), 48)
+        or universe.get("replacement_slot_digest")
+        != cast(Sequence[object], universe["ordered_slot_digests"])[TARGET_CASE_ORDINAL - 1]
+        or not _is_digest(universe.get("case_manifest_digest"))
+    ):
+        _fail("SUCCESSOR_UNIVERSE_BINDING_INVALID")
+
+    envelope_expected = {
+        "schema_version",
+        "predecessor_report_id",
+        "predecessor_report_digest",
+        "predecessor_report_content_digest",
+        "predecessor_status",
+        "predecessor_checkpoint_payload_digest",
+        "repair_policy_digest",
+        "repair_implementation_digest",
+        "repair_scope_digest",
+        "backend_reexecution_case_ordinals",
+        "provider_reexecution",
+        "predecessor_case_id",
+        "predecessor_case_specification_digest",
+        "successor_case_id",
+        "successor_case_specification_digest",
+        "replacement_result_output_digest",
+        "replacement_result_sha256",
+        "successor_m4_record_digests",
+        "successor_result_m3_record_digests",
+        "ordered_predecessor_reused_slot_digests",
+        "replacement_slot_digest",
+        "predecessor_source_m3_record_digests",
+        "source_m3_reexecution_count",
+        "m4_reexecution_count",
+        "result_m3_reexecution_count",
+        "manual_review_count",
+        "successor_universe_digest",
+        "provenance_envelope_digest",
+    }
+    if (
+        set(envelope) != envelope_expected
+        or envelope.get("schema_version") != repair.SUCCESSOR_ENVELOPE_SCHEMA
+    ):
+        _fail("SUCCESSOR_PROVENANCE_BINDING_INVALID")
+    envelope_payload = {
+        key: value for key, value in envelope.items() if key != "provenance_envelope_digest"
+    }
+    record_digests = [
+        value.get("record_digest") if isinstance(value, Mapping) else None for value in records
+    ]
+    if (
+        envelope.get("provenance_envelope_digest")
+        != _schema_digest(repair.SUCCESSOR_ENVELOPE_SCHEMA, envelope_payload)
+        or envelope.get("predecessor_report_digest") != bindings.predecessor_report_digest
+        or envelope.get("predecessor_checkpoint_payload_digest")
+        != bindings.predecessor_checkpoint_digest
+        or envelope.get("repair_policy_digest") != bindings.policy_digest
+        or envelope.get("repair_implementation_digest") != bindings.implementation_digest
+        or envelope.get("repair_scope_digest") != bindings.scope_digest
+        or envelope.get("predecessor_status") != "FAILED"
+        or envelope.get("backend_reexecution_case_ordinals") != [TARGET_CASE_ORDINAL]
+        or envelope.get("provider_reexecution") is not False
+        or envelope.get("successor_case_id") != bindings.successor_case_id
+        or envelope.get("successor_case_specification_digest")
+        != cast(Sequence[object], universe["ordered_case_specification_digests"])[
+            TARGET_CASE_ORDINAL - 1
+        ]
+        or envelope.get("replacement_result_output_digest") != result_output_digest
+        or envelope.get("replacement_result_sha256") != result_sha256
+        or envelope.get("successor_result_m3_record_digests") != record_digests
+        or envelope.get("successor_universe_digest") != universe.get("successor_universe_digest")
+        or envelope.get("replacement_slot_digest") != universe.get("replacement_slot_digest")
+        or envelope.get("source_m3_reexecution_count") != 0
+        or envelope.get("m4_reexecution_count") != 2
+        or envelope.get("result_m3_reexecution_count") != 3
+        or envelope.get("manual_review_count") != 1
+        or not _digest_sequence(envelope.get("successor_m4_record_digests"), 2)
+        or not _digest_sequence(envelope.get("ordered_predecessor_reused_slot_digests"), 47)
+        or not _digest_sequence(envelope.get("predecessor_source_m3_record_digests"), 12)
+        or not _is_digest(envelope.get("predecessor_report_content_digest"))
+        or not _is_digest(envelope.get("predecessor_case_specification_digest"))
+    ):
+        _fail("SUCCESSOR_PROVENANCE_BINDING_INVALID")
+
+
+def _schema_digest(schema: str, payload: Mapping[str, object]) -> str:
+    try:
+        encoded = schema.encode("utf-8") + b"\n" + canonical_json_bytes(payload)
+        return hashlib.sha256(encoded).hexdigest()
+    except DemoIdempotencyInputError as error:
+        raise D02TargetedM4SuccessorCheckpointError(
+            "SUCCESSOR_PROVENANCE_BINDING_INVALID"
+        ) from error
+
+
+def _digest_sequence(value: object, count: int) -> bool:
+    return (
+        isinstance(value, list) and len(value) == count and all(_is_digest(item) for item in value)
+    )
 
 
 def _verify_file(path: Path, output: M4ExecutionOutput) -> None:
@@ -899,6 +1100,14 @@ def _freeze(value: object) -> object:
     return value
 
 
+def _thaw(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {str(key): _thaw(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw(item) for item in value]
+    return value
+
+
 def _is_digest(value: object) -> bool:
     return (
         isinstance(value, str)
@@ -925,7 +1134,12 @@ def _reject_private(value: object) -> None:
         for item in value:
             _reject_private(item)
     elif isinstance(value, bytes) or (
-        isinstance(value, str) and ("\\" in value or value.startswith("file:"))
+        isinstance(value, str)
+        and (
+            "\\" in value
+            or value.startswith(("/", "file:"))
+            or (len(value) >= 3 and value[1] == ":" and value[2] in {"/", "\\"})
+        )
     ):
         _fail("SUCCESSOR_PUBLIC_PAYLOAD_PRIVATE_FIELD")
 
