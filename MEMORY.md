@@ -853,3 +853,14 @@
   fail closed且零部分持久化。D10 后当前没有可提前执行的 non-D02 产品节点；D07-B/D08 acceptance、D11 real E2E
   和 D12 继续等待 D02 Subsystem Principal 的 final runtime candidate，项目状态为
   `ACTIVE_WITH_DEFERRED_RUNTIME_GATE`，不是全局 BLOCKED。
+
+- 2026-09-03：D02 autonomous final tracked tip `0cd6da58ce111806ed7f56044b270f9b68890f3f` 以正常双亲
+  merge `a5ddd527022c0295db3d0b7a7aa848c1f38c0658` 集成；集成测试发现并以前向 successor
+  `bf63fd3ddff491c53bb95530c5a6fa7460e46cd0` 修复 D02 operator 对受跟踪 `demo_0016/0017`
+  migration 后继的 fail-closed 兼容性。首个 integrated run `33641261758` 仅因两个 D02 JSON 的
+  Prettier 格式失败；语义等价 successor `f49232b2df6484d740a14d9c850001094de81a0d` 的 run
+  `33653031297` 三 jobs 全绿。公开 PostgreSQL canonical authority 78/78 digest 重算一致，真实 run
+  `ADMITTED`，7 次 Provider 调用取得 4 个 source，完成 12 source M3、48 cases、96 M4、144 result
+  M3、16 pairs/32 sides、52 Assets/48 AssetVariants、screening 与单事务 admission。D02-R2 与 D02
+  均 `TASK_ACCEPTED`；主进程未调用 ImageGen、未读取 D02 private checkpoint，下一并行产品节点为
+  D03 fresh M3、D04-B real QuestionBank 与 D07-B real D02 Asset/M4 integration。
