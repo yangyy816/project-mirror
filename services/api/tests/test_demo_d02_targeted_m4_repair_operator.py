@@ -128,6 +128,18 @@ def test_stage_order_is_exact_and_fail_closed() -> None:
         repair_operator._stage_at_least("UNKNOWN", "TARGET_M4_DURABLE")
 
 
+@pytest.mark.parametrize("platform", ("nt", "posix"))
+def test_async_admission_uses_a_psycopg_compatible_loop(
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+) -> None:
+    async def complete() -> str:
+        return "completed"
+
+    monkeypatch.setattr(repair_operator.os, "name", platform)
+    assert repair_operator._run_async(complete()) == "completed"
+
+
 def test_screened_checkpoint_resume_normalizes_frozen_public_trees(tmp_path: Path) -> None:
     checkpoint, store = _screened_checkpoint(tmp_path)
     recovered = checkpoint.load(store=store)

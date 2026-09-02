@@ -10,12 +10,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import re
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Coroutine, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import IO, Final, NoReturn, TextIO, cast
+from typing import IO, Any, Final, NoReturn, TextIO, cast
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -362,9 +363,7 @@ class D02TargetedM4RepairOperator:
             store=store,
             recovered=recovered,
         )
-        admitted = asyncio.run(
-            self._admit(idempotency_key=successor_idempotency_key, bundle=bundle)
-        )
+        admitted = _run_async(self._admit(idempotency_key=successor_idempotency_key, bundle=bundle))
         if recovered.stage != "ADMITTED":
             self._advance(
                 checkpoint=checkpoint,
@@ -858,6 +857,14 @@ def _stage_at_least(stage: str, expected: str) -> bool:
     if stage not in _FORMAL_STAGES or expected not in _FORMAL_STAGES:
         _fail("SUCCESSOR_STAGE_INVALID")
     return _FORMAL_STAGES.index(stage) >= _FORMAL_STAGES.index(expected)
+
+
+def _run_async[T](value: Coroutine[Any, Any, T]) -> T:
+    """Use psycopg-compatible selector I/O on Windows only."""
+
+    if os.name == "nt":
+        return asyncio.run(value, loop_factory=asyncio.SelectorEventLoop)
+    return asyncio.run(value)
 
 
 def build_parser() -> argparse.ArgumentParser:
