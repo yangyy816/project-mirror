@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import secrets
+from typing import Final
 
 from celery import Celery
 
 from mirror_api.demo_analysis_task_contract import DemoAnalysisTaskMessage
+
+DEMO_ANALYSIS_QUEUE: Final = "mirror.demo.analysis.m3"
 
 
 class CeleryDemoAnalysisDispatcher:
@@ -25,7 +28,7 @@ class CeleryDemoAnalysisDispatcher:
             args=[message.to_message()],
             task_id=secrets.token_hex(16),
             headers={"request_id": message.request_id, "job_id": message.job_id},
-            queue="mirror.demo",
+            queue=DEMO_ANALYSIS_QUEUE,
         )
         return message.job_id
 

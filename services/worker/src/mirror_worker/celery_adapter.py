@@ -14,6 +14,7 @@ from mirror_api.data_rights.task_contract import (
     AccountDeletionTaskMessage,
     DataExportTaskMessage,
 )
+from mirror_api.demo_analysis_dispatcher import DEMO_ANALYSIS_QUEUE
 from mirror_api.demo_analysis_task_contract import DemoAnalysisTaskMessage
 from mirror_api.demo_context_task_contract import DemoContextTaskMessage
 from mirror_api.demo_editing_task_contract import DemoEditingTaskMessage
@@ -90,7 +91,7 @@ celery_app.conf.update(
         "mirror.synthetic_m3.reconcile": {"queue": "mirror.maintenance"},
         "mirror.synthetic_transform.process": {"queue": "mirror.synthetic"},
         "mirror.synthetic_m4.reconcile": {"queue": "mirror.maintenance"},
-        "mirror.demo_analysis.process": {"queue": "mirror.demo"},
+        "mirror.demo_analysis.process": {"queue": DEMO_ANALYSIS_QUEUE},
         "mirror.demo_analysis.reconcile": {"queue": "mirror.maintenance"},
         "mirror.demo_editing.process": {"queue": "mirror.demo"},
         "mirror.demo_editing.reconcile": {"queue": "mirror.maintenance"},
@@ -595,7 +596,7 @@ class CeleryTaskDispatcher:
             args=[message.to_message()],
             task_id=secrets.token_hex(16),
             headers={"request_id": message.request_id, "job_id": message.job_id},
-            queue="mirror.demo",
+            queue=DEMO_ANALYSIS_QUEUE,
         )
         return message.job_id
 

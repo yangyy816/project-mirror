@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal, cast
 
 import pytest
+from mirror_api.demo_analysis_dispatcher import DEMO_ANALYSIS_QUEUE
 from mirror_api.demo_analysis_service import (
     DemoAnalysisPublication,
     DemoAnalysisReservation,
@@ -15,6 +16,11 @@ from mirror_api.demo_analysis_task_contract import (
     DemoAnalysisTaskMessage,
 )
 
+from mirror_worker.celery_adapter import (
+    CeleryTaskDispatcher,
+    celery_app,
+    process_demo_analysis,
+)
 from mirror_worker.demo_analysis import (
     DemoAnalysisRuntimeFailed,
     DemoAnalysisRuntimeRejected,
@@ -148,6 +154,28 @@ def test_reference_only_task_contract_rejects_extra_or_sensitive_fields() -> Non
             job_id=_JOB_ID,
             request_id=None,  # type: ignore[arg-type]
         ).validate()
+
+
+def test_celery_registration_and_dispatch_bind_dedicated_m3_queue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert celery_app.conf.task_routes["mirror.demo_analysis.process"]["queue"] == (
+        DEMO_ANALYSIS_QUEUE
+    )
+    captured: dict[str, object] = {}
+
+    def fake_apply_async(**kwargs: object) -> None:
+        captured.update(kwargs)
+
+    monkeypatch.setattr(process_demo_analysis, "apply_async", fake_apply_async)
+    message = _message()
+    assert CeleryTaskDispatcher().dispatch_demo_analysis(message) == message.job_id
+    assert captured["args"] == [message.to_message()]
+    assert captured["headers"] == {
+        "request_id": message.request_id,
+        "job_id": message.job_id,
+    }
+    assert captured["queue"] == DEMO_ANALYSIS_QUEUE
 
 
 @pytest.mark.parametrize(
