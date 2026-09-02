@@ -34,6 +34,11 @@ the following are true:
 
 - the input is the editing Session's current sequence-0 ImageVersion;
 - sequence-0 bytes and digest equal the Session's admitted D02 SOURCE root;
+- the sequence-0 input Asset is the immutable D07 original-snapshot Asset: its
+  ID is distinct from the root SOURCE ID, while byte size, media type,
+  dimensions, SHA-256 and bytes are equal, and its AssetVariant is exactly
+  `root SOURCE -> input snapshot` with type
+  `demo_p3_p7_original_snapshot`;
 - the root is one of the four SOURCE Assets in the completed D02 admission;
 - a D02 RESULT, deleted Asset, non-synthetic Asset or later ImageVersion is
   rejected;

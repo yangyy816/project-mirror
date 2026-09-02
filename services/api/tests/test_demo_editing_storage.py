@@ -131,6 +131,25 @@ async def test_private_quarantine_storage_promotes_immutable_private_object(
 
 
 @pytest.mark.asyncio
+async def test_private_storage_discards_rolled_back_publication_but_keeps_quarantine(
+    tmp_path: Path,
+) -> None:
+    storage = DemoLocalPrivateObjectStorage(root=tmp_path)
+    content = b"rolled-back-publication-fixture"
+    digest = hashlib.sha256(content).hexdigest()
+    await storage.put_if_absent(key=_key(), content=content, sha256=digest)
+    published_key = await storage.promote_from_quarantine(
+        key=_key(), artifact_id="e" * 32, sha256=digest
+    )
+
+    await storage.discard_published(key=published_key, sha256=digest)
+    await storage.discard_published(key=published_key, sha256=digest)
+
+    assert await storage.read(key=published_key) is None
+    assert await storage.read(key=_key()) == content
+
+
+@pytest.mark.asyncio
 async def test_private_quarantine_storage_rejects_promotion_digest_mismatch(
     tmp_path: Path,
 ) -> None:

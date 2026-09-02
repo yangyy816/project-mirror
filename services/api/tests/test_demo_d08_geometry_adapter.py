@@ -56,7 +56,7 @@ def _authority() -> GeometryExecutionAuthority:
         input_image_version_id="e" * 32,
         input_image_version_digest="f" * 64,
         input_sequence=0,
-        input_asset_id=case.source_asset_id,
+        input_asset_id="4" * 32,
         input_asset_sha256=case.source_asset_sha256,
         root_source_asset_id=case.source_asset_id,
         root_source_asset_sha256=case.source_asset_sha256,
@@ -74,7 +74,11 @@ def test_typed_authority_replays_and_rejects_forged_case_or_source_lineage() -> 
     assert authority.authority_digest == authority.content_digest()
     assert authority.fixed_case.case_binding_digest == authority.fixed_case.content_digest()
     with pytest.raises(GeometryAdapterAuthorityError, match="source"):
-        replace(authority, input_asset_id="4" * 32)
+        replace(
+            authority,
+            input_asset_id=authority.root_source_asset_id,
+            authority_digest="0" * 64,
+        )
     with pytest.raises(GeometryAdapterAuthorityError, match="sequence"):
         replace(authority, input_sequence=1)
     with pytest.raises(GeometryAdapterAuthorityError, match="case binding"):

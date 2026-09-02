@@ -99,6 +99,12 @@ class _Storage:
         self.objects.setdefault(published_key, content)
         return published_key
 
+    async def discard_published(self, *, key: str, sha256: str) -> None:
+        content = self.objects.get(key)
+        if content is not None:
+            assert hashlib.sha256(content).hexdigest() == sha256
+            del self.objects[key]
+
 
 class _Repository:
     def __init__(self) -> None:

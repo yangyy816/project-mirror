@@ -182,15 +182,37 @@ class EffectVerificationResult:
     status: VerificationStatus
     publishable: bool
     identity_claim_scope: str = "STRUCTURAL_ONLY_NOT_BIOMETRIC_IDENTITY_VERIFICATION"
+    authority_metrics: Mapping[str, object] | None = None
+    authority_thresholds: Mapping[str, object] | None = None
 
     def __post_init__(self) -> None:
         if tuple(item.category.value for item in self.categories) != CATEGORY_ORDER:
             raise EffectVerifierError("INVALID_RESULT", "categories must be complete and ordered")
         if self.publishable != (self.status is VerificationStatus.PASS):
             raise EffectVerifierError("INVALID_RESULT", "only PASS is publishable")
+        if (self.authority_metrics is None) != (self.authority_thresholds is None):
+            raise EffectVerifierError(
+                "INVALID_RESULT",
+                "extended authority metrics and thresholds must be a complete pair",
+            )
+        if self.authority_metrics is not None:
+            if not self.authority_metrics or not self.authority_thresholds:
+                raise EffectVerifierError(
+                    "INVALID_RESULT", "extended authority evidence must be non-empty"
+                )
+            object.__setattr__(
+                self,
+                "authority_metrics",
+                MappingProxyType(_canonical_extension_mapping(self.authority_metrics)),
+            )
+            object.__setattr__(
+                self,
+                "authority_thresholds",
+                MappingProxyType(_canonical_extension_mapping(self.authority_thresholds)),
+            )
 
     def canonical_payload(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "categories": [item.canonical_payload() for item in self.categories],
             "identity_claim_scope": self.identity_claim_scope,
             "policy_digest": self.policy_digest,
@@ -201,6 +223,12 @@ class EffectVerificationResult:
             "status": self.status.value,
             "verifier_version": VERIFIER_VERSION,
         }
+        if self.authority_metrics is not None:
+            payload["authority_metrics"] = dict(self.authority_metrics)
+            payload["authority_thresholds"] = dict(
+                cast(Mapping[str, object], self.authority_thresholds)
+            )
+        return payload
 
     def content_digest(self) -> str:
         return _digest(self.canonical_payload())
@@ -499,6 +527,25 @@ def _canonical_mapping(value: Mapping[str, object]) -> dict[str, object]:
         else:
             result[key] = _canonical_value(item)
     return result
+
+
+def _canonical_extension_mapping(value: Mapping[str, object]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key in sorted(value):
+        if type(key) is not str or not key:
+            raise EffectVerifierError("INVALID_RESULT", "extended authority key is invalid")
+        result[key] = _canonical_extension_value(value[key])
+    return result
+
+
+def _canonical_extension_value(value: object) -> object:
+    if isinstance(value, Mapping):
+        return _canonical_extension_mapping(cast(Mapping[str, object], value))
+    if isinstance(value, (tuple, list)):
+        return [_canonical_extension_value(item) for item in value]
+    if isinstance(value, (str, int, bool)) or value is None:
+        return value
+    raise EffectVerifierError("INVALID_RESULT", "extended authority value is invalid")
 
 
 def _canonical_value(value: object) -> object:

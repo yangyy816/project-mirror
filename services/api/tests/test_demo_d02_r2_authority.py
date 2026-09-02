@@ -1032,6 +1032,7 @@ def _selection(dimensions: list[dict[str, object]]) -> list[dict[str, object]]:
 @lru_cache(maxsize=2)
 def _report_input_template(
     duplicate_result_case_index: int | None = None,
+    geometry_algorithm_version: str | None = None,
 ) -> tuple[dict[str, object], list[dict[str, object]]]:
     if duplicate_result_case_index is not None and not 1 <= duplicate_result_case_index < 48:
         raise ValueError("duplicate result case index must have a preceding case")
@@ -1094,6 +1095,8 @@ def _report_input_template(
             **{key: old[key] for key in geometry_fields},
             "runtime_manifest_digest": binding["runtime_manifest_digest"],
         }
+        if geometry_algorithm_version is not None:
+            fields["geometry_algorithm_version"] = geometry_algorithm_version
         cases.append(build_r2_case_manifest_entry(fields, execution_authority=binding))
     case_manifest_digest = legacy._sequence_digest("mirror.demo/D02GeometryCaseManifest/v2", cases)
     binding["case_manifest_digest"] = case_manifest_digest

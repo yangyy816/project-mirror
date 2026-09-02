@@ -20,6 +20,15 @@ from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from mirror_api.demo_d08_geometry_adapter import (
+    D08_VERIFIER_POLICY_VERSION,
+    stable_config_digest,
+    stable_engine_digest,
+)
+from mirror_api.demo_d08_geometry_authority import (
+    GeometryAuthorityResolutionError,
+    resolve_geometry_execution_authority,
+)
 from mirror_api.demo_editing_asset_loader import (
     DemoAssetByteLoader,
     DemoAssetByteReference,
@@ -44,6 +53,12 @@ from mirror_api.demo_editing_storage import (
 )
 from mirror_api.demo_editing_task_contract import DemoEditingTaskMessage
 from mirror_api.demo_editing_verifier_adapter import DemoEditingVerifierAdapterError
+from mirror_api.demo_geometry_editor import (
+    GeometryExecutionBackend,
+    GeometryExecutionRequest,
+    GeometryExecutionState,
+    execute_geometry_operation,
+)
 from mirror_api.demo_idempotency import canonical_json_bytes
 from mirror_api.demo_models import (
     DemoEditingSession,
@@ -58,6 +73,7 @@ from mirror_api.demo_operation_graph import (
     parse_operation_spec,
 )
 from mirror_api.demo_tool_registry import (
+    GEOMETRY_ENGINE_VERSION,
     TOOL_REGISTRY_VERSION,
     DemoToolRegistryError,
     resolve_tool,
@@ -69,6 +85,7 @@ _REJECTED_CODES: Final = frozenset(
     {
         "CAPABILITY_UNAVAILABLE",
         "GEOMETRY_CAPABILITY_UNAVAILABLE",
+        "REJECTED_STALE_INPUT_VERSION",
         "MAKEUP_DEFERRED_NO_APPROVED_ENGINE",
         "GENERATIVE_PROVIDER_UNAVAILABLE",
         "TRANSITION_RUNTIME_UNAVAILABLE",
@@ -134,6 +151,7 @@ class DemoEditingRuntime:
         storage: DemoLocalPrivateObjectStorage,
         verifier: EditVerifier | None = None,
         geometry_dispatcher: GeometryDispatcher | None = None,
+        geometry_backend: GeometryExecutionBackend | None = None,
         now: Callable[[], datetime] = utcnow,
         lease_seconds: int = 120,
         max_attempts: int = 3,
@@ -144,7 +162,8 @@ class DemoEditingRuntime:
         self._asset_loader = asset_loader
         self._storage = storage
         self._verifier = verifier
-        self._geometry_dispatcher = geometry_dispatcher
+        self._injected_geometry_dispatcher = geometry_dispatcher
+        self._geometry_backend = geometry_backend
         self._now = now
         self._lease_seconds = lease_seconds
         self._max_attempts = max_attempts
@@ -171,7 +190,10 @@ class DemoEditingRuntime:
         except DemoEditingRuntimeError as exc:
             await self._terminalize(claim, self._terminal_for(exc.code), exc.code)
         except DemoEditingServiceError as exc:
-            await self._terminalize(claim, self._terminal_for(exc.code), exc.code)
+            if exc.code == "EXECUTION_LEASE_EXPIRED":
+                await self._defer_retry(claim)
+            else:
+                await self._terminalize(claim, self._terminal_for(exc.code), exc.code)
         except (DemoAssetLoadError, DemoEditingStorageError) as exc:
             if exc.code in _RETRYABLE_STORAGE_CODES:
                 await self._defer_retry(claim)
@@ -436,7 +458,8 @@ class DemoEditingRuntime:
         command = await self._execution_command(claim, parent=parent)
         if (
             command.operation.engine is OperationEngine.GEOMETRY
-            and self._geometry_dispatcher is None
+            and self._geometry_backend is None
+            and self._injected_geometry_dispatcher is None
         ):
             raise DemoEditingRuntimeError(
                 "GEOMETRY_CAPABILITY_UNAVAILABLE", "geometry runtime is not materialized"
@@ -449,7 +472,11 @@ class DemoEditingRuntime:
             repository=self._repository,
             storage=self._storage,
             verifier=self._verifier,
-            geometry_dispatcher=self._geometry_dispatcher,
+            geometry_dispatcher=(
+                self._dispatch_geometry
+                if self._geometry_backend is not None
+                else self._injected_geometry_dispatcher
+            ),
             transition_dispatcher=self._transition_dispatcher,
         )
         await service.execute(command)
@@ -686,12 +713,50 @@ class DemoEditingRuntime:
                 raise DemoEditingRuntimeError(
                     "SOURCE_AUTHORITY_MISMATCH", "input Asset digest mismatches"
                 )
+            geometry_authority = None
+            geometry_job_attempt = None
+            if spec.engine is OperationEngine.GEOMETRY:
+                try:
+                    (
+                        geometry_authority,
+                        geometry_job_attempt,
+                    ) = await resolve_geometry_execution_authority(
+                        session,
+                        actor_id=claim.actor_id,
+                        session_id=claim.session_id,
+                        editing_session_id=plan.editing_session_id,
+                        plan_id=plan.id,
+                        operation_id=operation.id,
+                        operation=spec,
+                        execution_job_binding_id=claim.binding_id,
+                        formal_job_attempt_id=claim.attempt_id,
+                    )
+                except GeometryAuthorityResolutionError as exc:
+                    raise DemoEditingRuntimeError(exc.code, str(exc)) from exc
+                root = await session.get(Asset, geometry_authority.root_source_asset_id)
+                if (
+                    root is None
+                    or root.sha256 != geometry_authority.root_source_asset_sha256
+                    or root.deleted_at is not None
+                    or not root.synthetic
+                    or source.id != geometry_authority.input_asset_id
+                    or source.sha256 != geometry_authority.input_asset_sha256
+                    or source.sha256 != root.sha256
+                ):
+                    raise DemoEditingRuntimeError(
+                        "GEOMETRY_SOURCE_LINEAGE_INVALID", "geometry root source changed"
+                    )
             reference = self._reference(source)
         content = await self._asset_loader.load(reference)
         if descriptor.engine_version is None:
             raise DemoEditingRuntimeError(
                 "CAPABILITY_UNAVAILABLE", "execution engine is unavailable"
             )
+        engine_digest = self._digest("D07Engine", descriptor.engine_version)
+        config_digest = self._digest("D07Config", plan.content_digest, operation.content_digest)
+        if geometry_authority is not None:
+            engine_digest = stable_engine_digest(geometry_authority, GEOMETRY_ENGINE_VERSION)
+            config_digest = stable_config_digest(geometry_authority, D08_VERIFIER_POLICY_VERSION)
         return ExecutionCommand(
             actor_id=claim.actor_id,
             session_id=claim.session_id,
@@ -704,10 +769,47 @@ class DemoEditingRuntime:
             source_bytes=content,
             operation=spec,
             engine_version=descriptor.engine_version,
-            engine_digest=self._digest("D07Engine", descriptor.engine_version),
-            config_digest=self._digest("D07Config", plan.content_digest, operation.content_digest),
+            engine_digest=engine_digest,
+            config_digest=config_digest,
+            editing_session_id=None if geometry_authority is None else plan.editing_session_id,
+            plan_id=None if geometry_authority is None else plan.id,
+            input_image_version_id=None if geometry_authority is None else image.id,
+            root_source_asset_id=(
+                None if geometry_authority is None else geometry_authority.root_source_asset_id
+            ),
+            geometry_authority=geometry_authority,
+            geometry_job_attempt=geometry_job_attempt,
             parent_job_id=None if parent is None else parent.job_id,
             parent_job_attempt_id=None if parent is None else parent.attempt_id,
+        )
+
+    async def _dispatch_geometry(self, command: ExecutionCommand) -> MaterializedObject:
+        if command.geometry_authority is None or command.geometry_job_attempt is None:
+            raise DemoEditingRuntimeError(
+                "GEOMETRY_AUTHORITY_MISSING", "geometry command lacks authority"
+            )
+        outcome = execute_geometry_operation(
+            GeometryExecutionRequest(
+                operation=command.operation,
+                authority=command.geometry_authority,
+                job_attempt=command.geometry_job_attempt,
+                source_bytes=command.source_bytes,
+            ),
+            self._geometry_backend,
+        )
+        if outcome.state is not GeometryExecutionState.MATERIALIZED or outcome.success is None:
+            raise DemoEditingRuntimeError(outcome.reason_code, "geometry materialization failed")
+        success = outcome.success
+        return MaterializedObject(
+            content=success.output_bytes,
+            sha256=success.result_sha256,
+            width=success.stable_core.result_width,
+            height=success.stable_core.result_height,
+            mime_type=success.stable_core.result_media_type,
+            engine_digest=success.stable_core.engine_digest,
+            config_digest=success.stable_core.config_digest,
+            geometry_stable_core=success.stable_core,
+            geometry_attempt_evidence=success.attempt_evidence,
         )
 
     async def _transition_dispatcher(self, command: ExecutionCommand) -> MaterializedObject:

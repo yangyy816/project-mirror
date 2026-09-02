@@ -194,7 +194,7 @@ class GeometryExecutionAuthority:
                 "INVALID_INPUT_SEQUENCE", "geometry is limited to sequence-zero source input"
             )
         if (
-            self.input_asset_id != self.root_source_asset_id
+            self.input_asset_id == self.root_source_asset_id
             or self.input_asset_sha256 != self.root_source_asset_sha256
             or self.root_source_asset_id != self.fixed_case.source_asset_id
             or self.root_source_asset_sha256 != self.fixed_case.source_asset_sha256

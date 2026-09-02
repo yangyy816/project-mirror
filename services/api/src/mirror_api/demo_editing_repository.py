@@ -20,8 +20,18 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mirror_api import demo_d02_generic_admission as d02_generic
 from mirror_api import demo_d02_generic_screening as d02_screening
+from mirror_api.demo_d08_geometry_adapter import (
+    D08_VERIFIER_POLICY_VERSION,
+    stable_config_digest,
+    stable_engine_digest,
+)
+from mirror_api.demo_d08_geometry_authority import (
+    GeometryAuthorityResolutionError,
+    resolve_geometry_execution_authority,
+)
 from mirror_api.demo_editing_service import (
     ArtifactState,
+    DemoEditingServiceError,
     EditArtifact,
     EditingSessionCommand,
     EditPlanCommand,
@@ -60,14 +70,17 @@ from mirror_api.demo_models import (
 )
 from mirror_api.demo_operation_graph import (
     ImageVersionReference,
+    OperationEngine,
     OperationLineageError,
     OperationType,
     TransitionIntent,
+    parse_operation_spec,
     plan_restore_transition,
     plan_rollback_transition,
     validate_result_asset_id,
 )
 from mirror_api.demo_tool_registry import (
+    GEOMETRY_ENGINE_VERSION,
     TOOL_REGISTRY_VERSION,
     DemoToolRegistryError,
     resolve_persisted_tool,
@@ -93,12 +106,11 @@ _NON_AUTHORITY_COLUMNS = frozenset(
 )
 
 
-class DemoEditingRepositoryError(RuntimeError):
+class DemoEditingRepositoryError(DemoEditingServiceError):
     """A stable fail-closed persistence error."""
 
-    def __init__(self, code: str, message: str) -> None:
-        super().__init__(message)
-        self.code = code
+    def __init__(self, code: str, message: str, *, published_cleanup_safe: bool = False) -> None:
+        super().__init__(code, message, published_cleanup_safe=published_cleanup_safe)
 
 
 class SqlAlchemyDemoEditingRepository:
@@ -304,12 +316,88 @@ class SqlAlchemyDemoEditingRepository:
     ) -> EditArtifact:
         async with self._sessions() as session:
             async with session.begin():
+                if materialized.geometry_stable_core is not None:
+                    lock_key = (
+                        "demo-d08-geometry:"
+                        f"{artifact.execution_job_binding_id}:{artifact.operation_id}"
+                    )
+                    await session.execute(
+                        select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0)))
+                    )
                 row = await self._lock_artifact(session, artifact)
+                core = materialized.geometry_stable_core
+                attempt_evidence = materialized.geometry_attempt_evidence
+                if row.engine == OperationEngine.GEOMETRY.value:
+                    if core is None or attempt_evidence is None:
+                        raise DemoEditingRepositoryError(
+                            "GEOMETRY_EVIDENCE_MISSING",
+                            "geometry materialization lacks typed execution evidence",
+                        )
+                    if (
+                        core.operation_id != row.edit_operation_id
+                        or core.result_sha256 != materialized.sha256
+                        or core.result_byte_size != len(materialized.content)
+                        or core.result_width != materialized.width
+                        or core.result_height != materialized.height
+                        or core.result_media_type != materialized.mime_type
+                        or core.engine_digest != materialized.engine_digest
+                        or core.config_digest != materialized.config_digest
+                        or attempt_evidence.stable_core_digest != core.stable_core_digest
+                        or attempt_evidence.operation_id != row.edit_operation_id
+                        or attempt_evidence.job_attempt.execution_job_binding_id
+                        != row.execution_job_binding_id
+                        or attempt_evidence.job_attempt.attempt_id != row.formal_job_attempt_id
+                    ):
+                        raise DemoEditingRepositoryError(
+                            "GEOMETRY_EVIDENCE_MISMATCH",
+                            "geometry materialization evidence does not match its reservation",
+                        )
+                elif core is not None or attempt_evidence is not None:
+                    raise DemoEditingRepositoryError(
+                        "GEOMETRY_EVIDENCE_FORBIDDEN",
+                        "non-geometry materialization carries geometry evidence",
+                    )
                 current = await self._artifact_dto(session, row)
                 if current.state is not ArtifactState.RESERVED:
                     if current.state is ArtifactState.MATERIALIZED:
                         _validate_materialized_replay(current, materialized)
                     return current
+                if row.engine == "GEOMETRY":
+                    prior_artifacts = list(
+                        await session.scalars(
+                            select(DemoEditArtifact)
+                            .where(
+                                DemoEditArtifact.edit_operation_id == row.edit_operation_id,
+                                DemoEditArtifact.execution_job_binding_id
+                                == row.execution_job_binding_id,
+                                DemoEditArtifact.id != row.id,
+                            )
+                            .order_by(DemoEditArtifact.id)
+                            .with_for_update()
+                        )
+                    )
+                    for prior in prior_artifacts:
+                        prior_event = await session.scalar(
+                            select(DemoEditArtifactEvent)
+                            .where(
+                                DemoEditArtifactEvent.demo_edit_artifact_id == prior.id,
+                                DemoEditArtifactEvent.event_type == "MATERIALIZED",
+                            )
+                            .with_for_update()
+                        )
+                        if prior_event is not None and (
+                            prior_event.object_sha256 != materialized.sha256
+                            or prior_event.byte_size != len(materialized.content)
+                            or prior_event.width != materialized.width
+                            or prior_event.height != materialized.height
+                            or prior_event.mime_type != materialized.mime_type
+                            or prior_event.engine_digest != materialized.engine_digest
+                            or prior_event.config_digest != materialized.config_digest
+                        ):
+                            raise DemoEditingRepositoryError(
+                                "MATERIALIZATION_REPLAY_MISMATCH",
+                                "geometry stable surface differs across attempts",
+                            )
                 event = _authority_row(
                     DemoEditArtifactEvent,
                     demo_actor_id=row.demo_actor_id,
@@ -380,7 +468,11 @@ class SqlAlchemyDemoEditingRepository:
                     raise DemoEditingRepositoryError(
                         "TERMINAL_ARTIFACT_CONFLICT", "published artifact cannot be rejected"
                     )
-                _require_running_execution(execution_job, execution_attempt)
+                _require_running_execution(
+                    execution_job,
+                    execution_attempt,
+                    require_live_lease=row.engine == OperationEngine.GEOMETRY.value,
+                )
                 if parent_job is not None and parent_attempt is not None:
                     _require_running_execution(parent_job, parent_attempt)
                 _validate_materialized_replay(current, materialized)
@@ -390,6 +482,7 @@ class SqlAlchemyDemoEditingRepository:
                     artifact=row,
                     tool=tool,
                     verification=verification,
+                    materialized=materialized,
                     image_version_id=None,
                     output_asset=None,
                 )
@@ -478,12 +571,24 @@ class SqlAlchemyDemoEditingRepository:
                     raise DemoEditingRepositoryError(
                         "ARTIFACT_NOT_MATERIALIZED", "artifact is not publishable"
                     )
-                _require_running_execution(execution_job, execution_attempt)
+                _require_running_execution(
+                    execution_job,
+                    execution_attempt,
+                    require_live_lease=row.engine == OperationEngine.GEOMETRY.value,
+                )
                 if parent_job is not None and parent_attempt is not None:
                     _require_running_execution(parent_job, parent_attempt)
                 _validate_materialized_replay(current, materialized)
                 tool = await self._ensure_tool_run(session, row)
                 parent, plan, operation = await self._publication_context(session, row, tool)
+                await self._revalidate_geometry_terminal(
+                    session,
+                    artifact=row,
+                    parent=parent,
+                    plan=plan,
+                    operation=operation,
+                    materialized=materialized,
+                )
                 result_asset_id = _deterministic_id("D07ResultAsset", row.id, materialized.sha256)
                 transition_intent = await self._transition_intent(
                     session,
@@ -543,6 +648,7 @@ class SqlAlchemyDemoEditingRepository:
                     artifact=row,
                     tool=tool,
                     verification=verification,
+                    materialized=materialized,
                     image_version_id=image_id,
                     output_asset=result_asset,
                 )
@@ -699,6 +805,39 @@ class SqlAlchemyDemoEditingRepository:
                 "editing root source authority is unavailable",
             )
         await require_d02_source_authority_if_applicable(session, root_source)
+        if command.operation.engine.value == "GEOMETRY":
+            if (
+                command.editing_session_id is None
+                or command.plan_id is None
+                or command.input_image_version_id is None
+                or command.root_source_asset_id is None
+                or command.geometry_authority is None
+                or command.geometry_job_attempt is None
+            ):
+                raise DemoEditingRepositoryError(
+                    "GEOMETRY_AUTHORITY_MISSING", "geometry authority is unavailable"
+                )
+            try:
+                authority, job_attempt = await resolve_geometry_execution_authority(
+                    session,
+                    actor_id=command.actor_id,
+                    session_id=command.session_id,
+                    editing_session_id=command.editing_session_id,
+                    plan_id=command.plan_id,
+                    operation_id=command.operation_id,
+                    operation=command.operation,
+                    execution_job_binding_id=command.execution_job_binding_id,
+                    formal_job_attempt_id=command.formal_job_attempt_id,
+                )
+            except GeometryAuthorityResolutionError as exc:
+                raise DemoEditingRepositoryError(exc.code, str(exc)) from exc
+            if (
+                authority != command.geometry_authority
+                or job_attempt != command.geometry_job_attempt
+            ):
+                raise DemoEditingRepositoryError(
+                    "GEOMETRY_AUTHORITY_MISMATCH", "geometry authority changed before reserve"
+                )
         if (command.parent_job_id is None) != (command.parent_job_attempt_id is None):
             raise DemoEditingRepositoryError(
                 "PARENT_EXECUTION_AUTHORITY_MISMATCH",
@@ -899,6 +1038,7 @@ class SqlAlchemyDemoEditingRepository:
         artifact: DemoEditArtifact,
         tool: DemoToolRun,
         verification: EffectVerificationResult,
+        materialized: MaterializedObject,
         image_version_id: str | None,
         output_asset: Asset | None,
     ) -> tuple[DemoVerificationResult, Job, JobAttempt]:
@@ -929,6 +1069,43 @@ class SqlAlchemyDemoEditingRepository:
             "request_digest": verification.request_digest,
             "result_digest": verification.result_digest,
         }
+        thresholds: dict[str, Any] = {"policy_digest": verification.policy_digest}
+        if artifact.engine == OperationEngine.GEOMETRY.value:
+            core = materialized.geometry_stable_core
+            evidence = materialized.geometry_attempt_evidence
+            if (
+                core is None
+                or evidence is None
+                or verification.authority_metrics is None
+                or verification.authority_thresholds is None
+            ):
+                raise DemoEditingRepositoryError(
+                    "GEOMETRY_VERIFICATION_EVIDENCE_MISSING",
+                    "geometry verification authority is incomplete",
+                    published_cleanup_safe=image_version_id is not None,
+                )
+            metrics["geometry_execution"] = {
+                "attempt_evidence": {
+                    **evidence.canonical_payload(),
+                    "attempt_receipt_digest": evidence.attempt_receipt_digest,
+                },
+                "stable_core": {
+                    **core.canonical_payload(),
+                    "stable_core_digest": core.stable_core_digest,
+                },
+            }
+            metrics["geometry_verification"] = dict(verification.authority_metrics)
+            thresholds["geometry_verification"] = dict(verification.authority_thresholds)
+        elif (
+            materialized.geometry_stable_core is not None
+            or materialized.geometry_attempt_evidence is not None
+            or verification.authority_metrics is not None
+            or verification.authority_thresholds is not None
+        ):
+            raise DemoEditingRepositoryError(
+                "GEOMETRY_EVIDENCE_FORBIDDEN",
+                "non-geometry verification carries geometry authority",
+            )
         row = _authority_row(
             DemoVerificationResult,
             demo_actor_id=artifact.demo_actor_id,
@@ -943,7 +1120,7 @@ class SqlAlchemyDemoEditingRepository:
             verifier_version=VERIFIER_VERSION,
             config_digest=verification.policy_digest,
             metrics=metrics,
-            thresholds={"policy_digest": verification.policy_digest},
+            thresholds=thresholds,
             outcome=verification.status.value,
             reason_codes=reason_codes,
         )
@@ -1041,6 +1218,121 @@ class SqlAlchemyDemoEditingRepository:
                 "TOOL_INPUT_MISMATCH", "ToolRun input differs from ImageVersion authority"
             )
         return parent, plan, operation
+
+    async def _revalidate_geometry_terminal(
+        self,
+        session: AsyncSession,
+        *,
+        artifact: DemoEditArtifact,
+        parent: DemoImageVersion,
+        plan: DemoEditPlan,
+        operation: DemoEditOperation,
+        materialized: MaterializedObject,
+    ) -> None:
+        if artifact.engine != OperationEngine.GEOMETRY.value:
+            if (
+                materialized.geometry_stable_core is not None
+                or materialized.geometry_attempt_evidence is not None
+            ):
+                raise DemoEditingRepositoryError(
+                    "GEOMETRY_EVIDENCE_FORBIDDEN",
+                    "non-geometry publication carries geometry evidence",
+                )
+            return
+        core = materialized.geometry_stable_core
+        evidence = materialized.geometry_attempt_evidence
+        if core is None or evidence is None:
+            raise DemoEditingRepositoryError(
+                "GEOMETRY_EVIDENCE_MISSING",
+                "geometry publication lacks typed execution evidence",
+                published_cleanup_safe=True,
+            )
+        latest = await session.scalar(
+            select(func.max(DemoImageVersion.sequence)).where(
+                DemoImageVersion.editing_session_id == plan.editing_session_id
+            )
+        )
+        if (
+            operation.operation_index != 0
+            or parent.id != plan.input_image_version_id
+            or parent.sequence != 0
+            or parent.parent_version_id is not None
+            or latest != 0
+        ):
+            raise DemoEditingRepositoryError(
+                "REJECTED_STALE_INPUT_VERSION",
+                "geometry input is no longer the current sequence-zero version",
+                published_cleanup_safe=True,
+            )
+        try:
+            spec = parse_operation_spec(
+                {
+                    "engine": operation.engine,
+                    "operation_type": operation.operation_type,
+                    "parameters": operation.parameters,
+                    "preserve": operation.preserve,
+                    "expected_effect": operation.expected_effect,
+                }
+            )
+            authority, job_attempt = await resolve_geometry_execution_authority(
+                session,
+                actor_id=artifact.demo_actor_id,
+                session_id=artifact.demo_session_id,
+                editing_session_id=plan.editing_session_id,
+                plan_id=plan.id,
+                operation_id=operation.id,
+                operation=spec,
+                execution_job_binding_id=artifact.execution_job_binding_id,
+                formal_job_attempt_id=artifact.formal_job_attempt_id,
+            )
+        except GeometryAuthorityResolutionError as exc:
+            raise DemoEditingRepositoryError(
+                exc.code,
+                "geometry terminal authority cannot be replayed",
+                published_cleanup_safe=True,
+            ) from exc
+        case = authority.fixed_case
+        if (
+            core.authority_digest != authority.authority_digest
+            or core.operation_id != authority.operation_id
+            or core.operation_authority_digest != authority.operation_authority_digest
+            or core.operation_spec_digest != authority.operation_spec_digest
+            or core.case_id != case.case_id
+            or core.case_record_digest != case.case_record_digest
+            or core.case_specification_digest != case.case_specification_digest
+            or core.case_binding_digest != case.case_binding_digest
+            or core.backend_candidate_id != case.backend_candidate_id
+            or core.backend_algorithm_version != case.backend_algorithm_version
+            or core.backend_runtime_manifest_digest != case.backend_runtime_manifest_digest
+            or core.backend_configuration_digest != case.backend_configuration_digest
+            or core.warp_plan_digest != case.warp_plan_digest
+            or core.input_image_version_id != authority.input_image_version_id
+            or core.input_image_version_digest != authority.input_image_version_digest
+            or core.input_asset_id != authority.input_asset_id
+            or core.input_asset_sha256 != authority.input_asset_sha256
+            or core.root_source_asset_id != authority.root_source_asset_id
+            or core.root_source_asset_sha256 != authority.root_source_asset_sha256
+            or core.result_sha256 != materialized.sha256
+            or core.result_byte_size != len(materialized.content)
+            or core.result_width != materialized.width
+            or core.result_height != materialized.height
+            or core.result_media_type != materialized.mime_type
+            or core.engine_digest != stable_engine_digest(authority, GEOMETRY_ENGINE_VERSION)
+            or core.config_digest != stable_config_digest(authority, D08_VERIFIER_POLICY_VERSION)
+            or materialized.engine_digest != core.engine_digest
+            or materialized.config_digest != core.config_digest
+            or evidence.job_attempt != job_attempt
+            or evidence.authority_digest != authority.authority_digest
+            or evidence.operation_id != authority.operation_id
+            or evidence.operation_authority_digest != authority.operation_authority_digest
+            or evidence.operation_spec_digest != authority.operation_spec_digest
+            or evidence.stable_core_digest != core.stable_core_digest
+        ):
+            raise DemoEditingRepositoryError(
+                "GEOMETRY_TERMINAL_AUTHORITY_MISMATCH",
+                "geometry execution evidence changed before publication",
+                published_cleanup_safe=True,
+            )
 
     async def _execution_parent(
         self, session: AsyncSession, plan: DemoEditPlan, operation: DemoEditOperation
@@ -1634,7 +1926,9 @@ def _finish_job(job: Job, attempt: JobAttempt, *, status: str, result_code: str)
     job.updated_at = now
 
 
-def _require_running_execution(job: Job, attempt: JobAttempt) -> None:
+def _require_running_execution(
+    job: Job, attempt: JobAttempt, *, require_live_lease: bool = False
+) -> None:
     if job.status != "RUNNING" or attempt.status != "RUNNING":
         raise DemoEditingRepositoryError(
             "EXECUTION_NOT_RUNNING",
@@ -1644,6 +1938,15 @@ def _require_running_execution(job: Job, attempt: JobAttempt) -> None:
         raise DemoEditingRepositoryError(
             "EXECUTION_AUTHORITY_MISMATCH",
             "RUNNING execution authority already has terminal timestamps",
+        )
+    expires_at = job.lease_expires_at
+    if require_live_lease and (
+        expires_at is None or expires_at.tzinfo is None or expires_at <= utcnow()
+    ):
+        raise DemoEditingRepositoryError(
+            "EXECUTION_LEASE_EXPIRED",
+            "execution lease expired before terminal persistence",
+            published_cleanup_safe=True,
         )
 
 

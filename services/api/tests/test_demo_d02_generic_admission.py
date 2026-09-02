@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from copy import deepcopy
 from dataclasses import replace
@@ -201,7 +201,10 @@ def session() -> Session:
 
 
 def _generic_sources(
-    session: Session, tmp_path: Path
+    session: Session,
+    tmp_path: Path,
+    *,
+    source_storage_key_factory: Callable[[str, int], str] | None = None,
 ) -> tuple[D02SelectedSourceManifest, list[generic.GenericSourceInput], list[dict[str, object]]]:
     service, run_id = _service(session, "generic-pg")
     manifest: D02SelectedSourceManifest | None = None
@@ -225,12 +228,17 @@ def _generic_sources(
     inputs: list[generic.GenericSourceInput] = []
     rows: list[dict[str, object]] = []
     for position, candidate in enumerate(candidates, start=1):
+        asset_id = new_id()
         asset = Asset(
-            id=new_id(),
+            id=asset_id,
             owner_user_id=None,
             asset_role="synthetic",
             internal_purpose="synthetic_dataset",
-            storage_key=f"d02-generic-pg/{position}",
+            storage_key=(
+                source_storage_key_factory(asset_id, position)
+                if source_storage_key_factory is not None
+                else f"d02-generic-pg/{position}"
+            ),
             mime_type="image/jpeg",
             byte_size=100 + position,
             width=64,
@@ -314,6 +322,9 @@ def _generic_screening_graph(
     source_rows: list[dict[str, object]],
     identity_rows: list[dict[str, object]],
     manifest: D02SelectedSourceManifest,
+    *,
+    source_storage_key_factory: Callable[[str, int], str] | None = None,
+    geometry_algorithm_version: str | None = None,
 ) -> tuple[
     dict[str, object],
     dict[str, object],
@@ -325,7 +336,9 @@ def _generic_screening_graph(
     # The authority helper is cached for its own module; generic rebinding must
     # always start from a fresh graph because several runtime tests deliberately
     # mutate their local fixture copy.
-    report_template, _ = _report_input_template.__wrapped__()
+    report_template, _ = _report_input_template.__wrapped__(
+        geometry_algorithm_version=geometry_algorithm_version
+    )
     source_entries, formal_digest = screening.build_formal_source_manifest(
         source_inputs=inputs,
         source_rows=source_rows,
@@ -399,7 +412,11 @@ def _generic_screening_graph(
                 "id": asset.asset_id,
                 "owner_user_id": None,
                 "asset_role": "synthetic",
-                "storage_key": f"d02-generic-screening/source/{index}",
+                "storage_key": (
+                    source_storage_key_factory(asset.asset_id, index)
+                    if source_storage_key_factory is not None
+                    else f"d02-generic-screening/source/{index}"
+                ),
                 "mime_type": asset.mime_type,
                 "byte_size": asset.byte_size,
                 "width": asset.width,
@@ -703,15 +720,26 @@ def _selected_manifest_row(manifest: D02SelectedSourceManifest) -> dict[str, obj
 
 
 def _generic_admission_bundle(
-    session: Session, tmp_path: Path
+    session: Session,
+    tmp_path: Path,
+    *,
+    source_storage_key_factory: Callable[[str, int], str] | None = None,
+    geometry_algorithm_version: str | None = None,
 ) -> coordinator.GenericAdmissionBundle:
-    manifest, inputs, source_rows = _generic_sources(session, tmp_path)
+    manifest, inputs, source_rows = _generic_sources(
+        session, tmp_path, source_storage_key_factory=source_storage_key_factory
+    )
     identity_rows = [
         generic.build_identity_row(value, source_row=source)
         for value, source in zip(inputs, source_rows, strict=True)
     ]
     report, bank, pairs, assets, variants = _generic_screening_graph(
-        inputs, source_rows, identity_rows, manifest
+        inputs,
+        source_rows,
+        identity_rows,
+        manifest,
+        source_storage_key_factory=source_storage_key_factory,
+        geometry_algorithm_version=geometry_algorithm_version,
     )
     return coordinator.GenericAdmissionBundle(
         request_payload={
