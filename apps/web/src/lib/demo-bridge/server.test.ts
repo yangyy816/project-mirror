@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   boundSessionFor,
@@ -8,14 +8,71 @@ import {
   demoSessionRegistrySize,
   errorForStatus,
   isSameOriginRequest,
+  readBoundDemoRecall,
 } from "./server";
 
 const bearer = "x".repeat(32);
+const identityId = "a".repeat(32);
 const sessionId = "1".repeat(32);
+
+function upstreamFetch(expiresAtMs = 901_000) {
+  return vi.fn(async (input: string | URL | Request) => {
+    const url = new URL(
+      typeof input === "string" || input instanceof URL ? input : input.url,
+    );
+    if (url.pathname === "/api/v1/demo/identities") {
+      return new Response(
+        JSON.stringify({
+          identities: [
+            {
+              identity_id: identityId,
+              canonical_asset_digest: "d".repeat(64),
+              admission_status: "ADMITTED",
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }
+    if (url.pathname === "/api/v1/demo/sessions") {
+      return new Response(
+        JSON.stringify({
+          session_id: sessionId,
+          synthetic_identity_id: identityId,
+          status: "ACTIVE",
+          expires_at: new Date(expiresAtMs).toISOString(),
+        }),
+        { status: 201 },
+      );
+    }
+    if (url.pathname.includes("/context")) {
+      return new Response(
+        JSON.stringify({
+          session_id: sessionId,
+          profile_id: "2".repeat(32),
+          compilation_digest: "f".repeat(64),
+          expires_at: new Date(expiresAtMs).toISOString(),
+        }),
+        { status: 200 },
+      );
+    }
+    if (url.pathname.includes("/traces/")) {
+      return new Response(
+        JSON.stringify({
+          session_id: sessionId,
+          context_compilation_id: "3".repeat(32),
+          evidence_digest: "f".repeat(64),
+        }),
+        { status: 200 },
+      );
+    }
+    return new Response(null, { status: 404 });
+  });
+}
 
 beforeEach(() => {
   process.env.DEMO_BEARER_TOKEN = bearer;
-  process.env.DEMO_SESSION_ID = sessionId;
+  process.env.DEMO_BOOTSTRAP_IDENTITY_ID = identityId;
   process.env.DEMO_SESSION_TTL_SECONDS = "60";
   clearDemoSessionRegistryForTest();
 });
@@ -23,8 +80,9 @@ beforeEach(() => {
 afterEach(() => {
   clearDemoSessionRegistryForTest();
   delete process.env.DEMO_BEARER_TOKEN;
-  delete process.env.DEMO_SESSION_ID;
+  delete process.env.DEMO_BOOTSTRAP_IDENTITY_ID;
   delete process.env.DEMO_SESSION_TTL_SECONDS;
+  vi.unstubAllGlobals();
 });
 
 describe("demo bridge server boundary", () => {
@@ -65,22 +123,120 @@ describe("demo bridge server boundary", () => {
     expect(canonicalRecallAt("2099-01-01T00:00:00")).toBeNull();
   });
 
-  it("reuses valid handles, expires them, and never grows past the registry cap", () => {
-    const first = createBoundDemoSession(undefined, 1_000);
-    expect(first).not.toBeNull();
-    const reused = createBoundDemoSession(first?.handle, 1_001);
-    expect(reused?.handle).toBe(first?.handle);
-    process.env.DEMO_SESSION_ID = "2".repeat(32);
-    const rotated = createBoundDemoSession(first?.handle, 1_002);
-    expect(rotated?.handle).not.toBe(first?.handle);
-    expect(boundSessionFor(first?.handle, 1_002)).toBeNull();
-    expect(boundSessionFor(first?.handle, 61_000)).toBeNull();
+  it("creates an admitted server-side session, caps TTL, and reuses its handle", async () => {
+    const nowMs = Date.now();
+    const fetchMock = upstreamFetch(nowMs + 900_000);
+    vi.stubGlobal("fetch", fetchMock);
 
+    const first = await createBoundDemoSession(undefined, nowMs);
+    expect(first).toMatchObject({ maxAge: 60 });
+    expect(first?.handle).toMatch(/^[a-f0-9]{64}$/);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const createRequest = fetchMock.mock.calls[1]?.[0] as Request;
+    expect(await createRequest.json()).toMatchObject({
+      synthetic_identity_id: identityId,
+      context_seed: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    expect(createRequest.headers.get("Authorization")).toBe(`Bearer ${bearer}`);
+    expect(createRequest.headers.get("Idempotency-Key")).toMatch(
+      /^[a-f0-9]{64}$/,
+    );
+
+    const reused = await createBoundDemoSession(first?.handle, nowMs + 1);
+    expect(reused?.handle).toBe(first?.handle);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(boundSessionFor(first?.handle, nowMs + 60_000)).toBeNull();
+  });
+
+  it("invalidates a prior handle when configuration is missing, rotated, or invalid", async () => {
+    const nowMs = Date.now();
+    const fetchMock = upstreamFetch(nowMs + 900_000);
+    vi.stubGlobal("fetch", fetchMock);
+    const first = await createBoundDemoSession(undefined, nowMs);
+    delete process.env.DEMO_BEARER_TOKEN;
+    expect(await createBoundDemoSession(first?.handle, nowMs + 1)).toBeNull();
+    expect(boundSessionFor(first?.handle, nowMs + 1)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    process.env.DEMO_BEARER_TOKEN = bearer;
+    const second = await createBoundDemoSession(undefined, nowMs + 2);
+    process.env.DEMO_BOOTSTRAP_IDENTITY_ID = "b".repeat(32);
+    expect(await createBoundDemoSession(second?.handle, nowMs + 3)).toBeNull();
+    expect(boundSessionFor(second?.handle, nowMs + 3)).toBeNull();
+
+    process.env.DEMO_BOOTSTRAP_IDENTITY_ID = identityId;
+    const third = await createBoundDemoSession(undefined, nowMs + 4);
+    process.env.DEMO_BEARER_TOKEN = "y".repeat(32);
+    const rotated = await createBoundDemoSession(third?.handle, nowMs + 5);
+    expect(rotated?.handle).toMatch(/^[a-f0-9]{64}$/);
+    expect(rotated?.handle).not.toBe(third?.handle);
+
+    process.env.DEMO_SESSION_TTL_SECONDS = "59";
+    expect(await createBoundDemoSession(rotated?.handle, nowMs + 6)).toBeNull();
+    expect(boundSessionFor(rotated?.handle, nowMs + 6)).toBeNull();
+  });
+
+  it("fails closed for cross-bound or expired upstream sessions", async () => {
+    const nowMs = Date.now();
+    const fetchMock = upstreamFetch(nowMs + 900_000);
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          identities: [
+            {
+              identity_id: identityId,
+              canonical_asset_digest: "d".repeat(64),
+              admission_status: "ADMITTED",
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          session_id: sessionId,
+          synthetic_identity_id: "b".repeat(32),
+          status: "ACTIVE",
+          expires_at: new Date(nowMs + 900_000).toISOString(),
+        }),
+        { status: 201 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await createBoundDemoSession(undefined, nowMs)).toBeNull();
+    expect(demoSessionRegistrySize(nowMs)).toBe(0);
+
+    clearDemoSessionRegistryForTest();
+    vi.stubGlobal("fetch", upstreamFetch(nowMs));
+    expect(await createBoundDemoSession(undefined, nowMs)).toBeNull();
+    expect(demoSessionRegistrySize(nowMs)).toBe(0);
+  });
+
+  it("never exceeds the bounded registry capacity", async () => {
+    const nowMs = Date.now();
+    const fetchMock = upstreamFetch(nowMs + 900_000);
+    vi.stubGlobal("fetch", fetchMock);
     for (let index = 0; index < 64; index += 1) {
-      expect(createBoundDemoSession(undefined, 100_000)).not.toBeNull();
+      expect(await createBoundDemoSession(undefined, nowMs)).not.toBeNull();
     }
-    expect(demoSessionRegistrySize(100_000)).toBe(64);
-    expect(createBoundDemoSession(undefined, 100_000)).toBeNull();
+    expect(demoSessionRegistrySize(nowMs)).toBe(64);
+    expect(await createBoundDemoSession(undefined, nowMs)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(128);
+  });
+
+  it("projects recall only after internal verification without leaking session_id", async () => {
+    const nowMs = Date.now();
+    vi.stubGlobal("fetch", upstreamFetch(nowMs + 900_000));
+    const session = await createBoundDemoSession(undefined, nowMs);
+    const result = await readBoundDemoRecall(
+      session?.handle,
+      "2099-01-01T00:00:00Z",
+    );
+    expect(result).toMatchObject({ kind: "READY" });
+    expect(JSON.stringify(result)).not.toContain("session_id");
+    expect(JSON.stringify(result)).not.toContain(sessionId);
   });
 
   it("maps upstream statuses to redacted stable codes", () => {

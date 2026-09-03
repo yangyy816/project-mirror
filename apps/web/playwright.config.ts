@@ -53,7 +53,7 @@ export default defineConfig({
         NEXT_PUBLIC_API_BASE_URL: apiOrigin,
         API_BASE_URL: apiOrigin,
         DEMO_BEARER_TOKEN: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        DEMO_SESSION_ID: "11111111111111111111111111111111",
+        DEMO_BOOTSTRAP_IDENTITY_ID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         DEMO_SESSION_TTL_SECONDS: "900",
         NEXT_PUBLIC_APP_ORIGIN: appOrigin,
         NEXT_PUBLIC_POLICY_MANIFEST: policyManifest,

@@ -14,7 +14,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -138,6 +138,7 @@ class DemoSemanticIdempotencyCoordinator:
         semantic_request: Mapping[str, Any],
         create_target: DemoTargetCreator[T],
         load_target: DemoTargetLoader[T],
+        serialize_creation: bool = False,
     ) -> DemoIdempotencyResult[T]:
         operation_response = _operation_response(endpoint_operation)
         _require_id(demo_actor_id, "demo actor id")
@@ -146,6 +147,19 @@ class DemoSemanticIdempotencyCoordinator:
 
         async with self._session_factory() as session:
             async with session.begin():
+                if serialize_creation:
+                    await session.execute(
+                        text(
+                            "SELECT pg_advisory_xact_lock("
+                            "hashtextextended(:idempotency_lock_key, 0))"
+                        ),
+                        {
+                            "idempotency_lock_key": (
+                                "mirror.demo.command-idempotency/v1/"
+                                f"{demo_actor_id}/{endpoint_operation}/{key_hash}"
+                            )
+                        },
+                    )
                 binding = await _load_binding(
                     session,
                     demo_actor_id=demo_actor_id,

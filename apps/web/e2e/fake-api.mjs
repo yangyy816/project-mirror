@@ -10,6 +10,7 @@ const assetId = "a".repeat(32);
 const exportId = "b".repeat(32);
 const deletionRequestId = "f".repeat(32);
 const jobId = "9".repeat(32);
+const demoIdentityId = "a".repeat(32);
 const demoSessionId = "1".repeat(32);
 const demoDigest = "f".repeat(64);
 const demoBearer = "x".repeat(32);
@@ -34,6 +35,7 @@ function reset() {
     failNextAssetList: false,
     demoRecallAts: [],
     demoRequestCount: 0,
+    demoSessionCreateCount: 0,
     demoDigestMismatch: false,
   };
 }
@@ -130,6 +132,44 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/api/v1/demo/identities") {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`) {
+      error(response, 401);
+      return;
+    }
+    send(response, 200, {
+      identities: [
+        {
+          identity_id: demoIdentityId,
+          canonical_asset_digest: "d".repeat(64),
+          admission_status: "ADMITTED",
+        },
+      ],
+    });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/v1/demo/sessions") {
+    const body = await jsonBody(request);
+    if (
+      request.headers.authorization !== `Bearer ${demoBearer}` ||
+      request.headers["idempotency-key"] === undefined ||
+      body.synthetic_identity_id !== demoIdentityId ||
+      !/^[a-f0-9]{64}$/.test(body.context_seed ?? "")
+    ) {
+      error(response, 401);
+      return;
+    }
+    state.demoSessionCreateCount += 1;
+    send(response, 201, {
+      session_id: demoSessionId,
+      synthetic_identity_id: demoIdentityId,
+      status: "ACTIVE",
+      expires_at: "2099-01-01T00:15:00Z",
+    });
+    return;
+  }
+
   if (
     request.method === "GET" &&
     url.pathname === `/api/v1/demo/sessions/${demoSessionId}/context`
@@ -189,6 +229,7 @@ const server = createServer(async (request, response) => {
       account_deletion_status: state.accountDeletionStatus,
       demo_recall_ats: state.demoRecallAts,
       demo_request_count: state.demoRequestCount,
+      demo_session_create_count: state.demoSessionCreateCount,
     });
     return;
   }

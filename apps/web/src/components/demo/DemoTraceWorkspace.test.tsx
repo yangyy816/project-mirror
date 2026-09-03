@@ -30,7 +30,6 @@ describe("DemoTraceWorkspace", () => {
           JSON.stringify({
             status: "READY",
             recall_at: "2099-01-01T00:00:00.000Z",
-            session_id: "1".repeat(32),
             context: {
               profile_id: "2".repeat(32),
               compilation_digest: "f".repeat(64),
@@ -63,6 +62,7 @@ describe("DemoTraceWorkspace", () => {
         "Authorization",
       );
     }
+    expect(screen.queryByText("1".repeat(32))).toBeNull();
   });
 
   it("renders stale responses without showing a synthetic replacement", async () => {
