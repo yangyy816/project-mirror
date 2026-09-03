@@ -68,7 +68,8 @@ def database_session() -> Iterator[Session]:
 def _truncate(session: Session) -> None:
     session.execute(
         text(
-            "TRUNCATE TABLE demo_command_bindings, demo_sessions, demo_actors, "
+            "TRUNCATE TABLE job_attempts, jobs, demo_command_bindings, "
+            "demo_sessions, demo_actors, "
             "demo_d02_r2_epoch2_admissions, demo_question_pairs, demo_question_banks, "
             "demo_pair_screening_reports, asset_variants, demo_synthetic_identities, "
             "demo_d02_r2_source_authorities, demo_d02_selected_source_manifests, "
