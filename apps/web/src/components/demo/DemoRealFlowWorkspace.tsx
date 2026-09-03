@@ -13,9 +13,16 @@ type Question = Readonly<{
   leftImageUrl: string;
   rightImageUrl: string;
 }>;
+type AnswerSubmission = Readonly<{
+  question: Question;
+  shownAt: number;
+  choice: Choice;
+  responseLatencyMs: number;
+}>;
 type State =
   | { kind: "IDLE" }
   | { kind: "SESSION_CREATING" }
+  | { kind: "SESSION_ENDING" }
   | { kind: "ANALYSIS_STARTING" }
   | { kind: "ANALYSIS_PENDING" }
   | { kind: "ANALYSIS_COMPLETED" }
@@ -24,7 +31,12 @@ type State =
   | { kind: "QUESTION"; question: Question; shownAt: number }
   | { kind: "RESPONSE_SUBMITTING"; question: Question; shownAt: number }
   | { kind: "COMPLETED" }
-  | { kind: "ERROR"; phase: Phase | "session"; code: string };
+  | {
+      kind: "ERROR";
+      phase: Phase | "session";
+      code: string;
+      answerSubmission?: AnswerSubmission;
+    };
 
 const errorMessages: Record<string, string> = {
   DENIED: "Demo 会话不可用或已过期。",
@@ -37,6 +49,7 @@ const errorMessages: Record<string, string> = {
   REJECTED: "处理被安全规则拒绝。",
   CANCELLED: "处理已取消。",
   POLL_TIMEOUT: "等待时间已到，请重试当前步骤。",
+  LOGOUT_UNAVAILABLE: "结束 Demo 尚未完成，请重试清理会话。",
 };
 
 function currentTimeMs() {
@@ -49,6 +62,8 @@ function describe(state: State) {
       return "本演示只使用合成人物与真实 Demo 服务流程。";
     case "SESSION_CREATING":
       return "正在建立 Demo 会话。";
+    case "SESSION_ENDING":
+      return "正在安全结束 Demo 会话。";
     case "ANALYSIS_STARTING":
       return "正在启动分析。";
     case "ANALYSIS_PENDING":
@@ -117,12 +132,23 @@ function completedAnalysis(body: Record<string, unknown> | null) {
   );
 }
 
+function isRecoverableError(code: string) {
+  return [
+    "UNAVAILABLE",
+    "CONFLICT",
+    "STALE_RESPONSE",
+    "POLL_TIMEOUT",
+    "LOGOUT_UNAVAILABLE",
+  ].includes(code);
+}
+
 export function DemoRealFlowWorkspace() {
   const [state, setState] = useState<State>({ kind: "IDLE" });
   const generation = useRef(0);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollCount = useRef(0);
   const activePhase = useRef<Phase | null>(null);
+  const sessionCreation = useRef<Promise<Response> | null>(null);
 
   function invalidate() {
     generation.current += 1;
@@ -132,8 +158,14 @@ export function DemoRealFlowWorkspace() {
   }
   useEffect(() => () => invalidate(), []);
 
-  function error(phase: Phase | "session", code: string, token: number) {
-    if (generation.current === token) setState({ kind: "ERROR", phase, code });
+  function error(
+    phase: Phase | "session",
+    code: string,
+    token: number,
+    answerSubmission?: AnswerSubmission,
+  ) {
+    if (generation.current === token)
+      setState({ kind: "ERROR", phase, code, answerSubmission });
   }
   function schedulePoll(phase: Phase, token: number) {
     if (generation.current !== token) return;
@@ -223,8 +255,10 @@ export function DemoRealFlowWorkspace() {
     invalidate();
     const token = generation.current;
     setState({ kind: "SESSION_CREATING" });
+    const creation = request("/api/demo/session", { method: "POST" });
+    sessionCreation.current = creation;
     try {
-      const response = await request("/api/demo/session", { method: "POST" });
+      const response = await creation;
       if (generation.current !== token) return;
       if (!response.ok)
         return error(
@@ -236,25 +270,24 @@ export function DemoRealFlowWorkspace() {
       void startPhase("analysis", token);
     } catch {
       error("session", "UNAVAILABLE", token);
+    } finally {
+      if (sessionCreation.current === creation) sessionCreation.current = null;
     }
   }
-  async function answer(choice: Choice) {
-    if (state.kind !== "QUESTION") return;
-    const { question, shownAt } = state;
-    const token = ++generation.current;
-    setState({ kind: "RESPONSE_SUBMITTING", question, shownAt });
-    const latency = Math.min(
-      3_600_000,
-      Math.max(0, Math.round(currentTimeMs() - shownAt)),
-    );
+
+  async function submitAnswer(
+    submission: AnswerSubmission,
+    token: number,
+    reconcileConflicts: boolean,
+  ) {
     try {
       const response = await request("/api/demo/questionnaire/response", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          presentation_token: question.presentationToken,
-          choice,
-          response_latency_ms: latency,
+          presentation_token: submission.question.presentationToken,
+          choice: submission.choice,
+          response_latency_ms: submission.responseLatencyMs,
         }),
       });
       const body = (await response.json().catch(() => null)) as Record<
@@ -262,8 +295,20 @@ export function DemoRealFlowWorkspace() {
         unknown
       > | null;
       if (generation.current !== token) return;
-      if (!response.ok)
-        return error("questionnaire", codeFrom(response, body), token);
+      if (!response.ok) {
+        const code = codeFrom(response, body);
+        if (
+          reconcileConflicts &&
+          (code === "CONFLICT" || code === "STALE_RESPONSE")
+        ) {
+          activePhase.current = "questionnaire";
+          pollCount.current = 0;
+          setState({ kind: "QUESTIONNAIRE_PENDING" });
+          schedulePoll("questionnaire", token);
+          return;
+        }
+        return error("questionnaire", code, token, submission);
+      }
       if (body?.status === "COMPLETED") {
         setState({ kind: "COMPLETED" });
         return;
@@ -284,25 +329,63 @@ export function DemoRealFlowWorkspace() {
         schedulePoll("questionnaire", token);
         return;
       }
-      error("questionnaire", codeFrom(response, body), token);
+      error("questionnaire", codeFrom(response, body), token, submission);
     } catch {
-      error("questionnaire", "UNAVAILABLE", token);
+      error("questionnaire", "UNAVAILABLE", token, submission);
     }
   }
+
+  function answer(choice: Choice) {
+    if (state.kind !== "QUESTION") return;
+    const submission: AnswerSubmission = {
+      question: state.question,
+      shownAt: state.shownAt,
+      choice,
+      responseLatencyMs: Math.min(
+        3_600_000,
+        Math.max(0, Math.round(currentTimeMs() - state.shownAt)),
+      ),
+    };
+    const token = ++generation.current;
+    setState({
+      kind: "RESPONSE_SUBMITTING",
+      question: submission.question,
+      shownAt: submission.shownAt,
+    });
+    void submitAnswer(submission, token, false);
+  }
+
   async function endDemo() {
     invalidate();
-    setState({ kind: "IDLE" });
+    const token = generation.current;
+    setState({ kind: "SESSION_ENDING" });
+    const pendingCreation = sessionCreation.current;
     try {
-      await request("/api/demo/session", { method: "DELETE" });
+      if (pendingCreation) await pendingCreation.catch(() => null);
+      if (generation.current !== token) return;
+      const response = await request("/api/demo/session", { method: "DELETE" });
+      if (generation.current !== token) return;
+      if (!response.ok) return error("session", "LOGOUT_UNAVAILABLE", token);
+      setState({ kind: "IDLE" });
     } catch {
-      /* UI must still discard local state. */
+      error("session", "LOGOUT_UNAVAILABLE", token);
     }
   }
   function retry() {
-    if (state.kind !== "ERROR") return;
+    if (state.kind !== "ERROR" || !isRecoverableError(state.code)) return;
     const token = ++generation.current;
     if (state.phase === "session") {
-      void startDemo();
+      if (state.code === "LOGOUT_UNAVAILABLE") void endDemo();
+      else void startDemo();
+      return;
+    }
+    if (state.answerSubmission) {
+      setState({
+        kind: "RESPONSE_SUBMITTING",
+        question: state.answerSubmission.question,
+        shownAt: state.answerSubmission.shownAt,
+      });
+      void submitAnswer(state.answerSubmission, token, true);
       return;
     }
     setState({
@@ -358,7 +441,7 @@ export function DemoRealFlowWorkspace() {
           开始偏好问卷
         </Button>
       ) : null}
-      {state.kind === "ERROR" ? (
+      {state.kind === "ERROR" && isRecoverableError(state.code) ? (
         <Button className="mt-5" onClick={retry} type="button">
           重试当前步骤
         </Button>
@@ -409,7 +492,7 @@ export function DemoRealFlowWorkspace() {
           </div>
         </div>
       ) : null}
-      {state.kind !== "IDLE" ? (
+      {state.kind !== "IDLE" && state.kind !== "SESSION_ENDING" ? (
         <Button
           className="mt-6"
           onClick={endDemo}

@@ -41,6 +41,7 @@ function reset() {
     demoQuestionnairePolls: 0,
     demoQuestionStep: 0,
     failNextDemoAnalysis: false,
+    delayNextDemoSession: false,
   };
 }
 
@@ -165,6 +166,10 @@ const server = createServer(async (request, response) => {
       return;
     }
     state.demoSessionCreateCount += 1;
+    if (state.delayNextDemoSession) {
+      state.delayNextDemoSession = false;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
     send(response, 201, {
       session_id: demoSessionId,
       synthetic_identity_id: demoIdentityId,
@@ -243,6 +248,7 @@ const server = createServer(async (request, response) => {
     if (body.target === "assets") state.failNextAssetList = true;
     if (body.target === "demo-digest-mismatch") state.demoDigestMismatch = true;
     if (body.target === "demo-analysis") state.failNextDemoAnalysis = true;
+    if (body.target === "demo-session-delay") state.delayNextDemoSession = true;
     send(response, 204, null);
     return;
   }

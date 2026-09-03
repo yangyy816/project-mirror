@@ -41,6 +41,7 @@ Add one client-side `DemoRealFlowWorkspace` with the exact visible states:
 ```text
 IDLE
 SESSION_CREATING
+SESSION_ENDING
 ANALYSIS_STARTING
 ANALYSIS_PENDING
 ANALYSIS_COMPLETED
@@ -91,14 +92,21 @@ state or inferred aesthetic conclusion.
 
 Safe browser error classes are `DENIED`, `NOT_FOUND`, `CONFLICT`, `UNAVAILABLE`,
 `UNSUPPORTED`, `STALE_RESPONSE`, `FAILED`, `REJECTED`, `CANCELLED` and local
-`POLL_TIMEOUT`. Each maps to concise Chinese UI text without upstream IDs,
-digests or exception content.
+`POLL_TIMEOUT` / `LOGOUT_UNAVAILABLE`. Each maps to concise Chinese UI text
+without upstream IDs, digests or exception content.
 
-Retry never changes a submitted choice or generates client idempotency keys;
-the BFF retains that authority. `DELETE /api/demo/session` is the only End Demo
-action. It invalidates the browser cookie and the complete server registry;
-the UI then discards all in-memory state and returns to `IDLE`, regardless of a
-redacted network failure response.
+Retry never changes a submitted token, choice or latency and never generates a
+client idempotency key; the BFF retains that authority. A conflict or stale
+response after an uncertain submit is reconciled only through the questionnaire
+read projection.
+
+`DELETE /api/demo/session` is the only End Demo action. If Session creation is
+still in flight, End waits for that response before deleting so an old
+`Set-Cookie` cannot win after logout. The UI remains `SESSION_ENDING` and cannot
+start again until DELETE succeeds. A failed DELETE enters a recoverable logout
+error and retries DELETE; it never reports `IDLE` while cookie/registry cleanup
+is uncertain. Successful deletion invalidates the browser cookie and complete
+server registry before the UI returns to `IDLE`.
 
 The component must not use localStorage, sessionStorage, IndexedDB, service
 worker caches or analytics. All status regions use `aria-live="polite"`;

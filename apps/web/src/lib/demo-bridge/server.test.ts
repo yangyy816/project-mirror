@@ -492,7 +492,7 @@ describe("demo bridge server boundary", () => {
   });
 
   it("rejects BFF query and body overrides with no-store redacted responses", async () => {
-    const { POST } = await import("../../app/api/demo/session/route");
+    const { DELETE, POST } = await import("../../app/api/demo/session/route");
     const response = await POST(
       new Request("https://demo.test/api/demo/session?session_id=override", {
         method: "POST",
@@ -515,6 +515,22 @@ describe("demo bridge server boundary", () => {
     );
     expect(bodyResponse.status).toBe(403);
     expect(bodyResponse.headers.get("cache-control")).toBe("no-store");
+
+    const browserEmptyBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.close();
+      },
+    });
+    const logout = await DELETE(
+      new Request("https://demo.test/api/demo/session", {
+        method: "DELETE",
+        headers: { Origin: "https://demo.test" },
+        body: browserEmptyBody,
+        duplex: "half",
+      } as RequestInit & { duplex: "half" }),
+    );
+    expect(logout.status).toBe(200);
+    expect(await logout.json()).toEqual({ status: "LOGGED_OUT" });
   });
 
   it("reuses one retained create key and projects only redacted analysis state", async () => {

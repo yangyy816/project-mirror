@@ -68,3 +68,31 @@ test("recovers from a redacted analysis failure", async ({ page, request }) => {
     timeout: 6_000,
   });
 });
+
+test("serializes logout after a pending Session response and clears the cookie", async ({
+  page,
+  request,
+}) => {
+  await request.post(`${apiOrigin}/__test/fail-next`, {
+    data: { target: "demo-session-delay" },
+  });
+  await page.goto("/demo");
+  await page.getByRole("button", { name: "开始 Demo" }).click();
+  await expect(page.getByText("正在建立 Demo 会话。")).toBeVisible();
+  await page.getByRole("button", { name: "结束 Demo" }).click();
+  await expect(page.getByText("正在安全结束 Demo 会话。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "开始 Demo" })).toBeVisible({
+    timeout: 6_000,
+  });
+  expect(
+    (await page.context().cookies()).find(
+      (cookie) => cookie.name === "mirror_demo_session",
+    ),
+  ).toBeUndefined();
+  expect(
+    await page.evaluate(
+      async () =>
+        (await fetch("/api/demo/analysis", { method: "POST" })).status,
+    ),
+  ).toBe(403);
+});

@@ -3,6 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -16,6 +17,7 @@ import { DemoRealFlowWorkspace } from "./DemoRealFlowWorkspace";
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 function response(body: unknown, status = 200) {
@@ -182,6 +184,13 @@ describe("DemoRealFlowWorkspace", () => {
     render(<DemoRealFlowWorkspace />);
     fireEvent.click(screen.getByRole("button", { name: "开始 Demo" }));
     fireEvent.click(screen.getByRole("button", { name: "结束 Demo" }));
+    expect(screen.getByText("正在安全结束 Demo 会话。")).toBeVisible();
+    expect(
+      fetchMock.mock.calls.filter(
+        ([path, init]) =>
+          path === "/api/demo/session" && init?.method === "DELETE",
+      ),
+    ).toHaveLength(0);
     pendingSession.resolve(response({ status: "SESSION_READY" }, 201));
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "开始 Demo" })).toBeVisible(),
@@ -189,5 +198,112 @@ describe("DemoRealFlowWorkspace", () => {
     expect(
       fetchMock.mock.calls.filter(([path]) => path === "/api/demo/analysis"),
     ).toHaveLength(0);
+    expect(
+      fetchMock.mock.calls.filter(
+        ([path, init]) =>
+          path === "/api/demo/session" && init?.method === "DELETE",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("retries an uncertain answer exactly and reconciles a stale token by reading", async () => {
+    const token = "a".repeat(64);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ status: "SESSION_READY" }, 201))
+      .mockResolvedValueOnce(response({ status: "PENDING" }, 202))
+      .mockResolvedValueOnce(
+        response({
+          status: "COMPLETED",
+          analysis_state: "SUPPORTED",
+          self_state: "READY",
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          status: "QUESTION",
+          presentation_token: token,
+          left_image_url: `/api/demo/questionnaire/media/${token}/LEFT`,
+          right_image_url: `/api/demo/questionnaire/media/${token}/RIGHT`,
+        }),
+      )
+      .mockResolvedValueOnce(response({ code: "UNAVAILABLE" }, 503))
+      .mockResolvedValueOnce(response({ code: "CONFLICT" }, 409))
+      .mockResolvedValueOnce(response({ status: "COMPLETED" }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<DemoRealFlowWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "开始 Demo" }));
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole("button", { name: "开始偏好问卷" }),
+        ).toBeVisible(),
+      { timeout: 2_000 },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "开始偏好问卷" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "更偏好左侧" })).toBeVisible(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "更偏好左侧" }));
+    await waitFor(() =>
+      expect(screen.getByText(/服务暂时不可用/)).toBeVisible(),
+    );
+    const first = fetchMock.mock.calls.filter(
+      ([path]) => path === "/api/demo/questionnaire/response",
+    )[0]?.[1]?.body;
+    fireEvent.click(screen.getByRole("button", { name: "重试当前步骤" }));
+    await waitFor(
+      () => expect(screen.getByText("偏好问卷已完成。")).toBeVisible(),
+      { timeout: 2_500 },
+    );
+    const attempts = fetchMock.mock.calls.filter(
+      ([path]) => path === "/api/demo/questionnaire/response",
+    );
+    expect(attempts).toHaveLength(2);
+    expect(attempts[1]?.[1]?.body).toBe(first);
+  });
+
+  it("renders a terminal analysis result without offering a mutating retry", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ status: "SESSION_READY" }, 201))
+      .mockResolvedValueOnce(response({ status: "PENDING" }, 202))
+      .mockResolvedValueOnce(response({ status: "FAILED" }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<DemoRealFlowWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "开始 Demo" }));
+    await waitFor(() => expect(screen.getByText(/处理未完成/)).toBeVisible(), {
+      timeout: 2_000,
+    });
+    expect(screen.queryByRole("button", { name: "重试当前步骤" })).toBeNull();
+    expect(screen.getByRole("button", { name: "结束 Demo" })).toBeVisible();
+  });
+
+  it("stops an indefinitely pending phase at the frozen poll limit", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ status: "SESSION_READY" }, 201))
+      .mockResolvedValueOnce(response({ status: "PENDING" }, 202))
+      .mockImplementation(() =>
+        Promise.resolve(response({ status: "PENDING" })),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<DemoRealFlowWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "开始 Demo" }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000);
+    });
+    expect(screen.getByText(/等待时间已到/)).toBeVisible();
+    expect(
+      fetchMock.mock.calls.filter(
+        ([path, init]) =>
+          path === "/api/demo/analysis" && init?.method !== "POST",
+      ),
+    ).toHaveLength(120);
   });
 });
