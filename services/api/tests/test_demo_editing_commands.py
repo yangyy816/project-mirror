@@ -69,3 +69,37 @@ def test_editing_session_source_asset_form_is_valid() -> None:
         idempotency_key=_KEY,
         request_id=_REQUEST_ID,
     ).validate()
+
+
+def test_editing_session_canonical_source_selector_is_explicit_and_exclusive() -> None:
+    CreateDemoEditingSession(
+        demo_actor_id=_ID,
+        demo_session_id=_ID,
+        source_selector="SESSION_CANONICAL_ASSET",
+        idempotency_key=_KEY,
+        request_id=_REQUEST_ID,
+    ).validate()
+
+    for source in (
+        {"source_asset_id": _ID},
+        {"source_image_version_id": _ID},
+    ):
+        with pytest.raises(DemoEditingCommandInputError, match="forbids explicit"):
+            CreateDemoEditingSession(
+                demo_actor_id=_ID,
+                demo_session_id=_ID,
+                source_selector="SESSION_CANONICAL_ASSET",
+                idempotency_key=_KEY,
+                request_id=_REQUEST_ID,
+                **source,
+            ).validate()
+
+    with pytest.raises(DemoEditingCommandInputError, match="unsupported"):
+        CreateDemoEditingSession(
+            demo_actor_id=_ID,
+            demo_session_id=_ID,
+            source_asset_id=_ID,
+            source_selector="UNKNOWN",  # type: ignore[arg-type]
+            idempotency_key=_KEY,
+            request_id=_REQUEST_ID,
+        ).validate()

@@ -162,14 +162,25 @@ def test_d07_create_routes_use_owner_bound_commands_without_session_in_target_re
                 "expected_current_image_version_digest": _DIGEST,
             },
         ),
+        _post(
+            client,
+            "/api/v1/demo/editing-sessions",
+            {
+                "session_id": _SESSION_ID,
+                "source_selector": "SESSION_CANONICAL_ASSET",
+            },
+        ),
     )
-    assert [response.status_code for response in responses] == [202, 202, 202, 202]
+    assert [response.status_code for response in responses] == [202, 202, 202, 202, 202]
     assert all(response.json()["job_id"] == _JOB_ID for response in responses)
-    assert len(coordinator.commands) == 4
+    assert len(coordinator.commands) == 5
     assert all(command.request_id == "request-0001" for command in coordinator.commands)
     assert not hasattr(coordinator.commands[1], "demo_session_id")
     assert not hasattr(coordinator.commands[2], "demo_session_id")
     assert not hasattr(coordinator.commands[3], "demo_session_id")
+    assert coordinator.commands[4].source_selector == "SESSION_CANONICAL_ASSET"
+    assert coordinator.commands[4].source_asset_id is None
+    assert coordinator.commands[4].source_image_version_id is None
 
 
 def test_d07_tool_run_is_owner_bound_and_returns_terminal_job_state() -> None:

@@ -59,6 +59,12 @@ from mirror_api.demo_operation_graph import (
     PreserveKey,
     plan_restore_transition,
 )
+from mirror_api.demo_session_service import (
+    DemoSessionActorUnavailable,
+    DemoSessionAuthorityUnavailable,
+    DemoSyntheticIdentityUnavailable,
+    resolve_demo_session_canonical_source,
+)
 from mirror_api.demo_tool_registry import (
     TOOL_REGISTRY_VERSION,
     DemoToolRegistryError,
@@ -108,11 +114,19 @@ class CreateDemoEditingSession:
     request_id: str
     source_asset_id: str | None = None
     source_image_version_id: str | None = None
+    source_selector: Literal["SESSION_CANONICAL_ASSET"] | None = None
 
     def validate(self) -> None:
         _require_id(self.demo_actor_id, "demo_actor_id")
         _require_id(self.demo_session_id, "demo_session_id")
-        if (self.source_asset_id is None) == (self.source_image_version_id is None):
+        if self.source_selector not in {None, "SESSION_CANONICAL_ASSET"}:
+            raise DemoEditingCommandInputError("source selector is unsupported")
+        if self.source_selector == "SESSION_CANONICAL_ASSET":
+            if self.source_asset_id is not None or self.source_image_version_id is not None:
+                raise DemoEditingCommandInputError(
+                    "session source selector forbids explicit source IDs"
+                )
+        elif (self.source_asset_id is None) == (self.source_image_version_id is None):
             raise DemoEditingCommandInputError("exactly one source selector is required")
         if self.source_asset_id is not None:
             _require_id(self.source_asset_id, "source_asset_id")
@@ -258,6 +272,8 @@ class DemoEditingCommandService:
             "source_asset_id": command.source_asset_id,
             "source_image_version_id": command.source_image_version_id,
         }
+        if command.source_selector is not None:
+            request["source_selector"] = command.source_selector
         return await self._create_or_replay(
             command.demo_actor_id,
             operation,
@@ -767,7 +783,7 @@ class DemoEditingCommandService:
         self, session: AsyncSession, c: CreateDemoEditingSession, _: str, request_digest: str
     ) -> tuple[str, str]:
         demo_session = await self._lock_context(session, c.demo_actor_id, c.demo_session_id)
-        source = await self._source_asset(session, c)
+        source = await self._source_asset(session, c, demo_session)
         desired, style, persistent, override = await self._profiles(
             session, c.demo_actor_id, c.demo_session_id
         )
@@ -1144,7 +1160,39 @@ class DemoEditingCommandService:
             raise DemoEditingCommandUnavailable("editing Session is unavailable")
         return row
 
-    async def _source_asset(self, session: AsyncSession, c: CreateDemoEditingSession) -> Asset:
+    async def _source_asset(
+        self,
+        session: AsyncSession,
+        c: CreateDemoEditingSession,
+        demo_session: DemoSession,
+    ) -> Asset:
+        if c.source_selector == "SESSION_CANONICAL_ASSET":
+            try:
+                resolved = await resolve_demo_session_canonical_source(
+                    session,
+                    row=demo_session,
+                    actor_id=c.demo_actor_id,
+                )
+            except (DemoSessionActorUnavailable, DemoSyntheticIdentityUnavailable) as exc:
+                raise DemoEditingCommandUnavailable(
+                    "Demo Session canonical source is unavailable"
+                ) from exc
+            except DemoSessionAuthorityUnavailable as exc:
+                raise DemoEditingCommandAuthorityCorruption(
+                    "Demo Session canonical source authority is invalid"
+                ) from exc
+            asset = await session.get(Asset, resolved.asset_id)
+            if (
+                asset is None
+                or asset.deleted_at is not None
+                or not asset.synthetic
+                or asset.sha256 != resolved.asset_sha256
+            ):
+                raise DemoEditingCommandAuthorityCorruption(
+                    "Demo Session canonical source Asset is invalid"
+                )
+            await _require_d02_source_authority(session, asset)
+            return asset
         if c.source_asset_id is not None:
             asset = await session.get(Asset, c.source_asset_id)
             if asset is None or not asset.synthetic or asset.deleted_at is not None:

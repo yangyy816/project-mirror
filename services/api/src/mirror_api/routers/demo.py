@@ -1576,6 +1576,7 @@ async def create_editing_session(
                 demo_session_id=payload.session_id,
                 source_asset_id=payload.source_asset_id,
                 source_image_version_id=payload.source_image_version_id,
+                source_selector=payload.source_selector,
                 idempotency_key=idempotency_key,
                 request_id=str(request.state.request_id),
             )

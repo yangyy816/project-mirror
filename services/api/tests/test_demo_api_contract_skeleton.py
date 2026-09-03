@@ -220,6 +220,11 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
     assert edit_result["responses"]["200"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/DemoEditExecutionResultResponse"
     }
+    editing_request = schema["components"]["schemas"]["DemoEditingSessionCreateRequest"]
+    assert editing_request["properties"]["source_selector"]["anyOf"] == [
+        {"type": "string", "const": "SESSION_CANONICAL_ASSET"},
+        {"type": "null"},
+    ]
 
     accepted_job = schema["components"]["schemas"]["DemoJobAcceptedResponse"]
     job = schema["components"]["schemas"]["DemoJobResponse"]

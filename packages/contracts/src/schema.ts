@@ -1350,6 +1350,8 @@ export interface components {
             source_image_version_id?: string | null;
             /** Source Asset Id */
             source_asset_id?: string | null;
+            /** Source Selector */
+            source_selector?: "SESSION_CANONICAL_ASSET" | null;
         };
         /** DemoExecutionEvidenceResponse */
         DemoExecutionEvidenceResponse: {

@@ -6529,6 +6529,18 @@
               }
             ],
             "title": "Source Asset Id"
+          },
+          "source_selector": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "SESSION_CANONICAL_ASSET"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Selector"
           }
         },
         "additionalProperties": false,

@@ -297,9 +297,14 @@ class DemoEditingSessionCreateRequest(StrictContractModel):
     session_id: DemoId
     source_image_version_id: DemoId | None = None
     source_asset_id: DemoId | None = None
+    source_selector: Literal["SESSION_CANONICAL_ASSET"] | None = None
 
     @model_validator(mode="after")
     def require_exactly_one_source(self) -> Self:
+        if self.source_selector == "SESSION_CANONICAL_ASSET":
+            if self.source_image_version_id is not None or self.source_asset_id is not None:
+                raise ValueError("session source selector forbids explicit source IDs")
+            return self
         if (self.source_image_version_id is None) == (self.source_asset_id is None):
             raise ValueError("exactly one editing source selector is required")
         return self
