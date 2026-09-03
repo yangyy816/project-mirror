@@ -14,7 +14,7 @@ from mirror_api.demo_analysis_dependencies import (
     get_demo_analysis_coordinator,
     get_demo_job_service,
 )
-from mirror_api.demo_analysis_service import CreateDemoAnalysis
+from mirror_api.demo_analysis_service import CreateDemoAnalysis, CreateDemoSessionAnalysis
 from mirror_api.demo_dependencies import get_demo_actor
 from mirror_api.demo_job_service import (
     DemoJobService,
@@ -31,6 +31,7 @@ RUN_ID = "3" * 32
 JOB_ID = "4" * 32
 SOURCE_ID = "5" * 32
 OBSERVATION_DIGEST = "6" * 64
+SELF_STATE_ID = "9" * 32
 
 
 def _job(*, status: str = "PENDING") -> DemoJobSnapshot:
@@ -63,19 +64,26 @@ def _job(*, status: str = "PENDING") -> DemoJobSnapshot:
 class _Coordinator:
     snapshot_job: DemoJobSnapshot
     created_command: CreateDemoAnalysis | None = None
+    created_session_command: CreateDemoSessionAnalysis | None = None
 
     async def create(self, command: CreateDemoAnalysis) -> DemoAnalysisCreateResult:
         self.created_command = command
         return DemoAnalysisCreateResult(job=_job(), replayed=False)
 
+    async def create_for_session(
+        self, command: CreateDemoSessionAnalysis
+    ) -> DemoAnalysisCreateResult:
+        self.created_session_command = command
+        return DemoAnalysisCreateResult(job=_job(), replayed=False)
+
     async def snapshot(
         self, *, demo_actor_id: str, analysis_run_id: str
-    ) -> tuple[DemoJobSnapshot, str | None, str | None]:
+    ) -> tuple[DemoJobSnapshot, str | None, str | None, str | None]:
         assert demo_actor_id == ACTOR_ID
         assert analysis_run_id == RUN_ID
         if self.snapshot_job.status == "COMPLETED":
-            return self.snapshot_job, "9" * 32, OBSERVATION_DIGEST
-        return self.snapshot_job, None, None
+            return self.snapshot_job, "8" * 32, OBSERVATION_DIGEST, SELF_STATE_ID
+        return self.snapshot_job, None, None, None
 
 
 @dataclass
@@ -157,6 +165,17 @@ def test_d03_and_generic_job_routes_use_owner_bound_application_services() -> No
         assert coordinator.created_command.source_asset_id == SOURCE_ID
         assert coordinator.created_command.idempotency_key == "analysis-create-key"
 
+        session_created = client.post(
+            f"/api/v1/demo/sessions/{SESSION_ID}/analysis",
+            headers={"Idempotency-Key": "session-analysis-key"},
+        )
+        assert session_created.status_code == 202
+        assert session_created.json() == created.json()
+        assert coordinator.created_session_command is not None
+        assert coordinator.created_session_command.demo_actor_id == ACTOR_ID
+        assert coordinator.created_session_command.demo_session_id == SESSION_ID
+        assert coordinator.created_session_command.idempotency_key == "session-analysis-key"
+
         pending = client.get(f"/api/v1/demo/analyses/{RUN_ID}")
         assert pending.status_code == 200
         assert pending.json() == {
@@ -164,6 +183,7 @@ def test_d03_and_generic_job_routes_use_owner_bound_application_services() -> No
             "session_id": SESSION_ID,
             "state": "PENDING",
             "observation_digest": None,
+            "self_state_id": None,
         }
 
         job = client.get(f"/api/v1/demo/jobs/{JOB_ID}")
@@ -202,6 +222,7 @@ def test_completed_and_terminal_analysis_mapping_is_truthful() -> None:
         assert completed.status_code == 200
         assert completed.json()["state"] == "SUPPORTED"
         assert completed.json()["observation_digest"] == OBSERVATION_DIGEST
+        assert completed.json()["self_state_id"] == SELF_STATE_ID
 
         coordinator.snapshot_job = _job(status="CANCELLED")
         terminal = client.get(f"/api/v1/demo/analyses/{RUN_ID}")

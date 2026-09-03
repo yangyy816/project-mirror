@@ -24,9 +24,9 @@ test("browser uses the same-origin BFF without exposing the Demo bearer", async 
   await page.getByRole("button", { name: "读取 Context 与 Trace" }).click();
   expect((await recallResponse).status()).toBe(200);
   await expect(page.getByText("只读回放完成。")).toBeVisible();
-  await expect(
-    page.getByText("11111111111111111111111111111111"),
-  ).toBeVisible();
+  await expect(page.getByText("11111111111111111111111111111111")).toHaveCount(
+    0,
+  );
   await expect(page.getByText("DETERMINISTIC_READ_ONLY")).toBeVisible();
   expect(browserRequests).toEqual(["", ""]);
   const demoCookie = (await page.context().cookies()).find(
@@ -42,6 +42,7 @@ test("browser uses the same-origin BFF without exposing the Demo bearer", async 
   expect(demoCookie?.value).not.toBe(demoSessionId);
   expect(page.url()).not.toContain(demoBearer);
   expect(await page.content()).not.toContain(demoBearer);
+  expect(await page.content()).not.toContain(demoSessionId);
   expect(await page.evaluate(() => localStorage.length)).toBe(0);
   expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
 
@@ -49,6 +50,7 @@ test("browser uses the same-origin BFF without exposing the Demo bearer", async 
   expect(state).toMatchObject({
     demo_recall_ats: ["2099-01-01T00:00:00.000Z", "2099-01-01T00:00:00.000Z"],
     demo_request_count: 2,
+    demo_session_create_count: 1,
   });
 });
 

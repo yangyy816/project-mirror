@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mirror_api.config import Settings, get_settings
 from mirror_api.demo_models import DemoActor
+from mirror_api.demo_session_service import DemoSessionService
 from mirror_api.errors import APIError
 
 demo_bearer_auth = HTTPBearer(scheme_name="DemoBearerAuth", bearerFormat="opaque", auto_error=False)
@@ -76,3 +77,9 @@ async def get_demo_actor(
     if actor.actor_kind != "LOCAL_SINGLE_USER" and actor.actor_kind != "AUTOMATED_TEST":
         raise _authentication_failed()
     return actor
+
+
+def get_demo_session_service(request: Request) -> DemoSessionService:
+    infrastructure = request.app.state.auth_infrastructure
+    sessions = cast(async_sessionmaker[AsyncSession], infrastructure.sessions)
+    return DemoSessionService(session_factory=sessions)

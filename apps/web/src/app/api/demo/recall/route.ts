@@ -44,7 +44,6 @@ export async function GET(request: Request) {
     {
       status: "READY",
       recall_at: result.recallAt,
-      session_id: result.sessionId,
       context: result.context,
       trace: result.trace,
     },

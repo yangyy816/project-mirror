@@ -7,7 +7,6 @@ import { Badge, Button } from "@mirror/ui";
 type RecallReady = Readonly<{
   status: "READY";
   recall_at: string;
-  session_id: string;
   context: Readonly<{
     profile_id: string;
     compilation_digest: string;
@@ -181,7 +180,6 @@ export function DemoTraceWorkspace() {
           <article className="rounded-2xl border border-black/10 bg-white p-5">
             <h3 className="font-semibold">真实 Context projection</h3>
             <dl className="mt-4 grid gap-3 text-sm">
-              <TraceRow label="session id" value={ready.session_id} />
               <TraceRow label="recall_at" value={ready.recall_at} />
               <TraceRow label="profile id" value={ready.context.profile_id} />
               <TraceRow

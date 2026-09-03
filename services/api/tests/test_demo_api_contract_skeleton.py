@@ -21,6 +21,7 @@ from mirror_api.demo_schemas import (
     DemoQuestionNextResponse,
     DemoQuestionResponseRequest,
     DemoRestoreRequest,
+    DemoSessionCreateRequest,
     DemoStyleFeedbackRequest,
     DemoToolRunResponse,
 )
@@ -116,13 +117,18 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
         ("POST", "/api/v1/demo/sessions", "demoCreateSession"),
         (
             "POST",
+            "/api/v1/demo/sessions/{session_id}/analysis",
+            "demoCreateSessionAnalysis",
+        ),
+        (
+            "POST",
             "/api/v1/demo/sessions/{session_id}/context/compile",
             "demoCompileSessionContext",
         ),
         ("POST", "/api/v1/demo/style-feedback", "demoCreateStyleFeedback"),
     }
-    assert len(operations) == 26
-    assert sum(operation["operationId"].startswith("demo") for operation in operations) == 26
+    assert len(operations) == 27
+    assert sum(operation["operationId"].startswith("demo") for operation in operations) == 27
     assert all(operation["x-demo-only"] is True for operation in operations)
     posts = [
         operation
@@ -131,6 +137,7 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
         in {
             "demoCreateSession",
             "demoCreateAnalysis",
+            "demoCreateSessionAnalysis",
             "demoCreateQuestionnaireRun",
             "demoCreateQuestionnaireResponse",
             "demoCompileProfile",
@@ -147,7 +154,7 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
             "demoCancelJob",
         }
     ]
-    assert len(posts) == 16
+    assert len(posts) == 17
     assert all("DemoBearerAuth" in operation["security"][0] for operation in operations)
     idempotency_headers = [
         next(
@@ -213,26 +220,14 @@ def test_capabilities_report_available_and_deferred_boundaries() -> None:
         for item in capabilities.json()["capabilities"]
         if item["status"] == "AVAILABLE"
     } >= {"P5_COMPILER", "P5_REFERENCE_PROFILE", "P7_PREFERENCE_MEMORY"}
-    rejected = client.post(
-        "/api/v1/demo/sessions",
-        headers={"Idempotency-Key": "abcdefgh"},
-        json={"synthetic_identity_id": "1" * 32, "context_seed": "2" * 64, "actor_id": "3" * 32},
-    )
-    assert rejected.status_code == 422
-    deferred = client.post(
-        "/api/v1/demo/sessions",
-        headers={"Idempotency-Key": "abcdefgh"},
-        json={"synthetic_identity_id": "1" * 32, "context_seed": "2" * 64},
-    )
-    assert deferred.status_code == 501
-    assert deferred.json()["code"] == "CAPABILITY_NOT_IMPLEMENTED"
-
-    invalid_key = client.post(
-        "/api/v1/demo/sessions",
-        headers={"Idempotency-Key": "bad key!"},
-        json={"synthetic_identity_id": "1" * 32, "context_seed": "2" * 64},
-    )
-    assert invalid_key.status_code == 422
+    with pytest.raises(ValidationError):
+        DemoSessionCreateRequest.model_validate(
+            {
+                "synthetic_identity_id": "1" * 32,
+                "context_seed": "2" * 64,
+                "actor_id": "3" * 32,
+            }
+        )
 
 
 def test_idempotency_key_rejects_non_visible_ascii_before_application_logic() -> None:
@@ -408,12 +403,15 @@ def test_frozen_demo_mutation_contracts_require_explicit_intent_and_precondition
 def test_main_application_exposes_the_complete_demo_contract() -> None:
     schema = create_app().openapi()
     paths = [path for path in schema["paths"] if path.startswith("/api/v1/demo")]
-    assert len(paths) == 26
+    assert len(paths) == 27
     assert schema["paths"]["/api/v1/demo/jobs/{job_id}/cancel"]["post"]["requestBody"]
     assert schema["paths"]["/api/v1/demo/reference-profiles/compile"]["post"]["requestBody"]
     assert schema["paths"]["/api/v1/demo/sessions/{session_id}/context/compile"]["post"][
         "requestBody"
     ]
+    assert (
+        "requestBody" not in schema["paths"]["/api/v1/demo/sessions/{session_id}/analysis"]["post"]
+    )
 
 
 def test_demo_bearer_keyring_rejects_ambiguous_digest_authority() -> None:

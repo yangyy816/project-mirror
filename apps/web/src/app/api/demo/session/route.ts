@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   ) {
     return noStoreJson({ code: "DENIED" }, 403);
   }
-  const session = createBoundDemoSession(handleFromRequest(request));
+  const session = await createBoundDemoSession(handleFromRequest(request));
   if (!session) return noStoreJson({ code: "UNAVAILABLE" }, 503);
 
   const response = noStoreJson({ status: "SESSION_READY" }, 201);

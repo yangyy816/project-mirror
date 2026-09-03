@@ -12,6 +12,7 @@ from mirror_api.demo_analysis_dependencies import (
 )
 from mirror_api.demo_analysis_service import (
     CreateDemoAnalysis,
+    CreateDemoSessionAnalysis,
     DemoAnalysisAuthorityCorruption,
     DemoAnalysisInputError,
     DemoAnalysisPayloadConflict,
@@ -26,7 +27,7 @@ from mirror_api.demo_context_queue_service import (
     DemoContextQueueInputError,
     DemoContextQueueUnavailable,
 )
-from mirror_api.demo_dependencies import get_demo_actor
+from mirror_api.demo_dependencies import get_demo_actor, get_demo_session_service
 from mirror_api.demo_editing_commands import (
     CreateDemoEditingSession,
     CreateDemoEditPlan,
@@ -142,6 +143,7 @@ from mirror_api.demo_schemas import (
     DemoId,
     DemoIdentityConstraintsResponse,
     DemoIdentityListResponse,
+    DemoIdentityResponse,
     DemoImageFeedbackRequest,
     DemoJobAcceptedResponse,
     DemoJobCancelRequest,
@@ -168,6 +170,15 @@ from mirror_api.demo_schemas import (
     DemoTraceResponse,
 )
 from mirror_api.demo_self_transfer_service import DemoReferenceSource
+from mirror_api.demo_session_service import (
+    CreateDemoSession,
+    DemoSessionActorUnavailable,
+    DemoSessionAuthorityUnavailable,
+    DemoSessionInputError,
+    DemoSessionPayloadConflict,
+    DemoSessionService,
+    DemoSyntheticIdentityUnavailable,
+)
 from mirror_api.errors import APIError, ErrorEnvelope
 
 router = APIRouter(
@@ -206,6 +217,49 @@ def _not_implemented(capability: str, owner_task: str) -> NoReturn:
             "owner_task": owner_task,
         },
     )
+
+
+def _raise_session_error(error: Exception, *, identity_read: bool = False) -> NoReturn:
+    if isinstance(error, DemoSessionPayloadConflict):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD",
+            message="幂等键已绑定到不同的 Demo 会话请求。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoSessionInputError):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="DEMO_SESSION_REQUEST_INVALID",
+            message="Demo 会话请求不符合约束。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoSessionActorUnavailable):
+        raise APIError(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code="demo_authentication_failed",
+            message="Demo 凭据无效或已失效。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoSyntheticIdentityUnavailable):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_SYNTHETIC_IDENTITY_UNAVAILABLE",
+            message="指定的合成身份当前不可用于 Demo。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoSessionAuthorityUnavailable):
+        raise APIError(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code=(
+                "DEMO_SYNTHETIC_IDENTITY_AUTHORITY_UNAVAILABLE"
+                if identity_read
+                else "DEMO_SESSION_AUTHORITY_UNAVAILABLE"
+            ),
+            message="Demo 会话 authority 当前不可用。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise error
 
 
 def _job_target(snapshot: DemoJobSnapshot) -> dict[str, str]:
@@ -638,10 +692,34 @@ async def get_capabilities() -> DemoCapabilitiesResponse:
     responses=DEMO_ERRORS,
 )
 async def create_session(
-    payload: DemoSessionCreateRequest, idempotency_key: IdempotencyKey
-) -> NoReturn:
-    del payload, idempotency_key
-    _not_implemented("demo_session", "D02")
+    payload: DemoSessionCreateRequest,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    service: DemoSessionService = Depends(get_demo_session_service),
+) -> DemoSessionResponse:
+    try:
+        snapshot = await service.create(
+            CreateDemoSession(
+                demo_actor_id=actor.id,
+                synthetic_identity_id=payload.synthetic_identity_id,
+                context_seed=payload.context_seed,
+                idempotency_key=idempotency_key,
+            )
+        )
+    except (
+        DemoSessionActorUnavailable,
+        DemoSessionAuthorityUnavailable,
+        DemoSessionInputError,
+        DemoSessionPayloadConflict,
+        DemoSyntheticIdentityUnavailable,
+    ) as exc:
+        _raise_session_error(exc)
+    return DemoSessionResponse(
+        session_id=snapshot.session_id,
+        synthetic_identity_id=snapshot.synthetic_identity_id,
+        status=snapshot.status,
+        expires_at=snapshot.expires_at,
+    )
 
 
 @router.get(
@@ -725,8 +803,29 @@ async def compile_session_context(
     openapi_extra=DEMO_OPENAPI,
     responses=DEMO_ERRORS,
 )
-async def list_identities() -> NoReturn:
-    _not_implemented("synthetic_identity", "D02")
+async def list_identities(
+    actor: DemoActor = Depends(get_demo_actor),
+    service: DemoSessionService = Depends(get_demo_session_service),
+) -> DemoIdentityListResponse:
+    try:
+        identities = await service.list_identities(demo_actor_id=actor.id)
+    except (
+        DemoSessionActorUnavailable,
+        DemoSessionAuthorityUnavailable,
+        DemoSessionInputError,
+        DemoSyntheticIdentityUnavailable,
+    ) as exc:
+        _raise_session_error(exc, identity_read=True)
+    return DemoIdentityListResponse(
+        identities=[
+            DemoIdentityResponse(
+                identity_id=item.identity_id,
+                canonical_asset_digest=item.canonical_asset_digest,
+                admission_status=item.admission_status,
+            )
+            for item in identities
+        ]
+    )
 
 
 @router.post(
@@ -764,6 +863,40 @@ async def create_analysis(
     return _job_accepted(result.job)
 
 
+@router.post(
+    "/sessions/{session_id}/analysis",
+    status_code=202,
+    response_model=DemoJobAcceptedResponse,
+    operation_id="demoCreateSessionAnalysis",
+    openapi_extra=DEMO_OPENAPI,
+    responses=DEMO_ERRORS,
+)
+async def create_session_analysis(
+    session_id: DemoId,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoAnalysisCoordinator = Depends(get_demo_analysis_coordinator),
+) -> DemoJobAcceptedResponse:
+    try:
+        result = await coordinator.create_for_session(
+            CreateDemoSessionAnalysis(
+                demo_actor_id=actor.id,
+                demo_session_id=session_id,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+    except (
+        DemoAnalysisInputError,
+        DemoAnalysisPayloadConflict,
+        DemoAnalysisUnavailable,
+        DemoAnalysisAuthorityCorruption,
+    ) as exc:
+        _raise_analysis_error(exc)
+    return _job_accepted(result.job)
+
+
 @router.get(
     "/analyses/{analysis_id}",
     response_model=DemoAnalysisResponse,
@@ -777,7 +910,7 @@ async def get_analysis(
     coordinator: DemoAnalysisCoordinator = Depends(get_demo_analysis_coordinator),
 ) -> DemoAnalysisResponse:
     try:
-        job, observation_id, observation_digest = await coordinator.snapshot(
+        job, observation_id, observation_digest, self_state_id = await coordinator.snapshot(
             demo_actor_id=actor.id,
             analysis_run_id=analysis_id,
         )
@@ -796,12 +929,14 @@ async def get_analysis(
             analysis_id=analysis_id,
             session_id=job.demo_session_id,
             state="PENDING",
+            self_state_id=None,
         )
     if job.status == "COMPLETED":
         if (
             job.result_code not in {"SUPPORTED", "UNSUPPORTED"}
             or observation_id is None
             or observation_digest is None
+            or self_state_id is None
             or job.demo_session_id is None
         ):
             _raise_analysis_error(
@@ -814,6 +949,7 @@ async def get_analysis(
             session_id=job.demo_session_id,
             state=job.result_code,
             observation_digest=observation_digest,
+            self_state_id=self_state_id,
         )
     raise APIError(
         status_code=status.HTTP_409_CONFLICT,

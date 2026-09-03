@@ -8,6 +8,7 @@ import pytest
 from mirror_api.demo_analysis_coordinator import DemoAnalysisCoordinator
 from mirror_api.demo_analysis_service import (
     CreateDemoAnalysis,
+    CreateDemoSessionAnalysis,
     DemoAnalysisAccepted,
     DemoAnalysisDispatchCandidate,
     DemoAnalysisService,
@@ -54,6 +55,10 @@ class _Service:
     candidates: tuple[DemoAnalysisDispatchCandidate, ...] = ()
 
     async def create(self, command: CreateDemoAnalysis) -> DemoAnalysisAccepted:
+        del command
+        return self.accepted
+
+    async def create_for_session(self, command: CreateDemoSessionAnalysis) -> DemoAnalysisAccepted:
         del command
         return self.accepted
 
@@ -133,6 +138,32 @@ async def test_create_keeps_committed_pending_job_when_broker_is_unavailable() -
 
     assert result.job.status == "PENDING"
     assert len(dispatcher.messages) == 1
+
+
+@pytest.mark.asyncio
+async def test_session_scoped_create_uses_the_same_durable_dispatch_path() -> None:
+    accepted = DemoAnalysisAccepted(
+        job_id="d" * 32,
+        analysis_run_id="f" * 32,
+        demo_session_id="b" * 32,
+        request_id="durable-session-request",
+        replayed=False,
+    )
+    dispatcher = _Dispatcher()
+    result = await _coordinator(
+        _Service(accepted), _Jobs(_snapshot()), dispatcher
+    ).create_for_session(
+        CreateDemoSessionAnalysis(
+            demo_actor_id="a" * 32,
+            demo_session_id="b" * 32,
+            idempotency_key="session-analysis-key",
+            request_id="transport-request-id",
+        )
+    )
+    assert result.job.status == "PENDING"
+    assert dispatcher.messages == [
+        DemoAnalysisTaskMessage("f" * 32, "d" * 32, "durable-session-request")
+    ]
 
 
 @pytest.mark.asyncio

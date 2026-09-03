@@ -103,6 +103,7 @@ class DemoAnalysisResponse(StrictContractModel):
     session_id: DemoId
     state: Literal["SUPPORTED", "UNSUPPORTED", "PENDING"]
     observation_digest: DemoDigest | None = None
+    self_state_id: DemoId | None = None
 
 
 class DemoQuestionnaireRunCreateRequest(StrictContractModel):

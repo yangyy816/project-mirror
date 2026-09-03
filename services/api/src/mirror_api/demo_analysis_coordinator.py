@@ -3,7 +3,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from mirror_api.demo_analysis_service import CreateDemoAnalysis, DemoAnalysisService
+from mirror_api.demo_analysis_service import (
+    CreateDemoAnalysis,
+    CreateDemoSessionAnalysis,
+    DemoAnalysisAccepted,
+    DemoAnalysisService,
+)
 from mirror_api.demo_analysis_task_contract import (
     DemoAnalysisDispatcher,
     DemoAnalysisTaskMessage,
@@ -36,8 +41,28 @@ class DemoAnalysisCoordinator:
 
     async def create(self, command: CreateDemoAnalysis) -> DemoAnalysisCreateResult:
         accepted = await self._service.create(command)
-        job = await self._jobs.get(
+        return await self._finish_create(
             demo_actor_id=command.demo_actor_id,
+            accepted=accepted,
+        )
+
+    async def create_for_session(
+        self, command: CreateDemoSessionAnalysis
+    ) -> DemoAnalysisCreateResult:
+        accepted = await self._service.create_for_session(command)
+        return await self._finish_create(
+            demo_actor_id=command.demo_actor_id,
+            accepted=accepted,
+        )
+
+    async def _finish_create(
+        self,
+        *,
+        demo_actor_id: str,
+        accepted: DemoAnalysisAccepted,
+    ) -> DemoAnalysisCreateResult:
+        job = await self._jobs.get(
+            demo_actor_id=demo_actor_id,
             job_id=accepted.job_id,
         )
         if job.status == "PENDING":
@@ -67,7 +92,7 @@ class DemoAnalysisCoordinator:
 
     async def snapshot(
         self, *, demo_actor_id: str, analysis_run_id: str
-    ) -> tuple[DemoJobSnapshot, str | None, str | None]:
+    ) -> tuple[DemoJobSnapshot, str | None, str | None, str | None]:
         analysis = await self._service.snapshot(
             demo_actor_id=demo_actor_id,
             analysis_run_id=analysis_run_id,
@@ -76,7 +101,12 @@ class DemoAnalysisCoordinator:
             demo_actor_id=demo_actor_id,
             job_id=analysis.job_id,
         )
-        return job, analysis.observation_id, analysis.observation_digest
+        return (
+            job,
+            analysis.observation_id,
+            analysis.observation_digest,
+            analysis.self_state_id,
+        )
 
     def _dispatch(self, message: DemoAnalysisTaskMessage, *, raise_on_failure: bool) -> None:
         try:
