@@ -25,7 +25,12 @@ from mirror_api.demo_d08_geometry_verifier import (
     IndependentGeometryVerifier,
     _signed_ppm,
 )
-from mirror_api.demo_editing_service import ExecutionCommand, MaterializedObject
+from mirror_api.demo_editing_service import (
+    DemoEditingServiceError,
+    ExecutionCommand,
+    MaterializedObject,
+    _validate_verification_authority,
+)
 from mirror_api.demo_operation_graph import (
     OperationEngine,
     OperationSpec,
@@ -244,6 +249,14 @@ async def test_fresh_verifier_records_three_independent_source_and_result_observ
     assert len(result.authority_metrics["repeats"]) == 3
     target_category = result.categories[2].canonical_payload()
     assert target_category["evidence"]["requested_delta_ppm"] == 15_000
+    _validate_verification_authority(result, command, materialized)
+
+    incomplete_metrics = dict(result.authority_metrics)
+    incomplete_metrics["repeats"] = incomplete_metrics["repeats"][:2]
+    incomplete = replace(result, authority_metrics=incomplete_metrics)
+    with pytest.raises(DemoEditingServiceError) as rejected:
+        _validate_verification_authority(incomplete, command, materialized)
+    assert rejected.value.code == "GEOMETRY_VERIFICATION_EVIDENCE_INCOMPLETE"
 
 
 def test_fixed18_delta_uses_frozen_absolute_normalized_ppm_not_relative_change() -> None:

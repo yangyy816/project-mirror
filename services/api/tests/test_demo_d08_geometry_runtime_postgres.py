@@ -47,6 +47,7 @@ from mirror_api.demo_editing_repository import (
     SqlAlchemyDemoEditingRepository,
     _authority_row,
 )
+from mirror_api.demo_editing_runtime import DemoEditingRuntime, DemoEditingRuntimeError
 from mirror_api.demo_editing_service import (
     ArtifactState,
     DemoEditingService,
@@ -56,6 +57,7 @@ from mirror_api.demo_editing_service import (
     MaterializedObject,
 )
 from mirror_api.demo_editing_storage import DemoLocalPrivateObjectStorage
+from mirror_api.demo_editing_task_contract import DemoEditingTaskMessage
 from mirror_api.demo_effect_verifier import (
     EffectVerificationInput,
     EffectVerificationResult,
@@ -394,6 +396,66 @@ async def test_geometry_plan_and_resolver_use_distinct_sequence_zero_snapshot(
         await engine.dispose()
 
 
+@pytest.mark.asyncio
+async def test_missing_geometry_capability_fails_before_job_claim_or_source_load(
+    postgres_session: Session, tmp_path: Path
+) -> None:
+    sessions, engine, graph = await _context(postgres_session, tmp_path)
+    commands = DemoEditingCommandService(session_factory=sessions)
+
+    class _NoSourceLoad:
+        calls = 0
+
+        async def load(self, _reference: object) -> bytes:
+            self.calls += 1
+            raise AssertionError("source bytes must not load before geometry capability")
+
+    loader = _NoSourceLoad()
+    try:
+        plan = await _plan(commands, graph, "d08-geometry-preclaim")
+        async with sessions() as session:
+            stored = await session.get(DemoEditPlan, plan.target_id)
+            assert stored is not None
+            execution = await commands.execute_edit_plan(
+                ExecuteDemoEditPlan(
+                    graph["actor"].id,
+                    stored.id,
+                    "GEOMETRY",
+                    stored.content_digest,
+                    "d08-geometry-preclaim-execution",
+                    "d08-geometry-preclaim-request",
+                )
+            )
+        runtime = DemoEditingRuntime(
+            session_factory=sessions,
+            asset_loader=cast(Any, loader),
+            storage=DemoLocalPrivateObjectStorage(root=tmp_path / "preclaim-private"),
+        )
+        with pytest.raises(DemoEditingRuntimeError) as raised:
+            await runtime.run(
+                DemoEditingTaskMessage(
+                    graph["actor"].id,
+                    execution.job_id,
+                    "edit_plan.execute",
+                    execution.request_id,
+                )
+            )
+        assert raised.value.code == "GEOMETRY_CAPABILITY_UNAVAILABLE"
+        assert loader.calls == 0
+        async with sessions() as session:
+            job = await session.get(Job, execution.job_id)
+            assert job is not None
+            assert (job.status, job.attempt_count) == ("PENDING", 0)
+            assert (
+                await session.scalar(
+                    select(func.count()).select_from(JobAttempt).where(JobAttempt.job_id == job.id)
+                )
+                == 0
+            )
+    finally:
+        await engine.dispose()
+
+
 def _materialized(authority: Any, job_attempt: Any, content: bytes) -> MaterializedObject:
     engine_digest = stable_engine_digest(authority, GEOMETRY_ENGINE_VERSION)
     config_digest = stable_config_digest(authority, D08_VERIFIER_POLICY_VERSION)
@@ -494,6 +556,59 @@ def _verification(authority: Any, materialized: MaterializedObject) -> EffectVer
     )
     assert materialized.geometry_stable_core is not None
     assert materialized.geometry_attempt_evidence is not None
+    dimension_order = (
+        "cheekbone_width",
+        "chin_height",
+        "eye_spacing",
+        "jaw_width",
+        "mouth_width",
+        "nose_width",
+    )
+    target_index = dimension_order.index(authority.dimension_key)
+    source_measurements = ["0.200000000000000000"] * 6
+    result_measurements = list(source_measurements)
+    result_measurements[target_index] = (
+        "0.215000000000000000"
+        if authority.direction.value == "INCREASE"
+        else "0.185000000000000000"
+    )
+    control_dimensions = [key for key in dimension_order if key != authority.dimension_key]
+    repeats = [
+        {
+            "repeat_index": repeat_index,
+            "source_output_digest": hashlib.sha256(
+                f"source-output-{repeat_index}".encode()
+            ).hexdigest(),
+            "source_receipt_digest": hashlib.sha256(
+                f"source-receipt-{repeat_index}".encode()
+            ).hexdigest(),
+            "source_landmark_digest": "1" * 64,
+            "source_observation_digest": "2" * 64,
+            "result_output_digest": hashlib.sha256(
+                f"result-output-{repeat_index}".encode()
+            ).hexdigest(),
+            "result_receipt_digest": hashlib.sha256(
+                f"result-receipt-{repeat_index}".encode()
+            ).hexdigest(),
+            "result_landmark_digest": "3" * 64,
+            "result_observation_digest": "4" * 64,
+            "source_measurements_fixed18": source_measurements,
+            "result_measurements_fixed18": result_measurements,
+            "signed_target_delta_ppm": 15_000
+            if authority.direction.value == "INCREASE"
+            else -15_000,
+            "control_dimensions": control_dimensions,
+            "control_drifts_ppm": [0, 0, 0, 0, 0],
+            "max_control_dimension_key": control_dimensions[0],
+            "max_control_drift_ppm": 0,
+            "direction_passed": True,
+            "target_minimum_passed": True,
+            "target_maximum_passed": True,
+            "control_drift_passed": True,
+            "observation_passed": True,
+        }
+        for repeat_index in (1, 2, 3)
+    ]
     return replace(
         result,
         authority_metrics={
@@ -507,8 +622,47 @@ def _verification(authority: Any, materialized: MaterializedObject) -> EffectVer
             "operation_authority_digest": authority.operation_authority_digest,
             "operation_spec_digest": authority.operation_spec_digest,
             "case_id": authority.fixed_case.case_id,
+            "case_ordinal": authority.fixed_case.case_ordinal,
+            "source_ordinal": authority.fixed_case.source_ordinal,
+            "source_asset_id": authority.root_source_asset_id,
             "result_sha256": materialized.sha256,
-            "fresh_measurement_evidence_digest": "e" * 64,
+            "source_sha256": authority.root_source_asset_sha256,
+            "dimension_key": authority.dimension_key,
+            "direction": authority.direction.value,
+            "magnitude_ppm": authority.magnitude_ppm,
+            "source_result_digest_distinct": True,
+            "source_digest_after_verification": authority.root_source_asset_sha256,
+            "original_immutability_passed": True,
+            "decode_passed": True,
+            "artifact_passed": True,
+            "runtime_identity": {
+                "recipe_digest": "5" * 64,
+                "runtime_manifest_digest": authority.fixed_case.backend_runtime_manifest_digest,
+                "m3_algorithm_version": "accepted-m3-v1",
+                "m4_algorithm_version": authority.fixed_case.backend_algorithm_version,
+                "model_identity_digest": "6" * 64,
+                "model_config_digest": "7" * 64,
+                "weights_digest_or_no_weights": "8" * 64,
+                "topology_digest": "9" * 64,
+                "measurement_config_digest": "a" * 64,
+                "network_policy": "PUBLIC_INTERNET_EGRESS_DISABLED",
+            },
+            "d08_verifier_policy_version": D08_VERIFIER_POLICY_VERSION,
+            "measurement_dimension_order": list(dimension_order),
+            "repeats": repeats,
+            "repeat_gate_passed": True,
+            "repeat_group_validation": {
+                "repeat_indexes_complete": True,
+                "source_receipts_fresh": True,
+                "result_receipts_fresh": True,
+                "source_outputs_fresh": True,
+                "result_outputs_fresh": True,
+                "source_landmarks_stable": True,
+                "result_landmarks_stable": True,
+            },
+            "max_non_target_drift_ppm": 0,
+            "max_non_target_dimension_key": control_dimensions[0],
+            "max_non_target_repeat_index": 1,
         },
         authority_thresholds={
             "schema_version": "mirror.demo/D08GeometryVerificationThresholds/v1",
@@ -517,6 +671,7 @@ def _verification(authority: Any, materialized: MaterializedObject) -> EffectVer
             "target_min_abs_ppm": 10,
             "target_max_abs_ppm": 60_000,
             "max_control_drift_ppm": 20_000,
+            "d08_verifier_policy_version": D08_VERIFIER_POLICY_VERSION,
         },
     )
 

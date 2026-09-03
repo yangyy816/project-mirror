@@ -152,6 +152,7 @@ class DemoEditingRuntime:
         verifier: EditVerifier | None = None,
         geometry_dispatcher: GeometryDispatcher | None = None,
         geometry_backend: GeometryExecutionBackend | None = None,
+        geometry_verifier: EditVerifier | None = None,
         now: Callable[[], datetime] = utcnow,
         lease_seconds: int = 120,
         max_attempts: int = 3,
@@ -164,6 +165,7 @@ class DemoEditingRuntime:
         self._verifier = verifier
         self._injected_geometry_dispatcher = geometry_dispatcher
         self._geometry_backend = geometry_backend
+        self._geometry_verifier = geometry_verifier
         self._now = now
         self._lease_seconds = lease_seconds
         self._max_attempts = max_attempts
@@ -171,6 +173,7 @@ class DemoEditingRuntime:
 
     async def run(self, message: DemoEditingTaskMessage) -> DemoEditingRuntimeResult:
         message.validate()
+        await self._require_preclaim_capability(message)
         claim = await self._claim(message)
         if claim is None:
             return await self._snapshot(message.job_id, executed=False, replayed=True)
@@ -456,22 +459,23 @@ class DemoEditingRuntime:
 
     async def _execute_plan(self, claim: _Claim, *, parent: _Claim | None = None) -> None:
         command = await self._execution_command(claim, parent=parent)
-        if (
-            command.operation.engine is OperationEngine.GEOMETRY
-            and self._geometry_backend is None
-            and self._injected_geometry_dispatcher is None
+        geometry = command.operation.engine is OperationEngine.GEOMETRY
+        if geometry and (
+            (self._geometry_backend is None and self._injected_geometry_dispatcher is None)
+            or self._geometry_verifier is None
         ):
             raise DemoEditingRuntimeError(
                 "GEOMETRY_CAPABILITY_UNAVAILABLE", "geometry runtime is not materialized"
             )
-        if self._verifier is None:
+        verifier = self._geometry_verifier if geometry else self._verifier
+        if verifier is None:
             raise DemoEditingRuntimeError(
                 "VERIFIER_CAPABILITY_UNAVAILABLE", "verifier is not configured"
             )
         service = DemoEditingService(
             repository=self._repository,
             storage=self._storage,
-            verifier=self._verifier,
+            verifier=verifier,
             geometry_dispatcher=(
                 self._dispatch_geometry
                 if self._geometry_backend is not None
@@ -480,6 +484,38 @@ class DemoEditingRuntime:
             transition_dispatcher=self._transition_dispatcher,
         )
         await service.execute(command)
+
+    async def _require_preclaim_capability(self, message: DemoEditingTaskMessage) -> None:
+        if message.operation != "edit_plan.execute":
+            return
+        async with self._sessions() as session:
+            row = await session.execute(
+                select(Job, DemoJobBinding)
+                .join(DemoJobBinding, DemoJobBinding.job_id == Job.id)
+                .where(Job.id == message.job_id)
+            )
+            pair = row.one_or_none()
+            if pair is None:
+                return
+            job, binding = pair
+            self._validate_message_binding(job, binding, message)
+            if binding.target_type != "EDIT_PLAN":
+                return
+            engines = tuple(
+                await session.scalars(
+                    select(DemoEditOperation.engine).where(
+                        DemoEditOperation.edit_plan_id == binding.target_id
+                    )
+                )
+            )
+        if OperationEngine.GEOMETRY.value in engines and (
+            (self._geometry_backend is None and self._injected_geometry_dispatcher is None)
+            or self._geometry_verifier is None
+        ):
+            raise DemoEditingRuntimeError(
+                "GEOMETRY_CAPABILITY_UNAVAILABLE",
+                "geometry runtime is not installed in this process",
+            )
 
     async def _restore(self, parent: _Claim) -> None:
         child = await self._claim_restore_child(parent)
