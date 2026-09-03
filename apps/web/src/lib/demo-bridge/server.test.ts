@@ -273,4 +273,283 @@ describe("demo bridge server boundary", () => {
     expect(bodyResponse.status).toBe(403);
     expect(bodyResponse.headers.get("cache-control")).toBe("no-store");
   });
+
+  it("reuses one retained create key and projects only redacted analysis state", async () => {
+    const nowMs = Date.now();
+    const jobId = "4".repeat(32);
+    const analysisId = "5".repeat(32);
+    const selfStateId = "6".repeat(32);
+    const bindingDigest = "b".repeat(64);
+    const authorityDigest = "c".repeat(64);
+    const fetchMock = upstreamFetch(nowMs + 900_000);
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = new URL(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      );
+      if (
+        url.pathname.endsWith("/analysis") &&
+        !url.pathname.includes("analyses")
+      ) {
+        return new Response(
+          JSON.stringify({
+            job_id: jobId,
+            status: "PENDING",
+            capability: "P3_FACE_ANALYSIS",
+            job_binding_digest: bindingDigest,
+            target: {
+              target_type: "ANALYSIS_RUN",
+              target_id: analysisId,
+              authority_digest: authorityDigest,
+            },
+          }),
+          { status: 202 },
+        );
+      }
+      if (url.pathname.includes(`/jobs/${jobId}`)) {
+        return new Response(
+          JSON.stringify({
+            job_id: jobId,
+            status: "COMPLETED",
+            capability: "P3_FACE_ANALYSIS",
+            job_binding_digest: bindingDigest,
+            target: {
+              target_type: "ANALYSIS_RUN",
+              target_id: analysisId,
+              authority_digest: authorityDigest,
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.pathname.includes(`/analyses/${analysisId}`)) {
+        return new Response(
+          JSON.stringify({
+            analysis_id: analysisId,
+            session_id: sessionId,
+            state: "SUPPORTED",
+            observation_digest: "e".repeat(64),
+            self_state_id: selfStateId,
+          }),
+          { status: 200 },
+        );
+      }
+      return upstreamFetch(nowMs + 900_000)(input);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const session = await createBoundDemoSession(undefined, nowMs);
+    const { GET, POST } = await import("../../app/api/demo/analysis/route");
+    const request = () =>
+      new Request("https://demo.test/api/demo/analysis", {
+        method: "POST",
+        headers: {
+          Origin: "https://demo.test",
+          Cookie: `mirror_demo_session=${session?.handle}`,
+        },
+      });
+
+    const [first, retry] = await Promise.all([
+      POST(request()),
+      POST(request()),
+    ]);
+    expect(first.status).toBe(202);
+    expect(retry.status).toBe(202);
+    const analysisCalls = fetchMock.mock.calls.filter(([input]) =>
+      new URL(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      ).pathname.endsWith("/analysis"),
+    );
+    expect(analysisCalls).toHaveLength(1);
+    const createInput = analysisCalls[0]?.[0];
+    const idempotencyKey =
+      createInput instanceof Request
+        ? createInput.headers.get("Idempotency-Key")
+        : null;
+    expect(idempotencyKey).toMatch(/^[a-f0-9]{64}$/);
+
+    const completed = await GET(
+      new Request("https://demo.test/api/demo/analysis", {
+        headers: {
+          Origin: "https://demo.test",
+          Cookie: `mirror_demo_session=${session?.handle}`,
+        },
+      }),
+    );
+    expect(completed.status).toBe(200);
+    expect(await completed.json()).toEqual({
+      status: "COMPLETED",
+      analysis_state: "SUPPORTED",
+      self_state: "READY",
+    });
+    const browserText = await first.text();
+    expect(browserText).not.toContain(jobId);
+    expect(browserText).not.toContain(analysisId);
+    expect(browserText).not.toContain(bindingDigest);
+    expect(browserText).not.toContain(selfStateId);
+  });
+
+  it("reuses the retained key after an uncertain create failure", async () => {
+    const nowMs = Date.now();
+    const jobId = "7".repeat(32);
+    const analysisId = "8".repeat(32);
+    const bindingDigest = "d".repeat(64);
+    const authorityDigest = "e".repeat(64);
+    let createAttempts = 0;
+    const createKeys: string[] = [];
+    const fetchMock = upstreamFetch(nowMs + 900_000);
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = new URL(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      );
+      if (url.pathname.endsWith("/analysis")) {
+        createAttempts += 1;
+        const key =
+          input instanceof Request
+            ? input.headers.get("Idempotency-Key")
+            : null;
+        if (key) createKeys.push(key);
+        if (createAttempts === 1) return new Response(null, { status: 503 });
+        return new Response(
+          JSON.stringify({
+            job_id: jobId,
+            status: "PENDING",
+            capability: "P3_FACE_ANALYSIS",
+            job_binding_digest: bindingDigest,
+            target: {
+              target_type: "ANALYSIS_RUN",
+              target_id: analysisId,
+              authority_digest: authorityDigest,
+            },
+          }),
+          { status: 202 },
+        );
+      }
+      return upstreamFetch(nowMs + 900_000)(input);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const session = await createBoundDemoSession(undefined, nowMs);
+    const { POST } = await import("../../app/api/demo/analysis/route");
+    const request = () =>
+      new Request("https://demo.test/api/demo/analysis", {
+        method: "POST",
+        headers: {
+          Origin: "https://demo.test",
+          Cookie: `mirror_demo_session=${session?.handle}`,
+        },
+      });
+
+    expect((await POST(request())).status).toBe(503);
+    const retried = await POST(request());
+    expect(retried.status).toBe(202);
+    expect(createAttempts).toBe(2);
+    expect(createKeys).toHaveLength(2);
+    expect(createKeys[0]).toMatch(/^[a-f0-9]{64}$/);
+    expect(createKeys[1]).toBe(createKeys[0]);
+    const browserText = await retried.text();
+    expect(browserText).not.toContain(jobId);
+    expect(browserText).not.toContain(analysisId);
+  });
+
+  it("fails closed for a mismatched job binding without leaking authority", async () => {
+    const nowMs = Date.now();
+    const jobId = "9".repeat(32);
+    const analysisId = "a".repeat(32);
+    const bindingDigest = "b".repeat(64);
+    const authorityDigest = "c".repeat(64);
+    const fetchMock = upstreamFetch(nowMs + 900_000);
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = new URL(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      );
+      if (url.pathname.endsWith("/analysis")) {
+        return new Response(
+          JSON.stringify({
+            job_id: jobId,
+            status: "PENDING",
+            capability: "P3_FACE_ANALYSIS",
+            job_binding_digest: bindingDigest,
+            target: {
+              target_type: "ANALYSIS_RUN",
+              target_id: analysisId,
+              authority_digest: authorityDigest,
+            },
+          }),
+          { status: 202 },
+        );
+      }
+      if (url.pathname.includes(`/jobs/${jobId}`)) {
+        return new Response(
+          JSON.stringify({
+            job_id: jobId,
+            status: "COMPLETED",
+            capability: "P3_FACE_ANALYSIS",
+            job_binding_digest: "d".repeat(64),
+            target: {
+              target_type: "ANALYSIS_RUN",
+              target_id: analysisId,
+              authority_digest: authorityDigest,
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return upstreamFetch(nowMs + 900_000)(input);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const session = await createBoundDemoSession(undefined, nowMs);
+    const { GET, POST } = await import("../../app/api/demo/analysis/route");
+    const cookie = `mirror_demo_session=${session?.handle}`;
+    await POST(
+      new Request("https://demo.test/api/demo/analysis", {
+        method: "POST",
+        headers: { Origin: "https://demo.test", Cookie: cookie },
+      }),
+    );
+    const response = await GET(
+      new Request("https://demo.test/api/demo/analysis", {
+        headers: { Origin: "https://demo.test", Cookie: cookie },
+      }),
+    );
+    expect(response.status).toBe(409);
+    const text = await response.text();
+    expect(text).toContain("STALE_RESPONSE");
+    for (const forbidden of [
+      jobId,
+      analysisId,
+      bindingDigest,
+      authorityDigest,
+    ]) {
+      expect(text).not.toContain(forbidden);
+    }
+  });
+
+  it("rejects analysis route query, body and authorization overrides", async () => {
+    const { GET, POST } = await import("../../app/api/demo/analysis/route");
+    const query = await GET(
+      new Request("https://demo.test/api/demo/analysis?job_id=override", {
+        headers: { Origin: "https://demo.test" },
+      }),
+    );
+    expect(query.status).toBe(403);
+    expect(query.headers.get("cache-control")).toBe("no-store");
+    const body = await POST(
+      new Request("https://demo.test/api/demo/analysis", {
+        method: "POST",
+        headers: {
+          Origin: "https://demo.test",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ source_asset_id: "override" }),
+      }),
+    );
+    expect(body.status).toBe(403);
+    const authorization = await GET(
+      new Request("https://demo.test/api/demo/analysis", {
+        headers: {
+          Origin: "https://demo.test",
+          Authorization: "Bearer forbidden",
+        },
+      }),
+    );
+    expect(authorization.status).toBe(403);
+  });
 });

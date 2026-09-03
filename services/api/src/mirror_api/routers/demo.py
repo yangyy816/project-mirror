@@ -12,6 +12,7 @@ from mirror_api.demo_analysis_dependencies import (
 )
 from mirror_api.demo_analysis_service import (
     CreateDemoAnalysis,
+    CreateDemoSessionAnalysis,
     DemoAnalysisAuthorityCorruption,
     DemoAnalysisInputError,
     DemoAnalysisPayloadConflict,
@@ -862,6 +863,40 @@ async def create_analysis(
     return _job_accepted(result.job)
 
 
+@router.post(
+    "/sessions/{session_id}/analysis",
+    status_code=202,
+    response_model=DemoJobAcceptedResponse,
+    operation_id="demoCreateSessionAnalysis",
+    openapi_extra=DEMO_OPENAPI,
+    responses=DEMO_ERRORS,
+)
+async def create_session_analysis(
+    session_id: DemoId,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoAnalysisCoordinator = Depends(get_demo_analysis_coordinator),
+) -> DemoJobAcceptedResponse:
+    try:
+        result = await coordinator.create_for_session(
+            CreateDemoSessionAnalysis(
+                demo_actor_id=actor.id,
+                demo_session_id=session_id,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+    except (
+        DemoAnalysisInputError,
+        DemoAnalysisPayloadConflict,
+        DemoAnalysisUnavailable,
+        DemoAnalysisAuthorityCorruption,
+    ) as exc:
+        _raise_analysis_error(exc)
+    return _job_accepted(result.job)
+
+
 @router.get(
     "/analyses/{analysis_id}",
     response_model=DemoAnalysisResponse,
@@ -875,7 +910,7 @@ async def get_analysis(
     coordinator: DemoAnalysisCoordinator = Depends(get_demo_analysis_coordinator),
 ) -> DemoAnalysisResponse:
     try:
-        job, observation_id, observation_digest = await coordinator.snapshot(
+        job, observation_id, observation_digest, self_state_id = await coordinator.snapshot(
             demo_actor_id=actor.id,
             analysis_run_id=analysis_id,
         )
@@ -894,12 +929,14 @@ async def get_analysis(
             analysis_id=analysis_id,
             session_id=job.demo_session_id,
             state="PENDING",
+            self_state_id=None,
         )
     if job.status == "COMPLETED":
         if (
             job.result_code not in {"SUPPORTED", "UNSUPPORTED"}
             or observation_id is None
             or observation_digest is None
+            or self_state_id is None
             or job.demo_session_id is None
         ):
             _raise_analysis_error(
@@ -912,6 +949,7 @@ async def get_analysis(
             session_id=job.demo_session_id,
             state=job.result_code,
             observation_digest=observation_digest,
+            self_state_id=self_state_id,
         )
     raise APIError(
         status_code=status.HTTP_409_CONFLICT,

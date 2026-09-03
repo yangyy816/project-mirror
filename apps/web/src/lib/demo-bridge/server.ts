@@ -31,6 +31,17 @@ type BoundSession = Readonly<{
   sessionId: string;
   expiresAtMs: number;
   bindingFingerprint: string;
+  analysis?: BoundAnalysis;
+}>;
+
+type BoundAnalysis = Readonly<{
+  createIdempotencyKey: string;
+  jobId?: string;
+  analysisId?: string;
+  jobBindingDigest?: string;
+  targetAuthorityDigest?: string;
+  selfStateId?: string;
+  createPromise?: Promise<DemoAnalysisBridgeResult>;
 }>;
 
 type BridgeConfiguration = Readonly<{
@@ -69,6 +80,16 @@ export type BridgeResult =
       context: DemoContextProjection;
       trace: DemoTraceProjection;
     }>
+  | Readonly<{ kind: BridgeErrorCode }>;
+
+export type DemoAnalysisBridgeResult =
+  | Readonly<{ kind: "PENDING" }>
+  | Readonly<{
+      kind: "COMPLETED";
+      analysisState: "SUPPORTED" | "UNSUPPORTED";
+      selfState: "READY";
+    }>
+  | Readonly<{ kind: "CANCELLED" | "REJECTED" | "FAILED" }>
   | Readonly<{ kind: BridgeErrorCode }>;
 
 function configuredTtlSeconds(): number | null {
@@ -131,6 +152,14 @@ function sweepExpiredSessions(nowMs: number): void {
 
 function validUpstreamSessionId(value: string): boolean {
   return /^[a-f0-9]{32}$/.test(value);
+}
+
+function validUpstreamDigest(value: unknown): value is string {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
+function validUpstreamId(value: unknown): value is string {
+  return typeof value === "string" && /^[a-f0-9]{32}$/.test(value);
 }
 
 function validUpstreamExpiry(value: string): number | null {
@@ -255,6 +284,224 @@ export function demoSessionRegistrySize(nowMs = Date.now()): number {
 
 export function clearDemoSessionRegistryForTest(): void {
   sessions.clear();
+}
+
+function currentBoundSession(handle: string | undefined): Readonly<{
+  session: BoundSession;
+  configuration: BridgeConfiguration;
+}> | null {
+  const session = boundSessionFor(handle);
+  if (!session) return null;
+  const configuration = currentBridgeConfiguration();
+  if (!configuration) {
+    removeBoundDemoSession(handle);
+    return null;
+  }
+  if (session.bindingFingerprint !== configuration.bindingFingerprint) {
+    removeBoundDemoSession(handle);
+    return null;
+  }
+  return { session, configuration };
+}
+
+function createdAnalysisIsValid(body: unknown): body is Readonly<{
+  job_id: string;
+  status: "PENDING";
+  capability: "P3_FACE_ANALYSIS";
+  job_binding_digest: string;
+  target: Readonly<{
+    target_type: "ANALYSIS_RUN";
+    target_id: string;
+    authority_digest: string;
+  }>;
+}> {
+  if (!body || typeof body !== "object") return false;
+  const value = body as Record<string, unknown>;
+  const target = value.target;
+  if (!target || typeof target !== "object") return false;
+  const targetValue = target as Record<string, unknown>;
+  return (
+    validUpstreamId(value.job_id) &&
+    value.status === "PENDING" &&
+    value.capability === "P3_FACE_ANALYSIS" &&
+    validUpstreamDigest(value.job_binding_digest) &&
+    targetValue.target_type === "ANALYSIS_RUN" &&
+    validUpstreamId(targetValue.target_id) &&
+    validUpstreamDigest(targetValue.authority_digest)
+  );
+}
+
+function jobIsValid(
+  body: unknown,
+  analysis: BoundAnalysis,
+): body is Readonly<{
+  job_id: string;
+  status:
+    | "PENDING"
+    | "RUNNING"
+    | "COMPLETED"
+    | "REJECTED"
+    | "FAILED"
+    | "CANCELLED";
+  capability: "P3_FACE_ANALYSIS";
+  job_binding_digest: string;
+  target: Readonly<{
+    target_type: "ANALYSIS_RUN";
+    target_id: string;
+    authority_digest: string;
+  }>;
+}> {
+  if (!body || typeof body !== "object") return false;
+  const value = body as Record<string, unknown>;
+  const target = value.target;
+  if (!target || typeof target !== "object") return false;
+  const targetValue = target as Record<string, unknown>;
+  return (
+    value.job_id === analysis.jobId &&
+    (value.status === "PENDING" ||
+      value.status === "RUNNING" ||
+      value.status === "COMPLETED" ||
+      value.status === "REJECTED" ||
+      value.status === "FAILED" ||
+      value.status === "CANCELLED") &&
+    value.capability === "P3_FACE_ANALYSIS" &&
+    value.job_binding_digest === analysis.jobBindingDigest &&
+    targetValue.target_type === "ANALYSIS_RUN" &&
+    targetValue.target_id === analysis.analysisId &&
+    targetValue.authority_digest === analysis.targetAuthorityDigest
+  );
+}
+
+function snapshotIsValid(
+  body: unknown,
+  sessionId: string,
+  analysis: BoundAnalysis,
+): body is Readonly<{
+  analysis_id: string;
+  session_id: string;
+  state: "SUPPORTED" | "UNSUPPORTED";
+  observation_digest: string;
+  self_state_id: string;
+}> {
+  if (!body || typeof body !== "object") return false;
+  const value = body as Record<string, unknown>;
+  return (
+    value.analysis_id === analysis.analysisId &&
+    value.session_id === sessionId &&
+    (value.state === "SUPPORTED" || value.state === "UNSUPPORTED") &&
+    validUpstreamDigest(value.observation_digest) &&
+    validUpstreamId(value.self_state_id)
+  );
+}
+
+export async function createBoundDemoAnalysis(
+  handle: string | undefined,
+): Promise<DemoAnalysisBridgeResult> {
+  const bound = currentBoundSession(handle);
+  if (!bound || !handle) return { kind: "DENIED" };
+  const { session, configuration } = bound;
+  if (session.analysis?.createPromise) return session.analysis.createPromise;
+  if (session.analysis?.jobId) return { kind: "PENDING" };
+
+  const analysis: BoundAnalysis = {
+    createIdempotencyKey:
+      session.analysis?.createIdempotencyKey ?? randomBytes(32).toString("hex"),
+  };
+  const promise = (async (): Promise<DemoAnalysisBridgeResult> => {
+    const client = createMirrorApiClient(serverEnv.API_BASE_URL);
+    const response = await client
+      .POST("/api/v1/demo/sessions/{session_id}/analysis", {
+        params: {
+          path: { session_id: session.sessionId },
+          header: { "Idempotency-Key": analysis.createIdempotencyKey },
+        },
+        headers: { Authorization: `Bearer ${configuration.bearer}` },
+        cache: "no-store",
+      })
+      .catch(() => null);
+    if (!response) return { kind: "UNAVAILABLE" };
+    if (response.response.status !== 202) {
+      return { kind: errorForStatus(response.response.status) };
+    }
+    if (response.error || !response.data) {
+      return { kind: "STALE_RESPONSE" };
+    }
+    if (!createdAnalysisIsValid(response.data))
+      return { kind: "STALE_RESPONSE" };
+    sessions.set(handle, {
+      ...session,
+      analysis: {
+        createIdempotencyKey: analysis.createIdempotencyKey,
+        jobId: response.data.job_id,
+        analysisId: response.data.target.target_id,
+        jobBindingDigest: response.data.job_binding_digest,
+        targetAuthorityDigest: response.data.target.authority_digest,
+      },
+    });
+    return { kind: "PENDING" };
+  })();
+  sessions.set(handle, {
+    ...session,
+    analysis: { ...analysis, createPromise: promise },
+  });
+  const result = await promise;
+  if (result.kind !== "PENDING") {
+    const current = sessions.get(handle);
+    if (current?.analysis?.createPromise === promise) {
+      sessions.set(handle, { ...current, analysis: { ...analysis } });
+    }
+  }
+  return result;
+}
+
+export async function readBoundDemoAnalysis(
+  handle: string | undefined,
+): Promise<DemoAnalysisBridgeResult> {
+  const bound = currentBoundSession(handle);
+  if (!bound) return { kind: "DENIED" };
+  const { session, configuration } = bound;
+  const analysis = session.analysis;
+  if (!analysis?.jobId || !analysis.analysisId) return { kind: "NOT_FOUND" };
+  const client = createMirrorApiClient(serverEnv.API_BASE_URL);
+  const job = await client
+    .GET("/api/v1/demo/jobs/{job_id}", {
+      cache: "no-store",
+      params: { path: { job_id: analysis.jobId } },
+      headers: { Authorization: `Bearer ${configuration.bearer}` },
+    })
+    .catch(() => null);
+  if (!job) return { kind: "UNAVAILABLE" };
+  if (job.error) return { kind: errorForStatus(job.response.status) };
+  if (!job.data || job.response.status !== 200)
+    return { kind: "STALE_RESPONSE" };
+  if (!jobIsValid(job.data, analysis)) return { kind: "STALE_RESPONSE" };
+  if (job.data.status === "PENDING" || job.data.status === "RUNNING") {
+    return { kind: "PENDING" };
+  }
+  if (job.data.status !== "COMPLETED") return { kind: job.data.status };
+  const snapshot = await client
+    .GET("/api/v1/demo/analyses/{analysis_id}", {
+      cache: "no-store",
+      params: { path: { analysis_id: analysis.analysisId } },
+      headers: { Authorization: `Bearer ${configuration.bearer}` },
+    })
+    .catch(() => null);
+  if (!snapshot) return { kind: "UNAVAILABLE" };
+  if (snapshot.error) return { kind: errorForStatus(snapshot.response.status) };
+  if (snapshot.response.status !== 200 || !snapshot.data)
+    return { kind: "STALE_RESPONSE" };
+  if (!snapshotIsValid(snapshot.data, session.sessionId, analysis)) {
+    return { kind: "STALE_RESPONSE" };
+  }
+  sessions.set(handle!, {
+    ...session,
+    analysis: { ...analysis, selfStateId: snapshot.data.self_state_id },
+  });
+  return {
+    kind: "COMPLETED",
+    analysisState: snapshot.data.state,
+    selfState: "READY",
+  };
 }
 
 export async function readBoundDemoRecall(

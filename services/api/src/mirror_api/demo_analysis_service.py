@@ -145,6 +145,20 @@ class CreateDemoAnalysis:
 
 
 @dataclass(frozen=True)
+class CreateDemoSessionAnalysis:
+    demo_actor_id: str
+    demo_session_id: str
+    idempotency_key: str
+    request_id: str
+
+    def validate(self) -> None:
+        _require_id(self.demo_actor_id, "demo_actor_id")
+        _require_id(self.demo_session_id, "demo_session_id")
+        idempotency_key_hash(self.idempotency_key)
+        _require_request_id(self.request_id)
+
+
+@dataclass(frozen=True)
 class DemoAnalysisAccepted:
     job_id: str
     analysis_run_id: str
@@ -308,6 +322,7 @@ class DemoAnalysisJobSnapshot:
     result_code: str | None
     observation_id: str | None
     observation_digest: str | None
+    self_state_id: str | None
 
 
 class DemoAnalysisService:
@@ -415,6 +430,28 @@ class DemoAnalysisService:
                     request_id=command.request_id,
                     replayed=False,
                 )
+
+    async def create_for_session(self, command: CreateDemoSessionAnalysis) -> DemoAnalysisAccepted:
+        """Resolve the immutable Session source, then use the normal D03 transaction."""
+
+        command.validate()
+        async with self._sessions() as session:
+            async with session.begin():
+                identity = await self._lock_session_identity(
+                    session,
+                    demo_actor_id=command.demo_actor_id,
+                    demo_session_id=command.demo_session_id,
+                )
+                source_asset_id = identity.formal_canonical_asset_id
+        return await self.create(
+            CreateDemoAnalysis(
+                demo_actor_id=command.demo_actor_id,
+                demo_session_id=command.demo_session_id,
+                source_asset_id=source_asset_id,
+                idempotency_key=command.idempotency_key,
+                request_id=command.request_id,
+            )
+        )
 
     async def claim(
         self, *, analysis_run_id: str, job_id: str, request_id: str
@@ -730,18 +767,53 @@ class DemoAnalysisService:
             observation = await session.scalar(
                 select(DemoFaceObservation).where(DemoFaceObservation.analysis_run_id == run.id)
             )
-            return _snapshot(run, job, observation)
+            baseline = (
+                None
+                if observation is None
+                else await session.scalar(
+                    select(DemoBaselineFaceModel).where(
+                        DemoBaselineFaceModel.observation_id == observation.id
+                    )
+                )
+            )
+            self_state = (
+                None
+                if baseline is None
+                else await session.scalar(
+                    select(DemoSelfState).where(
+                        DemoSelfState.baseline_face_model_id == baseline.id,
+                        DemoSelfState.version == 1,
+                    )
+                )
+            )
+            return _snapshot(run, job, observation, baseline, self_state)
 
     async def _lock_creation_context(
         self, session: AsyncSession, command: CreateDemoAnalysis
+    ) -> DemoSyntheticIdentity:
+        identity = await self._lock_session_identity(
+            session,
+            demo_actor_id=command.demo_actor_id,
+            demo_session_id=command.demo_session_id,
+        )
+        if identity.formal_canonical_asset_id != command.source_asset_id:
+            raise DemoAnalysisUnavailable("D03 source differs from Session identity authority")
+        return identity
+
+    async def _lock_session_identity(
+        self,
+        session: AsyncSession,
+        *,
+        demo_actor_id: str,
+        demo_session_id: str,
     ) -> DemoSyntheticIdentity:
         demo_session = cast(
             DemoSession | None,
             await session.scalar(
                 select(DemoSession)
                 .where(
-                    DemoSession.id == command.demo_session_id,
-                    DemoSession.demo_actor_id == command.demo_actor_id,
+                    DemoSession.id == demo_session_id,
+                    DemoSession.demo_actor_id == demo_actor_id,
                 )
                 .with_for_update()
                 .execution_options(populate_existing=True)
@@ -774,12 +846,8 @@ class DemoAnalysisService:
                 select(DemoSyntheticIdentity).where(DemoSyntheticIdentity.id == identity_id)
             ),
         )
-        if (
-            identity is None
-            or identity.formal_canonical_asset_id != command.source_asset_id
-            or _DIGEST.fullmatch(identity.formal_canonical_asset_sha256) is None
-        ):
-            raise DemoAnalysisUnavailable("D03 source differs from Session identity authority")
+        if identity is None or _DIGEST.fullmatch(identity.formal_canonical_asset_sha256) is None:
+            raise DemoAnalysisUnavailable("D03 Session identity source authority is unavailable")
         return identity
 
     async def _replay_create(
@@ -1213,7 +1281,11 @@ def _self_state_row(
 
 
 def _snapshot(
-    run: DemoAnalysisRun, job: Job, observation: DemoFaceObservation | None
+    run: DemoAnalysisRun,
+    job: Job,
+    observation: DemoFaceObservation | None,
+    baseline: DemoBaselineFaceModel | None,
+    self_state: DemoSelfState | None,
 ) -> DemoAnalysisJobSnapshot:
     if job.status not in {
         "PENDING",
@@ -1224,6 +1296,33 @@ def _snapshot(
         "CANCELLED",
     }:
         raise DemoAnalysisAuthorityCorruption("D03 Job status is unsupported")
+    result_rows = (observation, baseline, self_state)
+    if job.status == "COMPLETED":
+        if any(row is None for row in result_rows):
+            raise DemoAnalysisAuthorityCorruption(
+                "completed D03 analysis lacks its Observation/Baseline/SelfState graph"
+            )
+        if (
+            observation is None
+            or baseline is None
+            or self_state is None
+            or observation.analysis_run_id != run.id
+            or observation.demo_actor_id != run.demo_actor_id
+            or observation.demo_session_id != run.demo_session_id
+            or baseline.observation_id != observation.id
+            or baseline.demo_actor_id != run.demo_actor_id
+            or baseline.demo_session_id != run.demo_session_id
+            or self_state.baseline_face_model_id != baseline.id
+            or self_state.demo_actor_id != run.demo_actor_id
+            or self_state.demo_session_id != run.demo_session_id
+        ):
+            raise DemoAnalysisAuthorityCorruption(
+                "completed D03 analysis result graph is cross-bound"
+            )
+    elif any(row is not None for row in result_rows):
+        raise DemoAnalysisAuthorityCorruption(
+            "non-completed D03 analysis has a partial result graph"
+        )
     return DemoAnalysisJobSnapshot(
         analysis_run_id=run.id,
         job_id=job.id,
@@ -1233,6 +1332,7 @@ def _snapshot(
         result_code=job.result_code,
         observation_id=observation.id if observation is not None else None,
         observation_digest=observation.content_digest if observation is not None else None,
+        self_state_id=self_state.id if self_state is not None else None,
     )
 
 

@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 import mirror_api.demo_analysis_service as analysis_module
 from mirror_api.demo_analysis_service import (
     CreateDemoAnalysis,
+    CreateDemoSessionAnalysis,
     DemoAnalysisConfiguration,
     DemoAnalysisInputError,
     DemoAnalysisLeaseLost,
@@ -213,6 +214,18 @@ async def test_create_replays_same_request_and_rejects_payload_conflict() -> Non
         assert await _count(sessions, DemoJobBinding) == 1
         assert await _count_d03_jobs(sessions) == 1
 
+        session_replay = await service.create_for_session(
+            CreateDemoSessionAnalysis(
+                demo_actor_id=command.demo_actor_id,
+                demo_session_id=command.demo_session_id,
+                idempotency_key=command.idempotency_key,
+                request_id=f"session-replay-{new_id()}",
+            )
+        )
+        assert session_replay.analysis_run_id == first.analysis_run_id
+        assert session_replay.job_id == first.job_id
+        assert session_replay.replayed is True
+
         with pytest.raises(DemoAnalysisPayloadConflict):
             await service.create(
                 CreateDemoAnalysis(
@@ -251,6 +264,24 @@ async def test_concurrent_create_has_one_canonical_job_run_and_binding() -> None
 
 
 @pytest.mark.asyncio
+async def test_session_scoped_create_resolves_the_bound_canonical_source() -> None:
+    async with _database() as (sessions, fixture):
+        service = _service(sessions)
+        command = CreateDemoSessionAnalysis(
+            demo_actor_id=fixture.demo_actor_id,
+            demo_session_id=fixture.demo_session_id,
+            idempotency_key="d03-session-scoped-create",
+            request_id=f"d03-session-scoped-{new_id()}",
+        )
+        accepted = await service.create_for_session(command)
+        async with sessions() as session:
+            run = await session.get(DemoAnalysisRun, accepted.analysis_run_id)
+        assert run is not None
+        assert run.source_asset_id == fixture.source_asset_id
+        assert run.demo_session_id == fixture.demo_session_id
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("supported", "expected_state"),
     [(True, "SUPPORTED"), (False, "UNSUPPORTED")],
@@ -286,6 +317,7 @@ async def test_claim_and_complete_publish_exact_graph_atomically(
         assert snapshot.status == "COMPLETED"
         assert snapshot.result_code == expected_state
         assert snapshot.observation_id == publication.observation_id
+        assert snapshot.self_state_id == publication.self_state_id
         assert await _count_job_attempts(sessions, accepted.job_id) == 1
         assert await _count(sessions, DemoFaceObservation) == 1
         assert await _count(sessions, DemoFaceObservationRepeat) == 3

@@ -117,13 +117,18 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
         ("POST", "/api/v1/demo/sessions", "demoCreateSession"),
         (
             "POST",
+            "/api/v1/demo/sessions/{session_id}/analysis",
+            "demoCreateSessionAnalysis",
+        ),
+        (
+            "POST",
             "/api/v1/demo/sessions/{session_id}/context/compile",
             "demoCompileSessionContext",
         ),
         ("POST", "/api/v1/demo/style-feedback", "demoCreateStyleFeedback"),
     }
-    assert len(operations) == 26
-    assert sum(operation["operationId"].startswith("demo") for operation in operations) == 26
+    assert len(operations) == 27
+    assert sum(operation["operationId"].startswith("demo") for operation in operations) == 27
     assert all(operation["x-demo-only"] is True for operation in operations)
     posts = [
         operation
@@ -132,6 +137,7 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
         in {
             "demoCreateSession",
             "demoCreateAnalysis",
+            "demoCreateSessionAnalysis",
             "demoCreateQuestionnaireRun",
             "demoCreateQuestionnaireResponse",
             "demoCompileProfile",
@@ -148,7 +154,7 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
             "demoCancelJob",
         }
     ]
-    assert len(posts) == 16
+    assert len(posts) == 17
     assert all("DemoBearerAuth" in operation["security"][0] for operation in operations)
     idempotency_headers = [
         next(
@@ -397,12 +403,15 @@ def test_frozen_demo_mutation_contracts_require_explicit_intent_and_precondition
 def test_main_application_exposes_the_complete_demo_contract() -> None:
     schema = create_app().openapi()
     paths = [path for path in schema["paths"] if path.startswith("/api/v1/demo")]
-    assert len(paths) == 26
+    assert len(paths) == 27
     assert schema["paths"]["/api/v1/demo/jobs/{job_id}/cancel"]["post"]["requestBody"]
     assert schema["paths"]["/api/v1/demo/reference-profiles/compile"]["post"]["requestBody"]
     assert schema["paths"]["/api/v1/demo/sessions/{session_id}/context/compile"]["post"][
         "requestBody"
     ]
+    assert (
+        "requestBody" not in schema["paths"]["/api/v1/demo/sessions/{session_id}/analysis"]["post"]
+    )
 
 
 def test_demo_bearer_keyring_rejects_ambiguous_digest_authority() -> None:
