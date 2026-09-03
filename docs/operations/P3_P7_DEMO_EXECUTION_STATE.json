@@ -2,8 +2,8 @@
   "schema_version": "mirror.demo/P3P7DemoExecutionState/v1",
   "goal_epoch": "P3_P7_COMPLETE_DEMO_EPOCH_02",
   "integration_branch": "codex/p3-p7-product-forward",
-  "integration_head": "ade7d6593bdaf4d97b27a78d716127c40bee7746",
-  "migration_head": "demo_0017_d10_context_queue",
+  "integration_head": "3590858a4d7c326bbf920acb240db9e46993acaa",
+  "migration_head": "demo_0018_d03_pose_evidence",
   "delivery_policy": "PRODUCT_AND_ALGORITHM_FIRST_RISK_TIERED",
   "evidence_custody_host_binding": "FROZEN_DEFERRED",
   "closed_checkpoints": [
@@ -46,9 +46,10 @@
     "D02_FINAL_RUNTIME_AND_ADMISSION",
     "D04_B_REAL_QUESTION_BANK_INTEGRATION",
     "D07_B_REAL_D02_ASSET_AND_M4_INTEGRATION",
-    "D08_REAL_GEOMETRY_SELECTED_SIDE_INTEGRATION"
+    "D08_REAL_GEOMETRY_SELECTED_SIDE_INTEGRATION",
+    "D03_FRESH_M3_RUNTIME_INTEGRATION"
   ],
-  "active_checkpoint": "D08_ACCEPTED_D03_REAL_RUNTIME_EXECUTING",
+  "active_checkpoint": "D03_TASK_ACCEPTED_D11_REAL_FLOW_EXECUTING",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -80,7 +81,8 @@
     "D02_FINAL_INTEGRATION": "f49232b2df6484d740a14d9c850001094de81a0d",
     "D04_B": "31169728d487b8176335d1cbdae3c3c50ec20c49",
     "D07_B": "4bd7bf57dc52e7ccf4f2c5edd673365122c51230",
-    "D08": "ade7d6593bdaf4d97b27a78d716127c40bee7746"
+    "D08": "ade7d6593bdaf4d97b27a78d716127c40bee7746",
+    "D03": "3590858a4d7c326bbf920acb240db9e46993acaa"
   },
   "implementation_checkpoint_shas": {
     "D03_D04_B_D07_B_DOMAIN_SLICES": "93919f47ea391694d4ed952cec8a3e7d5683dc4a",
@@ -105,7 +107,9 @@
     "D04_B_REAL_QUESTION_BANK_INTEGRATION": "31169728d487b8176335d1cbdae3c3c50ec20c49",
     "D07_B_REAL_D02_ASSET_AND_M4_INTEGRATION": "4bd7bf57dc52e7ccf4f2c5edd673365122c51230",
     "D04_B_D07_B_INTEGRATED_CI_HEAD": "a669275890565e98075ed09d0adee63669b89ff3",
-    "D08_REAL_GEOMETRY_SELECTED_SIDE_INTEGRATION": "ade7d6593bdaf4d97b27a78d716127c40bee7746"
+    "D08_REAL_GEOMETRY_SELECTED_SIDE_INTEGRATION": "ade7d6593bdaf4d97b27a78d716127c40bee7746",
+    "D03_FRESH_M3_RUNTIME_CODE": "b9b8585f5953d1b5aea4aee4863660a7da76763c",
+    "D03_FRESH_M3_RUNTIME_INTEGRATION": "3590858a4d7c326bbf920acb240db9e46993acaa"
   },
   "accepted_ci_runs": {
     "D09": 32701906246,
@@ -131,7 +135,8 @@
     "D02_R2_FINAL_CANDIDATE_CODE": 33622266344,
     "D02_R2_FINAL_INTEGRATION": 33653031297,
     "D04_B_D07_B_REAL_INTEGRATION": 33680811520,
-    "D08_REAL_GEOMETRY_INTEGRATION": 33707788291
+    "D08_REAL_GEOMETRY_INTEGRATION": 33707788291,
+    "D03_FRESH_M3_RUNTIME_INTEGRATION": 33723826015
   },
   "generation_capability_candidate": {
     "authority_id": "P3_P7_D02_R2_GENERATION_CAPABILITY_AUTHORITY_01",
@@ -297,15 +302,15 @@
     "d02_final_gate": "TASK_ACCEPTED"
   },
   "implementation_wave": {
-    "status": "D08_TASK_ACCEPTED_D03_ACTIVE",
-    "D03": "TRACKED_IMPLEMENTATION_CANDIDATE_LOCAL_REAL_M3_RUNTIME_PENDING_D02_CUSTODIAN_HANDOFF",
+    "status": "D03_D04_B_D07_B_D08_TASK_ACCEPTED_D11_ACTIVE",
+    "D03": "TASK_ACCEPTED_REAL_D02_SOURCE_FRESH_M3_RUNTIME",
     "D04_B": "TASK_ACCEPTED_REAL_D02_QUESTION_BANK_READ_INTEGRATION",
     "D07_B": "TASK_ACCEPTED_REAL_D02_SOURCE_ASSET_AND_M4_AUTHORITY_INTEGRATION",
     "D08": "TASK_ACCEPTED_REAL_D02_SELECTED_SIDE_GEOMETRY_RUNTIME",
     "D05": "TASK_ACCEPTED_API_WORKER_CONTRACT",
-    "offline_targeted_validation": "PASS_D04_D07_AND_D08_SELECTED_SIDE_ROUTING_POSTGRESQL_RUNTIME_VERIFIER_MATRIX_RUFF_STRICT_MYPY_TYPESCRIPT_BUILD_GITLEAKS",
-    "risk_focused_review": "PASS_FINDINGS_NONE_D04_B_D07_B_D08_EXACT_SHA",
-    "D03_task_acceptance_claimed": false,
+    "offline_targeted_validation": "PASS_D03_D04_D07_AND_D08_RUNTIME_POSTGRESQL_ROUTING_VERIFIER_MATRIX_RUFF_STRICT_MYPY_TYPESCRIPT_BUILD_GITLEAKS",
+    "risk_focused_review": "PASS_FINDINGS_NONE_D03_D04_B_D07_B_D08_EXACT_SHA",
+    "D03_task_acceptance_claimed": true,
     "D04_B_task_acceptance_claimed": true,
     "D07_B_task_acceptance_claimed": true,
     "D08_task_acceptance_claimed": true
@@ -364,6 +369,26 @@
       "docker_validation": "FAIL_WORKER_READY_BUT_HEALTHCHECK_EXCEEDED_8_SECONDS",
       "product_or_persistence_failure": false,
       "forward_repair_sha": "a669275890565e98075ed09d0adee63669b89ff3"
+    },
+    "D03_REAL_RUNTIME_INTEGRATION_01": {
+      "run_id": 33714302242,
+      "head_sha": "b9b8585f5953d1b5aea4aee4863660a7da76763c",
+      "outcome": "CANCELLED_AFTER_DOCKER_STALE_QUEUE_ASSERTION_FAILURE",
+      "quality_and_integration": "CANCELLED_PYTHON_TESTS",
+      "secret_scan": "PASS",
+      "docker_validation": "FAIL_TEST_EXPECTED_LEGACY_MIRROR_DEMO_QUEUE",
+      "product_or_persistence_failure": false,
+      "forward_repair_sha": "464e63542b9f2d9a242ac2493f0cb6efbdc5fb92"
+    },
+    "D03_REAL_RUNTIME_INTEGRATION_02": {
+      "run_id": 33714954533,
+      "head_sha": "464e63542b9f2d9a242ac2493f0cb6efbdc5fb92",
+      "outcome": "FAIL_STALE_MIGRATION_SUCCESSOR_AND_DOWNGRADE_TEST_ISOLATION",
+      "python_summary": "2857_PASSED_1_SKIPPED_14_FAILED",
+      "secret_scan": "PASS",
+      "docker_validation": "PASS",
+      "product_or_persistence_failure": false,
+      "forward_repair_sha": "3590858a4d7c326bbf920acb240db9e46993acaa"
     }
   },
   "local_product_candidates": {
@@ -431,6 +456,24 @@
       "final_acceptance": "TASK_ACCEPTED",
       "final_review": "PASS_FINDINGS_NONE",
       "validation": "PASS_REAL_RUNTIME_POSTGRESQL_SELECTED_MATRIX_RUFF_STRICT_MYPY_GITLEAKS_FULL_CI",
+      "task_acceptance_claimed": true
+    },
+    "D03_REAL_M3_RUNTIME": {
+      "code_sha": "b9b8585f5953d1b5aea4aee4863660a7da76763c",
+      "accepted_exact_ci_head": "3590858a4d7c326bbf920acb240db9e46993acaa",
+      "accepted_ci_run": 33723826015,
+      "migration_head": "demo_0018_d03_pose_evidence",
+      "implementation": "TASK_ACCEPTED_REAL_D02_SOURCE_FRESH_M3_RUNTIME",
+      "real_runtime_gate": "PASS_ONE_ADMITTED_SOURCE_ONE_FRESH_BACKEND_THREE_NATIVE_M3_CALLS",
+      "published_graph": "PASS_ONE_OBSERVATION_THREE_REPEATS_ONE_BASELINE_ONE_SELF_STATE_ONE_JOB_ATTEMPT",
+      "pose_authority": "UNAVAILABLE_M3_RUNTIME_DOES_NOT_EMIT_POSE",
+      "redelivery": "PASS_ZERO_ADDITIONAL_RESULT_GRAPH",
+      "missing_capability": "PASS_PENDING_BEFORE_CLAIM",
+      "postgresql_atomicity": "PASS",
+      "provider_call_increment": 0,
+      "private_leakage": 0,
+      "independent_review": "PASS_FINDINGS_NONE",
+      "validation": "PASS_POSTGRESQL_59_MIGRATION_LIFECYCLE_240_SOURCE_MYPY_RUFF_GITLEAKS_DOCKER_FULL_CI",
       "task_acceptance_claimed": true
     },
     "D06_SELF_TRANSFER_REFERENCE_PROFILE": {
@@ -574,18 +617,13 @@
     "d02_branch": "codex/p3-p7-d02-final-gate",
     "d02_tracked_checkpoint_sha": "0cd6da58ce111806ed7f56044b270f9b68890f3f",
     "product_branch": "codex/p3-p7-product-forward",
-    "product_code_head": "ade7d6593bdaf4d97b27a78d716127c40bee7746",
+    "product_code_head": "3590858a4d7c326bbf920acb240db9e46993acaa",
     "private_execution_owner": "D02_SUBSYSTEM_PRINCIPAL",
     "main_process_d02_access": "FORBIDDEN_PERMANENT_AUTONOMY_BOUNDARY"
   },
-  "current_blockers": {
-    "D03_FINAL_RUNTIME_GATE": "D02_CUSTODIAN_PROCESS_CAPABILITY_INJECTION_PENDING"
-  },
-  "next_ready_nodes": ["D03_FRESH_M3_RUNTIME_INTEGRATION"],
-  "runtime_evidence_blocked_nodes": [
-    "D11_REAL_WEB_API_D02_E2E",
-    "D12_COMPLETE_RUNTIME_E2E"
-  ],
+  "current_blockers": {},
+  "next_ready_nodes": ["D11_REAL_WEB_API_WORKER_FLOW"],
+  "runtime_evidence_blocked_nodes": ["D12_COMPLETE_RUNTIME_E2E"],
   "project_status": "ACTIVE",
   "project_mainline": "ACTIVE",
   "d02_real_integration": "TASK_ACCEPTED_INTEGRATED",

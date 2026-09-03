@@ -884,3 +884,13 @@
   Case 05 在读取 bytes 和 Job claim 前以 `D02_FIXED_CASE_NOT_SELECTED` fail closed。Provider 增量为
   0，private leakage 与 partial publication 均为 0。Principal 接受 D08，范围仅为 Demo、private
   synthetic；不产生 production 或真实用户 Geometry 授权，下一产品节点为 D03 fresh M3 runtime。
+
+- 2026-09-03：D03 fresh M3 runtime 以产品代码 `b9b8585f5953d1b5aea4aee4863660a7da76763c`、
+  前向集成后继 `3590858a4d7c326bbf920acb240db9e46993acaa` 和 exact-SHA run `33723826015`
+  三 jobs 全绿完成并 `TASK_ACCEPTED`。受控真实 Gate 对一个 admitted D02 SOURCE 创建全新 backend，执行
+  3 次 native M3，原子发布 1 Observation、3 个各含 478 landmarks 的 Repeat、1 Baseline、1 SelfState
+  与 1 completed JobAttempt；当前 backend 不输出 pose，因此如实持久化
+  `UNAVAILABLE/M3_RUNTIME_DOES_NOT_EMIT_POSE`。无能力 Worker 在 claim 前保持 PENDING，redelivery 不新增
+  graph，Provider 增量和 private leakage 均为 0。首次 Docker queue 断言与随后 migration-successor/旧
+  downgrade test 隔离失败均属测试兼容性，已由最小前向修复关闭；D03、D04-B、D07-B、D08 现均接受，
+  下一产品节点为 D11 real Web/API/Worker flow。
