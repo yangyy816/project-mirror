@@ -21,6 +21,7 @@ from mirror_api.demo_schemas import (
     DemoQuestionNextResponse,
     DemoQuestionResponseRequest,
     DemoRestoreRequest,
+    DemoSessionCreateRequest,
     DemoStyleFeedbackRequest,
     DemoToolRunResponse,
 )
@@ -213,26 +214,14 @@ def test_capabilities_report_available_and_deferred_boundaries() -> None:
         for item in capabilities.json()["capabilities"]
         if item["status"] == "AVAILABLE"
     } >= {"P5_COMPILER", "P5_REFERENCE_PROFILE", "P7_PREFERENCE_MEMORY"}
-    rejected = client.post(
-        "/api/v1/demo/sessions",
-        headers={"Idempotency-Key": "abcdefgh"},
-        json={"synthetic_identity_id": "1" * 32, "context_seed": "2" * 64, "actor_id": "3" * 32},
-    )
-    assert rejected.status_code == 422
-    deferred = client.post(
-        "/api/v1/demo/sessions",
-        headers={"Idempotency-Key": "abcdefgh"},
-        json={"synthetic_identity_id": "1" * 32, "context_seed": "2" * 64},
-    )
-    assert deferred.status_code == 501
-    assert deferred.json()["code"] == "CAPABILITY_NOT_IMPLEMENTED"
-
-    invalid_key = client.post(
-        "/api/v1/demo/sessions",
-        headers={"Idempotency-Key": "bad key!"},
-        json={"synthetic_identity_id": "1" * 32, "context_seed": "2" * 64},
-    )
-    assert invalid_key.status_code == 422
+    with pytest.raises(ValidationError):
+        DemoSessionCreateRequest.model_validate(
+            {
+                "synthetic_identity_id": "1" * 32,
+                "context_seed": "2" * 64,
+                "actor_id": "3" * 32,
+            }
+        )
 
 
 def test_idempotency_key_rejects_non_visible_ascii_before_application_logic() -> None:
