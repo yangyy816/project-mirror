@@ -76,22 +76,22 @@ def test_geometry_chooses_highest_absolute_profile_delta_with_dimension_tie_brea
     spec = plan_operation(
         _input(
             OperationType.GEOMETRY,
-            -10_000,
+            -15_000,
             desired={"jaw_width": 40, "eye_spacing": -40, "chin_height": 20},
         )
     )
-    assert dict(spec.parameters) == {"dimension_key": "eye_spacing", "delta_ppm": -10_000}
+    assert dict(spec.parameters) == {"dimension_key": "eye_spacing", "delta_ppm": -15_000}
 
 
 def test_geometry_current_instruction_controls_delta_not_profile_delta() -> None:
-    spec = plan_operation(_input(OperationType.GEOMETRY, 8_000, desired={"jaw_width": -90_000}))
-    assert dict(spec.parameters) == {"dimension_key": "jaw_width", "delta_ppm": 8_000}
+    spec = plan_operation(_input(OperationType.GEOMETRY, 15_000, desired={"jaw_width": -90_000}))
+    assert dict(spec.parameters) == {"dimension_key": "jaw_width", "delta_ppm": 15_000}
 
 
 def test_geometry_lock_requires_session_override_without_changing_persistent_lock() -> None:
     value = _input(
         OperationType.GEOMETRY,
-        10_000,
+        15_000,
         persistent={"jaw_width": "PRESERVE"},
         desired={"jaw_width": 20},
     )
@@ -102,7 +102,7 @@ def test_geometry_lock_requires_session_override_without_changing_persistent_loc
     spec = plan_operation(
         _input(
             OperationType.GEOMETRY,
-            10_000,
+            15_000,
             persistent={"jaw_width": "PRESERVE"},
             overrides={"jaw_width": "ALLOW_CHANGE"},
             desired={"jaw_width": 20},
@@ -114,13 +114,13 @@ def test_geometry_lock_requires_session_override_without_changing_persistent_loc
 def test_geometry_without_nonzero_profile_candidate_or_valid_instruction_fails_closed() -> None:
     for value, code in [
         (0, "INVALID_GEOMETRY_VALUE"),
-        (100_001, "INVALID_GEOMETRY_VALUE"),
+        (10_000, "INVALID_GEOMETRY_VALUE"),
     ]:
         with pytest.raises(DemoEditPlannerError) as error:
             plan_operation(_input(OperationType.GEOMETRY, value))
         assert error.value.code == code
     with pytest.raises(DemoEditPlannerError) as error:
-        plan_operation(_input(OperationType.GEOMETRY, 1, desired={"jaw_width": 0}))
+        plan_operation(_input(OperationType.GEOMETRY, 15_000, desired={"jaw_width": 0}))
     assert error.value.code == "NO_ELIGIBLE_GEOMETRY_DIMENSION"
 
 
@@ -174,7 +174,24 @@ def test_rejects_raw_float_and_noncanonical_prohibited_order_and_replays_determi
             )
         )
     assert error.value.code == "INVALID_PROHIBITED_OPERATIONS"
-    request = _input(OperationType.GEOMETRY, 5_000, desired={"eye_spacing": 10})
+    request = _input(OperationType.GEOMETRY, 15_000, desired={"eye_spacing": 10})
     assert (
         plan_operation(request).canonical_payload() == plan_operation(request).canonical_payload()
     )
+
+
+@pytest.mark.parametrize("value_ppm", [-30_000, -15_000, 15_000, 30_000])
+def test_geometry_accepts_only_the_four_fixed_signed_magnitudes(value_ppm: int) -> None:
+    spec = plan_operation(_input(OperationType.GEOMETRY, value_ppm, desired={"chin_height": 1}))
+    assert dict(spec.parameters) == {"dimension_key": "chin_height", "delta_ppm": value_ppm}
+
+
+def test_geometry_ignores_nonfixed_profile_dimensions_without_selecting_or_snapping_them() -> None:
+    spec = plan_operation(
+        _input(
+            OperationType.GEOMETRY,
+            15_000,
+            desired={"jaw_width": 1, "nose_width": 100},
+        )
+    )
+    assert dict(spec.parameters) == {"dimension_key": "jaw_width", "delta_ppm": 15_000}

@@ -873,3 +873,14 @@
   `a669275890565e98075ed09d0adee63669b89ff3` 将探测限定本容器节点并设置 inner 2 秒/outer 12 秒，
   exact-SHA run `33680811520` 三 jobs 全绿。Principal 接受 D04-B 与 D07-B；D03 fresh M3 与 D08
   fresh geometry runtime 继续推进，禁止重跑 D02 admission、ImageGen 或读取 D02 private checkpoint。
+
+- 2026-09-03：D08 exact code/integration SHA `ade7d6593bdaf4d97b27a78d716127c40bee7746`
+  的 run `33707788291` 三 jobs 全绿，独立 Sol final review 为 PASS_FINDINGS_NONE。真实受控 Gate
+  只执行 admitted QuestionBank 的 32 个 selected sides：31 个标准 OpenCV case 与 ADR-053 唯一
+  Case 25 targeted repair，得到 32 fresh M4、96 source M3、96 result M3、32 terminal Verification
+  及 48/48 magnitude-monotonic comparisons，cross-case digest 为
+  `9293283b8a242bade11bd0169cef50e8fc35d63c4a7a2c24c1356d12e7400749`。完整 D02 48-case
+  manifest 仍是 screening/eligibility authority，不等于 48 项产品能力；已知失败且未 selected 的
+  Case 05 在读取 bytes 和 Job claim 前以 `D02_FIXED_CASE_NOT_SELECTED` fail closed。Provider 增量为
+  0，private leakage 与 partial publication 均为 0。Principal 接受 D08，范围仅为 Demo、private
+  synthetic；不产生 production 或真实用户 Geometry 授权，下一产品节点为 D03 fresh M3 runtime。

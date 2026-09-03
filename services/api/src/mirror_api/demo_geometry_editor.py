@@ -1,46 +1,52 @@
-"""Fail-closed D07-B geometry execution boundary.
+"""Fail-closed D08 original-source fixed-case geometry execution boundary.
 
-This module intentionally does not load a geometry runtime or persist an image
-version.  It converts one canonical D07-A geometry operation into a typed
-adapter request, validates the qualified adapter's returned lineage/evidence,
-and produces a deterministic envelope for the later application and verifier
-layers.  A completed materialization is *not* a biometric identity claim and
-is deliberately left ``PENDING_INDEPENDENT_VERIFIER``.
+The injected backend is trusted only for a fresh structural output. It cannot
+make a verification, artifact, drift, or measured-delta decision. Every
+materialization remains non-publishable until the independent verifier layer.
 """
 
 from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Final, Protocol
 
+from mirror_api.demo_d08_geometry_adapter import (
+    D08_VERIFIER_POLICY_VERSION,
+    FIXED_GEOMETRY_DIMENSIONS,
+    FIXED_GEOMETRY_MAGNITUDES_PPM,
+    FIXED_RESULT_MEDIA_TYPE,
+    GeometryAdapterAuthorityError,
+    GeometryAttemptExecutionEvidence,
+    GeometryExecutionAuthority,
+    GeometryJobAttemptBinding,
+    GeometryStableMaterializationCore,
+    operation_spec_digest,
+    qualified_backend_candidate_id,
+    stable_config_digest,
+    stable_engine_digest,
+)
 from mirror_api.demo_operation_graph import (
     OperationEngine,
     OperationSpec,
     OperationType,
     canonical_json_bytes,
 )
+from mirror_api.demo_tool_registry import GEOMETRY_ENGINE_VERSION
 from mirror_api.providers.opencv_geometry import ALGORITHM_VERSION, CANDIDATE_ID
 
-GEOMETRY_EXECUTION_SCHEMA_VERSION: Final = "mirror.demo/GeometryExecution/v1"
-GEOMETRY_EXECUTION_ALGORITHM_VERSION: Final = "demo-geometry-execution-boundary-v1"
+GEOMETRY_EXECUTION_SCHEMA_VERSION: Final = "mirror.demo/GeometryExecution/v2"
+GEOMETRY_EXECUTION_ALGORITHM_VERSION: Final = "d08-fixed-case-geometry-boundary-v1"
 M4_QUALIFIED_CANDIDATE_ID: Final = CANDIDATE_ID
 M4_QUALIFIED_ALGORITHM_VERSION: Final = ALGORITHM_VERSION
-M4_RESULT_MEDIA_TYPE: Final = "image/jpeg"
+M4_RESULT_MEDIA_TYPE: Final = FIXED_RESULT_MEDIA_TYPE
 STRUCTURAL_EVIDENCE_ONLY: Final = "STRUCTURAL_EVIDENCE_ONLY_NOT_BIOMETRIC_IDENTITY_VERIFICATION"
 PENDING_INDEPENDENT_VERIFIER: Final = "PENDING_INDEPENDENT_VERIFIER"
-SUPPORTED_DIMENSIONS: Final = frozenset({"jaw_width", "chin_height", "eye_spacing"})
-MAX_DIMENSION_DELTA_PPM: Final = 100_000
-MAX_NON_TARGET_DRIFT_PPM: Final = 1_000_000
-MAX_IMAGE_DIMENSION: Final = 20_000
 
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
-_ID = re.compile(r"^[0-9a-f]{32}$")
 _OPAQUE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-_ARTIFACT_CODE = re.compile(r"^[A-Z][A-Z0-9_]{1,63}$")
 
 
 class GeometryExecutionState(StrEnum):
@@ -51,7 +57,7 @@ class GeometryExecutionState(StrEnum):
 
 
 class GeometryExecutionError(ValueError):
-    """A caller or adapter payload violates this immutable execution boundary."""
+    """A caller or backend violated this immutable D08 execution boundary."""
 
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -60,18 +66,16 @@ class GeometryExecutionError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class GeometryBackendIdentity:
-    """Exact M4 candidate/runtime/config facts required for one execution."""
-
     candidate_id: str
     algorithm_version: str
     runtime_manifest_digest: str
     configuration_digest: str
 
     def __post_init__(self) -> None:
-        _require_opaque(self.candidate_id, "candidate_id")
-        _require_opaque(self.algorithm_version, "algorithm_version")
-        _require_digest(self.runtime_manifest_digest, "runtime_manifest_digest")
-        _require_digest(self.configuration_digest, "configuration_digest")
+        _opaque(self.candidate_id, "candidate_id")
+        _opaque(self.algorithm_version, "algorithm_version")
+        _digest(self.runtime_manifest_digest, "runtime_manifest_digest")
+        _digest(self.configuration_digest, "configuration_digest")
 
     def canonical_payload(self) -> dict[str, str]:
         return {
@@ -84,52 +88,80 @@ class GeometryBackendIdentity:
 
 @dataclass(frozen=True, slots=True)
 class GeometryExecutionRequest:
-    """Immutable input facts for a single D07-A geometry materialization."""
+    """Typed repository authority plus current-attempt-only source bytes."""
 
     operation: OperationSpec
-    required_backend: GeometryBackendIdentity
-    source_asset_id: str
-    source_asset_sha256: str
-    source_bytes: bytes
-    source_image_version_digest: str
-    source_image_version_id: str
+    authority: GeometryExecutionAuthority
+    job_attempt: GeometryJobAttemptBinding
+    source_bytes: bytes = field(repr=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.operation, OperationSpec):
             raise GeometryExecutionError(
                 "INVALID_OPERATION", "operation must be a frozen OperationSpec"
             )
+        if not isinstance(self.authority, GeometryExecutionAuthority):
+            raise GeometryExecutionError("INVALID_AUTHORITY", "geometry authority must be typed")
+        if not isinstance(self.job_attempt, GeometryJobAttemptBinding):
+            raise GeometryExecutionError("INVALID_JOB_ATTEMPT", "job attempt must be typed")
         _validate_geometry_operation(self.operation)
-        if (
-            self.required_backend.candidate_id != M4_QUALIFIED_CANDIDATE_ID
-            or self.required_backend.algorithm_version != M4_QUALIFIED_ALGORITHM_VERSION
-        ):
-            raise GeometryExecutionError(
-                "UNQUALIFIED_BACKEND", "request must bind the frozen P2-M4 candidate and algorithm"
-            )
-        _require_id(self.source_asset_id, "source_asset_id")
-        _require_digest(self.source_asset_sha256, "source_asset_sha256")
-        _require_id(self.source_image_version_id, "source_image_version_id")
-        _require_digest(self.source_image_version_digest, "source_image_version_digest")
         if type(self.source_bytes) is not bytes or not self.source_bytes:
             raise GeometryExecutionError(
                 "INVALID_SOURCE", "source bytes must be non-empty immutable bytes"
             )
-        if hashlib.sha256(self.source_bytes).hexdigest() != self.source_asset_sha256:
+        if hashlib.sha256(self.source_bytes).hexdigest() != self.authority.root_source_asset_sha256:
             raise GeometryExecutionError(
-                "SOURCE_DIGEST_MISMATCH", "source bytes do not match source asset digest"
+                "SOURCE_DIGEST_MISMATCH", "source bytes do not match authority root"
             )
+        if operation_spec_digest(self.operation) != self.authority.operation_spec_digest:
+            raise GeometryExecutionError(
+                "OPERATION_SPEC_DIGEST_MISMATCH", "operation spec is not authority-bound"
+            )
+        parameters = self.operation.parameters
+        if (
+            parameters["dimension_key"] != self.authority.dimension_key
+            or abs(int(parameters["delta_ppm"])) != self.authority.magnitude_ppm
+            or (int(parameters["delta_ppm"]) > 0) != (self.authority.direction.value == "INCREASE")
+        ):
+            raise GeometryExecutionError(
+                "CASE_OPERATION_MISMATCH", "operation does not match the fixed case"
+            )
+        case = self.authority.fixed_case
+        try:
+            candidate_id = qualified_backend_candidate_id(
+                case_ordinal=case.case_ordinal,
+                source_ordinal=case.source_ordinal,
+                dimension_key=case.dimension_key,
+                direction=case.direction.value,
+                magnitude_ppm=case.magnitude_ppm,
+                algorithm_version=case.backend_algorithm_version,
+            )
+        except GeometryAdapterAuthorityError as exc:
+            raise GeometryExecutionError(
+                "UNQUALIFIED_BACKEND", "authority is not bound to a qualified backend"
+            ) from exc
+        if case.backend_candidate_id != candidate_id:
+            raise GeometryExecutionError(
+                "UNQUALIFIED_BACKEND", "authority is not bound to the frozen backend"
+            )
+
+    @property
+    def required_backend(self) -> GeometryBackendIdentity:
+        case = self.authority.fixed_case
+        return GeometryBackendIdentity(
+            candidate_id=case.backend_candidate_id,
+            algorithm_version=case.backend_algorithm_version,
+            runtime_manifest_digest=case.backend_runtime_manifest_digest,
+            configuration_digest=case.backend_configuration_digest,
+        )
 
     def canonical_payload(self) -> dict[str, object]:
         return {
-            "algorithm_version": GEOMETRY_EXECUTION_ALGORITHM_VERSION,
-            "operation": self.operation.canonical_payload(),
-            "required_backend": self.required_backend.canonical_payload(),
+            "authority_digest": self.authority.authority_digest,
+            "job_attempt": self.job_attempt.canonical_payload(),
+            "operation_authority_digest": self.authority.operation_authority_digest,
+            "operation_spec_digest": self.authority.operation_spec_digest,
             "schema_version": GEOMETRY_EXECUTION_SCHEMA_VERSION,
-            "source_asset_id": self.source_asset_id,
-            "source_asset_sha256": self.source_asset_sha256,
-            "source_image_version_digest": self.source_image_version_digest,
-            "source_image_version_id": self.source_image_version_id,
         }
 
     def content_digest(self) -> str:
@@ -138,53 +170,53 @@ class GeometryExecutionRequest:
 
 @dataclass(frozen=True, slots=True)
 class GeometryAdapterRequest:
-    """The only typed payload a qualified geometry adapter receives."""
+    """The only payload a fixed-case backend may receive."""
 
-    operation_digest: str
-    requested_delta_ppm: int
-    requested_dimension_key: str
-    required_backend: GeometryBackendIdentity
-    source_asset_id: str
-    source_asset_sha256: str
-    source_bytes: bytes
-    source_image_version_digest: str
-    source_image_version_id: str
+    authority: GeometryExecutionAuthority
+    operation_authority_digest: str
+    operation_spec_digest: str
+    source_bytes: bytes = field(repr=False)
 
-    def canonical_payload(self) -> dict[str, object]:
-        return {
-            "operation_digest": self.operation_digest,
-            "requested_delta_ppm": self.requested_delta_ppm,
-            "requested_dimension_key": self.requested_dimension_key,
-            "required_backend": self.required_backend.canonical_payload(),
-            "source_asset_id": self.source_asset_id,
-            "source_asset_sha256": self.source_asset_sha256,
-            "source_image_version_digest": self.source_image_version_digest,
-            "source_image_version_id": self.source_image_version_id,
-        }
+    def __post_init__(self) -> None:
+        if not isinstance(self.authority, GeometryExecutionAuthority):
+            raise GeometryExecutionError("INVALID_AUTHORITY", "adapter authority must be typed")
+        _digest(self.operation_authority_digest, "operation_authority_digest")
+        _digest(self.operation_spec_digest, "operation_spec_digest")
+        if (
+            self.operation_authority_digest != self.authority.operation_authority_digest
+            or self.operation_spec_digest != self.authority.operation_spec_digest
+        ):
+            raise GeometryExecutionError(
+                "OPERATION_DIGEST_MISMATCH", "adapter operation is not authority-bound"
+            )
+        if type(self.source_bytes) is not bytes or not self.source_bytes:
+            raise GeometryExecutionError("INVALID_SOURCE", "adapter source bytes are invalid")
 
 
 @dataclass(frozen=True, slots=True)
 class GeometryAdapterResult:
-    """Untrusted adapter result; every fact is revalidated before publication."""
+    """Fresh structural backend facts only; semantic verification is excluded."""
 
-    artifact_codes: tuple[str, ...]
-    artifact_status: str
-    content: bytes
+    content: bytes = field(repr=False)
     content_sha256: str
-    height: int
-    identity: GeometryBackendIdentity
-    measured_delta_ppm: int
-    measurement_config_digest: str
+    byte_size: int
     media_type: str
-    non_target_drift_ppm: int
-    quarantined: bool
-    source_asset_sha256: str
     width: int
+    height: int
+    changed_pixel_count: int
+    identity: GeometryBackendIdentity
+    backend_execution_receipt: str
+    authority_digest: str
+    operation_authority_digest: str
+    operation_spec_digest: str
+    case_record_digest: str
+    case_specification_digest: str
+    case_binding_digest: str
+    source_asset_sha256: str
+    quarantined: bool = False
 
 
 class GeometryExecutionBackend(Protocol):
-    """Injected adapter; production wiring remains outside this pure boundary."""
-
     @property
     def identity(self) -> GeometryBackendIdentity: ...
 
@@ -193,66 +225,48 @@ class GeometryExecutionBackend(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class GeometryExecutionSuccess:
-    artifact_codes: tuple[str, ...]
     backend: GeometryBackendIdentity
-    height: int
-    measured_delta_ppm: int
-    measurement_config_digest: str
-    non_target_drift_ppm: int
-    output_bytes: bytes
-    result_sha256: str
-    source_asset_id: str
-    source_asset_sha256: str
-    source_image_version_digest: str
-    source_image_version_id: str
-    width: int
+    output_bytes: bytes = field(repr=False)
+    stable_core: GeometryStableMaterializationCore
+    attempt_evidence: GeometryAttemptExecutionEvidence
+
+    @property
+    def result_sha256(self) -> str:
+        return self.stable_core.result_sha256
 
     def canonical_payload(self) -> dict[str, object]:
         return {
-            "artifact_codes": list(self.artifact_codes),
+            "attempt_evidence": {
+                **self.attempt_evidence.canonical_payload(),
+                "attempt_receipt_digest": self.attempt_evidence.attempt_receipt_digest,
+            },
             "backend": self.backend.canonical_payload(),
-            "height": self.height,
             "identity_claim_scope": STRUCTURAL_EVIDENCE_ONLY,
-            "measured_delta_ppm": self.measured_delta_ppm,
-            "measurement_config_digest": self.measurement_config_digest,
-            "non_target_drift_ppm": self.non_target_drift_ppm,
-            "result_media_type": M4_RESULT_MEDIA_TYPE,
-            "result_sha256": self.result_sha256,
-            "source_asset_id": self.source_asset_id,
-            "source_asset_sha256": self.source_asset_sha256,
-            "source_image_version_digest": self.source_image_version_digest,
-            "source_image_version_id": self.source_image_version_id,
+            "stable_core": {
+                **self.stable_core.canonical_payload(),
+                "stable_core_digest": self.stable_core.stable_core_digest,
+            },
             "verification_state": PENDING_INDEPENDENT_VERIFIER,
-            "width": self.width,
         }
 
 
 @dataclass(frozen=True, slots=True)
 class GeometryExecutionOutcome:
-    """A result envelope that makes failure non-publishable by construction."""
-
     request_digest: str
     state: GeometryExecutionState
     reason_code: str
     success: GeometryExecutionSuccess | None = None
 
     def __post_init__(self) -> None:
-        _require_digest(self.request_digest, "request_digest")
-        _require_opaque(self.reason_code, "reason_code")
-        if self.state is GeometryExecutionState.MATERIALIZED:
-            if self.success is None:
-                raise GeometryExecutionError(
-                    "INVALID_OUTCOME", "materialized outcome needs success facts"
-                )
-        elif self.success is not None:
+        _digest(self.request_digest, "request_digest")
+        _opaque(self.reason_code, "reason_code")
+        if (self.state is GeometryExecutionState.MATERIALIZED) != (self.success is not None):
             raise GeometryExecutionError(
-                "INVALID_OUTCOME", "failed outcome must not publish output"
+                "INVALID_OUTCOME", "output may exist only for materialization"
             )
 
     @property
     def publishable(self) -> bool:
-        # This boundary deliberately stops before the independent Verifier.
-        # Materialized bytes may be handed to that verifier, never published.
         return False
 
     @property
@@ -260,15 +274,15 @@ class GeometryExecutionOutcome:
         return self.state is GeometryExecutionState.MATERIALIZED
 
     def canonical_payload(self) -> dict[str, object]:
-        result: dict[str, object] = {
+        payload: dict[str, object] = {
+            "reason_code": self.reason_code,
             "request_digest": self.request_digest,
             "schema_version": GEOMETRY_EXECUTION_SCHEMA_VERSION,
             "state": self.state.value,
-            "reason_code": self.reason_code,
         }
         if self.success is not None:
-            result["success"] = self.success.canonical_payload()
-        return result
+            payload["success"] = self.success.canonical_payload()
+        return payload
 
     def content_digest(self) -> str:
         return _content_digest(self.canonical_payload())
@@ -277,14 +291,6 @@ class GeometryExecutionOutcome:
 def execute_geometry_operation(
     request: GeometryExecutionRequest, backend: GeometryExecutionBackend | None
 ) -> GeometryExecutionOutcome:
-    """Execute one qualified geometry request without silently falling back.
-
-    A materialized success may be handed only to the independent Verifier; it
-    is not publishable at this adapter boundary. Adapter failures, mismatched
-    runtime identity, invalid output, artifact failures, and quarantine all
-    return a non-publishable outcome that is not verifier-ready.
-    """
-
     if not isinstance(request, GeometryExecutionRequest):
         raise GeometryExecutionError(
             "INVALID_REQUEST", "request must be a GeometryExecutionRequest"
@@ -295,7 +301,7 @@ def execute_geometry_operation(
             request_digest, GeometryExecutionState.CAPABILITY_UNAVAILABLE, "BACKEND_MISSING"
         )
     try:
-        if backend.identity != request.required_backend:
+        if _backend_identity(backend, request.authority) != request.required_backend:
             return _failure(
                 request_digest,
                 GeometryExecutionState.CAPABILITY_UNAVAILABLE,
@@ -303,24 +309,23 @@ def execute_geometry_operation(
             )
     except Exception:
         return _failure(request_digest, GeometryExecutionState.FAILED, "BACKEND_IDENTITY_INVALID")
-
-    adapter_request = _adapter_request(request)
     source_before = request.source_bytes
     try:
-        adapter_result = backend.execute(request=adapter_request)
+        result = backend.execute(request=_adapter_request(request))
     except Exception:
         return _failure(request_digest, GeometryExecutionState.FAILED, "BACKEND_EXECUTION_FAILED")
     if request.source_bytes != source_before:
         return _failure(request_digest, GeometryExecutionState.FAILED, "SOURCE_MUTATION_DETECTED")
     try:
-        success = _validated_success(request, adapter_result)
-    except GeometryExecutionError as exc:
-        state = (
+        success = _validated_success(request, result)
+    except (GeometryExecutionError, GeometryAdapterAuthorityError) as exc:
+        return _failure(
+            request_digest,
             GeometryExecutionState.REJECTED
-            if exc.code in {"ARTIFACT_CHECK_FAILED", "DIRECTION_MISMATCH", "RESULT_QUARANTINED"}
-            else GeometryExecutionState.FAILED
+            if exc.code == "RESULT_QUARANTINED"
+            else GeometryExecutionState.FAILED,
+            exc.code,
         )
-        return _failure(request_digest, state, exc.code)
     return GeometryExecutionOutcome(
         request_digest=request_digest,
         state=GeometryExecutionState.MATERIALIZED,
@@ -329,18 +334,22 @@ def execute_geometry_operation(
     )
 
 
+def _backend_identity(
+    backend: GeometryExecutionBackend, authority: GeometryExecutionAuthority
+) -> GeometryBackendIdentity:
+    resolver = getattr(backend, "identity_for", None)
+    identity = resolver(authority=authority) if callable(resolver) else backend.identity
+    if not isinstance(identity, GeometryBackendIdentity):
+        raise TypeError("backend identity is invalid")
+    return identity
+
+
 def _adapter_request(request: GeometryExecutionRequest) -> GeometryAdapterRequest:
-    parameters = request.operation.parameters
     return GeometryAdapterRequest(
-        operation_digest=_content_digest(request.operation.canonical_payload()),
-        requested_delta_ppm=int(parameters["delta_ppm"]),
-        requested_dimension_key=str(parameters["dimension_key"]),
-        required_backend=request.required_backend,
-        source_asset_id=request.source_asset_id,
-        source_asset_sha256=request.source_asset_sha256,
+        authority=request.authority,
+        operation_authority_digest=request.authority.operation_authority_digest,
+        operation_spec_digest=request.authority.operation_spec_digest,
         source_bytes=request.source_bytes,
-        source_image_version_digest=request.source_image_version_digest,
-        source_image_version_id=request.source_image_version_id,
     )
 
 
@@ -348,75 +357,116 @@ def _validated_success(
     request: GeometryExecutionRequest, result: GeometryAdapterResult
 ) -> GeometryExecutionSuccess:
     if not isinstance(result, GeometryAdapterResult):
-        raise GeometryExecutionError(
-            "INVALID_ADAPTER_RESULT", "adapter must return GeometryAdapterResult"
-        )
+        raise GeometryExecutionError("INVALID_ADAPTER_RESULT", "backend returned an invalid result")
+    authority = request.authority
     if result.identity != request.required_backend:
         raise GeometryExecutionError("BACKEND_IDENTITY_MISMATCH", "result backend identity changed")
-    if result.source_asset_sha256 != request.source_asset_sha256:
+    if result.authority_digest != authority.authority_digest:
+        raise GeometryExecutionError("AUTHORITY_MISMATCH", "result authority binding changed")
+    if (
+        result.operation_authority_digest != authority.operation_authority_digest
+        or result.operation_spec_digest != authority.operation_spec_digest
+    ):
         raise GeometryExecutionError(
-            "SOURCE_LINEAGE_MISMATCH", "result does not bind request source"
+            "OPERATION_DIGEST_MISMATCH", "result operation binding changed"
         )
+    case = authority.fixed_case
+    if (
+        result.case_record_digest != case.case_record_digest
+        or result.case_specification_digest != case.case_specification_digest
+        or result.case_binding_digest != case.case_binding_digest
+    ):
+        raise GeometryExecutionError("CASE_MISMATCH", "result case binding changed")
+    if result.source_asset_sha256 != authority.root_source_asset_sha256:
+        raise GeometryExecutionError("SOURCE_LINEAGE_MISMATCH", "result source binding changed")
     if result.quarantined:
-        raise GeometryExecutionError("RESULT_QUARANTINED", "quarantined output cannot be published")
+        raise GeometryExecutionError("RESULT_QUARANTINED", "quarantined output cannot proceed")
     if result.media_type != M4_RESULT_MEDIA_TYPE:
         raise GeometryExecutionError(
-            "INVALID_RESULT_MEDIA_TYPE", "result media type is not frozen M4 JPEG"
+            "INVALID_RESULT_MEDIA_TYPE", "result MIME is not the frozen JPEG"
         )
     if type(result.content) is not bytes or not result.content:
         raise GeometryExecutionError(
-            "INVALID_RESULT_CONTENT", "result content must be non-empty bytes"
+            "INVALID_RESULT_CONTENT", "result content must be immutable bytes"
         )
-    _require_digest(result.content_sha256, "content_sha256")
-    if hashlib.sha256(result.content).hexdigest() != result.content_sha256:
+    _digest(result.content_sha256, "content_sha256")
+    if result.byte_size != len(result.content):
         raise GeometryExecutionError(
-            "RESULT_DIGEST_MISMATCH", "result bytes do not match result digest"
+            "RESULT_SIZE_MISMATCH", "result byte size does not match bytes"
         )
+    if hashlib.sha256(result.content).hexdigest() != result.content_sha256:
+        raise GeometryExecutionError("RESULT_DIGEST_MISMATCH", "result bytes do not match digest")
     if (
         result.content == request.source_bytes
-        or result.content_sha256 == request.source_asset_sha256
+        or result.content_sha256 == authority.root_source_asset_sha256
     ):
         raise GeometryExecutionError(
-            "SOURCE_RESULT_IDENTICAL", "geometry result must differ from source"
+            "SOURCE_RESULT_IDENTICAL", "result must differ from immutable source"
         )
-    _require_positive_dimension(result.width, "width")
-    _require_positive_dimension(result.height, "height")
-    _require_digest(result.measurement_config_digest, "measurement_config_digest")
-    _require_integer(
-        result.measured_delta_ppm,
-        "measured_delta_ppm",
-        -MAX_DIMENSION_DELTA_PPM,
-        MAX_DIMENSION_DELTA_PPM,
-        nonzero=True,
-    )
-    _require_integer(
-        result.non_target_drift_ppm,
-        "non_target_drift_ppm",
-        0,
-        MAX_NON_TARGET_DRIFT_PPM,
-    )
-    requested_delta = int(request.operation.parameters["delta_ppm"])
-    if (result.measured_delta_ppm > 0) != (requested_delta > 0):
+    _positive_image_scalar(result.width, "width")
+    _positive_image_scalar(result.height, "height")
+    if result.width != case.output_width or result.height != case.output_height:
         raise GeometryExecutionError(
-            "DIRECTION_MISMATCH", "measured direction differs from request"
+            "RESULT_DIMENSION_MISMATCH", "result dimensions differ from fixed case"
         )
-    if result.artifact_status != "PASS":
-        raise GeometryExecutionError("ARTIFACT_CHECK_FAILED", "artifact evidence is not pass")
-    _validate_artifact_codes(result.artifact_codes)
-    return GeometryExecutionSuccess(
-        artifact_codes=result.artifact_codes,
-        backend=result.identity,
-        height=result.height,
-        measured_delta_ppm=result.measured_delta_ppm,
-        measurement_config_digest=result.measurement_config_digest,
-        non_target_drift_ppm=result.non_target_drift_ppm,
-        output_bytes=result.content,
+    if (
+        type(result.changed_pixel_count) is not int
+        or result.changed_pixel_count < 1
+        or result.changed_pixel_count > result.width * result.height
+    ):
+        raise GeometryExecutionError(
+            "INVALID_CHANGED_PIXEL_COUNT", "changed pixels must be positive"
+        )
+    _digest(result.backend_execution_receipt, "backend_execution_receipt")
+    engine_digest = stable_engine_digest(authority, GEOMETRY_ENGINE_VERSION)
+    config_digest = stable_config_digest(authority, D08_VERIFIER_POLICY_VERSION)
+    core = GeometryStableMaterializationCore(
+        operation_id=authority.operation_id,
+        operation_authority_digest=authority.operation_authority_digest,
+        operation_spec_digest=authority.operation_spec_digest,
+        authority_digest=authority.authority_digest,
+        case_id=case.case_id,
+        case_record_digest=case.case_record_digest,
+        case_specification_digest=case.case_specification_digest,
+        case_binding_digest=case.case_binding_digest,
+        backend_candidate_id=result.identity.candidate_id,
+        backend_algorithm_version=result.identity.algorithm_version,
+        backend_runtime_manifest_digest=result.identity.runtime_manifest_digest,
+        backend_configuration_digest=result.identity.configuration_digest,
+        warp_plan_digest=case.warp_plan_digest,
+        input_image_version_id=authority.input_image_version_id,
+        input_image_version_digest=authority.input_image_version_digest,
+        input_asset_id=authority.input_asset_id,
+        input_asset_sha256=authority.input_asset_sha256,
+        root_source_asset_id=authority.root_source_asset_id,
+        root_source_asset_sha256=authority.root_source_asset_sha256,
         result_sha256=result.content_sha256,
-        source_asset_id=request.source_asset_id,
-        source_asset_sha256=request.source_asset_sha256,
-        source_image_version_digest=request.source_image_version_digest,
-        source_image_version_id=request.source_image_version_id,
-        width=result.width,
+        result_byte_size=result.byte_size,
+        result_media_type=result.media_type,
+        result_width=result.width,
+        result_height=result.height,
+        changed_pixel_count=result.changed_pixel_count,
+        engine_digest=engine_digest,
+        config_digest=config_digest,
+        stable_core_digest="0" * 64,
+    )
+    core = replace(core, stable_core_digest=core.content_digest())
+    evidence = GeometryAttemptExecutionEvidence(
+        job_attempt=request.job_attempt,
+        operation_id=authority.operation_id,
+        operation_authority_digest=authority.operation_authority_digest,
+        operation_spec_digest=authority.operation_spec_digest,
+        authority_digest=authority.authority_digest,
+        stable_core_digest=core.stable_core_digest,
+        backend_execution_receipt=result.backend_execution_receipt,
+        attempt_receipt_digest="0" * 64,
+    )
+    evidence = replace(evidence, attempt_receipt_digest=evidence.content_digest())
+    return GeometryExecutionSuccess(
+        backend=result.identity,
+        output_bytes=result.content,
+        stable_core=core,
+        attempt_evidence=evidence,
     )
 
 
@@ -426,79 +476,46 @@ def _validate_geometry_operation(operation: OperationSpec) -> None:
         or operation.operation_type is not OperationType.GEOMETRY
     ):
         raise GeometryExecutionError(
-            "UNSUPPORTED_OPERATION", "only a D07-A geometry operation is accepted"
+            "UNSUPPORTED_OPERATION", "only a geometry operation is accepted"
         )
-    parameters = operation.parameters
-    dimension = parameters.get("dimension_key")
-    delta = parameters.get("delta_ppm")
-    if dimension not in SUPPORTED_DIMENSIONS:
+    dimension = operation.parameters.get("dimension_key")
+    delta = operation.parameters.get("delta_ppm")
+    if dimension not in FIXED_GEOMETRY_DIMENSIONS:
         raise GeometryExecutionError(
-            "UNSUPPORTED_DIMENSION", "dimension is not in the frozen Demo candidate set"
+            "UNSUPPORTED_DIMENSION", "dimension is not a fixed D08 dimension"
         )
-    _require_integer(
-        delta, "delta_ppm", -MAX_DIMENSION_DELTA_PPM, MAX_DIMENSION_DELTA_PPM, nonzero=True
-    )
+    if type(delta) is not int or abs(delta) not in FIXED_GEOMETRY_MAGNITUDES_PPM:
+        raise GeometryExecutionError(
+            "INVALID_MAGNITUDE", "delta must be exactly plus or minus 15000 or 30000"
+        )
 
 
 def _failure(
     request_digest: str, state: GeometryExecutionState, reason_code: str
 ) -> GeometryExecutionOutcome:
     return GeometryExecutionOutcome(
-        request_digest=request_digest,
-        state=state,
-        reason_code=reason_code,
+        request_digest=request_digest, state=state, reason_code=reason_code
     )
 
 
-def _content_digest(payload: Mapping[str, object]) -> str:
+def _content_digest(payload: dict[str, object]) -> str:
     return hashlib.sha256(
         GEOMETRY_EXECUTION_SCHEMA_VERSION.encode("utf-8") + b"\n" + canonical_json_bytes(payload)
     ).hexdigest()
 
 
-def _validate_artifact_codes(codes: tuple[str, ...]) -> None:
-    if not isinstance(codes, tuple) or any(
-        not isinstance(code, str) or _ARTIFACT_CODE.fullmatch(code) is None for code in codes
-    ):
-        raise GeometryExecutionError("INVALID_ARTIFACT_EVIDENCE", "artifact codes are invalid")
-    if tuple(sorted(codes, key=lambda item: item.encode("utf-8"))) != codes:
-        raise GeometryExecutionError(
-            "INVALID_ARTIFACT_EVIDENCE", "artifact codes are not canonical"
-        )
-    if len(set(codes)) != len(codes):
-        raise GeometryExecutionError("INVALID_ARTIFACT_EVIDENCE", "artifact codes are duplicated")
-
-
-def _require_positive_dimension(value: object, name: str) -> None:
-    _require_integer(value, name, 1, MAX_IMAGE_DIMENSION)
-
-
-def _require_integer(
-    value: object, name: str, minimum: int, maximum: int, *, nonzero: bool = False
-) -> None:
-    if (
-        type(value) is not int
-        or int(value) < minimum
-        or int(value) > maximum
-        or (nonzero and int(value) == 0)
-    ):
-        raise GeometryExecutionError(
-            "INVALID_RESULT_EVIDENCE", f"{name} is outside the allowed range"
-        )
-
-
-def _require_digest(value: object, name: str) -> None:
+def _digest(value: object, name: str) -> None:
     if not isinstance(value, str) or _DIGEST.fullmatch(value) is None:
         raise GeometryExecutionError("INVALID_DIGEST", f"{name} must be a lowercase SHA-256 digest")
 
 
-def _require_id(value: object, name: str) -> None:
-    if not isinstance(value, str) or _ID.fullmatch(value) is None:
-        raise GeometryExecutionError(
-            "INVALID_ID", f"{name} must be a 32-character lowercase identifier"
-        )
-
-
-def _require_opaque(value: object, name: str) -> None:
+def _opaque(value: object, name: str) -> None:
     if not isinstance(value, str) or _OPAQUE.fullmatch(value) is None:
         raise GeometryExecutionError("INVALID_OPAQUE_VALUE", f"{name} is invalid")
+
+
+def _positive_image_scalar(value: object, name: str) -> None:
+    if type(value) is not int or value < 1 or value > 20_000:
+        raise GeometryExecutionError(
+            "INVALID_RESULT_EVIDENCE", f"{name} is outside the allowed range"
+        )

@@ -17,6 +17,8 @@ from mirror_api.demo_operation_graph import (
 
 _DIMENSION = re.compile(r"^[a-z][a-z0-9_]{0,47}$")
 _LOCK_MODES: Final = frozenset({"PRESERVE", "ALLOW_CHANGE"})
+_FIXED_GEOMETRY_DIMENSIONS: Final = frozenset({"jaw_width", "chin_height", "eye_spacing"})
+_FIXED_GEOMETRY_MAGNITUDES: Final = frozenset({-30_000, -15_000, 15_000, 30_000})
 _PPM = 1_000_000
 
 
@@ -110,9 +112,15 @@ def _validate_locks(locks: Mapping[str, str], name: str) -> None:
 
 def _geometry_spec(value: TypedPlanInput) -> OperationSpec:
     delta = value.value_ppm
-    if not -100_000 <= delta <= 100_000 or delta == 0:
-        raise DemoEditPlannerError("INVALID_GEOMETRY_VALUE", "geometry value_ppm is out of range")
-    candidates = [(key, item) for key, item in value.desired_delta_ppm.items() if item != 0]
+    if delta not in _FIXED_GEOMETRY_MAGNITUDES:
+        raise DemoEditPlannerError(
+            "INVALID_GEOMETRY_VALUE", "geometry value_ppm must be exactly signed 15000 or 30000"
+        )
+    candidates = [
+        (key, item)
+        for key, item in value.desired_delta_ppm.items()
+        if key in _FIXED_GEOMETRY_DIMENSIONS and item != 0
+    ]
     if not candidates:
         raise DemoEditPlannerError(
             "NO_ELIGIBLE_GEOMETRY_DIMENSION", "no desired-delta dimension is eligible"

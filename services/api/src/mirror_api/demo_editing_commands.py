@@ -20,6 +20,10 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from mirror_api.demo_d08_geometry_authority import (
+    GeometryAuthorityResolutionError,
+    require_geometry_plan_admission,
+)
 from mirror_api.demo_edit_planner import TypedPlanInput, plan_operation
 from mirror_api.demo_editing_repository import (
     DemoEditingRepositoryError,
@@ -529,6 +533,18 @@ class DemoEditingCommandService:
                 ),
             )
         )
+        if spec.engine is OperationEngine.GEOMETRY:
+            try:
+                await require_geometry_plan_admission(
+                    session,
+                    editing_session_id=editing.id,
+                    image_version_id=image.id,
+                    operation=spec,
+                )
+            except GeometryAuthorityResolutionError as exc:
+                raise DemoEditingCommandUnavailable(
+                    "geometry plan authority is unavailable"
+                ) from exc
         result_id = await self._persist_plan(
             session, c.demo_actor_id, demo_session_id, editing, image, (spec,), request_digest
         )

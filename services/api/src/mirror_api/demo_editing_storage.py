@@ -82,6 +82,18 @@ class DemoLocalPrivateObjectStorage:
             )
         return published_key
 
+    async def discard_published(self, *, key: str, sha256: str) -> None:
+        """Remove a pre-published object after a proven rolled-back terminal transaction."""
+
+        if not isinstance(key, str) or _PUBLISHED_KEY.fullmatch(key) is None:
+            raise DemoEditingStorageError("STORAGE_KEY_INVALID", "published storage key is invalid")
+        if not isinstance(sha256, str) or re.fullmatch(r"[0-9a-f]{64}", sha256) is None:
+            raise DemoEditingStorageError(
+                "STORAGE_DIGEST_INVALID", "private content digest is invalid"
+            )
+        async with self._lock:
+            await asyncio.to_thread(self._discard_published_sync, key, sha256)
+
     async def store_original_snapshot(
         self, *, editing_session_id: str, content: bytes, sha256: str
     ) -> str:
@@ -152,6 +164,23 @@ class DemoLocalPrivateObjectStorage:
         except OSError as exc:
             raise DemoEditingStorageError(
                 "STORAGE_PROMOTION_FAILED", "private object could not be promoted"
+            ) from exc
+
+    def _discard_published_sync(self, key: str, sha256: str) -> None:
+        target = self._payload_path(key, create_parent=False)
+        existing = self._read_payload(target, missing_ok=True)
+        if existing is None:
+            return
+        if not hmac.compare_digest(hashlib.sha256(existing).hexdigest(), sha256):
+            raise DemoEditingStorageError(
+                "STORAGE_OBJECT_CONFLICT", "published object digest conflicts"
+            )
+        try:
+            target.unlink()
+            self._fsync_directory(target.parent)
+        except OSError as exc:
+            raise DemoEditingStorageError(
+                "STORAGE_WRITE_FAILED", "published object could not be discarded"
             ) from exc
 
     def _payload_path(self, key: str, *, create_parent: bool) -> Path:

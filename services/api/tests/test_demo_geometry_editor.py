@@ -1,20 +1,28 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 
 import pytest
 
+from mirror_api.demo_d08_geometry_adapter import (
+    TARGETED_REPAIR_ALGORITHM_VERSION,
+    TARGETED_REPAIR_CANDIDATE_ID,
+    D02FixedGeometryCase,
+    GeometryAdapterAuthorityError,
+    GeometryDirection,
+    GeometryExecutionAuthority,
+    GeometryJobAttemptBinding,
+    operation_spec_digest,
+)
 from mirror_api.demo_geometry_editor import (
     M4_QUALIFIED_ALGORITHM_VERSION,
     M4_QUALIFIED_CANDIDATE_ID,
     PENDING_INDEPENDENT_VERIFIER,
-    STRUCTURAL_EVIDENCE_ONLY,
     GeometryAdapterRequest,
     GeometryAdapterResult,
     GeometryBackendIdentity,
     GeometryExecutionError,
-    GeometryExecutionOutcome,
     GeometryExecutionRequest,
     GeometryExecutionState,
     execute_geometry_operation,
@@ -27,10 +35,9 @@ from mirror_api.demo_operation_graph import (
 )
 
 _SOURCE = b"canonical-source-jpeg-bytes"
-_RESULT = b"canonical-result-jpeg-bytes"
+_RESULT = b"fresh-canonical-result-jpeg-bytes"
 _RUNTIME_DIGEST = "1" * 64
 _CONFIG_DIGEST = "2" * 64
-_MEASUREMENT_DIGEST = "3" * 64
 
 
 def _identity() -> GeometryBackendIdentity:
@@ -42,7 +49,7 @@ def _identity() -> GeometryBackendIdentity:
     )
 
 
-def _operation(*, dimension: str = "jaw_width", delta: int = 25_000) -> OperationSpec:
+def _operation(*, dimension: str = "jaw_width", delta: int = 15_000) -> OperationSpec:
     return OperationSpec(
         engine=OperationEngine.GEOMETRY,
         operation_type=OperationType.GEOMETRY,
@@ -57,42 +64,99 @@ def _operation(*, dimension: str = "jaw_width", delta: int = 25_000) -> Operatio
     )
 
 
-def _request(*, operation: OperationSpec | None = None) -> GeometryExecutionRequest:
-    return GeometryExecutionRequest(
-        operation=operation or _operation(),
-        required_backend=_identity(),
-        source_asset_id="a" * 32,
+def _authority(operation: OperationSpec | None = None) -> GeometryExecutionAuthority:
+    operation = operation or _operation()
+    case = D02FixedGeometryCase(
+        case_id="1" * 32,
+        case_record_digest="3" * 64,
+        case_specification_digest="4" * 64,
+        case_binding_digest="0" * 64,
+        case_ordinal=1,
+        source_ordinal=1,
+        source_asset_id="2" * 32,
         source_asset_sha256=hashlib.sha256(_SOURCE).hexdigest(),
+        dimension_key=str(operation.parameters["dimension_key"]),
+        direction=GeometryDirection.INCREASE
+        if int(operation.parameters["delta_ppm"]) > 0
+        else GeometryDirection.DECREASE,
+        magnitude_ppm=abs(int(operation.parameters["delta_ppm"])),
+        warp_plan_digest="5" * 64,
+        geometry_ontology_digest="6" * 64,
+        source_landmark_digest="7" * 64,
+        output_policy_version="output-policy-v1",
+        determinism_version="determinism-v1",
+        backend_candidate_id=M4_QUALIFIED_CANDIDATE_ID,
+        backend_algorithm_version=M4_QUALIFIED_ALGORITHM_VERSION,
+        backend_runtime_manifest_digest=_RUNTIME_DIGEST,
+        backend_configuration_digest=_CONFIG_DIGEST,
+        output_width=16,
+        output_height=12,
+    )
+    return GeometryExecutionAuthority(
+        editing_session_id="6" * 32,
+        editing_session_digest="7" * 64,
+        plan_id="8" * 32,
+        plan_digest="9" * 64,
+        operation_id="a" * 32,
+        operation_authority_digest="a" * 64,
+        operation_spec_digest=operation_spec_digest(operation),
+        input_image_version_id="b" * 32,
+        input_image_version_digest="c" * 64,
+        input_sequence=0,
+        input_asset_id="0" * 32,
+        input_asset_sha256=case.source_asset_sha256,
+        root_source_asset_id=case.source_asset_id,
+        root_source_asset_sha256=case.source_asset_sha256,
+        d02_admission_id="d" * 32,
+        d02_admission_digest="e" * 64,
+        d02_screening_report_id="f" * 32,
+        d02_screening_report_digest="0" * 64,
+        fixed_case=case,
+        authority_digest="0" * 64,
+    )
+
+
+def _request(
+    *, operation: OperationSpec | None = None, attempt: str = "3" * 32
+) -> GeometryExecutionRequest:
+    operation = operation or _operation()
+    return GeometryExecutionRequest(
+        operation=operation,
+        authority=_authority(operation),
+        job_attempt=GeometryJobAttemptBinding(
+            job_id="4" * 32,
+            execution_job_binding_id="5" * 32,
+            job_binding_digest="5" * 64,
+            attempt_id=attempt,
+            attempt_digest="6" * 64,
+        ),
         source_bytes=_SOURCE,
-        source_image_version_digest="b" * 64,
-        source_image_version_id="c" * 32,
     )
 
 
 def _result(
+    request: GeometryExecutionRequest,
     *,
     content: bytes = _RESULT,
-    content_sha256: str | None = None,
-    identity: GeometryBackendIdentity | None = None,
-    measured_delta_ppm: int = 20_000,
-    artifact_status: str = "PASS",
-    quarantined: bool = False,
-    source_asset_sha256: str | None = None,
+    receipt: str = "a" * 64,
 ) -> GeometryAdapterResult:
     return GeometryAdapterResult(
-        artifact_codes=(),
-        artifact_status=artifact_status,
         content=content,
-        content_sha256=content_sha256 or hashlib.sha256(content).hexdigest(),
-        height=12,
-        identity=identity or _identity(),
-        measured_delta_ppm=measured_delta_ppm,
-        measurement_config_digest=_MEASUREMENT_DIGEST,
+        content_sha256=hashlib.sha256(content).hexdigest(),
+        byte_size=len(content),
         media_type="image/jpeg",
-        non_target_drift_ppm=7_500,
-        quarantined=quarantined,
-        source_asset_sha256=source_asset_sha256 or hashlib.sha256(_SOURCE).hexdigest(),
         width=16,
+        height=12,
+        changed_pixel_count=4,
+        identity=_identity(),
+        backend_execution_receipt=receipt,
+        authority_digest=request.authority.authority_digest,
+        operation_authority_digest=request.authority.operation_authority_digest,
+        operation_spec_digest=request.authority.operation_spec_digest,
+        case_record_digest=request.authority.fixed_case.case_record_digest,
+        case_specification_digest=request.authority.fixed_case.case_specification_digest,
+        case_binding_digest=request.authority.fixed_case.case_binding_digest,
+        source_asset_sha256=request.authority.root_source_asset_sha256,
     )
 
 
@@ -107,161 +171,211 @@ class _Backend:
         return self.result
 
 
-class _ExplodingBackend:
-    @property
-    def identity(self) -> GeometryBackendIdentity:
-        return _identity()
+@dataclass
+class _RoutedBackend(_Backend):
+    routed_identity: GeometryBackendIdentity | None = None
 
-    def execute(self, *, request: GeometryAdapterRequest) -> GeometryAdapterResult:
-        del request
-        raise RuntimeError("offline runtime failure")
+    def identity_for(self, *, authority: GeometryExecutionAuthority) -> GeometryBackendIdentity:
+        del authority
+        assert self.routed_identity is not None
+        return self.routed_identity
 
 
-def test_geometry_operation_becomes_qualified_adapter_request_and_evidence_envelope() -> None:
+def test_fixed_case_execution_is_pending_verifier_and_never_publishable() -> None:
     request = _request()
-    backend = _Backend(_result(), _identity())
+    backend = _Backend(_result(request), _identity())
 
     outcome = execute_geometry_operation(request, backend)
 
     assert outcome.state is GeometryExecutionState.MATERIALIZED
     assert outcome.publishable is False
     assert outcome.ready_for_verification is True
-    assert outcome.reason_code == "GEOMETRY_MATERIALIZED_PENDING_VERIFIER"
     assert outcome.success is not None
+    assert request.authority.operation_authority_digest != request.authority.operation_spec_digest
     assert outcome.success.result_sha256 == hashlib.sha256(_RESULT).hexdigest()
-    assert outcome.success.source_asset_sha256 == hashlib.sha256(_SOURCE).hexdigest()
-    assert outcome.success.measured_delta_ppm == 20_000
-    assert outcome.success.non_target_drift_ppm == 7_500
+    assert outcome.success.stable_core.authority_digest == request.authority.authority_digest
+    assert (
+        outcome.success.stable_core.case_record_digest
+        == request.authority.fixed_case.case_record_digest
+    )
+    assert (
+        outcome.success.stable_core.case_specification_digest
+        == request.authority.fixed_case.case_specification_digest
+    )
+    assert (
+        outcome.success.stable_core.case_binding_digest
+        == request.authority.fixed_case.case_binding_digest
+    )
+    assert (
+        outcome.success.stable_core.operation_authority_digest
+        == request.authority.operation_authority_digest
+    )
+    assert (
+        outcome.success.stable_core.operation_spec_digest == request.authority.operation_spec_digest
+    )
+    assert outcome.success.attempt_evidence.job_attempt == request.job_attempt
     assert backend.received is not None
-    assert backend.received.requested_dimension_key == "jaw_width"
-    assert backend.received.requested_delta_ppm == 25_000
-    assert backend.received.source_bytes == _SOURCE
-    payload = outcome.canonical_payload()
-    assert payload["success"] is not None
-    success = payload["success"]
-    assert isinstance(success, dict)
-    assert success["identity_claim_scope"] == STRUCTURAL_EVIDENCE_ONLY
-    assert success["verification_state"] == PENDING_INDEPENDENT_VERIFIER
-
-
-@pytest.mark.parametrize("dimension", ["jaw_width", "chin_height", "eye_spacing"])
-def test_frozen_candidate_dimensions_are_supported(dimension: str) -> None:
-    outcome = execute_geometry_operation(
-        _request(operation=_operation(dimension=dimension)), _Backend(_result(), _identity())
+    assert backend.received.authority is request.authority
+    assert outcome.success.canonical_payload()["verification_state"] == PENDING_INDEPENDENT_VERIFIER
+    assert (
+        outcome.success.attempt_evidence.canonical_payload()["job_attempt"][
+            "execution_job_binding_id"
+        ]
+        == request.job_attempt.execution_job_binding_id
     )
-    assert outcome.state is GeometryExecutionState.MATERIALIZED
-
-
-def test_unsupported_dimension_is_rejected_before_an_adapter_can_run() -> None:
-    with pytest.raises(GeometryExecutionError, match="candidate set") as error:
-        _request(operation=_operation(dimension="nose_width"))
-    assert error.value.code == "UNSUPPORTED_DIMENSION"
-
-
-def test_non_geometry_operation_is_rejected_before_an_adapter_can_run() -> None:
-    raster = OperationSpec(
-        engine=OperationEngine.RASTER,
-        operation_type=OperationType.EXPOSURE,
-        parameters={"exposure_ev_milli": 100},
-        preserve=(PreserveKey.IDENTITY_REFERENCE_FRAME,),
-        expected_effect={
-            "effect_type": "EXPOSURE",
-            "target_region": "FULL_IMAGE",
-            "exposure_ev_milli": 100,
-        },
+    assert (
+        outcome.success.attempt_evidence.operation_authority_digest
+        == request.authority.operation_authority_digest
     )
-    with pytest.raises(GeometryExecutionError, match="geometry operation") as error:
-        _request(operation=raster)
-    assert error.value.code == "UNSUPPORTED_OPERATION"
+    assert (
+        outcome.success.attempt_evidence.operation_spec_digest
+        == request.authority.operation_spec_digest
+    )
+    assert {"measured_delta_ppm", "non_target_drift_ppm", "artifact_status"}.isdisjoint(
+        {field.name for field in fields(GeometryAdapterResult)}
+    )
+    assert _SOURCE.decode() not in repr(request)
+    assert _SOURCE.decode() not in repr(backend.received)
+    assert _RESULT.decode() not in repr(backend.result)
+    assert _RESULT.decode() not in repr(outcome.success)
 
 
-def test_missing_or_unqualified_backend_is_explicitly_non_publishable() -> None:
-    request = _request()
-    missing = execute_geometry_operation(request, None)
-    mismatch = execute_geometry_operation(
-        request,
-        _Backend(
-            _result(),
-            GeometryBackendIdentity(
-                candidate_id=M4_QUALIFIED_CANDIDATE_ID,
-                algorithm_version=M4_QUALIFIED_ALGORITHM_VERSION,
-                runtime_manifest_digest="4" * 64,
-                configuration_digest=_CONFIG_DIGEST,
-            ),
+def test_exact_case_25_targeted_backend_uses_case_routed_identity() -> None:
+    operation = _operation(delta=-15_000)
+    standard = _authority(operation)
+    targeted_case = replace(
+        standard.fixed_case,
+        case_ordinal=25,
+        source_ordinal=3,
+        backend_candidate_id=TARGETED_REPAIR_CANDIDATE_ID,
+        backend_algorithm_version=TARGETED_REPAIR_ALGORITHM_VERSION,
+        case_binding_digest="0" * 64,
+    )
+    authority = replace(
+        standard,
+        fixed_case=targeted_case,
+        authority_digest="0" * 64,
+    )
+    request = GeometryExecutionRequest(
+        operation=operation,
+        authority=authority,
+        job_attempt=GeometryJobAttemptBinding(
+            job_id="4" * 32,
+            execution_job_binding_id="5" * 32,
+            job_binding_digest="5" * 64,
+            attempt_id="3" * 32,
+            attempt_digest="6" * 64,
         ),
+        source_bytes=_SOURCE,
     )
-    assert missing.state is GeometryExecutionState.CAPABILITY_UNAVAILABLE
-    assert missing.reason_code == "BACKEND_MISSING"
-    assert mismatch.state is GeometryExecutionState.CAPABILITY_UNAVAILABLE
-    assert mismatch.reason_code == "QUALIFIED_BACKEND_UNAVAILABLE"
-    assert missing.publishable is False
-    assert missing.success is None
+    result = replace(_result(request), identity=request.required_backend)
+    backend = _RoutedBackend(
+        result=result,
+        identity=_identity(),
+        routed_identity=request.required_backend,
+    )
+
+    outcome = execute_geometry_operation(request, backend)
+
+    assert outcome.state is GeometryExecutionState.MATERIALIZED
+    assert outcome.success is not None
+    assert outcome.success.backend == request.required_backend
+
+
+def test_stable_core_replays_across_attempts_but_receipts_are_attempt_specific() -> None:
+    first_request = _request(attempt="3" * 32)
+    second_request = _request(attempt="7" * 32)
+    first = execute_geometry_operation(
+        first_request, _Backend(_result(first_request, receipt="a" * 64), _identity())
+    )
+    second = execute_geometry_operation(
+        second_request, _Backend(_result(second_request, receipt="b" * 64), _identity())
+    )
+
+    assert first.success is not None and second.success is not None
+    assert first.success.stable_core == second.success.stable_core
+    assert (
+        first.success.attempt_evidence.attempt_receipt_digest
+        != second.success.attempt_evidence.attempt_receipt_digest
+    )
 
 
 @pytest.mark.parametrize(
-    ("result", "reason"),
+    ("result_update", "reason"),
     [
-        (_result(content_sha256="0" * 64), "RESULT_DIGEST_MISMATCH"),
-        (_result(content=_SOURCE), "SOURCE_RESULT_IDENTICAL"),
-        (_result(measured_delta_ppm=-20_000), "DIRECTION_MISMATCH"),
-        (_result(artifact_status="FAIL"), "ARTIFACT_CHECK_FAILED"),
-        (_result(quarantined=True), "RESULT_QUARANTINED"),
-        (_result(source_asset_sha256="d" * 64), "SOURCE_LINEAGE_MISMATCH"),
+        ({"content_sha256": "0" * 64}, "RESULT_DIGEST_MISMATCH"),
+        ({"byte_size": 1}, "RESULT_SIZE_MISMATCH"),
+        ({"media_type": "image/png"}, "INVALID_RESULT_MEDIA_TYPE"),
+        ({"width": 0}, "INVALID_RESULT_EVIDENCE"),
+        ({"width": 15}, "RESULT_DIMENSION_MISMATCH"),
+        ({"changed_pixel_count": 0}, "INVALID_CHANGED_PIXEL_COUNT"),
+        ({"changed_pixel_count": 193}, "INVALID_CHANGED_PIXEL_COUNT"),
+        ({"backend_execution_receipt": "receipt-not-a-digest"}, "INVALID_DIGEST"),
+        ({"source_asset_sha256": "a" * 64}, "SOURCE_LINEAGE_MISMATCH"),
+        ({"authority_digest": "b" * 64}, "AUTHORITY_MISMATCH"),
+        ({"operation_authority_digest": "b" * 64}, "OPERATION_DIGEST_MISMATCH"),
+        ({"operation_spec_digest": "b" * 64}, "OPERATION_DIGEST_MISMATCH"),
+        ({"case_binding_digest": "c" * 64}, "CASE_MISMATCH"),
         (
-            _result(
-                identity=GeometryBackendIdentity(
-                    candidate_id=M4_QUALIFIED_CANDIDATE_ID,
-                    algorithm_version=M4_QUALIFIED_ALGORITHM_VERSION,
-                    runtime_manifest_digest="5" * 64,
-                    configuration_digest=_CONFIG_DIGEST,
-                )
-            ),
-            "BACKEND_IDENTITY_MISMATCH",
+            {
+                "content": _SOURCE,
+                "content_sha256": hashlib.sha256(_SOURCE).hexdigest(),
+                "byte_size": len(_SOURCE),
+            },
+            "SOURCE_RESULT_IDENTICAL",
         ),
     ],
 )
-def test_invalid_result_evidence_never_publishes_success(
-    result: GeometryAdapterResult, reason: str
+def test_structural_mismatch_is_non_publishable(
+    result_update: dict[str, object], reason: str
 ) -> None:
-    outcome = execute_geometry_operation(_request(), _Backend(result, _identity()))
-    expected_state = (
-        GeometryExecutionState.REJECTED
-        if reason in {"DIRECTION_MISMATCH", "ARTIFACT_CHECK_FAILED", "RESULT_QUARANTINED"}
-        else GeometryExecutionState.FAILED
-    )
-    assert outcome.state is expected_state
+    request = _request()
+    result = replace(_result(request), **result_update)
+    outcome = execute_geometry_operation(request, _Backend(result, _identity()))
+    assert outcome.state is GeometryExecutionState.FAILED
     assert outcome.reason_code == reason
     assert outcome.publishable is False
-    assert outcome.ready_for_verification is False
-    assert outcome.success is None
 
 
-def test_backend_errors_do_not_publish_success() -> None:
-    outcome = execute_geometry_operation(_request(), _ExplodingBackend())
-    assert outcome.state is GeometryExecutionState.FAILED
-    assert outcome.reason_code == "BACKEND_EXECUTION_FAILED"
-    assert outcome.success is None
+def test_forged_authority_or_case_is_rejected_before_backend_runs() -> None:
+    request = _request()
+    with pytest.raises(GeometryAdapterAuthorityError):
+        replace(request.authority, authority_digest="f" * 64)
+    with pytest.raises(GeometryAdapterAuthorityError):
+        replace(request.authority.fixed_case, case_binding_digest="e" * 64)
 
 
-def test_source_bytes_are_unchanged_and_replay_digest_is_deterministic() -> None:
-    source_before = bytes(_SOURCE)
-    first = execute_geometry_operation(_request(), _Backend(_result(), _identity()))
-    second = execute_geometry_operation(_request(), _Backend(_result(), _identity()))
-
-    assert _SOURCE == source_before
-    assert first == second
-    assert first.content_digest() == second.content_digest()
-    assert first.request_digest == _request().content_digest()
-
-
-def test_outcome_does_not_allow_a_failed_result_to_carry_output() -> None:
-    with pytest.raises(GeometryExecutionError, match="failed outcome") as error:
-        GeometryExecutionOutcome(
-            request_digest="f" * 64,
-            state=GeometryExecutionState.REJECTED,
-            reason_code="BAD",
-            success=execute_geometry_operation(
-                _request(), _Backend(_result(), _identity())
-            ).success,
+def test_mismatched_operation_and_missing_or_wrong_backend_fail_closed() -> None:
+    with pytest.raises((GeometryExecutionError, GeometryAdapterAuthorityError)) as error:
+        _request(operation=_operation(delta=30_000)).__class__(
+            operation=_operation(delta=15_000),
+            authority=_authority(_operation(delta=30_000)),
+            job_attempt=GeometryJobAttemptBinding("4" * 32, "5" * 32, "5" * 64, "3" * 32, "6" * 64),
+            source_bytes=_SOURCE,
         )
-    assert error.value.code == "INVALID_OUTCOME"
+    assert error.value.code == "OPERATION_SPEC_DIGEST_MISMATCH"
+    request = _request()
+    assert (
+        execute_geometry_operation(request, None).state
+        is GeometryExecutionState.CAPABILITY_UNAVAILABLE
+    )
+    wrong = GeometryBackendIdentity(
+        M4_QUALIFIED_CANDIDATE_ID, M4_QUALIFIED_ALGORITHM_VERSION, "8" * 64, _CONFIG_DIGEST
+    )
+    outcome = execute_geometry_operation(request, _Backend(_result(request), wrong))
+    assert outcome.reason_code == "QUALIFIED_BACKEND_UNAVAILABLE"
+
+
+@pytest.mark.parametrize(
+    ("dimension", "delta", "code"),
+    [
+        ("nose_width", 15_000, "UNSUPPORTED_DIMENSION"),
+        ("jaw_width", 20_000, "INVALID_MAGNITUDE"),
+    ],
+)
+def test_only_fixed_case_dimensions_and_magnitudes_reach_a_backend(
+    dimension: str, delta: int, code: str
+) -> None:
+    with pytest.raises((GeometryExecutionError, GeometryAdapterAuthorityError)) as error:
+        _request(operation=_operation(dimension=dimension, delta=delta))
+    assert error.value.code == code

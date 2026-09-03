@@ -108,6 +108,11 @@ from mirror_worker.demo_analysis_runtime import (
     require_demo_analysis_m3_backend_factory,
 )
 from mirror_worker.demo_context import DemoContextTaskExecutor
+from mirror_worker.demo_geometry_runtime import (
+    DemoGeometryCapability,
+    DemoGeometryCapabilityFactory,
+    optional_demo_geometry_capability_factory,
+)
 from mirror_worker.demo_memory import DemoMemoryTaskExecutor
 from mirror_worker.demo_profile import DemoProfileTaskExecutor
 from mirror_worker.demo_reference_profile import DemoReferenceProfileTaskExecutor
@@ -421,7 +426,11 @@ def create_demo_memory_runtime(settings: Settings) -> DemoMemoryRuntime:
     )
 
 
-def create_demo_editing_runtime(settings: Settings) -> DemoEditingRuntime:
+def create_demo_editing_runtime(
+    settings: Settings,
+    *,
+    geometry_capability_factory: DemoGeometryCapabilityFactory | None = None,
+) -> DemoEditingRuntime:
     """Compose the local synthetic D07 runtime without a Provider or public network."""
 
     if settings.storage_provider != "local" or settings.app_env not in {
@@ -438,6 +447,19 @@ def create_demo_editing_runtime(settings: Settings) -> DemoEditingRuntime:
         session_factory=sessions,
         asset_loader=loader,
     )
+    capability_factory = (
+        geometry_capability_factory
+        if geometry_capability_factory is not None
+        else optional_demo_geometry_capability_factory()
+    )
+    capability: DemoGeometryCapability | None = None
+    if capability_factory is not None:
+        try:
+            capability = capability_factory.create()
+        except Exception:
+            raise RuntimeError("D08 geometry capability composition failed") from None
+        if not isinstance(capability, DemoGeometryCapability):
+            raise RuntimeError("D08 geometry capability composition failed")
     return DemoEditingRuntime(
         engine=engine,
         application=DemoEditingApplication(
@@ -446,6 +468,8 @@ def create_demo_editing_runtime(settings: Settings) -> DemoEditingRuntime:
             storage=storage,
             verifier=verifier,
             geometry_dispatcher=None,
+            geometry_backend=None if capability is None else capability.backend,
+            geometry_verifier=None if capability is None else capability.verifier,
         ),
         commands=DemoEditingCommandService(session_factory=sessions),
     )

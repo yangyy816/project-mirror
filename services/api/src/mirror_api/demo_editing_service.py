@@ -11,24 +11,44 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Protocol
+from typing import Protocol, cast
 
+from mirror_api.demo_d08_geometry_adapter import (
+    GeometryAttemptExecutionEvidence,
+    GeometryExecutionAuthority,
+    GeometryJobAttemptBinding,
+    GeometryStableMaterializationCore,
+    operation_spec_digest,
+)
 from mirror_api.demo_effect_verifier import EffectVerificationResult, VerificationStatus
 from mirror_api.demo_operation_graph import OperationEngine, OperationSpec, OperationType
 from mirror_api.demo_raster_editor import RasterEditError, execute_raster_operation
 
 _ID = re.compile(r"^[0-9a-f]{32}$")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
+_FIXED18 = re.compile(r"^-?(?:0|[1-9][0-9]*)\.\d{18}$")
+_GEOMETRY_METRICS_SCHEMA = "mirror.demo/D08GeometryVerificationMetrics/v1"
+_GEOMETRY_THRESHOLDS_SCHEMA = "mirror.demo/D08GeometryVerificationThresholds/v1"
+_MEASUREMENT_DIMENSIONS = (
+    "cheekbone_width",
+    "chin_height",
+    "eye_spacing",
+    "jaw_width",
+    "mouth_width",
+    "nose_width",
+)
 
 
 class DemoEditingServiceError(RuntimeError):
     """A fail-closed application error with a stable code."""
 
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(self, code: str, message: str, *, published_cleanup_safe: bool = False) -> None:
         super().__init__(message)
         self.code = code
+        self.published_cleanup_safe = published_cleanup_safe
 
 
 class ArtifactState(StrEnum):
@@ -75,11 +95,17 @@ class ExecutionCommand:
     formal_job_attempt_id: str
     source_asset_id: str
     source_asset_sha256: str
-    source_bytes: bytes
+    source_bytes: bytes = field(repr=False)
     operation: OperationSpec
     engine_version: str
     engine_digest: str
     config_digest: str
+    editing_session_id: str | None = None
+    plan_id: str | None = None
+    input_image_version_id: str | None = None
+    root_source_asset_id: str | None = None
+    geometry_authority: GeometryExecutionAuthority | None = None
+    geometry_job_attempt: GeometryJobAttemptBinding | None = None
     parent_job_id: str | None = None
     parent_job_attempt_id: str | None = None
 
@@ -110,13 +136,15 @@ class EditArtifact:
 
 @dataclass(frozen=True, slots=True)
 class MaterializedObject:
-    content: bytes
+    content: bytes = field(repr=False)
     sha256: str
     width: int
     height: int
     mime_type: str
     engine_digest: str
     config_digest: str
+    geometry_stable_core: GeometryStableMaterializationCore | None = None
+    geometry_attempt_evidence: GeometryAttemptExecutionEvidence | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +170,8 @@ class PrivateObjectStorage(Protocol):
     async def read(self, *, key: str) -> bytes | None: ...
 
     async def promote_from_quarantine(self, *, key: str, artifact_id: str, sha256: str) -> str: ...
+
+    async def discard_published(self, *, key: str, sha256: str) -> None: ...
 
 
 class GeometryDispatcher(Protocol):
@@ -258,28 +288,39 @@ class DemoEditingService:
         verification = await self._verifier(command, materialized)
         if not isinstance(verification, EffectVerificationResult):
             raise DemoEditingServiceError("INVALID_VERIFIER_RESULT", "verifier result is invalid")
+        _validate_verification_authority(verification, command, materialized)
         if verification.status is VerificationStatus.PASS:
             published_storage_key = await self._storage.promote_from_quarantine(
                 key=artifact.private_object_key,
                 artifact_id=artifact.artifact_id,
                 sha256=materialized.sha256,
             )
-            if command.parent_job_id is None:
-                promotion = await self._repository.promote_pass(
-                    artifact,
-                    verification,
-                    materialized,
-                    published_storage_key,
-                )
-            else:
-                promotion = await self._repository.promote_pass(
-                    artifact,
-                    verification,
-                    materialized,
-                    published_storage_key,
-                    parent_job_id=command.parent_job_id,
-                    parent_job_attempt_id=command.parent_job_attempt_id,
-                )
+            try:
+                if command.parent_job_id is None:
+                    promotion = await self._repository.promote_pass(
+                        artifact,
+                        verification,
+                        materialized,
+                        published_storage_key,
+                    )
+                else:
+                    promotion = await self._repository.promote_pass(
+                        artifact,
+                        verification,
+                        materialized,
+                        published_storage_key,
+                        parent_job_id=command.parent_job_id,
+                        parent_job_attempt_id=command.parent_job_attempt_id,
+                    )
+            except DemoEditingServiceError as exc:
+                if (
+                    command.operation.engine is OperationEngine.GEOMETRY
+                    and exc.published_cleanup_safe
+                ):
+                    await self._storage.discard_published(
+                        key=published_storage_key, sha256=materialized.sha256
+                    )
+                raise
             return ExecutionResult(
                 artifact.artifact_id, ArtifactState.PROMOTED, verification.status, promotion, False
             )
@@ -365,6 +406,15 @@ class DemoEditingService:
                 raise DemoEditingServiceError(
                     "QUARANTINE_RECOVERY_FAILED", "materialized object does not match authority"
                 )
+            if command.operation.engine is OperationEngine.GEOMETRY:
+                replay = await self._dispatch(command)
+                _validate_materialized(replay, command)
+                if existing != replay.content or len(existing) != artifact.materialized.byte_size:
+                    raise DemoEditingServiceError(
+                        "MATERIALIZATION_REPLAY_MISMATCH",
+                        "geometry replay differs from stable surface",
+                    )
+                return replay
             recovered_materialization = MaterializedObject(
                 content=existing,
                 sha256=artifact.materialized.sha256,
@@ -521,6 +571,43 @@ def _validate_execution_command(command: ExecutionCommand) -> None:
             raise DemoEditingServiceError(
                 "INVALID_EXECUTION", "only a transition may carry a parent Job"
             )
+    geometry_fields = (
+        command.editing_session_id,
+        command.plan_id,
+        command.input_image_version_id,
+        command.root_source_asset_id,
+        command.geometry_authority,
+        command.geometry_job_attempt,
+    )
+    if command.operation.engine is OperationEngine.GEOMETRY:
+        if any(value is None for value in geometry_fields):
+            raise DemoEditingServiceError(
+                "GEOMETRY_AUTHORITY_MISSING", "geometry requires complete authority"
+            )
+        assert command.geometry_authority is not None
+        assert command.geometry_job_attempt is not None
+        if (
+            command.geometry_authority.operation_id != command.operation_id
+            or command.geometry_authority.operation_authority_digest != command.operation_digest
+            or command.geometry_authority.operation_spec_digest
+            != operation_spec_digest(command.operation)
+            or command.geometry_authority.input_asset_id != command.source_asset_id
+            or command.geometry_authority.input_asset_sha256 != command.source_asset_sha256
+            or command.geometry_authority.editing_session_id != command.editing_session_id
+            or command.geometry_authority.plan_id != command.plan_id
+            or command.geometry_authority.input_image_version_id != command.input_image_version_id
+            or command.geometry_authority.root_source_asset_id != command.root_source_asset_id
+            or command.geometry_job_attempt.execution_job_binding_id
+            != command.execution_job_binding_id
+            or command.geometry_job_attempt.attempt_id != command.formal_job_attempt_id
+        ):
+            raise DemoEditingServiceError(
+                "GEOMETRY_AUTHORITY_MISMATCH", "geometry authority does not match command"
+            )
+    elif any(value is not None for value in geometry_fields):
+        raise DemoEditingServiceError(
+            "GEOMETRY_AUTHORITY_FORBIDDEN", "non-geometry command carries geometry authority"
+        )
 
 
 def _validate_materialized(materialized: MaterializedObject, command: ExecutionCommand) -> None:
@@ -542,6 +629,275 @@ def _validate_materialized(materialized: MaterializedObject, command: ExecutionC
         raise DemoEditingServiceError(
             "ENGINE_CONFIG_MISMATCH", "materialization must bind reserved engine/config"
         )
+    if command.operation.engine is OperationEngine.GEOMETRY:
+        core = materialized.geometry_stable_core
+        evidence = materialized.geometry_attempt_evidence
+        if core is None or evidence is None or command.geometry_authority is None:
+            raise DemoEditingServiceError(
+                "GEOMETRY_EVIDENCE_MISSING", "geometry materialization lacks typed evidence"
+            )
+        if (
+            core.authority_digest != command.geometry_authority.authority_digest
+            or core.operation_id != command.geometry_authority.operation_id
+            or core.operation_authority_digest
+            != command.geometry_authority.operation_authority_digest
+            or core.operation_spec_digest != command.geometry_authority.operation_spec_digest
+            or core.case_id != command.geometry_authority.fixed_case.case_id
+            or core.case_record_digest != command.geometry_authority.fixed_case.case_record_digest
+            or core.case_specification_digest
+            != command.geometry_authority.fixed_case.case_specification_digest
+            or core.case_binding_digest != command.geometry_authority.fixed_case.case_binding_digest
+            or core.backend_candidate_id
+            != command.geometry_authority.fixed_case.backend_candidate_id
+            or core.backend_algorithm_version
+            != command.geometry_authority.fixed_case.backend_algorithm_version
+            or core.backend_runtime_manifest_digest
+            != command.geometry_authority.fixed_case.backend_runtime_manifest_digest
+            or core.backend_configuration_digest
+            != command.geometry_authority.fixed_case.backend_configuration_digest
+            or core.warp_plan_digest != command.geometry_authority.fixed_case.warp_plan_digest
+            or core.input_image_version_id != command.geometry_authority.input_image_version_id
+            or core.input_image_version_digest
+            != command.geometry_authority.input_image_version_digest
+            or core.input_asset_id != command.geometry_authority.input_asset_id
+            or core.input_asset_sha256 != command.geometry_authority.input_asset_sha256
+            or core.root_source_asset_id != command.geometry_authority.root_source_asset_id
+            or core.root_source_asset_sha256 != command.geometry_authority.root_source_asset_sha256
+            or core.result_sha256 != materialized.sha256
+            or core.result_byte_size != len(materialized.content)
+            or core.result_width != materialized.width
+            or core.result_height != materialized.height
+            or core.result_media_type != materialized.mime_type
+            or core.engine_digest != materialized.engine_digest
+            or core.config_digest != materialized.config_digest
+            or evidence.stable_core_digest != core.stable_core_digest
+            or evidence.authority_digest != core.authority_digest
+            or evidence.job_attempt != command.geometry_job_attempt
+            or evidence.operation_id != command.geometry_authority.operation_id
+            or evidence.operation_authority_digest
+            != command.geometry_authority.operation_authority_digest
+            or evidence.operation_spec_digest != command.geometry_authority.operation_spec_digest
+        ):
+            raise DemoEditingServiceError(
+                "GEOMETRY_EVIDENCE_MISMATCH", "geometry evidence does not match materialization"
+            )
+    elif (
+        materialized.geometry_stable_core is not None
+        or materialized.geometry_attempt_evidence is not None
+    ):
+        raise DemoEditingServiceError(
+            "GEOMETRY_EVIDENCE_FORBIDDEN", "non-geometry materialization carries geometry evidence"
+        )
+
+
+def _validate_verification_authority(
+    verification: EffectVerificationResult,
+    command: ExecutionCommand,
+    materialized: MaterializedObject,
+) -> None:
+    metrics = verification.authority_metrics
+    thresholds = verification.authority_thresholds
+    if command.operation.engine is not OperationEngine.GEOMETRY:
+        if metrics is not None or thresholds is not None:
+            raise DemoEditingServiceError(
+                "GEOMETRY_VERIFICATION_FORBIDDEN",
+                "non-geometry verification carries geometry authority",
+            )
+        return
+    core = materialized.geometry_stable_core
+    attempt = materialized.geometry_attempt_evidence
+    if (
+        core is None
+        or attempt is None
+        or not isinstance(metrics, Mapping)
+        or not isinstance(thresholds, Mapping)
+    ):
+        raise DemoEditingServiceError(
+            "GEOMETRY_VERIFICATION_EVIDENCE_MISSING",
+            "geometry requires fresh typed verification evidence",
+        )
+    required_metrics = {
+        "schema_version": _GEOMETRY_METRICS_SCHEMA,
+        "authority_digest": core.authority_digest,
+        "stable_core_digest": core.stable_core_digest,
+        "attempt_receipt_digest": attempt.attempt_receipt_digest,
+        "operation_id": core.operation_id,
+        "operation_authority_digest": core.operation_authority_digest,
+        "operation_spec_digest": core.operation_spec_digest,
+        "case_id": core.case_id,
+        "result_sha256": materialized.sha256,
+    }
+    required_thresholds = {
+        "schema_version": _GEOMETRY_THRESHOLDS_SCHEMA,
+        "policy_digest": verification.policy_digest,
+        "repeat_count": 3,
+        "target_min_abs_ppm": 10,
+        "target_max_abs_ppm": 60_000,
+        "max_control_drift_ppm": 20_000,
+        "d08_verifier_policy_version": "d08-independent-geometry-verifier-v1",
+    }
+    if any(metrics.get(key) != value for key, value in required_metrics.items()) or any(
+        thresholds.get(key) != value for key, value in required_thresholds.items()
+    ):
+        raise DemoEditingServiceError(
+            "GEOMETRY_VERIFICATION_EVIDENCE_MISMATCH",
+            "geometry verification does not match execution authority",
+        )
+    if verification.result_digest != materialized.sha256:
+        raise DemoEditingServiceError(
+            "GEOMETRY_VERIFICATION_RESULT_MISMATCH",
+            "geometry verification result digest does not match bytes",
+        )
+    if verification.status is VerificationStatus.PASS and not _valid_geometry_pass_metrics(
+        metrics, command
+    ):
+        raise DemoEditingServiceError(
+            "GEOMETRY_VERIFICATION_EVIDENCE_INCOMPLETE",
+            "publishable geometry verification lacks complete fresh repeat evidence",
+        )
+
+
+def _valid_geometry_pass_metrics(metrics: Mapping[str, object], command: ExecutionCommand) -> bool:
+    authority = command.geometry_authority
+    if authority is None:
+        return False
+    if (
+        metrics.get("source_sha256") != authority.root_source_asset_sha256
+        or metrics.get("source_asset_id") != authority.root_source_asset_id
+        or metrics.get("source_ordinal") != authority.fixed_case.source_ordinal
+        or metrics.get("case_ordinal") != authority.fixed_case.case_ordinal
+        or metrics.get("dimension_key") != authority.dimension_key
+        or metrics.get("direction") != authority.direction.value
+        or metrics.get("magnitude_ppm") != authority.magnitude_ppm
+        or metrics.get("source_result_digest_distinct") is not True
+        or metrics.get("original_immutability_passed") is not True
+        or metrics.get("decode_passed") is not True
+        or metrics.get("artifact_passed") is not True
+        or metrics.get("repeat_gate_passed") is not True
+        or metrics.get("measurement_dimension_order") != list(_MEASUREMENT_DIMENSIONS)
+    ):
+        return False
+    runtime_identity = metrics.get("runtime_identity")
+    if not isinstance(runtime_identity, Mapping):
+        return False
+    for key in (
+        "recipe_digest",
+        "runtime_manifest_digest",
+        "model_identity_digest",
+        "model_config_digest",
+        "weights_digest_or_no_weights",
+        "topology_digest",
+        "measurement_config_digest",
+    ):
+        if not _is_digest(runtime_identity.get(key)):
+            return False
+    if (
+        runtime_identity.get("runtime_manifest_digest")
+        != authority.fixed_case.backend_runtime_manifest_digest
+        or runtime_identity.get("m4_algorithm_version")
+        != authority.fixed_case.backend_algorithm_version
+        or runtime_identity.get("network_policy") != "PUBLIC_INTERNET_EGRESS_DISABLED"
+    ):
+        return False
+    group = metrics.get("repeat_group_validation")
+    if (
+        not isinstance(group, Mapping)
+        or not group
+        or any(value is not True for value in group.values())
+    ):
+        return False
+    repeats = metrics.get("repeats")
+    if not isinstance(repeats, list) or len(repeats) != 3:
+        return False
+    source_receipts: list[str] = []
+    result_receipts: list[str] = []
+    source_outputs: list[str] = []
+    result_outputs: list[str] = []
+    source_landmarks: list[str] = []
+    result_landmarks: list[str] = []
+    for repeat_index, raw in enumerate(repeats, start=1):
+        if not isinstance(raw, Mapping) or raw.get("repeat_index") != repeat_index:
+            return False
+        digest_values: dict[str, str] = {}
+        for key in (
+            "source_output_digest",
+            "source_receipt_digest",
+            "source_landmark_digest",
+            "source_observation_digest",
+            "result_output_digest",
+            "result_receipt_digest",
+            "result_landmark_digest",
+            "result_observation_digest",
+        ):
+            value = raw.get(key)
+            if not _is_digest(value):
+                return False
+            digest_values[key] = cast(str, value)
+        source_outputs.append(digest_values["source_output_digest"])
+        source_receipts.append(digest_values["source_receipt_digest"])
+        source_landmarks.append(digest_values["source_landmark_digest"])
+        result_outputs.append(digest_values["result_output_digest"])
+        result_receipts.append(digest_values["result_receipt_digest"])
+        result_landmarks.append(digest_values["result_landmark_digest"])
+        source_measurements = raw.get("source_measurements_fixed18")
+        result_measurements = raw.get("result_measurements_fixed18")
+        control_dimensions = raw.get("control_dimensions")
+        control_drifts = raw.get("control_drifts_ppm")
+        expected_controls = [
+            key for key in _MEASUREMENT_DIMENSIONS if key != authority.dimension_key
+        ]
+        if (
+            not isinstance(source_measurements, list)
+            or len(source_measurements) != 6
+            or any(
+                not isinstance(value, str) or _FIXED18.fullmatch(value) is None
+                for value in source_measurements
+            )
+            or not isinstance(result_measurements, list)
+            or len(result_measurements) != 6
+            or any(
+                not isinstance(value, str) or _FIXED18.fullmatch(value) is None
+                for value in result_measurements
+            )
+            or not isinstance(control_dimensions, list)
+            or control_dimensions != expected_controls
+            or not isinstance(control_drifts, list)
+            or len(control_drifts) != 5
+            or any(type(value) is not int or not 0 <= value <= 20_000 for value in control_drifts)
+        ):
+            return False
+        signed_target = raw.get("signed_target_delta_ppm")
+        if (
+            type(signed_target) is not int
+            or not 10 <= abs(signed_target) <= 60_000
+            or (signed_target > 0) != (authority.direction.value == "INCREASE")
+            or raw.get("max_control_drift_ppm") != max(control_drifts)
+            or raw.get("max_control_dimension_key")
+            != control_dimensions[control_drifts.index(max(control_drifts))]
+            or any(
+                raw.get(key) is not True
+                for key in (
+                    "direction_passed",
+                    "target_minimum_passed",
+                    "target_maximum_passed",
+                    "control_drift_passed",
+                    "observation_passed",
+                )
+            )
+        ):
+            return False
+    return (
+        len(set(source_receipts)) == 3
+        and len(set(result_receipts)) == 3
+        and len(set(source_outputs)) == 3
+        and len(set(result_outputs)) == 3
+        and len(set(source_landmarks)) == 1
+        and len(set(result_landmarks)) == 1
+    )
+
+
+def _is_digest(value: object) -> bool:
+    return isinstance(value, str) and _DIGEST.fullmatch(value) is not None
 
 
 def _validate_materialization_evidence(
