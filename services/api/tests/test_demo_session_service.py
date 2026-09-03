@@ -36,7 +36,7 @@ from mirror_api.demo_session_service import (
 )
 from mirror_api.models import new_id
 
-NOW = datetime(2026, 9, 3, 12, tzinfo=UTC)
+NOW = datetime(2099, 1, 1, 12, tzinfo=UTC)
 
 pytestmark = pytest.mark.integration
 
