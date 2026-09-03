@@ -1,7 +1,14 @@
 import { expect, test } from "@playwright/test";
 
 const apiOrigin = "http://localhost:4400";
-const forbidden = ["x".repeat(32), "1".repeat(32), "f".repeat(64)];
+const forbidden = [
+  "x".repeat(32),
+  "1".repeat(32),
+  "b".repeat(32),
+  "c".repeat(32),
+  "d".repeat(64),
+  "f".repeat(64),
+];
 
 test.beforeEach(async ({ request }) => {
   await request.post(`${apiOrigin}/__test/reset`);
@@ -41,7 +48,9 @@ test("completes the same-origin synthetic preference flow without browser author
   );
   await page.getByRole("button", { name: "更偏好左侧" }).click();
   await page.getByRole("button", { name: "跳过此题" }).click();
-  await expect(page.getByText("偏好问卷已完成。")).toBeVisible();
+  await expect(page.getByText("偏好档案已准备完成。")).toBeVisible({
+    timeout: 6_000,
+  });
   expect(authorization).not.toContain(expect.stringMatching(/.+/));
   const content = await page.content();
   for (const value of forbidden) expect(content).not.toContain(value);

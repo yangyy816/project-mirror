@@ -33,6 +33,7 @@ type BoundSession = Readonly<{
   bindingFingerprint: string;
   analysis?: BoundAnalysis;
   questionnaire?: BoundQuestionnaire;
+  profile?: BoundProfile;
 }>;
 
 type BoundAnalysis = Readonly<{
@@ -72,6 +73,20 @@ type BoundQuestionnaire = Readonly<{
     idempotencyKey: string;
     promise?: Promise<DemoQuestionnaireBridgeResult>;
   }>;
+}>;
+
+type ProfileTerminalStatus = "REJECTED" | "FAILED" | "CANCELLED";
+type BoundProfile = Readonly<{
+  createIdempotencyKey: string;
+  jobId?: string;
+  jobBindingDigest?: string;
+  targetActorId?: string;
+  targetAuthorityDigest?: string;
+  profileId?: string;
+  compilationDigest?: string;
+  terminalStatus?: ProfileTerminalStatus;
+  createPromise?: Promise<DemoProfileBridgeResult>;
+  readPromise?: Promise<DemoProfileBridgeResult>;
 }>;
 
 type BridgeConfiguration = Readonly<{
@@ -130,6 +145,11 @@ export type DemoQuestionnaireBridgeResult =
     }>
   | Readonly<{ kind: "COMPLETED" }>
   | Readonly<{ kind: "CANCELLED" | "REJECTED" | "FAILED" }>
+  | Readonly<{ kind: BridgeErrorCode }>;
+
+export type DemoProfileBridgeResult =
+  | Readonly<{ kind: "PENDING" | "PROFILE_READY" }>
+  | Readonly<{ kind: ProfileTerminalStatus }>
   | Readonly<{ kind: BridgeErrorCode }>;
 
 function configuredTtlSeconds(): number | null {
@@ -917,6 +937,282 @@ export function questionnaireProjection(result: DemoQuestionnaireBridgeResult) {
   if (result.kind === "COMPLETED") return { status: "COMPLETED" as const };
   if (result.kind === "PENDING") return { status: "PENDING" as const };
   if (
+    result.kind === "CANCELLED" ||
+    result.kind === "REJECTED" ||
+    result.kind === "FAILED"
+  )
+    return { status: result.kind };
+  return { code: result.kind };
+}
+
+function currentProfileEntry(
+  handle: string,
+  expectedSession: BoundSession,
+  expectedProfile: BoundProfile,
+): boolean {
+  const current = currentBoundSession(handle);
+  return (
+    current !== null &&
+    current.session === expectedSession &&
+    current.session.profile === expectedProfile
+  );
+}
+
+function createdProfileIsValid(body: unknown): body is Readonly<{
+  job_id: string;
+  status: "PENDING";
+  capability: "P5_COMPILER";
+  job_binding_digest: string;
+  target: Readonly<{
+    target_type: "DEMO_ACTOR";
+    target_id: string;
+    authority_digest: string;
+  }>;
+}> {
+  if (!body || typeof body !== "object") return false;
+  const value = body as Record<string, unknown>;
+  const target = value.target;
+  if (!target || typeof target !== "object") return false;
+  const targetValue = target as Record<string, unknown>;
+  return (
+    validUpstreamId(value.job_id) &&
+    value.status === "PENDING" &&
+    value.capability === "P5_COMPILER" &&
+    validUpstreamDigest(value.job_binding_digest) &&
+    targetValue.target_type === "DEMO_ACTOR" &&
+    validUpstreamId(targetValue.target_id) &&
+    validUpstreamDigest(targetValue.authority_digest)
+  );
+}
+
+function profileJobIsValid(body: unknown, profile: BoundProfile): boolean {
+  if (!body || typeof body !== "object") return false;
+  const value = body as Record<string, unknown>;
+  const target = value.target;
+  if (!target || typeof target !== "object") return false;
+  const targetValue = target as Record<string, unknown>;
+  return (
+    value.job_id === profile.jobId &&
+    (value.status === "PENDING" ||
+      value.status === "RUNNING" ||
+      value.status === "COMPLETED" ||
+      value.status === "REJECTED" ||
+      value.status === "FAILED" ||
+      value.status === "CANCELLED") &&
+    value.capability === "P5_COMPILER" &&
+    value.job_binding_digest === profile.jobBindingDigest &&
+    targetValue.target_type === "DEMO_ACTOR" &&
+    targetValue.target_id === profile.targetActorId &&
+    targetValue.authority_digest === profile.targetAuthorityDigest
+  );
+}
+
+function profileResultIsValid(
+  body: unknown,
+  session: BoundSession,
+  profile: BoundProfile,
+): body is Readonly<{
+  status: "PROFILE_READY";
+  job_id: string;
+  session_id: string;
+  profile_id: string;
+  job_binding_digest: string;
+  compilation_digest: string;
+}> {
+  if (!body || typeof body !== "object") return false;
+  const value = body as Record<string, unknown>;
+  return (
+    value.status === "PROFILE_READY" &&
+    value.job_id === profile.jobId &&
+    value.session_id === session.sessionId &&
+    validUpstreamId(value.profile_id) &&
+    value.job_binding_digest === profile.jobBindingDigest &&
+    validUpstreamDigest(value.compilation_digest)
+  );
+}
+
+function profileResult(profile: BoundProfile): DemoProfileBridgeResult {
+  if (profile.profileId && profile.compilationDigest)
+    return { kind: "PROFILE_READY" };
+  if (profile.terminalStatus) return { kind: profile.terminalStatus };
+  return { kind: "PENDING" };
+}
+
+export async function createBoundDemoProfile(
+  handle: string | undefined,
+): Promise<DemoProfileBridgeResult> {
+  const bound = currentBoundSession(handle);
+  if (!bound || !handle) return { kind: "DENIED" };
+  const { session, configuration } = bound;
+  if (!session.questionnaire?.completed) return { kind: "CONFLICT" };
+  if (session.profile?.profileId || session.profile?.terminalStatus)
+    return profileResult(session.profile);
+  if (session.profile?.createPromise) return session.profile.createPromise;
+  if (session.profile?.jobId) return { kind: "PENDING" };
+
+  const profile: BoundProfile = {
+    createIdempotencyKey:
+      session.profile?.createIdempotencyKey ?? randomBytes(32).toString("hex"),
+  };
+  const inFlightProfile = {
+    ...profile,
+    createPromise: null as unknown as Promise<DemoProfileBridgeResult>,
+  };
+  const inFlightSession: BoundSession = {
+    ...session,
+    profile: inFlightProfile,
+  };
+  const promise = (async (): Promise<DemoProfileBridgeResult> => {
+    const client = createMirrorApiClient(serverEnv.API_BASE_URL);
+    const response = await client
+      .POST("/api/v1/demo/profiles/compile", {
+        cache: "no-store",
+        params: {
+          header: { "Idempotency-Key": profile.createIdempotencyKey },
+        },
+        body: {
+          session_id: session.sessionId,
+          compiler_version: "demo-profile-compiler-v1",
+        },
+        headers: { Authorization: `Bearer ${configuration.bearer}` },
+      })
+      .catch(() => null);
+    if (!currentProfileEntry(handle, inFlightSession, inFlightProfile))
+      return { kind: "DENIED" };
+    if (!response) {
+      sessions.set(handle, { ...session, profile });
+      return { kind: "UNAVAILABLE" };
+    }
+    if (response.response.status !== 202 || response.error) {
+      sessions.set(handle, { ...session, profile });
+      return { kind: errorForStatus(response.response.status) };
+    }
+    if (!createdProfileIsValid(response.data)) {
+      sessions.set(handle, { ...session, profile });
+      return { kind: "STALE_RESPONSE" };
+    }
+    sessions.set(handle, {
+      ...session,
+      profile: {
+        createIdempotencyKey: profile.createIdempotencyKey,
+        jobId: response.data.job_id,
+        jobBindingDigest: response.data.job_binding_digest,
+        targetActorId: response.data.target.target_id,
+        targetAuthorityDigest: response.data.target.authority_digest,
+      },
+    });
+    return { kind: "PENDING" };
+  })();
+  inFlightProfile.createPromise = promise;
+  if (sessions.get(handle) !== session) return { kind: "DENIED" };
+  sessions.set(handle, inFlightSession);
+  return promise;
+}
+
+export async function readBoundDemoProfile(
+  handle: string | undefined,
+): Promise<DemoProfileBridgeResult> {
+  const bound = currentBoundSession(handle);
+  if (!bound || !handle) return { kind: "DENIED" };
+  const { session, configuration } = bound;
+  const profile = session.profile;
+  if (!profile) return { kind: "NOT_FOUND" };
+  if (profile.profileId || profile.terminalStatus)
+    return profileResult(profile);
+  if (profile.createPromise) return profile.createPromise;
+  if (
+    !profile.jobId ||
+    !profile.jobBindingDigest ||
+    !profile.targetActorId ||
+    !profile.targetAuthorityDigest
+  )
+    return { kind: "NOT_FOUND" };
+  if (profile.readPromise) return profile.readPromise;
+
+  const inFlightProfile = {
+    ...profile,
+    readPromise: null as unknown as Promise<DemoProfileBridgeResult>,
+  };
+  const inFlightSession: BoundSession = {
+    ...session,
+    profile: inFlightProfile,
+  };
+  const promise = (async (): Promise<DemoProfileBridgeResult> => {
+    const client = createMirrorApiClient(serverEnv.API_BASE_URL);
+    const job = await client
+      .GET("/api/v1/demo/jobs/{job_id}", {
+        cache: "no-store",
+        params: { path: { job_id: profile.jobId! } },
+        headers: { Authorization: `Bearer ${configuration.bearer}` },
+      })
+      .catch(() => null);
+    if (!currentProfileEntry(handle, inFlightSession, inFlightProfile))
+      return { kind: "DENIED" };
+    if (!job) {
+      sessions.set(handle, { ...session, profile });
+      return { kind: "UNAVAILABLE" };
+    }
+    if (job.error) {
+      sessions.set(handle, { ...session, profile });
+      return { kind: errorForStatus(job.response.status) };
+    }
+    if (!job.data || !profileJobIsValid(job.data, profile)) {
+      sessions.set(handle, { ...session, profile });
+      return { kind: "STALE_RESPONSE" };
+    }
+    if (job.data.status === "PENDING" || job.data.status === "RUNNING") {
+      sessions.set(handle, { ...session, profile });
+      return { kind: "PENDING" };
+    }
+    if (job.data.status !== "COMPLETED") {
+      sessions.set(handle, {
+        ...session,
+        profile: { ...profile, terminalStatus: job.data.status },
+      });
+      return { kind: job.data.status };
+    }
+
+    const result = await client
+      .GET("/api/v1/demo/profiles/compilation-jobs/{job_id}/result", {
+        cache: "no-store",
+        params: { path: { job_id: profile.jobId! } },
+        headers: { Authorization: `Bearer ${configuration.bearer}` },
+      })
+      .catch(() => null);
+    if (!currentProfileEntry(handle, inFlightSession, inFlightProfile))
+      return { kind: "DENIED" };
+    if (!result) {
+      sessions.set(handle, { ...session, profile });
+      return { kind: "UNAVAILABLE" };
+    }
+    if (result.error) {
+      sessions.set(handle, { ...session, profile });
+      return { kind: errorForStatus(result.response.status) };
+    }
+    if (!result.data || !profileResultIsValid(result.data, session, profile)) {
+      sessions.set(handle, { ...session, profile });
+      return { kind: "STALE_RESPONSE" };
+    }
+    sessions.set(handle, {
+      ...session,
+      profile: {
+        ...profile,
+        profileId: result.data.profile_id,
+        compilationDigest: result.data.compilation_digest,
+      },
+    });
+    return { kind: "PROFILE_READY" };
+  })();
+  inFlightProfile.readPromise = promise;
+  if (sessions.get(handle) !== session) return { kind: "DENIED" };
+  sessions.set(handle, inFlightSession);
+  return promise;
+}
+
+export function profileProjection(result: DemoProfileBridgeResult) {
+  if (
+    result.kind === "PENDING" ||
+    result.kind === "PROFILE_READY" ||
     result.kind === "CANCELLED" ||
     result.kind === "REJECTED" ||
     result.kind === "FAILED"
