@@ -204,7 +204,7 @@ def test_d03_and_generic_job_routes_use_owner_bound_application_services() -> No
         face = next(
             item for item in capability.json()["capabilities"] if item["code"] == "P3_FACE_ANALYSIS"
         )
-        assert face["status"] == "NOT_IMPLEMENTED"
+        assert face["status"] == "AVAILABLE"
 
     app.dependency_overrides.clear()
 
