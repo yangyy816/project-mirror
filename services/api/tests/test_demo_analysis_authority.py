@@ -232,6 +232,7 @@ def _complete_graph(
     repeats = [
         _build_demo_row(
             DemoFaceObservationRepeat,
+            authority_schema_version="mirror.demo/DemoFaceObservationRepeat/v2",
             demo_actor_id=run.demo_actor_id,
             demo_session_id=run.demo_session_id,
             observation_id=observation.id,
@@ -239,7 +240,10 @@ def _complete_graph(
             runtime_manifest_digest=run.runtime_manifest_digest,
             model_manifest_digest=run.model_manifest_digest,
             landmarks=[{"x_ppm": 0, "y_ppm": 0, "z_ppm": 0} for _ in range(478)],
-            pose={"yaw_ppm": 0, "pitch_ppm": 0, "roll_ppm": 0},
+            pose={
+                "state": "UNAVAILABLE",
+                "reason": "M3_RUNTIME_DOES_NOT_EMIT_POSE",
+            },
             quality={"face_count": 1, "reliability_ppm": 900_000},
             measurements={"jaw_width_ppm": 100_000 + repeat_index},
         )
