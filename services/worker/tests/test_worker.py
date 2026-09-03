@@ -177,7 +177,7 @@ def test_celery_registration_and_retry_policy() -> None:
     assert routes["mirror.synthetic_generation.process"]["queue"] == "mirror.synthetic"
     assert routes["mirror.synthetic_transform.process"]["queue"] == "mirror.synthetic"
     assert routes["mirror.synthetic_m4.reconcile"]["queue"] == "mirror.maintenance"
-    assert routes["mirror.demo_analysis.process"]["queue"] == "mirror.demo"
+    assert routes["mirror.demo_analysis.process"]["queue"] == "mirror.demo.analysis.m3"
     assert routes["mirror.demo_analysis.reconcile"]["queue"] == "mirror.maintenance"
     assert celery_app.conf.worker_prefetch_multiplier == 1
 
