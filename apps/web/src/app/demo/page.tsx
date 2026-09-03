@@ -1,6 +1,5 @@
 import { DemoShell } from "@/components/demo/DemoShell";
-import { DemoTraceWorkspace } from "@/components/demo/DemoTraceWorkspace";
-import { DemoVersionHistoryWorkspace } from "@/components/demo/DemoVersionHistoryWorkspace";
+import { DemoRealFlowWorkspace } from "@/components/demo/DemoRealFlowWorkspace";
 import { getDemoCapabilities } from "@/lib/demo-capabilities";
 
 export default async function DemoPage() {
@@ -9,8 +8,7 @@ export default async function DemoPage() {
     <>
       <DemoShell result={result} />
       <div className="mx-auto max-w-6xl px-6 pb-8 md:px-10">
-        <DemoTraceWorkspace />
-        <DemoVersionHistoryWorkspace />
+        <DemoRealFlowWorkspace />
       </div>
     </>
   );

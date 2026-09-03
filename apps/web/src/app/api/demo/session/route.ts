@@ -27,11 +27,17 @@ function handleFromRequest(request: Request): string | undefined {
 async function isValidSessionRequest(request: Request): Promise<boolean> {
   const url = new URL(request.url);
   if (url.search !== "") return false;
+  if (request.headers.get("transfer-encoding") !== null) return false;
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null && contentLength !== "0") return false;
   if (request.body === null) return true;
-  return (
-    request.headers.get("content-length") === "0" &&
-    request.headers.get("transfer-encoding") === null
-  );
+  const reader = request.body.getReader();
+  const first = await reader.read();
+  if (!first.done) {
+    await reader.cancel().catch(() => undefined);
+    return false;
+  }
+  return true;
 }
 
 export async function POST(request: Request) {

@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-test("synthetic ImageVersion history shell remains local, responsive and keyboard-operable", async ({
+const apiOrigin = "http://localhost:4400";
+
+test.beforeEach(async ({ request }) => {
+  await request.post(`${apiOrigin}/__test/reset`);
+});
+
+test("real questionnaire remains keyboard-operable without the obsolete ImageVersion fixture", async ({
   page,
 }) => {
   const browserAuthorization: string[] = [];
@@ -12,28 +18,15 @@ test("synthetic ImageVersion history shell remains local, responsive and keyboar
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/demo");
-  await expect(page.getByText("D11 IMAGEVERSION HISTORY")).toBeVisible();
-  const slider = page.getByRole("slider", { name: /对比滑杆/ });
-  await slider.focus();
-  await page.keyboard.press("ArrowRight");
-  await expect(slider).toHaveAttribute("aria-valuetext", "当前对比位置 51%");
-
-  await page.getByRole("button", { name: "恢复到所选版本" }).click();
-  await expect(page.getByText(/恢复请求待确认/)).toBeVisible();
-  await page.getByRole("button", { name: "取消", exact: true }).click();
-  await expect(page.getByText(/操作已取消/)).toBeVisible();
-
-  await page.getByRole("button", { name: "恢复到所选版本" }).click();
-  await page.getByRole("button", { name: "确认完成" }).click();
-  await expect(page.getByText(/恢复已显示为完成/)).toBeVisible();
-
-  await page.getByRole("button", { name: "不支持的执行请求" }).click();
-  await expect(page.getByText(/没有获批执行能力/)).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "恢复到所选版本" }),
-  ).toBeDisabled();
-  expect(browserAuthorization).toEqual([]);
-  await expect(page.locator("body")).not.toContainText(
-    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  );
+  await expect(page.getByText("Before / After 与版本历史")).toHaveCount(0);
+  await page.getByRole("button", { name: "开始 Demo" }).press("Enter");
+  await expect(page.getByRole("button", { name: "开始偏好问卷" })).toBeVisible({
+    timeout: 6_000,
+  });
+  await page.getByRole("button", { name: "开始偏好问卷" }).press("Enter");
+  const choice = page.getByRole("button", { name: "更偏好左侧" });
+  await choice.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("img", { name: "左侧方案" })).toBeVisible();
+  expect(browserAuthorization).not.toContain(expect.stringMatching(/.+/));
 });

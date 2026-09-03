@@ -37,6 +37,11 @@ function reset() {
     demoRequestCount: 0,
     demoSessionCreateCount: 0,
     demoDigestMismatch: false,
+    demoAnalysisPolls: 0,
+    demoQuestionnairePolls: 0,
+    demoQuestionStep: 0,
+    failNextDemoAnalysis: false,
+    delayNextDemoSession: false,
   };
 }
 
@@ -161,6 +166,10 @@ const server = createServer(async (request, response) => {
       return;
     }
     state.demoSessionCreateCount += 1;
+    if (state.delayNextDemoSession) {
+      state.delayNextDemoSession = false;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
     send(response, 201, {
       session_id: demoSessionId,
       synthetic_identity_id: demoIdentityId,
@@ -238,6 +247,8 @@ const server = createServer(async (request, response) => {
     const body = await jsonBody(request);
     if (body.target === "assets") state.failNextAssetList = true;
     if (body.target === "demo-digest-mismatch") state.demoDigestMismatch = true;
+    if (body.target === "demo-analysis") state.failNextDemoAnalysis = true;
+    if (body.target === "demo-session-delay") state.delayNextDemoSession = true;
     send(response, 204, null);
     return;
   }
@@ -332,6 +343,170 @@ const server = createServer(async (request, response) => {
       height: 24,
       created_at: "2099-01-01T00:00:00Z",
     });
+    return;
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === `/api/v1/demo/sessions/${demoSessionId}/analysis`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    send(response, 202, {
+      job_id: "2".repeat(32),
+      status: "PENDING",
+      capability: "P3_FACE_ANALYSIS",
+      job_binding_digest: "3".repeat(64),
+      target: {
+        target_type: "ANALYSIS_RUN",
+        target_id: "4".repeat(32),
+        authority_digest: "5".repeat(64),
+      },
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/demo/jobs/${"2".repeat(32)}`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    if (state.failNextDemoAnalysis) {
+      state.failNextDemoAnalysis = false;
+      return error(response, 503, "temporarily_unavailable");
+    }
+    state.demoAnalysisPolls += 1;
+    send(response, 200, {
+      job_id: "2".repeat(32),
+      status: state.demoAnalysisPolls > 1 ? "COMPLETED" : "RUNNING",
+      capability: "P3_FACE_ANALYSIS",
+      job_binding_digest: "3".repeat(64),
+      target: {
+        target_type: "ANALYSIS_RUN",
+        target_id: "4".repeat(32),
+        authority_digest: "5".repeat(64),
+      },
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/demo/analyses/${"4".repeat(32)}`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    send(response, 200, {
+      analysis_id: "4".repeat(32),
+      session_id: demoSessionId,
+      state: "SUPPORTED",
+      observation_digest: "6".repeat(64),
+      self_state_id: "7".repeat(32),
+    });
+    return;
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === `/api/v1/demo/analyses/${"4".repeat(32)}/questionnaire`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    send(response, 202, {
+      job_id: "8".repeat(32),
+      status: "PENDING",
+      capability: "P4_QUESTIONNAIRE",
+      job_binding_digest: "9".repeat(64),
+      target: {
+        target_type: "QUESTIONNAIRE_RUN",
+        target_id: "a".repeat(32),
+        authority_digest: "b".repeat(64),
+      },
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/demo/jobs/${"8".repeat(32)}`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    state.demoQuestionnairePolls += 1;
+    send(response, 200, {
+      job_id: "8".repeat(32),
+      status:
+        state.demoQuestionStep >= 2
+          ? "COMPLETED"
+          : state.demoQuestionnairePolls > 1
+            ? "RUNNING"
+            : "PENDING",
+      capability: "P4_QUESTIONNAIRE",
+      job_binding_digest: "9".repeat(64),
+      target: {
+        target_type: "QUESTIONNAIRE_RUN",
+        target_id: "a".repeat(32),
+        authority_digest: "b".repeat(64),
+      },
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/demo/questionnaires/runs/${"a".repeat(32)}/next`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    if (state.demoQuestionStep >= 2) {
+      send(response, 200, { kind: "COMPLETED", run_id: "a".repeat(32) });
+      return;
+    }
+    const sequence = state.demoQuestionStep * 2 + 1;
+    send(response, 200, {
+      kind: "QUESTION",
+      run_id: "a".repeat(32),
+      step_id: String(sequence).repeat(32),
+      question_pair_id: String(sequence + 2).repeat(32),
+      step_sequence: sequence,
+      run_version: sequence,
+    });
+    return;
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname ===
+      `/api/v1/demo/questionnaires/runs/${"a".repeat(32)}/responses`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    state.demoQuestionStep += 1;
+    send(response, 201, {
+      run_id: "a".repeat(32),
+      step_id: String(state.demoQuestionStep + 4).repeat(32),
+      event_type: "RESPONDED",
+      step_sequence: state.demoQuestionStep * 2,
+      run_version: state.demoQuestionStep * 2,
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    /\/api\/v1\/demo\/questionnaires\/runs\/[a-f0-9]{32}\/presentation-media\/(LEFT|RIGHT)$/.test(
+      url.pathname,
+    )
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    response.writeHead(200, {
+      ...corsHeaders(),
+      "Content-Type": "image/jpeg",
+      "Content-Length": "4",
+    });
+    response.end(Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
     return;
   }
 

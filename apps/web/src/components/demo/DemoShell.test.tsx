@@ -10,7 +10,7 @@ import { DemoShell } from "./DemoShell";
 afterEach(cleanup);
 
 describe("DemoShell", () => {
-  it("renders validated capability data and contract-only boundaries", () => {
+  it("renders validated capability data without obsolete fixture boundaries", () => {
     render(
       <DemoShell
         result={{
@@ -32,11 +32,8 @@ describe("DemoShell", () => {
 
     expect(screen.getByText("P5_COMPILER")).toBeInTheDocument();
     expect(screen.getByText("AVAILABLE")).toBeInTheDocument();
-    expect(
-      screen.getByText("REAL_D02_INTEGRATION_PENDING"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("UI_CONTRACT_ONLY")).toBeInTheDocument();
-    expect(screen.getByText(/问卷路由.*UI_CONTRACT_ONLY/)).toBeInTheDocument();
+    expect(screen.queryByText("REAL_D02_INTEGRATION_PENDING")).toBeNull();
+    expect(screen.queryByText("UI_CONTRACT_ONLY")).toBeNull();
   });
 
   it("makes the bearer boundary explicit without exposing a credential", () => {

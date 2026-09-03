@@ -6,14 +6,6 @@ type DemoShellProps = Readonly<{
   result: DemoCapabilityReadResult;
 }>;
 
-const shadowTrace = [
-  "问卷路由",
-  "风格编译",
-  "偏好锁定",
-  "编辑规划",
-  "可追溯记录",
-] as const;
-
 function capabilityTone(status: string): "success" | "warning" {
   return status === "AVAILABLE" ? "success" : "warning";
 }
@@ -40,14 +32,6 @@ export function DemoShell({ result }: DemoShellProps) {
         </div>
         <Badge tone="warning">DEMO_PROTOTYPE · 非生产环境</Badge>
       </header>
-
-      <section className="mt-8 rounded-[2rem] border border-amber-300 bg-amber-50 p-6 text-sm leading-6 text-amber-950">
-        <p className="font-semibold">此页面仅展示只读能力状态。</p>
-        <p className="mt-2">
-          不创建会话、不上传图片、不提交问卷，也不会启动任何编辑、Provider
-          或后台任务。
-        </p>
-      </section>
 
       <section className="mt-8 rounded-[2rem] border border-black/10 bg-white/70 p-7 shadow-[0_24px_80px_rgba(109,63,85,0.13)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -95,38 +79,6 @@ export function DemoShell({ result }: DemoShellProps) {
             或推测结果替代真实 API 响应。
           </p>
         )}
-      </section>
-
-      <section className="mt-8 grid gap-6 lg:grid-cols-2">
-        <article className="rounded-[2rem] border border-black/10 bg-white/70 p-7">
-          <p className="text-sm font-medium tracking-[0.2em] text-rose">
-            D02 RUNTIME GATE
-          </p>
-          <h2 className="mt-2 text-xl font-semibold">
-            REAL_D02_INTEGRATION_PENDING
-          </h2>
-          <p className="mt-3 text-sm leading-6 text-black/65">
-            D02 私有运行时不通过此公开只读接口暴露。此 Demo 不代表真实 D02
-            执行、题库准入或生产授权。
-          </p>
-        </article>
-
-        <article className="rounded-[2rem] border border-dashed border-plum/35 bg-plum/5 p-7">
-          <p className="text-sm font-medium tracking-[0.2em] text-plum">
-            UI_CONTRACT_ONLY
-          </p>
-          <h2 className="mt-2 text-xl font-semibold">Synthetic shadow trace</h2>
-          <p className="mt-3 text-sm leading-6 text-black/65">
-            以下仅为未来界面契约占位；没有 API 写入、Job、结果或执行含义。
-          </p>
-          <ol className="mt-4 space-y-2 text-sm text-black/75">
-            {shadowTrace.map((step, index) => (
-              <li key={step}>
-                {index + 1}. {step} · UI_CONTRACT_ONLY
-              </li>
-            ))}
-          </ol>
-        </article>
       </section>
     </main>
   );

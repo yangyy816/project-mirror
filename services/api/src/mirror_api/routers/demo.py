@@ -700,8 +700,8 @@ def _questionnaire_next_response(
 async def get_capabilities() -> DemoCapabilitiesResponse:
     return DemoCapabilitiesResponse(
         capabilities=[
-            DemoCapability(code="P3_FACE_ANALYSIS", status="NOT_IMPLEMENTED"),
-            DemoCapability(code="P4_QUESTIONNAIRE", status="NOT_IMPLEMENTED"),
+            DemoCapability(code="P3_FACE_ANALYSIS", status="AVAILABLE"),
+            DemoCapability(code="P4_QUESTIONNAIRE", status="AVAILABLE"),
             DemoCapability(code="P5_COMPILER", status="AVAILABLE"),
             DemoCapability(code="P5_REFERENCE_PROFILE", status="AVAILABLE"),
             DemoCapability(code="P6_DETERMINISTIC_RASTER", status="NOT_IMPLEMENTED"),
