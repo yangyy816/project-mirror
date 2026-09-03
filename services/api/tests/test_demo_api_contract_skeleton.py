@@ -230,7 +230,13 @@ def test_capabilities_report_available_and_deferred_boundaries() -> None:
         item["code"]
         for item in capabilities.json()["capabilities"]
         if item["status"] == "AVAILABLE"
-    } >= {"P5_COMPILER", "P5_REFERENCE_PROFILE", "P7_PREFERENCE_MEMORY"}
+    } >= {
+        "P3_FACE_ANALYSIS",
+        "P4_QUESTIONNAIRE",
+        "P5_COMPILER",
+        "P5_REFERENCE_PROFILE",
+        "P7_PREFERENCE_MEMORY",
+    }
     with pytest.raises(ValidationError):
         DemoSessionCreateRequest.model_validate(
             {
