@@ -2,7 +2,7 @@
   "schema_version": "mirror.demo/P3P7DemoExecutionState/v1",
   "goal_epoch": "P3_P7_COMPLETE_DEMO_EPOCH_02",
   "integration_branch": "codex/p3-p7-product-forward",
-  "integration_head": "3590858a4d7c326bbf920acb240db9e46993acaa",
+  "integration_head": "f49104254e93ce1f83f4590f0e6cd4ff738d5599",
   "migration_head": "demo_0018_d03_pose_evidence",
   "delivery_policy": "PRODUCT_AND_ALGORITHM_FIRST_RISK_TIERED",
   "evidence_custody_host_binding": "FROZEN_DEFERRED",
@@ -47,9 +47,11 @@
     "D04_B_REAL_QUESTION_BANK_INTEGRATION",
     "D07_B_REAL_D02_ASSET_AND_M4_INTEGRATION",
     "D08_REAL_GEOMETRY_SELECTED_SIDE_INTEGRATION",
-    "D03_FRESH_M3_RUNTIME_INTEGRATION"
+    "D03_FRESH_M3_RUNTIME_INTEGRATION",
+    "D11_REAL_SESSION_BOOTSTRAP",
+    "D11_SESSION_ANALYSIS_FLOW"
   ],
-  "active_checkpoint": "D03_TASK_ACCEPTED_D11_REAL_FLOW_EXECUTING",
+  "active_checkpoint": "D11_R01_R02_TASK_ACCEPTED_R03_QUESTIONNAIRE_FLOW_EXECUTING",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -82,7 +84,10 @@
     "D04_B": "31169728d487b8176335d1cbdae3c3c50ec20c49",
     "D07_B": "4bd7bf57dc52e7ccf4f2c5edd673365122c51230",
     "D08": "ade7d6593bdaf4d97b27a78d716127c40bee7746",
-    "D03": "3590858a4d7c326bbf920acb240db9e46993acaa"
+    "D03": "3590858a4d7c326bbf920acb240db9e46993acaa",
+    "D11_R01_REAL_SESSION_BOOTSTRAP": "f670b6c6dc1aa5b7f20aeec66649af476626d552",
+    "D11_R02_SESSION_ANALYSIS_FLOW": "7bd160725fa22e5de7a97b5f6c5b8ae673c76fb1",
+    "D11_R01_R02_INTEGRATION": "f49104254e93ce1f83f4590f0e6cd4ff738d5599"
   },
   "implementation_checkpoint_shas": {
     "D03_D04_B_D07_B_DOMAIN_SLICES": "93919f47ea391694d4ed952cec8a3e7d5683dc4a",
@@ -109,7 +114,10 @@
     "D04_B_D07_B_INTEGRATED_CI_HEAD": "a669275890565e98075ed09d0adee63669b89ff3",
     "D08_REAL_GEOMETRY_SELECTED_SIDE_INTEGRATION": "ade7d6593bdaf4d97b27a78d716127c40bee7746",
     "D03_FRESH_M3_RUNTIME_CODE": "b9b8585f5953d1b5aea4aee4863660a7da76763c",
-    "D03_FRESH_M3_RUNTIME_INTEGRATION": "3590858a4d7c326bbf920acb240db9e46993acaa"
+    "D03_FRESH_M3_RUNTIME_INTEGRATION": "3590858a4d7c326bbf920acb240db9e46993acaa",
+    "D11_R01_REAL_SESSION_BOOTSTRAP_CODE": "f670b6c6dc1aa5b7f20aeec66649af476626d552",
+    "D11_R02_SESSION_ANALYSIS_FLOW_CODE": "7bd160725fa22e5de7a97b5f6c5b8ae673c76fb1",
+    "D11_R01_R02_INTEGRATION": "f49104254e93ce1f83f4590f0e6cd4ff738d5599"
   },
   "accepted_ci_runs": {
     "D09": 32701906246,
@@ -136,7 +144,8 @@
     "D02_R2_FINAL_INTEGRATION": 33653031297,
     "D04_B_D07_B_REAL_INTEGRATION": 33680811520,
     "D08_REAL_GEOMETRY_INTEGRATION": 33707788291,
-    "D03_FRESH_M3_RUNTIME_INTEGRATION": 33723826015
+    "D03_FRESH_M3_RUNTIME_INTEGRATION": 33723826015,
+    "D11_R01_R02_REAL_FLOW_INTEGRATION": 33733053219
   },
   "generation_capability_candidate": {
     "authority_id": "P3_P7_D02_R2_GENERATION_CAPABILITY_AUTHORITY_01",
@@ -313,7 +322,11 @@
     "D03_task_acceptance_claimed": true,
     "D04_B_task_acceptance_claimed": true,
     "D07_B_task_acceptance_claimed": true,
-    "D08_task_acceptance_claimed": true
+    "D08_task_acceptance_claimed": true,
+    "D11_R01": "TASK_ACCEPTED_ADMITTED_IDENTITY_TO_OWNER_BOUND_SESSION",
+    "D11_R02": "TASK_ACCEPTED_SESSION_TO_D03_ANALYSIS_AND_SELF_STATE",
+    "D11_R01_R02_integration_sha": "f49104254e93ce1f83f4590f0e6cd4ff738d5599",
+    "D11_R01_R02_ci": "PASS_33733053219"
   },
   "nonaccepted_ci_runs": {
     "D10_CONTEXT_TRACE_EXPLICIT_RECALL_API_01": {
@@ -553,6 +566,10 @@
       "version_history_integration_sha": "17abe5beebde5083d12c394d70e0516595f8a887",
       "version_history_ci": "PASS_33419815815_AND_33436654662",
       "version_history_contract_slice": "TASK_ACCEPTED_UI_CONTRACT_ONLY",
+      "real_session_bootstrap": "TASK_ACCEPTED_OWNER_BOUND_SERVER_SIDE_BRIDGE",
+      "real_analysis_flow": "TASK_ACCEPTED_D03_SELF_STATE_SERVER_SIDE_BRIDGE",
+      "real_session_analysis_integration_sha": "f49104254e93ce1f83f4590f0e6cd4ff738d5599",
+      "real_session_analysis_ci": "PASS_33733053219",
       "server_side_credential_bridge": "PASS_BEARER_SERVER_ONLY_BROWSER_OPAQUE_HANDLE",
       "explicit_recall_at": "PASS_IDENTICAL_CONTEXT_AND_TRACE_ANCHOR",
       "browser_storage": "PASS_NO_BEARER_LOCAL_SESSION_INDEXEDDB_OR_DOM",
@@ -617,7 +634,7 @@
     "d02_branch": "codex/p3-p7-d02-final-gate",
     "d02_tracked_checkpoint_sha": "0cd6da58ce111806ed7f56044b270f9b68890f3f",
     "product_branch": "codex/p3-p7-product-forward",
-    "product_code_head": "3590858a4d7c326bbf920acb240db9e46993acaa",
+    "product_code_head": "f49104254e93ce1f83f4590f0e6cd4ff738d5599",
     "private_execution_owner": "D02_SUBSYSTEM_PRINCIPAL",
     "main_process_d02_access": "FORBIDDEN_PERMANENT_AUTONOMY_BOUNDARY"
   },

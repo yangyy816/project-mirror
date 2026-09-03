@@ -894,3 +894,11 @@
   graph，Provider 增量和 private leakage 均为 0。首次 Docker queue 断言与随后 migration-successor/旧
   downgrade test 隔离失败均属测试兼容性，已由最小前向修复关闭；D03、D04-B、D07-B、D08 现均接受，
   下一产品节点为 D11 real Web/API/Worker flow。
+
+- 2026-09-03：D11 real flow R01/R02 以 integrated SHA
+  `f49104254e93ce1f83f4590f0e6cd4ff738d5599` 和 exact-SHA run `33733053219` 三 jobs 全绿后
+  `TASK_ACCEPTED`。R01 只把当前 generic D02 admitted identity 解析为 owner-bound DemoSession，浏览器仅持
+  HttpOnly/SameSite=Strict opaque handle；R02 由该 Session 在服务端解析 source，执行 D03 analysis 并只在
+  server registry 保留 SelfState authority，浏览器不接收 Session/Job/Run/SelfState/Asset ID 或 digest。
+  logout、expiry 和配置轮换后的异步响应不能复活旧 handle；下一产品 slice 是 analysis-scoped D04 问卷与
+  same-origin synthetic pair media。
