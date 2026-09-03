@@ -4538,6 +4538,105 @@
         "x-demo-only": true
       }
     },
+    "/api/v1/demo/edit-plans/execution-jobs/{job_id}/result": {
+      "get": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Get Edit Execution Result",
+        "operationId": "demoGetEditExecutionResultByJob",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoEditExecutionResultResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
     "/api/v1/demo/tool-runs/{tool_run_id}": {
       "get": {
         "tags": [
@@ -6220,6 +6319,127 @@
           "expires_at"
         ],
         "title": "DemoContextResponse"
+      },
+      "DemoEditExecutionResultResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "IMAGE_VERSION_READY",
+            "title": "Status"
+          },
+          "job_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Job Id"
+          },
+          "session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Session Id"
+          },
+          "editing_session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Editing Session Id"
+          },
+          "edit_plan_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Edit Plan Id"
+          },
+          "job_binding_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Job Binding Digest"
+          },
+          "plan_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Plan Digest"
+          },
+          "tool_run_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Tool Run Id"
+          },
+          "tool_run_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Tool Run Digest"
+          },
+          "verification_result_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Verification Result Id"
+          },
+          "verifier_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Verifier Digest"
+          },
+          "image_version_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Image Version Id"
+          },
+          "image_version_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Image Version Digest"
+          },
+          "version_kind": {
+            "type": "string",
+            "enum": [
+              "EDITED",
+              "RESTORED",
+              "ROLLED_BACK"
+            ],
+            "title": "Version Kind"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Sequence"
+          },
+          "parent_image_version_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Parent Image Version Id"
+          },
+          "result_asset_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Result Asset Id"
+          },
+          "result_asset_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Result Asset Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "job_id",
+          "session_id",
+          "editing_session_id",
+          "edit_plan_id",
+          "job_binding_digest",
+          "plan_digest",
+          "tool_run_id",
+          "tool_run_digest",
+          "verification_result_id",
+          "verifier_digest",
+          "image_version_id",
+          "image_version_digest",
+          "version_kind",
+          "sequence",
+          "parent_image_version_id",
+          "result_asset_id",
+          "result_asset_sha256"
+        ],
+        "title": "DemoEditExecutionResultResponse"
       },
       "DemoEditPlanCreateRequest": {
         "properties": {

@@ -325,6 +325,27 @@ class DemoEditPlanExecuteRequest(StrictContractModel):
     expected_plan_digest: DemoDigest
 
 
+class DemoEditExecutionResultResponse(StrictContractModel):
+    status: Literal["IMAGE_VERSION_READY"]
+    job_id: DemoId
+    session_id: DemoId
+    editing_session_id: DemoId
+    edit_plan_id: DemoId
+    job_binding_digest: DemoDigest
+    plan_digest: DemoDigest
+    tool_run_id: DemoId
+    tool_run_digest: DemoDigest
+    verification_result_id: DemoId
+    verifier_digest: DemoDigest
+    image_version_id: DemoId
+    image_version_digest: DemoDigest
+    version_kind: Literal["EDITED", "RESTORED", "ROLLED_BACK"]
+    sequence: int = Field(ge=1)
+    parent_image_version_id: DemoId
+    result_asset_id: DemoId
+    result_asset_sha256: DemoDigest
+
+
 class DemoToolRunResponse(StrictContractModel):
     tool_run_id: DemoId
     tool_name: str = Field(min_length=1, max_length=64)
