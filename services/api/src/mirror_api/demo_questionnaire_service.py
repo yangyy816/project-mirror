@@ -16,10 +16,15 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from mirror_api.demo_analysis_service import (
+    DEMO_ANALYSIS_JOB_TYPE,
+    DEMO_ANALYSIS_OPERATION,
+)
+from mirror_api.demo_d02_generic_admission import ADMISSION_SCHEMA as D02_GENERIC_ADMISSION_SCHEMA
 from mirror_api.demo_idempotency import (
     DemoIdempotencyPayloadConflict,
     DemoIdempotencyTarget,
@@ -29,7 +34,11 @@ from mirror_api.demo_idempotency import (
     semantic_request_digest,
 )
 from mirror_api.demo_models import (
+    DemoAnalysisRun,
+    DemoBaselineFaceModel,
     DemoCommandBinding,
+    DemoD02R2Epoch2Admission,
+    DemoFaceObservation,
     DemoJobBinding,
     DemoQuestionBank,
     DemoQuestionnaireRun,
@@ -130,6 +139,7 @@ class CreateDemoQuestionnaireRun:
     max_questions: int
     idempotency_key: str
     request_id: str
+    require_unique_generic_bank: bool = False
 
     def validate(self) -> None:
         for name, value in (
@@ -144,6 +154,25 @@ class CreateDemoQuestionnaireRun:
             raise DemoQuestionnaireInputError("question_bank_version is invalid")
         if type(self.max_questions) is not int or not 12 <= self.max_questions <= 16:
             raise DemoQuestionnaireInputError("max_questions must be in [12, 16]")
+        idempotency_key_hash(self.idempotency_key)
+        if _REQUEST_ID.fullmatch(self.request_id) is None:
+            raise DemoQuestionnaireInputError("request_id is outside the safe boundary")
+        if type(self.require_unique_generic_bank) is not bool:
+            raise DemoQuestionnaireInputError("generic bank resolver flag is invalid")
+
+
+@dataclass(frozen=True)
+class CreateDemoAnalysisQuestionnaireRun:
+    """Create a questionnaire from completed, owner-bound D03 authority only."""
+
+    demo_actor_id: str
+    analysis_run_id: str
+    idempotency_key: str
+    request_id: str
+
+    def validate(self) -> None:
+        _require_id(self.demo_actor_id, "demo_actor_id")
+        _require_id(self.analysis_run_id, "analysis_run_id")
         idempotency_key_hash(self.idempotency_key)
         if _REQUEST_ID.fullmatch(self.request_id) is None:
             raise DemoQuestionnaireInputError("request_id is outside the safe boundary")
@@ -332,6 +361,32 @@ class DemoQuestionnaireService:
                     return await self._replay_create(session, winner, request_digest)
                 return DemoQuestionnaireRunAccepted(job_id, run_id, demo_session.id, False)
 
+    async def create_for_analysis(
+        self, command: CreateDemoAnalysisQuestionnaireRun
+    ) -> DemoQuestionnaireRunAccepted:
+        """Resolve immutable D03/D02 authority before invoking the write authority.
+
+        No caller-controlled session, SelfState, source, or QuestionBank value crosses
+        this boundary.  ``create`` still performs its own locked final validation.
+        """
+
+        command.validate()
+        async with self._sessions() as session:
+            analysis, self_state = await self._completed_analysis_context(session, command)
+            bank = await self._unique_generic_admitted_bank(session)
+        return await self.create(
+            CreateDemoQuestionnaireRun(
+                demo_actor_id=command.demo_actor_id,
+                demo_session_id=analysis.demo_session_id,
+                self_state_id=self_state.id,
+                question_bank_version=bank.version,
+                max_questions=16,
+                idempotency_key=command.idempotency_key,
+                request_id=command.request_id,
+                require_unique_generic_bank=True,
+            )
+        )
+
     async def next(
         self, *, demo_actor_id: str, questionnaire_run_id: str
     ) -> DemoQuestionnaireNextResult:
@@ -397,6 +452,42 @@ class DemoQuestionnaireService:
                 session.add(step)
                 await session.flush()
                 return _next_from_presented(step, bank)
+
+    async def current_presentation(
+        self, *, demo_actor_id: str, questionnaire_run_id: str
+    ) -> DemoQuestionnaireNext:
+        """Replay one active, unanswered presentation without advancing the run."""
+
+        _require_id(demo_actor_id, "demo_actor_id")
+        _require_id(questionnaire_run_id, "questionnaire_run_id")
+        async with self._sessions() as session:
+            async with session.begin():
+                run = await self._lock_run(session, demo_actor_id, questionnaire_run_id)
+                active_session = await session.scalar(
+                    select(DemoSession).where(
+                        DemoSession.id == run.demo_session_id,
+                        DemoSession.demo_actor_id == demo_actor_id,
+                        DemoSession.closed_at.is_(None),
+                        DemoSession.tombstoned_at.is_(None),
+                        DemoSession.expires_at > self._normalized_now(),
+                    )
+                )
+                if active_session is None:
+                    raise DemoQuestionnaireUnavailable(
+                        "active owner-bound Demo session is unavailable"
+                    )
+                job, current_attempt = await self._lock_run_job(session, run)
+                if job.status != "RUNNING" or current_attempt is None:
+                    raise DemoQuestionnaireUnavailable("questionnaire presentation is not active")
+                bank = await self._load_bank(session, run)
+                steps = await self._steps(session, run.id, lock=True)
+                self_state = await self._self_state(session, run, lock=True)
+                state = _replay_state(run, self_state, steps, bank, self._configuration)
+                if state.stop_step is not None or state.open_presented is None:
+                    raise DemoQuestionnaireUnavailable(
+                        "no unanswered questionnaire presentation is current"
+                    )
+                return _next_from_presented(state.open_presented, bank)
 
     async def respond(
         self, command: CreateDemoQuestionnaireResponse
@@ -526,6 +617,8 @@ class DemoQuestionnaireService:
     async def _lock_create_context(
         self, session: AsyncSession, command: CreateDemoQuestionnaireRun
     ) -> tuple[DemoSession, DemoSelfState, DemoQuestionBank, AdmittedQuestionBank]:
+        if command.require_unique_generic_bank:
+            await session.execute(text("LOCK TABLE demo_d02_r2_epoch2_admissions IN SHARE MODE"))
         demo_session = cast(
             DemoSession | None,
             await session.scalar(
@@ -535,6 +628,7 @@ class DemoQuestionnaireService:
                     DemoSession.demo_actor_id == command.demo_actor_id,
                     DemoSession.closed_at.is_(None),
                     DemoSession.tombstoned_at.is_(None),
+                    DemoSession.expires_at > self._normalized_now(),
                 )
                 .with_for_update()
             ),
@@ -563,7 +657,97 @@ class DemoQuestionnaireService:
         if bank_row is None:
             raise DemoQuestionnaireUnavailable("requested QuestionBank version is unavailable")
         bank = await self._load_bank_by_id(session, bank_row.id)
+        if command.require_unique_generic_bank:
+            unique_bank = await self._unique_generic_admitted_bank(session)
+            if unique_bank.id != bank_row.id:
+                raise DemoQuestionnaireUnavailable(
+                    "resolved QuestionBank is not the unique generic admission"
+                )
         return demo_session, self_state, bank_row, bank
+
+    @staticmethod
+    async def _completed_analysis_context(
+        session: AsyncSession, command: CreateDemoAnalysisQuestionnaireRun
+    ) -> tuple[DemoAnalysisRun, DemoSelfState]:
+        """Replay the exact completed D03 owner graph without selecting a latest row."""
+
+        row = (
+            await session.execute(
+                select(DemoAnalysisRun, DemoSelfState)
+                .join(
+                    DemoJobBinding,
+                    DemoJobBinding.id == DemoAnalysisRun.demo_job_binding_id,
+                )
+                .join(Job, Job.id == DemoJobBinding.job_id)
+                .join(
+                    DemoFaceObservation,
+                    DemoFaceObservation.analysis_run_id == DemoAnalysisRun.id,
+                )
+                .join(
+                    DemoBaselineFaceModel,
+                    DemoBaselineFaceModel.observation_id == DemoFaceObservation.id,
+                )
+                .join(
+                    DemoSelfState,
+                    DemoSelfState.baseline_face_model_id == DemoBaselineFaceModel.id,
+                )
+                .where(
+                    DemoAnalysisRun.id == command.analysis_run_id,
+                    DemoAnalysisRun.demo_actor_id == command.demo_actor_id,
+                    DemoJobBinding.demo_actor_id == command.demo_actor_id,
+                    DemoJobBinding.demo_session_id == DemoAnalysisRun.demo_session_id,
+                    DemoJobBinding.endpoint_operation == DEMO_ANALYSIS_OPERATION,
+                    DemoJobBinding.target_type == "ANALYSIS_RUN",
+                    DemoJobBinding.target_id == DemoAnalysisRun.id,
+                    Job.job_type == DEMO_ANALYSIS_JOB_TYPE,
+                    Job.status == "COMPLETED",
+                    Job.result_code.in_(("SUPPORTED", "UNSUPPORTED")),
+                    DemoFaceObservation.demo_actor_id == command.demo_actor_id,
+                    DemoFaceObservation.demo_session_id == DemoAnalysisRun.demo_session_id,
+                    DemoFaceObservation.demo_synthetic_identity_id
+                    == DemoAnalysisRun.demo_synthetic_identity_id,
+                    DemoFaceObservation.source_asset_id == DemoAnalysisRun.source_asset_id,
+                    DemoFaceObservation.source_asset_sha256 == DemoAnalysisRun.source_asset_sha256,
+                    DemoFaceObservation.observation_state == Job.result_code,
+                    DemoBaselineFaceModel.demo_actor_id == command.demo_actor_id,
+                    DemoBaselineFaceModel.demo_session_id == DemoAnalysisRun.demo_session_id,
+                    DemoBaselineFaceModel.version == 1,
+                    DemoSelfState.demo_actor_id == command.demo_actor_id,
+                    DemoSelfState.demo_session_id == DemoAnalysisRun.demo_session_id,
+                    DemoSelfState.version == 1,
+                )
+            )
+        ).one_or_none()
+        if row is None:
+            raise DemoQuestionnaireUnavailable("completed owner-bound D03 analysis is unavailable")
+        return cast(tuple[DemoAnalysisRun, DemoSelfState], row)
+
+    @staticmethod
+    async def _unique_generic_admitted_bank(
+        session: AsyncSession,
+    ) -> DemoQuestionBank:
+        banks = tuple(
+            (
+                await session.scalars(
+                    select(DemoQuestionBank)
+                    .join(
+                        DemoD02R2Epoch2Admission,
+                        DemoD02R2Epoch2Admission.question_bank_id == DemoQuestionBank.id,
+                    )
+                    .where(
+                        DemoD02R2Epoch2Admission.schema_version == D02_GENERIC_ADMISSION_SCHEMA,
+                        DemoD02R2Epoch2Admission.admission_state == "COMPLETED",
+                    )
+                )
+            ).all()
+        )
+        if len(banks) != 1:
+            raise DemoQuestionnaireUnavailable(
+                "exactly one generic admitted QuestionBank is required"
+            )
+        bank = banks[0]
+        await DemoQuestionnaireService._load_bank_by_id(session, bank.id)
+        return bank
 
     async def _load_bank(
         self, session: AsyncSession, run: DemoQuestionnaireRun

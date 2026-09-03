@@ -8,9 +8,14 @@ import {
   createBoundDemoSession,
   demoSessionRegistrySize,
   errorForStatus,
+  fetchBoundQuestionnaireMedia,
   isSameOriginRequest,
   readBoundDemoAnalysis,
   readBoundDemoRecall,
+  createBoundDemoQuestionnaire,
+  questionnaireProjection,
+  readBoundDemoQuestionnaire,
+  respondBoundDemoQuestionnaire,
   removeBoundDemoSession,
 } from "./server";
 
@@ -115,6 +120,215 @@ afterEach(() => {
 });
 
 describe("demo bridge server boundary", () => {
+  it("keeps questionnaire authority server-side and rotates the presentation token", async () => {
+    const nowMs = Date.now();
+    const analysisJobId = "4".repeat(32);
+    const analysisId = "5".repeat(32);
+    const selfStateId = "6".repeat(32);
+    const questionnaireJobId = "7".repeat(32);
+    const questionnaireRunId = "8".repeat(32);
+    const questionnaireDigest = "e".repeat(64);
+    let responseStepId = "9".repeat(32);
+    const mediaStarted = deferred<void>();
+    let mediaController:
+      | ReadableStreamDefaultController<Uint8Array<ArrayBuffer>>
+      | undefined;
+    const fetchMock = upstreamFetch(nowMs + 900_000);
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = new URL(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      );
+      if (url.pathname.endsWith("/analysis")) return acceptedAnalysisResponse();
+      if (url.pathname === `/api/v1/demo/jobs/${analysisJobId}`) {
+        return new Response(
+          JSON.stringify({
+            job_id: analysisJobId,
+            status: "COMPLETED",
+            capability: "P3_FACE_ANALYSIS",
+            job_binding_digest: "b".repeat(64),
+            target: {
+              target_type: "ANALYSIS_RUN",
+              target_id: analysisId,
+              authority_digest: "c".repeat(64),
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.pathname === `/api/v1/demo/analyses/${analysisId}`) {
+        return new Response(
+          JSON.stringify({
+            analysis_id: analysisId,
+            session_id: sessionId,
+            state: "SUPPORTED",
+            observation_digest: "d".repeat(64),
+            self_state_id: selfStateId,
+          }),
+          { status: 200 },
+        );
+      }
+      if (
+        url.pathname === `/api/v1/demo/analyses/${analysisId}/questionnaire`
+      ) {
+        return new Response(
+          JSON.stringify({
+            job_id: questionnaireJobId,
+            status: "PENDING",
+            capability: "P4_QUESTIONNAIRE",
+            job_binding_digest: questionnaireDigest,
+            target: {
+              target_type: "QUESTIONNAIRE_RUN",
+              target_id: questionnaireRunId,
+              authority_digest: "f".repeat(64),
+            },
+          }),
+          { status: 202 },
+        );
+      }
+      if (url.pathname === `/api/v1/demo/jobs/${questionnaireJobId}`) {
+        return new Response(
+          JSON.stringify({
+            job_id: questionnaireJobId,
+            status: "COMPLETED",
+            capability: "P4_QUESTIONNAIRE",
+            job_binding_digest: questionnaireDigest,
+            target: {
+              target_type: "QUESTIONNAIRE_RUN",
+              target_id: questionnaireRunId,
+              authority_digest: "f".repeat(64),
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.pathname.includes("/presentation-media/")) {
+        return new Response(
+          new ReadableStream<Uint8Array<ArrayBuffer>>({
+            start(controller) {
+              mediaController = controller;
+              mediaStarted.resolve();
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "image/jpeg",
+              "Content-Length": "4",
+            },
+          },
+        );
+      }
+      if (url.pathname.endsWith("/next")) {
+        const responseCount = fetchMock.mock.calls.filter(([call]) =>
+          new URL(
+            typeof call === "string" || call instanceof URL ? call : call.url,
+          ).pathname.endsWith("/responses"),
+        ).length;
+        return new Response(
+          JSON.stringify(
+            responseCount
+              ? {
+                  kind: "COMPLETED",
+                  run_id: questionnaireRunId,
+                  completed_at: "2050-01-01T00:00:00Z",
+                }
+              : {
+                  kind: "QUESTION",
+                  run_id: questionnaireRunId,
+                  step_id: "9".repeat(32),
+                  question_pair_id: "a".repeat(32),
+                  step_sequence: 1,
+                  run_version: 1,
+                },
+          ),
+          { status: 200 },
+        );
+      }
+      if (url.pathname.endsWith("/responses")) {
+        return new Response(
+          JSON.stringify({
+            step_id: responseStepId,
+            run_id: questionnaireRunId,
+            event_type: "RESPONDED",
+            step_sequence: 1,
+            run_version: 2,
+          }),
+          { status: 201 },
+        );
+      }
+      return upstreamFetch(nowMs + 900_000)(input);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const session = await createBoundDemoSession(undefined, nowMs);
+    expect(await createBoundDemoAnalysis(session?.handle)).toEqual({
+      kind: "PENDING",
+    });
+    expect(await readBoundDemoAnalysis(session?.handle)).toMatchObject({
+      kind: "COMPLETED",
+    });
+    expect(await createBoundDemoQuestionnaire(session?.handle)).toEqual({
+      kind: "PENDING",
+    });
+    const question = await readBoundDemoQuestionnaire(session?.handle);
+    expect(question.kind).toBe("QUESTION");
+    if (question.kind !== "QUESTION") throw new Error("question expected");
+    const projection = questionnaireProjection(question);
+    expect(projection).toEqual({
+      status: "QUESTION",
+      presentation_token: question.presentationToken,
+      left_image_url: `/api/demo/questionnaire/media/${question.presentationToken}/LEFT`,
+      right_image_url: `/api/demo/questionnaire/media/${question.presentationToken}/RIGHT`,
+    });
+    expect(JSON.stringify(projection)).not.toContain(questionnaireRunId);
+    const mediaPromise = fetchBoundQuestionnaireMedia(
+      session?.handle,
+      question.presentationToken,
+      "LEFT",
+    );
+    await mediaStarted.promise;
+    expect(
+      await respondBoundDemoQuestionnaire(session?.handle, {
+        presentationToken: question.presentationToken,
+        choice: "LEFT",
+        responseLatencyMs: 0,
+      }),
+    ).toEqual({ kind: "COMPLETED" });
+    mediaController?.enqueue(new Uint8Array([1, 2, 3, 4]));
+    mediaController?.close();
+    expect(await mediaPromise).toBeNull();
+    expect(
+      await respondBoundDemoQuestionnaire(session?.handle, {
+        presentationToken: question.presentationToken,
+        choice: "LEFT",
+        responseLatencyMs: 0,
+      }),
+    ).toEqual({ kind: "CONFLICT" });
+
+    clearDemoSessionRegistryForTest();
+    fetchMock.mockClear();
+    responseStepId = "b".repeat(32);
+    const rebound = await createBoundDemoSession(undefined, nowMs + 1);
+    expect(await createBoundDemoAnalysis(rebound?.handle)).toEqual({
+      kind: "PENDING",
+    });
+    expect(await readBoundDemoAnalysis(rebound?.handle)).toMatchObject({
+      kind: "COMPLETED",
+    });
+    expect(await createBoundDemoQuestionnaire(rebound?.handle)).toEqual({
+      kind: "PENDING",
+    });
+    const reboundQuestion = await readBoundDemoQuestionnaire(rebound?.handle);
+    expect(reboundQuestion.kind).toBe("QUESTION");
+    if (reboundQuestion.kind !== "QUESTION")
+      throw new Error("question expected");
+    expect(
+      await respondBoundDemoQuestionnaire(rebound?.handle, {
+        presentationToken: reboundQuestion.presentationToken,
+        choice: "RIGHT",
+        responseLatencyMs: 1,
+      }),
+    ).toEqual({ kind: "STALE_RESPONSE" });
+  });
   it("requires a matching Origin and/or same-origin fetch metadata", () => {
     expect(
       isSameOriginRequest(

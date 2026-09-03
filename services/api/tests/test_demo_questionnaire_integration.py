@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import os
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
@@ -42,6 +44,13 @@ from mirror_api.demo_questionnaire_service import (
     DemoQuestionnaireService,
 )
 from mirror_api.models import Job, JobAttempt, new_id
+
+
+@pytest.fixture(scope="module")
+def event_loop_policy() -> Any:
+    if os.name == "nt":
+        return asyncio.WindowsSelectorEventLoopPolicy()
+    return asyncio.DefaultEventLoopPolicy()
 
 
 @dataclass(frozen=True)

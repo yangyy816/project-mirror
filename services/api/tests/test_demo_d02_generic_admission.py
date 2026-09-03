@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager
 from copy import deepcopy
 from dataclasses import replace
@@ -205,6 +205,7 @@ def _generic_sources(
     tmp_path: Path,
     *,
     source_storage_key_factory: Callable[[str, int], str] | None = None,
+    measurement_projection_factory: Callable[[int], Mapping[str, object]] | None = None,
 ) -> tuple[D02SelectedSourceManifest, list[generic.GenericSourceInput], list[dict[str, object]]]:
     service, run_id = _service(session, "generic-pg")
     manifest: D02SelectedSourceManifest | None = None
@@ -282,7 +283,11 @@ def _generic_sources(
                     f"dimension-authority-{position}"
                 ),
             },
-            formal_measurement_projection={"fixture_measurement": position},
+            formal_measurement_projection=(
+                dict(measurement_projection_factory(position))
+                if measurement_projection_factory is not None
+                else {"fixture_measurement": position}
+            ),
             formal_landmark_digest=_digest(f"formal-landmark-{position}"),
         )
         inputs.append(value)
@@ -325,6 +330,7 @@ def _generic_screening_graph(
     *,
     source_storage_key_factory: Callable[[str, int], str] | None = None,
     geometry_algorithm_version: str | None = None,
+    report_template: Mapping[str, object] | None = None,
 ) -> tuple[
     dict[str, object],
     dict[str, object],
@@ -336,9 +342,12 @@ def _generic_screening_graph(
     # The authority helper is cached for its own module; generic rebinding must
     # always start from a fresh graph because several runtime tests deliberately
     # mutate their local fixture copy.
-    report_template, _ = _report_input_template.__wrapped__(
-        geometry_algorithm_version=geometry_algorithm_version
-    )
+    if report_template is None:
+        template, _ = _report_input_template.__wrapped__(
+            geometry_algorithm_version=geometry_algorithm_version
+        )
+    else:
+        template = deepcopy(dict(report_template))
     source_entries, formal_digest = screening.build_formal_source_manifest(
         source_inputs=inputs,
         source_rows=source_rows,
@@ -347,7 +356,7 @@ def _generic_screening_graph(
         selected_source_manifest_digest=manifest.content_digest,
     )
     source_by_ordinal = {entry["source_ordinal"]: entry for entry in source_entries}
-    payload = deepcopy(cast(dict[str, object], report_template["report_payload"]))
+    payload = deepcopy(cast(dict[str, object], template["report_payload"]))
 
     def bind_source(row: dict[str, object]) -> None:
         entry = source_by_ordinal[cast(int, row["source_ordinal"])]
@@ -519,7 +528,7 @@ def _generic_screening_graph(
         screening.SELECTED_PAIR_MANIFEST_SCHEMA, {"ordered_entries": selected}
     )
     report_fields = {
-        key: deepcopy(value) for key, value in report_template.items() if key in r2.R2_REPORT_FIELDS
+        key: deepcopy(value) for key, value in template.items() if key in r2.R2_REPORT_FIELDS
     }
     report_fields.update(
         report_payload=payload,
@@ -724,10 +733,15 @@ def _generic_admission_bundle(
     tmp_path: Path,
     *,
     source_storage_key_factory: Callable[[str, int], str] | None = None,
+    measurement_projection_factory: Callable[[int], Mapping[str, object]] | None = None,
     geometry_algorithm_version: str | None = None,
+    report_template: Mapping[str, object] | None = None,
 ) -> coordinator.GenericAdmissionBundle:
     manifest, inputs, source_rows = _generic_sources(
-        session, tmp_path, source_storage_key_factory=source_storage_key_factory
+        session,
+        tmp_path,
+        source_storage_key_factory=source_storage_key_factory,
+        measurement_projection_factory=measurement_projection_factory,
     )
     identity_rows = [
         generic.build_identity_row(value, source_row=source)
@@ -740,6 +754,7 @@ def _generic_admission_bundle(
         manifest,
         source_storage_key_factory=source_storage_key_factory,
         geometry_algorithm_version=geometry_algorithm_version,
+        report_template=report_template,
     )
     return coordinator.GenericAdmissionBundle(
         request_payload={

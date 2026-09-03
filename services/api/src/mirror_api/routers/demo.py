@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Any, NoReturn, cast
+from typing import Annotated, Any, Literal, NoReturn, cast
 
-from fastapi import APIRouter, Depends, Header, Request, status
+from fastapi import APIRouter, Depends, Header, Request, Response, status
 
 from mirror_api.demo_analysis_coordinator import DemoAnalysisCoordinator
 from mirror_api.demo_analysis_dependencies import (
@@ -101,8 +101,19 @@ from mirror_api.demo_profile_dependencies import (
     get_demo_profile_commands,
     get_demo_profile_coordinator,
 )
-from mirror_api.demo_questionnaire_dependencies import get_demo_questionnaire_service
+from mirror_api.demo_questionnaire_dependencies import (
+    get_demo_questionnaire_media_service,
+    get_demo_questionnaire_service,
+)
+from mirror_api.demo_questionnaire_media import (
+    DemoQuestionnaireMediaAuthorityCorruption,
+    DemoQuestionnaireMediaBytesUnavailable,
+    DemoQuestionnaireMediaInputError,
+    DemoQuestionnaireMediaService,
+    DemoQuestionnaireMediaUnavailable,
+)
 from mirror_api.demo_questionnaire_service import (
+    CreateDemoAnalysisQuestionnaireRun,
     CreateDemoQuestionnaireResponse,
     CreateDemoQuestionnaireRun,
     DemoQuestionnaireAuthorityCorruption,
@@ -392,6 +403,29 @@ def _raise_questionnaire_error(error: Exception) -> NoReturn:
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         code="DEMO_QUESTIONNAIRE_AUTHORITY_UNAVAILABLE",
         message="问卷 authority 无法安全读取。",
+        details={"track": "DEMO_PROTOTYPE"},
+    ) from error
+
+
+def _raise_questionnaire_media_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoQuestionnaireMediaInputError):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="DEMO_QUESTIONNAIRE_MEDIA_REQUEST_INVALID",
+            message="问卷图片请求不符合 Demo contract。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoQuestionnaireMediaUnavailable):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_QUESTIONNAIRE_MEDIA_UNAVAILABLE",
+            message="问卷图片不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise APIError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="DEMO_QUESTIONNAIRE_MEDIA_AUTHORITY_UNAVAILABLE",
+        message="问卷图片 authority 无法安全读取。",
         details={"track": "DEMO_PROTOTYPE"},
     ) from error
 
@@ -964,6 +998,45 @@ async def get_analysis(
 
 
 @router.post(
+    "/analyses/{analysis_id}/questionnaire",
+    status_code=202,
+    response_model=DemoJobAcceptedResponse,
+    operation_id="demoCreateAnalysisQuestionnaire",
+    openapi_extra=DEMO_OPENAPI,
+    responses=DEMO_ERRORS,
+)
+async def create_analysis_questionnaire(
+    analysis_id: DemoId,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    questionnaires: DemoQuestionnaireService = Depends(get_demo_questionnaire_service),
+    jobs: DemoJobService = Depends(get_demo_job_service),
+) -> DemoJobAcceptedResponse:
+    try:
+        accepted = await questionnaires.create_for_analysis(
+            CreateDemoAnalysisQuestionnaireRun(
+                demo_actor_id=actor.id,
+                analysis_run_id=analysis_id,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+        job = await jobs.get(demo_actor_id=actor.id, job_id=accepted.job_id)
+    except (
+        DemoQuestionnaireInputError,
+        DemoQuestionnaireUnavailable,
+        DemoQuestionnaireConflict,
+        DemoQuestionnairePayloadConflict,
+        DemoQuestionnaireAuthorityCorruption,
+    ) as exc:
+        _raise_questionnaire_error(exc)
+    except (DemoJobUnavailable, DemoJobAuthorityCorruption) as exc:
+        _raise_job_error(exc)
+    return _job_accepted(job)
+
+
+@router.post(
     "/questionnaires/runs",
     status_code=202,
     response_model=DemoJobAcceptedResponse,
@@ -1031,6 +1104,52 @@ async def get_questionnaire_next(
         DemoQuestionnaireAuthorityCorruption,
     ) as exc:
         _raise_questionnaire_error(exc)
+
+
+@router.get(
+    "/questionnaires/runs/{run_id}/presentation-media/{side}",
+    response_class=Response,
+    operation_id="demoGetQuestionnairePresentationMedia",
+    openapi_extra=DEMO_OPENAPI,
+    responses={
+        **DEMO_ERRORS,
+        200: {
+            "description": "Current owner-bound synthetic questionnaire side.",
+            "content": {
+                "image/jpeg": {
+                    "schema": {"type": "string", "format": "binary"},
+                }
+            },
+        },
+    },
+)
+async def get_questionnaire_presentation_media(
+    run_id: DemoId,
+    side: Literal["LEFT", "RIGHT"],
+    actor: DemoActor = Depends(get_demo_actor),
+    media_service: DemoQuestionnaireMediaService = Depends(get_demo_questionnaire_media_service),
+) -> Response:
+    try:
+        media = await media_service.load(
+            demo_actor_id=actor.id,
+            questionnaire_run_id=run_id,
+            side=side,
+        )
+    except (
+        DemoQuestionnaireMediaInputError,
+        DemoQuestionnaireMediaUnavailable,
+        DemoQuestionnaireMediaAuthorityCorruption,
+        DemoQuestionnaireMediaBytesUnavailable,
+    ) as exc:
+        _raise_questionnaire_media_error(exc)
+    return Response(
+        content=media.content,
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.post(
