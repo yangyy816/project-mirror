@@ -166,3 +166,14 @@ commits = ["a8907b7b580d7e4ce699fa5f067512c8501204cc"]
 paths = ['''^services/api/tests/test_demo_editing_coordinator\.py$''']
 regexTarget = "match"
 regexes = ['''idempotency_key="idempotency-key-01"''']
+
+# D11-R04-R01: this public Contract enum was classified as a generic key. The
+# forward repair split it into low-entropy fields; bind the historical exception
+# to the exact local candidate, tracked contract path, and literal match.
+[[allowlists]]
+description = "D11 R04: historical public capability behavior label in 7508f07"
+condition = "AND"
+commits = ["7508f0798b1d562093c8aa56533643576a0f9db5"]
+paths = ['''^docs/operations/P3_P7_D11_REAL_FLOW_CONTRACT_05\.md$''']
+regexTarget = "match"
+regexes = ['''PUBLIC_API_BEHAVIOR_CHANGE: MARK_ACCEPTED_P3_P4_CAPABILITIES_AVAILABLE''']
