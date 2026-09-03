@@ -100,6 +100,14 @@ from mirror_api.demo_profile_coordinator import DemoProfileCoordinator
 from mirror_api.demo_profile_dependencies import (
     get_demo_profile_commands,
     get_demo_profile_coordinator,
+    get_demo_profile_results,
+)
+from mirror_api.demo_profile_service import (
+    DemoProfileAuthorityCorruption,
+    DemoProfileCompilationService,
+    DemoProfileResultNotReady,
+    DemoProfileResultTerminal,
+    DemoProfileUnavailable,
 )
 from mirror_api.demo_questionnaire_dependencies import (
     get_demo_questionnaire_media_service,
@@ -160,6 +168,7 @@ from mirror_api.demo_schemas import (
     DemoJobCancelRequest,
     DemoJobResponse,
     DemoPreferenceEventResponse,
+    DemoProfileCompilationJobResultResponse,
     DemoProfileCompileRequest,
     DemoProfileRebuildRequest,
     DemoProfileResponse,
@@ -461,6 +470,36 @@ def _raise_profile_error(error: Exception) -> NoReturn:
             DemoJobUnavailable,
         ),
     ):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_PROFILE_AUTHORITY_UNAVAILABLE",
+            message="Profile authority 不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise APIError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="DEMO_PROFILE_AUTHORITY_CORRUPT",
+        message="Profile authority 无法安全读取。",
+        details={"track": "DEMO_PROTOTYPE"},
+    ) from error
+
+
+def _raise_profile_result_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoProfileResultNotReady):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="DEMO_PROFILE_RESULT_NOT_READY",
+            message="Profile 编译结果尚未就绪。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoProfileResultTerminal):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="DEMO_PROFILE_RESULT_TERMINAL",
+            message="Profile 编译任务已终止且没有可用结果。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoProfileUnavailable):
         raise APIError(
             status_code=status.HTTP_404_NOT_FOUND,
             code="DEMO_PROFILE_AUTHORITY_UNAVAILABLE",
@@ -1232,6 +1271,40 @@ async def compile_profile(
     ) as exc:
         _raise_profile_error(exc)
     return _job_accepted(result.job)
+
+
+@router.get(
+    "/profiles/compilation-jobs/{job_id}/result",
+    response_model=DemoProfileCompilationJobResultResponse,
+    operation_id="demoGetProfileCompilationResultByJob",
+    openapi_extra=DEMO_OPENAPI,
+    responses=DEMO_ERRORS,
+)
+async def get_profile_compilation_result(
+    job_id: DemoId,
+    actor: DemoActor = Depends(get_demo_actor),
+    results: DemoProfileCompilationService = Depends(get_demo_profile_results),
+) -> DemoProfileCompilationJobResultResponse:
+    try:
+        result = await results.read_completed_result(
+            demo_actor_id=actor.id,
+            job_id=job_id,
+        )
+    except (
+        DemoProfileResultNotReady,
+        DemoProfileResultTerminal,
+        DemoProfileUnavailable,
+        DemoProfileAuthorityCorruption,
+    ) as exc:
+        _raise_profile_result_error(exc)
+    return DemoProfileCompilationJobResultResponse(
+        status="PROFILE_READY",
+        job_id=result.job_id,
+        session_id=result.session_id,
+        profile_id=result.profile_id,
+        job_binding_digest=result.job_binding_digest,
+        compilation_digest=result.compilation_digest,
+    )
 
 
 @router.get(

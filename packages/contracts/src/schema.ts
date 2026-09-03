@@ -670,6 +670,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/demo/profiles/compilation-jobs/{job_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Profile Compilation Result */
+        get: operations["demoGetProfileCompilationResultByJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/demo/profiles/active": {
         parameters: {
             query?: never;
@@ -1433,6 +1450,24 @@ export interface components {
             event_type: "EXPLICIT_STYLE_SELECTION" | "MAXIMUM_INTENSITY_CHANGED" | "IMAGE_ACCEPTED" | "IMAGE_REJECTED" | "IMAGE_ADJUSTED";
             /** Event Digest */
             event_digest: string;
+        };
+        /** DemoProfileCompilationJobResultResponse */
+        DemoProfileCompilationJobResultResponse: {
+            /**
+             * Status
+             * @constant
+             */
+            status: "PROFILE_READY";
+            /** Job Id */
+            job_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Profile Id */
+            profile_id: string;
+            /** Job Binding Digest */
+            job_binding_digest: string;
+            /** Compilation Digest */
+            compilation_digest: string;
         };
         /** DemoProfileCompileRequest */
         DemoProfileCompileRequest: {
@@ -4402,6 +4437,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DemoJobAcceptedResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    demoGetProfileCompilationResultByJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoProfileCompilationJobResultResponse"];
                 };
             };
             /** @description Unauthorized */

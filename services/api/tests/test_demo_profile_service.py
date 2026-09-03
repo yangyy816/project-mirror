@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import os
 from datetime import UTC, datetime
 from typing import Any
 
@@ -35,8 +36,12 @@ from mirror_api.demo_preference_ledger import (
 from mirror_api.demo_profile_service import (
     DEMO_PROFILE_COMPILE_JOB_TYPE,
     DEMO_PROFILE_COMPILE_OPERATION,
+    DemoProfileAuthorityCorruption,
     DemoProfileCompilationService,
     DemoProfileRejected,
+    DemoProfileResultNotReady,
+    DemoProfileResultTerminal,
+    DemoProfileUnavailable,
     _authority_digest,
 )
 from mirror_api.demo_questionnaire_service import (
@@ -47,6 +52,13 @@ from mirror_api.demo_questionnaire_service import (
     DemoQuestionnaireService,
 )
 from mirror_api.models import Job, JobAttempt, new_id, utcnow
+
+
+@pytest.fixture(scope="module")
+def event_loop_policy() -> Any:
+    if os.name == "nt":
+        return asyncio.WindowsSelectorEventLoopPolicy()
+    return asyncio.DefaultEventLoopPolicy()
 
 
 def _digest(value: str) -> str:
@@ -267,6 +279,164 @@ async def test_profile_compile_materializes_one_bundle_and_exactly_replays() -> 
         assert [(attempt.status, attempt.result_code) for attempt in attempts] == [
             ("COMPLETED", "PROFILE_COMPILED")
         ]
+
+
+@pytest.mark.asyncio
+async def test_profile_result_repeated_read_returns_exact_bundle_without_writes() -> None:
+    async with _database() as (sessions, context):
+        job_id = await _profile_job(sessions, context.actor_id, context.session_id)
+        service = DemoProfileCompilationService(session_factory=sessions)
+        compiled = await service.compile(demo_actor_id=context.actor_id, job_id=job_id)
+
+        async with sessions() as session:
+            before = (
+                len(list((await session.scalars(select(JobAttempt))).all())),
+                len(list((await session.scalars(select(DemoProfileCompilationBundle))).all())),
+                len(list((await session.scalars(select(DemoDesiredDeltaProfile))).all())),
+                len(list((await session.scalars(select(DemoStyleProfile))).all())),
+                len(list((await session.scalars(select(DemoIdentityConstraints))).all())),
+            )
+
+        first = await service.read_completed_result(
+            demo_actor_id=context.actor_id,
+            job_id=job_id,
+        )
+        second = await service.read_completed_result(
+            demo_actor_id=context.actor_id,
+            job_id=job_id,
+        )
+
+        assert first == second
+        assert first.job_id == job_id
+        assert first.session_id == context.session_id
+        assert first.profile_id == compiled.bundle_id
+        assert first.compilation_digest == compiled.compilation_digest
+        async with sessions() as session:
+            binding = await session.scalar(
+                select(DemoJobBinding).where(DemoJobBinding.job_id == job_id)
+            )
+            after = (
+                len(list((await session.scalars(select(JobAttempt))).all())),
+                len(list((await session.scalars(select(DemoProfileCompilationBundle))).all())),
+                len(list((await session.scalars(select(DemoDesiredDeltaProfile))).all())),
+                len(list((await session.scalars(select(DemoStyleProfile))).all())),
+                len(list((await session.scalars(select(DemoIdentityConstraints))).all())),
+            )
+        assert binding is not None
+        assert first.job_binding_digest == binding.content_digest
+        assert after == before
+
+
+@pytest.mark.asyncio
+async def test_profile_result_rejects_pending_job_without_creating_attempt() -> None:
+    async with _database() as (sessions, context):
+        job_id = await _profile_job(sessions, context.actor_id, context.session_id)
+
+        with pytest.raises(DemoProfileResultNotReady):
+            await DemoProfileCompilationService(session_factory=sessions).read_completed_result(
+                demo_actor_id=context.actor_id,
+                job_id=job_id,
+            )
+
+        async with sessions() as session:
+            attempts = list(
+                (await session.scalars(select(JobAttempt).where(JobAttempt.job_id == job_id))).all()
+            )
+            bundles = list((await session.scalars(select(DemoProfileCompilationBundle))).all())
+        assert attempts == bundles == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("terminal_status", ["REJECTED", "FAILED", "CANCELLED"])
+async def test_profile_result_rejects_terminal_job_without_fallback(
+    terminal_status: str,
+) -> None:
+    async with _database() as (sessions, context):
+        job_id = await _profile_job(sessions, context.actor_id, context.session_id)
+        async with sessions() as session:
+            async with session.begin():
+                job = await session.get(Job, job_id)
+                assert job is not None
+                job.status = terminal_status
+                job.finalized_at = utcnow()
+
+        with pytest.raises(DemoProfileResultTerminal):
+            await DemoProfileCompilationService(session_factory=sessions).read_completed_result(
+                demo_actor_id=context.actor_id,
+                job_id=job_id,
+            )
+
+
+@pytest.mark.asyncio
+async def test_profile_result_hides_missing_job_and_foreign_actor() -> None:
+    async with _database() as (sessions, context):
+        job_id = await _profile_job(sessions, context.actor_id, context.session_id)
+        service = DemoProfileCompilationService(session_factory=sessions)
+
+        with pytest.raises(DemoProfileUnavailable):
+            await service.read_completed_result(
+                demo_actor_id=context.actor_id,
+                job_id=new_id(),
+            )
+        with pytest.raises(DemoProfileUnavailable):
+            await service.read_completed_result(
+                demo_actor_id=new_id(),
+                job_id=job_id,
+            )
+
+
+@pytest.mark.asyncio
+async def test_profile_result_completed_job_without_bundle_is_corruption() -> None:
+    async with _database() as (sessions, context):
+        job_id = await _profile_job(sessions, context.actor_id, context.session_id)
+        now = utcnow()
+        async with sessions() as session:
+            async with session.begin():
+                job = await session.get(Job, job_id)
+                assert job is not None
+                job.status = "COMPLETED"
+                job.attempt_count = 1
+                job.finalized_at = now
+                job.result_code = "PROFILE_COMPILED"
+                job.updated_at = now
+                session.add(
+                    JobAttempt(
+                        id=new_id(),
+                        job_id=job_id,
+                        attempt=1,
+                        status="COMPLETED",
+                        result_code="PROFILE_COMPILED",
+                        started_at=now,
+                        finished_at=now,
+                    )
+                )
+
+        with pytest.raises(DemoProfileAuthorityCorruption, match="has no bundle"):
+            await DemoProfileCompilationService(session_factory=sessions).read_completed_result(
+                demo_actor_id=context.actor_id,
+                job_id=job_id,
+            )
+
+
+@pytest.mark.asyncio
+async def test_profile_result_rejects_invalid_completed_attempt_shape() -> None:
+    async with _database() as (sessions, context):
+        job_id = await _profile_job(sessions, context.actor_id, context.session_id)
+        service = DemoProfileCompilationService(session_factory=sessions)
+        await service.compile(demo_actor_id=context.actor_id, job_id=job_id)
+        async with sessions() as session:
+            async with session.begin():
+                attempt = await session.scalar(
+                    select(JobAttempt).where(JobAttempt.job_id == job_id)
+                )
+                assert attempt is not None
+                attempt.result_code = "WRONG_RESULT"
+
+        with pytest.raises(DemoProfileAuthorityCorruption, match="Attempt is invalid"):
+            await service.read_completed_result(
+                demo_actor_id=context.actor_id,
+                job_id=job_id,
+            )
 
 
 @pytest.mark.asyncio

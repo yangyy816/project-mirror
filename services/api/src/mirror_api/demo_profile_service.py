@@ -68,6 +68,7 @@ from mirror_api.models import Job, JobAttempt, new_id, utcnow
 
 DEMO_PROFILE_COMPILE_OPERATION = "profile.compile"
 DEMO_PROFILE_COMPILE_JOB_TYPE = "demo_p3_p7.profile.compile"
+DEMO_JOB_BINDING_SCHEMA = "mirror.demo/DemoJobBinding/v1"
 DEMO_DESIRED_DELTA_SCHEMA = "mirror.demo/DemoDesiredDeltaProfile/v1"
 DEMO_STYLE_SCHEMA = "mirror.demo/DemoStyleProfile/v1"
 DEMO_CONSTRAINTS_SCHEMA = "mirror.demo/DemoIdentityConstraints/v1"
@@ -114,6 +115,14 @@ class DemoProfileAuthorityCorruption(DemoProfileServiceError):
     """Persisted authority or an already-published bundle cannot be replayed."""
 
 
+class DemoProfileResultNotReady(DemoProfileServiceError):
+    """The exact profile compilation Job has not reached a terminal result."""
+
+
+class DemoProfileResultTerminal(DemoProfileServiceError):
+    """The exact profile compilation Job ended without a profile result."""
+
+
 @dataclass(frozen=True)
 class DemoProfileCompilationResult:
     job_id: str
@@ -124,6 +133,15 @@ class DemoProfileCompilationResult:
     session_override_constraints_id: str
     compilation_digest: str
     replayed: bool
+
+
+@dataclass(frozen=True)
+class DemoProfileCompilationJobResult:
+    job_id: str
+    session_id: str
+    profile_id: str
+    job_binding_digest: str
+    compilation_digest: str
 
 
 @dataclass(frozen=True)
@@ -228,6 +246,36 @@ class DemoProfileCompilationService:
             raise DemoProfileAuthorityCorruption("profile compiler produced no durable result")
         return result
 
+    async def read_completed_result(
+        self, *, demo_actor_id: str, job_id: str
+    ) -> DemoProfileCompilationJobResult:
+        """Replay the immutable bundle bound to one exact completed profile Job."""
+
+        _require_id(demo_actor_id, "demo_actor_id")
+        _require_id(job_id, "job_id")
+        async with self._sessions() as session:
+            async with session.begin():
+                job, binding, _ = await self._lock_context(session, demo_actor_id, job_id)
+                if job.status in {"PENDING", "RUNNING"}:
+                    raise DemoProfileResultNotReady("profile Job result is not ready")
+                if job.status in {"REJECTED", "FAILED", "CANCELLED"}:
+                    raise DemoProfileResultTerminal("profile Job ended without a result")
+                if job.status != "COMPLETED":
+                    raise DemoProfileAuthorityCorruption("profile Job lifecycle is invalid")
+                await self._validate_completed_job(session, job)
+                bundle = await self._bundle_for_binding(session, binding.id)
+                if bundle is None:
+                    raise DemoProfileAuthorityCorruption("completed profile Job has no bundle")
+                replay = await self._replay_bundle(session, job, binding, bundle)
+                assert binding.demo_session_id is not None
+                return DemoProfileCompilationJobResult(
+                    job_id=replay.job_id,
+                    session_id=binding.demo_session_id,
+                    profile_id=replay.bundle_id,
+                    job_binding_digest=binding.content_digest,
+                    compilation_digest=replay.compilation_digest,
+                )
+
     async def _lock_context(
         self, session: AsyncSession, demo_actor_id: str, job_id: str
     ) -> tuple[Job, DemoJobBinding, DemoActor]:
@@ -253,6 +301,10 @@ class DemoProfileCompilationService:
             or job.owner_user_id is not None
             or job.ingestion_upload_intent_id is not None
             or job.result_asset_id is not None
+            or binding.schema_version != DEMO_JOB_BINDING_SCHEMA
+            or binding.canonical_payload != _job_binding_payload(binding)
+            or binding.content_digest
+            != _authority_digest(DEMO_JOB_BINDING_SCHEMA, binding.canonical_payload)
         ):
             raise DemoProfileUnavailable("profile Job envelope is invalid")
         actor = cast(
@@ -267,6 +319,39 @@ class DemoProfileCompilationService:
         if demo_session is None or demo_session.demo_actor_id != actor.id:
             raise DemoProfileUnavailable("profile Job Session is unavailable")
         return job, binding, actor
+
+    async def _validate_completed_job(self, session: AsyncSession, job: Job) -> None:
+        attempts = tuple(
+            (
+                await session.scalars(
+                    select(JobAttempt)
+                    .where(JobAttempt.job_id == job.id)
+                    .order_by(JobAttempt.attempt)
+                )
+            ).all()
+        )
+        if (
+            job.attempt_count != 1
+            or job.result_code != "PROFILE_COMPILED"
+            or job.finalized_at is None
+            or job.lease_token is not None
+            or job.lease_acquired_at is not None
+            or job.lease_expires_at is not None
+            or len(attempts) != 1
+        ):
+            raise DemoProfileAuthorityCorruption("completed profile Job authority is invalid")
+        attempt = attempts[0]
+        if (
+            attempt.attempt != 1
+            or attempt.status != "COMPLETED"
+            or attempt.result_code != "PROFILE_COMPILED"
+            or attempt.error_code is not None
+            or attempt.lease_token is not None
+            or attempt.finished_at is None
+            or attempt.finished_at != job.finalized_at
+            or attempt.finished_at < attempt.started_at
+        ):
+            raise DemoProfileAuthorityCorruption("completed profile Job Attempt is invalid")
 
     async def _compile_input(
         self, session: AsyncSession, *, actor: DemoActor, binding: DemoJobBinding
@@ -795,6 +880,7 @@ class DemoProfileCompilationService:
             raise DemoProfileAuthorityCorruption("profile bundle ownership is invalid")
         desired = await session.get(DemoDesiredDeltaProfile, bundle.desired_delta_profile_id)
         style = await session.get(DemoStyleProfile, bundle.style_profile_id)
+        self_state = await session.get(DemoSelfState, bundle.self_state_id)
         persistent = await session.get(DemoIdentityConstraints, bundle.persistent_constraints_id)
         session_constraints = await session.get(
             DemoIdentityConstraints, bundle.session_override_constraints_id
@@ -802,10 +888,110 @@ class DemoProfileCompilationService:
         if (
             desired is None
             or style is None
+            or self_state is None
             or persistent is None
             or session_constraints is None
             or desired.demo_job_binding_id != binding.id
             or style.demo_job_binding_id != binding.id
+            or self_state.demo_actor_id != binding.demo_actor_id
+            or self_state.demo_session_id != binding.demo_session_id
+            or desired.demo_actor_id != binding.demo_actor_id
+            or desired.demo_session_id != binding.demo_session_id
+            or desired.self_state_id != self_state.id
+            or style.demo_actor_id != binding.demo_actor_id
+            or style.demo_session_id != binding.demo_session_id
+            or style.desired_delta_profile_id != desired.id
+            or persistent.demo_actor_id != binding.demo_actor_id
+            or persistent.demo_session_id is not None
+            or persistent.self_state_id != self_state.id
+            or persistent.constraint_scope != "PERSISTENT"
+            or session_constraints.demo_actor_id != binding.demo_actor_id
+            or session_constraints.demo_session_id != binding.demo_session_id
+            or session_constraints.self_state_id != self_state.id
+            or session_constraints.constraint_scope != "SESSION_OVERRIDE"
+            or not _authority_row_matches(
+                bundle,
+                DEMO_BUNDLE_SCHEMA,
+                (
+                    "demo_actor_id",
+                    "demo_session_id",
+                    "demo_job_binding_id",
+                    "self_state_id",
+                    "desired_delta_profile_id",
+                    "style_profile_id",
+                    "persistent_constraints_id",
+                    "session_override_constraints_id",
+                    "as_of_event_sequence",
+                    "compilation_watermark",
+                    "compiler_version",
+                    "input_digest",
+                    "compilation_digest",
+                ),
+            )
+            or not _authority_row_matches(
+                desired,
+                DEMO_DESIRED_DELTA_SCHEMA,
+                (
+                    "demo_actor_id",
+                    "demo_session_id",
+                    "self_state_id",
+                    "demo_job_binding_id",
+                    "version",
+                    "as_of_event_sequence",
+                    "compilation_watermark",
+                    "compiler_version",
+                    "dimensions",
+                    "evidence_digests",
+                    "restraint",
+                ),
+            )
+            or not _authority_row_matches(
+                style,
+                DEMO_STYLE_SCHEMA,
+                (
+                    "demo_actor_id",
+                    "demo_session_id",
+                    "desired_delta_profile_id",
+                    "demo_job_binding_id",
+                    "version",
+                    "as_of_event_sequence",
+                    "compilation_watermark",
+                    "compiler_version",
+                    "preferences",
+                    "negative_evidence",
+                    "evidence_digests",
+                ),
+            )
+            or not _authority_row_matches(
+                persistent,
+                DEMO_CONSTRAINTS_SCHEMA,
+                (
+                    "demo_actor_id",
+                    "demo_session_id",
+                    "self_state_id",
+                    "version",
+                    "constraint_scope",
+                    "source_event_digests",
+                    "locks",
+                    "bounds",
+                    "prohibited_operations",
+                ),
+            )
+            or not _authority_row_matches(
+                session_constraints,
+                DEMO_CONSTRAINTS_SCHEMA,
+                (
+                    "demo_actor_id",
+                    "demo_session_id",
+                    "self_state_id",
+                    "version",
+                    "constraint_scope",
+                    "source_event_digests",
+                    "locks",
+                    "bounds",
+                    "prohibited_operations",
+                ),
+            )
             or bundle.compilation_digest != _bundle_compilation_digest(bundle.canonical_payload)
         ):
             raise DemoProfileAuthorityCorruption("profile bundle replay authority is invalid")
@@ -979,6 +1165,28 @@ def _bundle_compilation_digest(payload: Mapping[str, Any]) -> str:
     return value if isinstance(value, str) else ""
 
 
+def _job_binding_payload(binding: DemoJobBinding) -> dict[str, Any]:
+    return {
+        "demo_actor_id": binding.demo_actor_id,
+        "demo_session_id": binding.demo_session_id,
+        "endpoint_operation": binding.endpoint_operation,
+        "idempotency_key_hash": binding.idempotency_key_hash,
+        "job_id": binding.job_id,
+        "request_digest": binding.request_digest,
+        "target_id": binding.target_id,
+        "target_type": binding.target_type,
+    }
+
+
+def _authority_row_matches(row: Any, schema: str, fields: Sequence[str]) -> bool:
+    payload = {field: getattr(row, field) for field in fields}
+    return bool(
+        row.schema_version == schema
+        and row.canonical_payload == payload
+        and row.content_digest == _authority_digest(schema, payload)
+    )
+
+
 def _authority_digest(schema: str, payload: Mapping[str, Any]) -> str:
     return hashlib.sha256(
         schema.encode("utf-8") + b"\n" + canonical_json_bytes(payload)
@@ -994,10 +1202,13 @@ __all__ = [
     "DEMO_SELF_TRANSFER_PROJECTION_CONFIG_DIGEST",
     "DEMO_SELF_TRANSFER_PROJECTION_VERSION",
     "DemoProfileAuthorityCorruption",
+    "DemoProfileCompilationJobResult",
     "DemoProfileCompilationResult",
     "DemoProfileCompilationService",
     "DemoProfileInputError",
     "DemoProfileRejected",
+    "DemoProfileResultNotReady",
+    "DemoProfileResultTerminal",
     "DemoProfileServiceError",
     "DemoProfileUnavailable",
 ]

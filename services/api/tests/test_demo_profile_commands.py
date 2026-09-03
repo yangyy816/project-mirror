@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import cast
@@ -47,10 +48,26 @@ from mirror_api.demo_profile_coordinator import DemoProfileCreateResult
 from mirror_api.demo_profile_dependencies import (
     get_demo_profile_commands,
     get_demo_profile_coordinator,
+    get_demo_profile_results,
 )
-from mirror_api.demo_profile_service import DemoProfileCompilationService, _authority_digest
+from mirror_api.demo_profile_service import (
+    DemoProfileAuthorityCorruption,
+    DemoProfileCompilationJobResult,
+    DemoProfileCompilationService,
+    DemoProfileResultNotReady,
+    DemoProfileResultTerminal,
+    DemoProfileUnavailable,
+    _authority_digest,
+)
 from mirror_api.main import create_app
 from mirror_api.models import Job, new_id, utcnow
+
+
+@pytest.fixture(scope="module")
+def event_loop_policy() -> object:
+    if os.name == "nt":
+        return asyncio.WindowsSelectorEventLoopPolicy()
+    return asyncio.DefaultEventLoopPolicy()
 
 
 def _compile_command(actor_id: str, session_id: str, key: str) -> CreateDemoProfileCompilation:
@@ -384,6 +401,28 @@ class _RouteCommands:
         return DemoConstraintsResult("8" * 32, 1, command.scope, False)
 
 
+@dataclass
+class _RouteProfileResults:
+    error: Exception | None = None
+    received_actor_id: str | None = None
+    received_job_id: str | None = None
+
+    async def read_completed_result(
+        self, *, demo_actor_id: str, job_id: str
+    ) -> DemoProfileCompilationJobResult:
+        self.received_actor_id = demo_actor_id
+        self.received_job_id = job_id
+        if self.error is not None:
+            raise self.error
+        return DemoProfileCompilationJobResult(
+            job_id=job_id,
+            session_id=_SESSION_ID,
+            profile_id="6" * 32,
+            job_binding_digest="7" * 64,
+            compilation_digest="8" * 64,
+        )
+
+
 def _route_actor() -> object:
     return type("RouteActor", (), {"id": _ACTOR_ID})()
 
@@ -392,9 +431,11 @@ def test_profile_routes_preserve_actor_ownership_and_reject_invalid_commands() -
     app = create_app()
     coordinator = _RouteCoordinator()
     commands = _RouteCommands()
+    results = _RouteProfileResults()
     app.dependency_overrides[get_demo_actor] = _route_actor
     app.dependency_overrides[get_demo_profile_coordinator] = lambda: cast(object, coordinator)
     app.dependency_overrides[get_demo_profile_commands] = lambda: cast(object, commands)
+    app.dependency_overrides[get_demo_profile_results] = lambda: cast(object, results)
     with TestClient(app) as client:
         capabilities = client.get("/api/v1/demo/capabilities")
         assert capabilities.status_code == 200
@@ -412,6 +453,21 @@ def test_profile_routes_preserve_actor_ownership_and_reject_invalid_commands() -
         assert created.json()["target"]["target_id"] == _ACTOR_ID
         assert coordinator.received is not None
         assert coordinator.received.demo_actor_id == _ACTOR_ID
+
+        profile_result = client.get(f"/api/v1/demo/profiles/compilation-jobs/{_JOB_ID}/result")
+        assert profile_result.status_code == 200
+        assert profile_result.json() == {
+            "status": "PROFILE_READY",
+            "job_id": _JOB_ID,
+            "session_id": _SESSION_ID,
+            "profile_id": "6" * 32,
+            "job_binding_digest": "7" * 64,
+            "compilation_digest": "8" * 64,
+        }
+        assert (results.received_actor_id, results.received_job_id) == (
+            _ACTOR_ID,
+            _JOB_ID,
+        )
 
         style = client.post(
             "/api/v1/demo/style-feedback",
@@ -457,3 +513,38 @@ def test_profile_routes_preserve_actor_ownership_and_reject_invalid_commands() -
         assert denied.status_code == 404
         assert denied.json()["code"] == "DEMO_PROFILE_AUTHORITY_UNAVAILABLE"
     app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_status", "expected_code"),
+    [
+        (DemoProfileResultNotReady("pending"), 409, "DEMO_PROFILE_RESULT_NOT_READY"),
+        (DemoProfileResultTerminal("failed"), 409, "DEMO_PROFILE_RESULT_TERMINAL"),
+        (
+            DemoProfileUnavailable("foreign"),
+            404,
+            "DEMO_PROFILE_AUTHORITY_UNAVAILABLE",
+        ),
+        (
+            DemoProfileAuthorityCorruption("invalid graph"),
+            503,
+            "DEMO_PROFILE_AUTHORITY_CORRUPT",
+        ),
+    ],
+)
+def test_profile_result_route_maps_safe_errors(
+    error: Exception,
+    expected_status: int,
+    expected_code: str,
+) -> None:
+    app = create_app()
+    results = _RouteProfileResults(error=error)
+    app.dependency_overrides[get_demo_actor] = _route_actor
+    app.dependency_overrides[get_demo_profile_results] = lambda: cast(object, results)
+    with TestClient(app) as client:
+        response = client.get(f"/api/v1/demo/profiles/compilation-jobs/{_JOB_ID}/result")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == expected_status
+    assert response.json()["code"] == expected_code
+    assert response.json()["details"] == {"track": "DEMO_PROTOTYPE"}

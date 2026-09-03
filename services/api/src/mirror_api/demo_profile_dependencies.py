@@ -14,6 +14,7 @@ from mirror_api.demo_profile_dispatcher import (
     CeleryDemoProfileDispatcher,
     RecoverablePendingDemoProfileDispatcher,
 )
+from mirror_api.demo_profile_service import DemoProfileCompilationService
 from mirror_api.demo_profile_task_contract import DemoProfileDispatcher
 
 
@@ -21,6 +22,7 @@ from mirror_api.demo_profile_task_contract import DemoProfileDispatcher
 class DemoProfileInfrastructure:
     coordinator: DemoProfileCoordinator
     commands: DemoProfileCommandService
+    results: DemoProfileCompilationService
 
 
 def create_demo_profile_infrastructure(
@@ -42,6 +44,7 @@ def create_demo_profile_infrastructure(
             dispatcher=dispatcher,
         ),
         commands=commands,
+        results=DemoProfileCompilationService(session_factory=sessions),
     )
 
 
@@ -59,9 +62,17 @@ def get_demo_profile_commands(request: Request) -> DemoProfileCommandService:
     )
 
 
+def get_demo_profile_results(request: Request) -> DemoProfileCompilationService:
+    return cast(
+        DemoProfileCompilationService,
+        request.app.state.demo_profile_infrastructure.results,
+    )
+
+
 __all__ = [
     "DemoProfileInfrastructure",
     "create_demo_profile_infrastructure",
     "get_demo_profile_commands",
     "get_demo_profile_coordinator",
+    "get_demo_profile_results",
 ]

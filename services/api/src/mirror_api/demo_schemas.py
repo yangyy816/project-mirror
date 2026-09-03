@@ -183,6 +183,15 @@ class DemoProfileCompileRequest(StrictContractModel):
     compiler_version: str = Field(min_length=1, max_length=64)
 
 
+class DemoProfileCompilationJobResultResponse(StrictContractModel):
+    status: Literal["PROFILE_READY"]
+    job_id: DemoId
+    session_id: DemoId
+    profile_id: DemoId
+    job_binding_digest: DemoDigest
+    compilation_digest: DemoDigest
+
+
 class DemoProfileResponse(StrictContractModel):
     profile_id: DemoId
     generation: int = Field(ge=1)

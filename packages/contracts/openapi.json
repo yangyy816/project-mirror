@@ -3564,6 +3564,105 @@
         "x-demo-only": true
       }
     },
+    "/api/v1/demo/profiles/compilation-jobs/{job_id}/result": {
+      "get": {
+        "tags": [
+          "demo-prototype"
+        ],
+        "summary": "Get Profile Compilation Result",
+        "operationId": "demoGetProfileCompilationResultByJob",
+        "security": [
+          {
+            "DemoBearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoProfileCompilationJobResultResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "x-demo-only": true
+      }
+    },
     "/api/v1/demo/profiles/active": {
       "get": {
         "tags": [
@@ -6700,6 +6799,51 @@
           "event_digest"
         ],
         "title": "DemoPreferenceEventResponse"
+      },
+      "DemoProfileCompilationJobResultResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "PROFILE_READY",
+            "title": "Status"
+          },
+          "job_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Job Id"
+          },
+          "session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Session Id"
+          },
+          "profile_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Profile Id"
+          },
+          "job_binding_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Job Binding Digest"
+          },
+          "compilation_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Compilation Digest"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "job_id",
+          "session_id",
+          "profile_id",
+          "job_binding_digest",
+          "compilation_digest"
+        ],
+        "title": "DemoProfileCompilationJobResultResponse"
       },
       "DemoProfileCompileRequest": {
         "properties": {
