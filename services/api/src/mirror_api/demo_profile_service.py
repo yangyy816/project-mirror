@@ -255,7 +255,12 @@ class DemoProfileCompilationService:
         _require_id(job_id, "job_id")
         async with self._sessions() as session:
             async with session.begin():
-                job, binding, _ = await self._lock_context(session, demo_actor_id, job_id)
+                job, binding, _ = await self._lock_context(
+                    session,
+                    demo_actor_id,
+                    job_id,
+                    invalid_is_corruption=True,
+                )
                 if job.status in {"PENDING", "RUNNING"}:
                     raise DemoProfileResultNotReady("profile Job result is not ready")
                 if job.status in {"REJECTED", "FAILED", "CANCELLED"}:
@@ -277,7 +282,12 @@ class DemoProfileCompilationService:
                 )
 
     async def _lock_context(
-        self, session: AsyncSession, demo_actor_id: str, job_id: str
+        self,
+        session: AsyncSession,
+        demo_actor_id: str,
+        job_id: str,
+        *,
+        invalid_is_corruption: bool = False,
     ) -> tuple[Job, DemoJobBinding, DemoActor]:
         job = cast(
             Job | None, await session.scalar(select(Job).where(Job.id == job_id).with_for_update())
@@ -290,9 +300,10 @@ class DemoProfileCompilationService:
         )
         if job is None or binding is None:
             raise DemoProfileUnavailable("profile Job authority is unavailable")
+        if binding.demo_actor_id != demo_actor_id:
+            raise DemoProfileUnavailable("profile Job authority is unavailable")
         if (
-            binding.demo_actor_id != demo_actor_id
-            or binding.endpoint_operation != DEMO_PROFILE_COMPILE_OPERATION
+            binding.endpoint_operation != DEMO_PROFILE_COMPILE_OPERATION
             or binding.target_type != "DEMO_ACTOR"
             or binding.target_id != demo_actor_id
             or binding.demo_session_id is None
@@ -306,6 +317,8 @@ class DemoProfileCompilationService:
             or binding.content_digest
             != _authority_digest(DEMO_JOB_BINDING_SCHEMA, binding.canonical_payload)
         ):
+            if invalid_is_corruption:
+                raise DemoProfileAuthorityCorruption("profile Job envelope is invalid")
             raise DemoProfileUnavailable("profile Job envelope is invalid")
         actor = cast(
             DemoActor | None,
@@ -317,6 +330,8 @@ class DemoProfileCompilationService:
             raise DemoProfileUnavailable("Demo actor is unavailable")
         demo_session = await session.get(DemoSession, binding.demo_session_id)
         if demo_session is None or demo_session.demo_actor_id != actor.id:
+            if invalid_is_corruption:
+                raise DemoProfileAuthorityCorruption("profile Job Session is invalid")
             raise DemoProfileUnavailable("profile Job Session is unavailable")
         return job, binding, actor
 

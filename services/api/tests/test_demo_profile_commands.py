@@ -8,11 +8,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from test_demo_profile_service import _authority_time, _database, _other_session
+from test_demo_profile_service import _authority_time, _database, _other_session, _profile_job
 
 import mirror_api.demo_profile_commands as profile_commands_module
 from mirror_api.demo_dependencies import get_demo_actor
@@ -425,6 +426,38 @@ class _RouteProfileResults:
 
 def _route_actor() -> object:
     return type("RouteActor", (), {"id": _ACTOR_ID})()
+
+
+@pytest.mark.asyncio
+async def test_profile_result_http_reports_malformed_same_owner_authority_as_corrupt() -> None:
+    async with _database() as (sessions, context):
+        job_id = await _profile_job(sessions, context.actor_id, context.session_id)
+        async with sessions() as session:
+            async with session.begin():
+                job = await session.get(Job, job_id)
+                assert job is not None
+                job.payload = {"unexpected": True}
+
+        app = create_app()
+        app.dependency_overrides[get_demo_actor] = lambda: type(
+            "RouteActor", (), {"id": context.actor_id}
+        )()
+        app.dependency_overrides[get_demo_profile_results] = lambda: DemoProfileCompilationService(
+            session_factory=sessions
+        )
+        try:
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app),
+                base_url="http://testserver",
+            ) as client:
+                response = await client.get(
+                    f"/api/v1/demo/profiles/compilation-jobs/{job_id}/result"
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 503
+        assert response.json()["code"] == "DEMO_PROFILE_AUTHORITY_CORRUPT"
 
 
 def test_profile_routes_preserve_actor_ownership_and_reject_invalid_commands() -> None:
