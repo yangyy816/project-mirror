@@ -4,16 +4,44 @@ import {
   boundSessionFor,
   canonicalRecallAt,
   clearDemoSessionRegistryForTest,
+  createBoundDemoAnalysis,
   createBoundDemoSession,
   demoSessionRegistrySize,
   errorForStatus,
   isSameOriginRequest,
+  readBoundDemoAnalysis,
   readBoundDemoRecall,
+  removeBoundDemoSession,
 } from "./server";
 
 const bearer = "x".repeat(32);
 const identityId = "a".repeat(32);
 const sessionId = "1".repeat(32);
+
+function acceptedAnalysisResponse() {
+  return new Response(
+    JSON.stringify({
+      job_id: "4".repeat(32),
+      status: "PENDING",
+      capability: "P3_FACE_ANALYSIS",
+      job_binding_digest: "b".repeat(64),
+      target: {
+        target_type: "ANALYSIS_RUN",
+        target_id: "5".repeat(32),
+        authority_digest: "c".repeat(64),
+      },
+    }),
+    { status: 202 },
+  );
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
 
 function upstreamFetch(expiresAtMs = 901_000) {
   return vi.fn(async (input: string | URL | Request) => {
@@ -83,6 +111,7 @@ afterEach(() => {
   delete process.env.DEMO_BOOTSTRAP_IDENTITY_ID;
   delete process.env.DEMO_SESSION_TTL_SECONDS;
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("demo bridge server boundary", () => {
@@ -447,6 +476,121 @@ describe("demo bridge server boundary", () => {
     const browserText = await retried.text();
     expect(browserText).not.toContain(jobId);
     expect(browserText).not.toContain(analysisId);
+  });
+
+  it("does not revive a logged-out handle when a deferred create resolves", async () => {
+    const nowMs = Date.now();
+    const delayed = deferred<Response>();
+    const fetchMock = upstreamFetch(nowMs + 900_000);
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = new URL(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      );
+      if (url.pathname.endsWith("/analysis")) return delayed.promise;
+      return upstreamFetch(nowMs + 900_000)(input);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const session = await createBoundDemoSession(undefined, nowMs);
+    const pending = createBoundDemoAnalysis(session?.handle);
+    await Promise.resolve();
+    removeBoundDemoSession(session?.handle);
+    delayed.resolve(acceptedAnalysisResponse());
+    expect(await pending).toEqual({ kind: "DENIED" });
+    expect(demoSessionRegistrySize()).toBe(0);
+  });
+
+  it("does not revive a rotated or expired handle when a deferred create resolves", async () => {
+    vi.useFakeTimers();
+    const nowMs = new Date("2050-01-01T00:00:00.000Z").getTime();
+    vi.setSystemTime(nowMs);
+    const delayed = deferred<Response>();
+    const fetchMock = upstreamFetch(nowMs + 900_000);
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = new URL(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      );
+      if (url.pathname.endsWith("/analysis")) return delayed.promise;
+      return upstreamFetch(nowMs + 900_000)(input);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const rotated = await createBoundDemoSession(undefined, nowMs);
+    const rotationPending = createBoundDemoAnalysis(rotated?.handle);
+    await Promise.resolve();
+    process.env.DEMO_BEARER_TOKEN = "y".repeat(32);
+    delayed.resolve(acceptedAnalysisResponse());
+    expect(await rotationPending).toEqual({ kind: "DENIED" });
+    expect(demoSessionRegistrySize()).toBe(0);
+
+    process.env.DEMO_BEARER_TOKEN = bearer;
+    const expires = await createBoundDemoSession(undefined, nowMs);
+    const expiresDelayed = deferred<Response>();
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = new URL(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      );
+      if (url.pathname.endsWith("/analysis")) return expiresDelayed.promise;
+      return upstreamFetch(nowMs + 900_000)(input);
+    });
+    const expiryPending = createBoundDemoAnalysis(expires?.handle);
+    await Promise.resolve();
+    vi.advanceTimersByTime(60_001);
+    expiresDelayed.resolve(acceptedAnalysisResponse());
+    expect(await expiryPending).toEqual({ kind: "DENIED" });
+    expect(demoSessionRegistrySize()).toBe(0);
+  });
+
+  it("does not publish self-state after logout during a deferred completed poll", async () => {
+    const nowMs = Date.now();
+    const snapshot = deferred<Response>();
+    const fetchMock = upstreamFetch(nowMs + 900_000);
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = new URL(
+        typeof input === "string" || input instanceof URL ? input : input.url,
+      );
+      if (url.pathname.endsWith("/analysis")) return acceptedAnalysisResponse();
+      if (url.pathname.includes(`/jobs/${"4".repeat(32)}`)) {
+        return new Response(
+          JSON.stringify({
+            job_id: "4".repeat(32),
+            status: "COMPLETED",
+            capability: "P3_FACE_ANALYSIS",
+            job_binding_digest: "b".repeat(64),
+            target: {
+              target_type: "ANALYSIS_RUN",
+              target_id: "5".repeat(32),
+              authority_digest: "c".repeat(64),
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.pathname.includes(`/analyses/${"5".repeat(32)}`)) {
+        return snapshot.promise;
+      }
+      return upstreamFetch(nowMs + 900_000)(input);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const session = await createBoundDemoSession(undefined, nowMs);
+    expect(await createBoundDemoAnalysis(session?.handle)).toEqual({
+      kind: "PENDING",
+    });
+    const pending = readBoundDemoAnalysis(session?.handle);
+    await Promise.resolve();
+    removeBoundDemoSession(session?.handle);
+    snapshot.resolve(
+      new Response(
+        JSON.stringify({
+          analysis_id: "5".repeat(32),
+          session_id: sessionId,
+          state: "SUPPORTED",
+          observation_digest: "d".repeat(64),
+          self_state_id: "6".repeat(32),
+        }),
+        { status: 200 },
+      ),
+    );
+    expect(await pending).toEqual({ kind: "DENIED" });
+    expect(demoSessionRegistrySize()).toBe(0);
   });
 
   it("fails closed for a mismatched job binding without leaking authority", async () => {

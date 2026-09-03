@@ -304,6 +304,19 @@ function currentBoundSession(handle: string | undefined): Readonly<{
   return { session, configuration };
 }
 
+function currentAnalysisEntry(
+  handle: string,
+  expectedSession: BoundSession,
+  expectedAnalysis: BoundAnalysis,
+): boolean {
+  const current = currentBoundSession(handle);
+  return (
+    current !== null &&
+    current.session === expectedSession &&
+    current.session.analysis === expectedAnalysis
+  );
+}
+
 function createdAnalysisIsValid(body: unknown): body is Readonly<{
   job_id: string;
   status: "PENDING";
@@ -407,6 +420,14 @@ export async function createBoundDemoAnalysis(
     createIdempotencyKey:
       session.analysis?.createIdempotencyKey ?? randomBytes(32).toString("hex"),
   };
+  const inFlightAnalysis = {
+    ...analysis,
+    createPromise: null as unknown as Promise<DemoAnalysisBridgeResult>,
+  };
+  const inFlightSession: BoundSession = {
+    ...session,
+    analysis: inFlightAnalysis,
+  };
   const promise = (async (): Promise<DemoAnalysisBridgeResult> => {
     const client = createMirrorApiClient(serverEnv.API_BASE_URL);
     const response = await client
@@ -419,17 +440,30 @@ export async function createBoundDemoAnalysis(
         cache: "no-store",
       })
       .catch(() => null);
-    if (!response) return { kind: "UNAVAILABLE" };
+    if (!currentAnalysisEntry(handle, inFlightSession, inFlightAnalysis)) {
+      return { kind: "DENIED" };
+    }
+    if (!response) {
+      sessions.set(handle, { ...inFlightSession, analysis });
+      return { kind: "UNAVAILABLE" };
+    }
     if (response.response.status !== 202) {
+      sessions.set(handle, { ...inFlightSession, analysis });
       return { kind: errorForStatus(response.response.status) };
     }
     if (response.error || !response.data) {
+      sessions.set(handle, { ...inFlightSession, analysis });
       return { kind: "STALE_RESPONSE" };
     }
-    if (!createdAnalysisIsValid(response.data))
+    if (!createdAnalysisIsValid(response.data)) {
+      sessions.set(handle, { ...inFlightSession, analysis });
       return { kind: "STALE_RESPONSE" };
+    }
+    if (!currentAnalysisEntry(handle, inFlightSession, inFlightAnalysis)) {
+      return { kind: "DENIED" };
+    }
     sessions.set(handle, {
-      ...session,
+      ...inFlightSession,
       analysis: {
         createIdempotencyKey: analysis.createIdempotencyKey,
         jobId: response.data.job_id,
@@ -440,18 +474,10 @@ export async function createBoundDemoAnalysis(
     });
     return { kind: "PENDING" };
   })();
-  sessions.set(handle, {
-    ...session,
-    analysis: { ...analysis, createPromise: promise },
-  });
-  const result = await promise;
-  if (result.kind !== "PENDING") {
-    const current = sessions.get(handle);
-    if (current?.analysis?.createPromise === promise) {
-      sessions.set(handle, { ...current, analysis: { ...analysis } });
-    }
-  }
-  return result;
+  inFlightAnalysis.createPromise = promise;
+  if (sessions.get(handle) !== session) return { kind: "DENIED" };
+  sessions.set(handle, inFlightSession);
+  return promise;
 }
 
 export async function readBoundDemoAnalysis(
@@ -470,15 +496,23 @@ export async function readBoundDemoAnalysis(
       headers: { Authorization: `Bearer ${configuration.bearer}` },
     })
     .catch(() => null);
+  if (!currentAnalysisEntry(handle!, session, analysis))
+    return { kind: "DENIED" };
   if (!job) return { kind: "UNAVAILABLE" };
   if (job.error) return { kind: errorForStatus(job.response.status) };
   if (!job.data || job.response.status !== 200)
     return { kind: "STALE_RESPONSE" };
   if (!jobIsValid(job.data, analysis)) return { kind: "STALE_RESPONSE" };
   if (job.data.status === "PENDING" || job.data.status === "RUNNING") {
+    if (!currentAnalysisEntry(handle!, session, analysis))
+      return { kind: "DENIED" };
     return { kind: "PENDING" };
   }
-  if (job.data.status !== "COMPLETED") return { kind: job.data.status };
+  if (job.data.status !== "COMPLETED") {
+    if (!currentAnalysisEntry(handle!, session, analysis))
+      return { kind: "DENIED" };
+    return { kind: job.data.status };
+  }
   const snapshot = await client
     .GET("/api/v1/demo/analyses/{analysis_id}", {
       cache: "no-store",
@@ -486,6 +520,8 @@ export async function readBoundDemoAnalysis(
       headers: { Authorization: `Bearer ${configuration.bearer}` },
     })
     .catch(() => null);
+  if (!currentAnalysisEntry(handle!, session, analysis))
+    return { kind: "DENIED" };
   if (!snapshot) return { kind: "UNAVAILABLE" };
   if (snapshot.error) return { kind: errorForStatus(snapshot.response.status) };
   if (snapshot.response.status !== 200 || !snapshot.data)
@@ -493,6 +529,8 @@ export async function readBoundDemoAnalysis(
   if (!snapshotIsValid(snapshot.data, session.sessionId, analysis)) {
     return { kind: "STALE_RESPONSE" };
   }
+  if (!currentAnalysisEntry(handle!, session, analysis))
+    return { kind: "DENIED" };
   sessions.set(handle!, {
     ...session,
     analysis: { ...analysis, selfStateId: snapshot.data.self_state_id },
