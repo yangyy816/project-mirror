@@ -40,6 +40,8 @@ from mirror_api.demo_models import (
     DemoImageVersion,
     DemoJobBinding,
     DemoPairScreeningReport,
+    DemoQuestionBank,
+    DemoQuestionPair,
 )
 from mirror_api.demo_operation_graph import (
     OperationEngine,
@@ -187,10 +189,25 @@ async def require_geometry_plan_admission(
     )
     delta = operation.parameters.get("delta_ppm")
     dimension = operation.parameters.get("dimension_key")
+    direction = "INCREASE" if isinstance(delta, int) and delta > 0 else "DECREASE"
     cases = (
         None
         if report is None or not isinstance(report.report_payload, Mapping)
         else report.report_payload.get("ordered_case_manifest")
+    )
+    matching = (
+        []
+        if not isinstance(cases, list) or type(delta) is not int or not isinstance(dimension, str)
+        else [
+            case
+            for case in cases
+            if isinstance(case, Mapping)
+            and case.get("source_asset_id") == root.id
+            and case.get("source_asset_sha256") == root.sha256
+            and case.get("dimension_key") == dimension
+            and case.get("direction") == direction
+            and case.get("magnitude_ppm") == abs(delta)
+        ]
     )
     if (
         manifest is None
@@ -207,22 +224,24 @@ async def require_geometry_plan_admission(
         or type(delta) is not int
         or not isinstance(dimension, str)
         or not isinstance(cases, list)
-        or len(
-            [
-                case
-                for case in cases
-                if isinstance(case, Mapping)
-                and case.get("source_asset_id") == root.id
-                and case.get("source_asset_sha256") == root.sha256
-                and case.get("dimension_key") == dimension
-                and case.get("direction") == ("INCREASE" if delta > 0 else "DECREASE")
-                and case.get("magnitude_ppm") == abs(delta)
-            ]
-        )
-        != 1
+        or len(matching) != 1
     ):
         raise GeometryAuthorityResolutionError(
             "D02_FIXED_CASE_UNAVAILABLE", "D02 fixed case is unavailable"
+        )
+    if not await _is_selected_question_pair_side(
+        session,
+        admission=admission,
+        report=report,
+        root=root,
+        case=cast(Mapping[str, Any], matching[0]),
+        dimension=dimension,
+        direction=direction,
+        magnitude_ppm=abs(delta),
+    ):
+        raise GeometryAuthorityResolutionError(
+            "D02_FIXED_CASE_NOT_SELECTED",
+            "D02 fixed case is not a selected QuestionBank side",
         )
 
 
@@ -464,6 +483,20 @@ async def resolve_geometry_execution_authority(
             "D02_FIXED_CASE_UNAVAILABLE", "fixed D02 case is unavailable"
         )
     case = cast(Mapping[str, Any], matching[0])
+    if not await _is_selected_question_pair_side(
+        session,
+        admission=admission,
+        report=report,
+        root=root,
+        case=case,
+        dimension=dimension,
+        direction=direction,
+        magnitude_ppm=abs(delta),
+    ):
+        raise GeometryAuthorityResolutionError(
+            "D02_FIXED_CASE_NOT_SELECTED",
+            "fixed D02 case is not a selected QuestionBank side",
+        )
     try:
         _validate_generic_case(case)
     except Exception as exc:
@@ -568,6 +601,100 @@ async def _one(session: AsyncSession, model: type[Any], identifier: str) -> Any:
             "GEOMETRY_AUTHORITY_UNAVAILABLE", "authority row is unavailable"
         )
     return row
+
+
+async def _is_selected_question_pair_side(
+    session: AsyncSession,
+    *,
+    admission: DemoD02R2Epoch2Admission,
+    report: DemoPairScreeningReport,
+    root: Asset,
+    case: Mapping[str, Any],
+    dimension: str,
+    direction: str,
+    magnitude_ppm: int,
+) -> bool:
+    """Bind a runnable D08 case to one immutable selected QuestionBank side."""
+
+    from mirror_api.demo_editing_repository import _canonical_authority_matches
+
+    selected_dimensions = report.selected_dimension_keys
+    if (
+        not isinstance(selected_dimensions, list)
+        or len(selected_dimensions) != 2
+        or len(set(selected_dimensions)) != 2
+        or dimension not in selected_dimensions
+        or report.selected_pair_manifest_digest != admission.selected_pair_manifest_digest
+    ):
+        return False
+    bank = await session.scalar(
+        select(DemoQuestionBank)
+        .where(
+            DemoQuestionBank.id == admission.question_bank_id,
+            DemoQuestionBank.schema_version == d02_screening.BANK_SCHEMA,
+            DemoQuestionBank.screening_report_id == report.id,
+            DemoQuestionBank.screening_report_digest == report.report_digest,
+            DemoQuestionBank.pair_manifest_digest == admission.selected_pair_manifest_digest,
+            DemoQuestionBank.content_digest == admission.question_bank_content_digest,
+            DemoQuestionBank.version == admission.question_bank_version,
+        )
+        .with_for_update()
+    )
+    if bank is None or not _canonical_authority_matches(bank, d02_screening.BANK_SCHEMA):
+        return False
+    pairs = list(
+        await session.scalars(
+            select(DemoQuestionPair)
+            .where(
+                DemoQuestionPair.question_bank_id == bank.id,
+                DemoQuestionPair.source_asset_id == root.id,
+                DemoQuestionPair.source_asset_sha256 == root.sha256,
+                DemoQuestionPair.dimension_key == dimension,
+                DemoQuestionPair.magnitude_ppm == magnitude_ppm,
+                DemoQuestionPair.screening_report_id == report.id,
+                DemoQuestionPair.screening_report_digest == report.report_digest,
+                DemoQuestionPair.schema_version == d02_screening.PAIR_SCHEMA,
+            )
+            .with_for_update()
+        )
+    )
+    if len(pairs) != 1 or not _canonical_authority_matches(pairs[0], d02_screening.PAIR_SCHEMA):
+        return False
+    pair = pairs[0]
+    try:
+        d02_screening.validate_question_pair_row(
+            _row_mapping(pair),
+            report=_row_mapping(report),
+            bank=_row_mapping(bank),
+        )
+    except d02_generic.GenericAdmissionError:
+        return False
+    qa = pair.qa_payload
+    wrapper = qa.get("pair_screening_record_payload") if isinstance(qa, Mapping) else None
+    pair_payload = (
+        wrapper.get("pair_screening_record_payload") if isinstance(wrapper, Mapping) else None
+    )
+    side_name = "left" if direction == "DECREASE" else "right"
+    side = pair_payload.get(side_name) if isinstance(pair_payload, Mapping) else None
+    if not isinstance(pair_payload, Mapping) or not isinstance(side, Mapping):
+        return False
+    pair_asset_id = pair.left_asset_id if side_name == "left" else pair.right_asset_id
+    pair_asset_sha256 = pair.left_asset_sha256 if side_name == "left" else pair.right_asset_sha256
+    return (
+        pair_payload.get("dimension_key") == dimension
+        and pair_payload.get("magnitude_ppm") == magnitude_ppm
+        and side.get("requested_direction") == direction
+        and side.get("case_id") == case.get("case_id")
+        and side.get("result_asset_id") == pair_asset_id
+        and side.get("result_asset_sha256") == pair_asset_sha256
+    )
+
+
+def _row_mapping(row: object) -> Mapping[str, object]:
+    values = getattr(row, "__dict__", None)
+    if not isinstance(values, Mapping):
+        return {}
+    return {key: value for key, value in values.items() if not key.startswith("_")}
 
 
 def _time(value: object) -> str | None:

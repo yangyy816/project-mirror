@@ -18,12 +18,12 @@ from mirror_api.demo_d08_geometry_verifier import (
 )
 from mirror_api.demo_measurement_quality import JsonValue, mirror_demo_digest
 
-GEOMETRY_MATRIX_QUALIFICATION_SCHEMA: Final = "mirror.demo/GeometryMatrixQualification/v1"
+GEOMETRY_MATRIX_QUALIFICATION_SCHEMA: Final = "mirror.demo/GeometryMatrixQualification/v2"
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 _FIXED18 = re.compile(r"-?(?:0|[1-9][0-9]*)\.\d{18}\Z")
 _SOURCES: Final = (1, 2, 3, 4)
-_DIMENSIONS: Final = ("jaw_width", "chin_height", "eye_spacing")
+_SUPPORTED_DIMENSIONS: Final = ("jaw_width", "chin_height", "eye_spacing")
 _DIRECTIONS: Final = ("DECREASE", "INCREASE")
 _MAGNITUDES: Final = (15_000, 30_000)
 _REPEATS: Final = (1, 2, 3)
@@ -68,13 +68,21 @@ class GeometryMatrixQualification:
 
 def qualify_geometry_matrix(
     terminal_verifications: Sequence[GeometryTerminalVerification],
+    *,
+    selected_dimensions: Sequence[str],
+    selected_pair_manifest_digest: str,
 ) -> GeometryMatrixQualification:
-    """Qualify the complete 4 x 3 x 2 x 2 public D08 Geometry matrix."""
+    """Qualify every side selected by the admitted D02 QuestionBank."""
 
-    if len(terminal_verifications) != 48:
-        raise GeometryMatrixQualificationInputError("matrix must contain exactly 48 terminals")
+    dimensions = _selected_dimensions(selected_dimensions)
+    _require_digest(selected_pair_manifest_digest, "selected pair manifest digest")
+    expected_terminal_count = len(_SOURCES) * len(dimensions) * len(_DIRECTIONS) * len(_MAGNITUDES)
+    if len(terminal_verifications) != expected_terminal_count:
+        raise GeometryMatrixQualificationInputError(
+            f"matrix must contain exactly {expected_terminal_count} selected terminals"
+        )
     normalized = tuple(_normalize_terminal(item) for item in terminal_verifications)
-    _validate_matrix_membership(normalized)
+    _validate_matrix_membership(normalized, selected_dimensions=dimensions)
     ordered = tuple(
         sorted(normalized, key=lambda item: cast(tuple[int, int, int, int], item["sort_key"]))
     )
@@ -119,7 +127,7 @@ def qualify_geometry_matrix(
     comparisons: list[dict[str, object]] = []
     monotonic_passed = True
     for source in _SOURCES:
-        for dimension in _DIMENSIONS:
+        for dimension in dimensions:
             for direction in _DIRECTIONS:
                 values = by_pair[(source, dimension, direction)]
                 for repeat in _REPEATS:
@@ -142,6 +150,8 @@ def qualify_geometry_matrix(
         "schema_version": GEOMETRY_MATRIX_QUALIFICATION_SCHEMA,
         "status": status,
         "policy_version": D08_VERIFIER_POLICY_VERSION,
+        "selected_dimension_keys": list(dimensions),
+        "selected_pair_manifest_digest": selected_pair_manifest_digest,
         "ordered_terminal_verifications": terminal_records,
         "ordered_repeat_deltas": ordered_deltas,
         "monotonic_comparisons": comparisons,
@@ -164,7 +174,7 @@ def _normalize_terminal(value: GeometryTerminalVerification) -> dict[str, object
         "verification_digest": value.verification_digest,
         "sort_key": (
             metrics["source_ordinal"],
-            _DIMENSIONS.index(metrics["dimension_key"]),
+            _SUPPORTED_DIMENSIONS.index(metrics["dimension_key"]),
             _DIRECTIONS.index(metrics["direction"]),
             _MAGNITUDES.index(metrics["magnitude_ppm"]),
         ),
@@ -224,7 +234,7 @@ def _normalize_metrics(value: Mapping[str, object]) -> dict[str, object]:
         raise GeometryMatrixQualificationInputError("case ordinal must be an integer")
     if value["source_ordinal"] not in _SOURCES:
         raise GeometryMatrixQualificationInputError("source ordinal is invalid")
-    if value["dimension_key"] not in _DIMENSIONS or value["direction"] not in _DIRECTIONS:
+    if value["dimension_key"] not in _SUPPORTED_DIMENSIONS or value["direction"] not in _DIRECTIONS:
         raise GeometryMatrixQualificationInputError("matrix dimension or direction is invalid")
     if value["magnitude_ppm"] not in _MAGNITUDES:
         raise GeometryMatrixQualificationInputError("matrix magnitude is invalid")
@@ -467,10 +477,12 @@ def _validate_runtime_identity(value: object) -> None:
         raise GeometryMatrixQualificationInputError("runtime identity value is invalid")
 
 
-def _validate_matrix_membership(terminals: Sequence[dict[str, object]]) -> None:
+def _validate_matrix_membership(
+    terminals: Sequence[dict[str, object]], *, selected_dimensions: Sequence[str]
+) -> None:
     case_ids = [cast(dict[str, object], item["metrics"])["case_id"] for item in terminals]
     digests = [item["verification_digest"] for item in terminals]
-    if len(set(case_ids)) != 48 or len(set(digests)) != 48:
+    if len(set(case_ids)) != len(terminals) or len(set(digests)) != len(terminals):
         raise GeometryMatrixQualificationInputError(
             "case ids and verification digests must be unique"
         )
@@ -491,7 +503,7 @@ def _validate_matrix_membership(terminals: Sequence[dict[str, object]]) -> None:
     expected_keys = {
         (source, dimension, direction, magnitude)
         for source in _SOURCES
-        for dimension in _DIMENSIONS
+        for dimension in selected_dimensions
         for direction in _DIRECTIONS
         for magnitude in _MAGNITUDES
     }
@@ -547,7 +559,7 @@ def _validate_matrix_membership(terminals: Sequence[dict[str, object]]) -> None:
         expected_ordinal = (
             1
             + _SOURCES.index(source) * 12
-            + _DIMENSIONS.index(key[1]) * 4
+            + _SUPPORTED_DIMENSIONS.index(key[1]) * 4
             + _DIRECTIONS.index(key[2]) * 2
             + _MAGNITUDES.index(key[3])
         )
@@ -556,8 +568,25 @@ def _validate_matrix_membership(terminals: Sequence[dict[str, object]]) -> None:
                 "case ordinal does not match canonical matrix order"
             )
         ordinals.add(ordinal)
-    if observed != expected_keys or set(sources) != set(_SOURCES) or len(ordinals) != 48:
+    if (
+        observed != expected_keys
+        or set(sources) != set(_SOURCES)
+        or len(ordinals) != len(expected_keys)
+    ):
         raise GeometryMatrixQualificationInputError("matrix case coverage is not exact")
+
+
+def _selected_dimensions(value: Sequence[str]) -> tuple[str, str]:
+    if isinstance(value, (str, bytes)) or len(value) != 2 or len(set(value)) != 2:
+        raise GeometryMatrixQualificationInputError(
+            "selected dimensions must contain exactly two unique values"
+        )
+    if any(item not in _SUPPORTED_DIMENSIONS for item in value):
+        raise GeometryMatrixQualificationInputError("selected dimension is unsupported")
+    return cast(
+        tuple[str, str],
+        tuple(item for item in _SUPPORTED_DIMENSIONS if item in set(value)),
+    )
 
 
 def _terminal_gate(metrics: Mapping[str, object]) -> bool:

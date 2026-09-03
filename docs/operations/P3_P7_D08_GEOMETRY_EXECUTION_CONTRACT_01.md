@@ -43,6 +43,8 @@ the following are true:
   `root SOURCE -> input snapshot` with type
   `demo_p3_p7_original_snapshot`;
 - the root is one of the four SOURCE Assets in the completed D02 admission;
+- the case is one of the thirty-two result sides in the admitted sixteen-pair
+  QuestionBank and its pair/report/manifest authority replays;
 - a D02 RESULT, deleted Asset, non-synthetic Asset or later ImageVersion is
   rejected;
 - `dimension_key` is exactly `jaw_width`, `chin_height` or `eye_spacing`;
@@ -57,9 +59,12 @@ only for Case 25 (`source 3 / jaw_width / DECREASE / 15000`) and uses its own
 configuration/recipe digest. No third algorithm, alternate selector, fallback
 or matrix-wide configuration coercion is permitted.
 
-The historical case and result rows are eligibility and plan-binding
-authority only. Their bytes, ResultM3 rows and PASS state cannot be replayed as
-the current execution or verification result.
+The complete historical forty-eight-case manifest is eligibility and
+plan-binding authority only. Only the thirty-two sides selected by the final
+QuestionBank are runnable. Unselected cases, including the known failing
+`chin_height` Case 05, remain honest screening evidence and fail closed as
+editing capabilities. Historical bytes, ResultM3 rows and PASS state cannot
+be replayed as the current execution or verification result.
 
 The existing `demo-tool-registry-v1`, `demo-edit-planner-v1`, OperationSpec,
 public request/response and reference-only task message remain unchanged.
@@ -171,9 +176,11 @@ decode/artifact/original immutability = PASS
 source digest != result digest
 ```
 
-An aggregate PASS cannot hide a failing repeat. The integrated 48-case Gate
-also produces canonical `GeometryMatrixQualification/v1` evidence ordered by
-source, dimension, direction, magnitude and repeat index. For every
+An aggregate PASS cannot hide a failing repeat. The integrated selected-side
+Gate produces canonical `GeometryMatrixQualification/v2` evidence ordered by
+source, selected dimension, direction, magnitude and repeat index. For the
+current admitted bank this is 32 cases (4 sources × 2 selected dimensions × 2
+directions × 2 magnitudes). For every selected
 source/dimension/direction and each repeat index it requires:
 
 ```text
@@ -181,12 +188,14 @@ abs(target delta at magnitude 30_000) >=
 abs(target delta at magnitude 15_000)
 ```
 
-The matrix evidence contains the ordered terminal Verification digests,
-ordered repeat deltas, every comparison boolean, policy version and a
-cross-case Gate digest. That digest is bound into the D08 integrated acceptance
-result and its policy digest. It is a qualification Gate over the fresh matrix,
-not a database prerequisite for an isolated post-qualification user operation.
-Negative tests must fail the Gate when any repeat violates monotonicity.
+The matrix evidence contains the selected dimension keys, selected-pair
+manifest digest, ordered terminal Verification digests, ordered repeat deltas,
+every comparison boolean, policy version and a cross-case Gate digest. That
+digest is bound into the D08 integrated acceptance result and its policy
+digest. It is a qualification Gate over the fresh selected matrix, not a
+database prerequisite for an isolated post-qualification user operation.
+Negative tests must fail the Gate when any repeat violates monotonicity or when
+the terminal set differs from the admitted selected sides.
 The matrix requires one shared source/M3/model/topology/network authority while
 allowing the two exact case algorithms to retain distinct M4 recipe and
 configuration identities. It never normalizes Case 25 back to the predecessor
@@ -234,7 +243,8 @@ uses serial execution and denied public-network egress.
 
 D08 can be `TASK_ACCEPTED` only after:
 
-- all 48 source × dimension × direction × magnitude cases execute fresh;
+- all 32 admitted QuestionBank result sides execute fresh; unselected cases
+  remain capability-unavailable;
 - each case has fresh source/result M3 verification;
 - each repeat independently passes direction, 10–60,000 target magnitude and
   20,000 maximum control-drift Gates;

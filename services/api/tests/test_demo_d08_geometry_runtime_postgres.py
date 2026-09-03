@@ -35,7 +35,11 @@ from mirror_api.demo_d08_geometry_adapter import (
     stable_config_digest,
     stable_engine_digest,
 )
-from mirror_api.demo_d08_geometry_authority import resolve_geometry_execution_authority
+from mirror_api.demo_d08_geometry_authority import (
+    GeometryAuthorityResolutionError,
+    require_geometry_plan_admission,
+    resolve_geometry_execution_authority,
+)
 from mirror_api.demo_editing_commands import (
     CreateDemoEditPlan,
     DemoEditingCommandService,
@@ -74,11 +78,18 @@ from mirror_api.demo_models import (
     DemoIdentityConstraints,
     DemoImageVersion,
     DemoJobBinding,
+    DemoPairScreeningReport,
     DemoStyleProfile,
     DemoSyntheticIdentity,
     DemoVerificationResult,
 )
-from mirror_api.demo_operation_graph import OperationType, parse_operation_spec
+from mirror_api.demo_operation_graph import (
+    OperationEngine,
+    OperationSpec,
+    OperationType,
+    PreserveKey,
+    parse_operation_spec,
+)
 from mirror_api.demo_tool_registry import GEOMETRY_ENGINE_VERSION, TOOL_REGISTRY_VERSION
 from mirror_api.models import Asset, AssetVariant, Job, JobAttempt, new_id, utcnow
 from mirror_api.providers.opencv_geometry import ALGORITHM_VERSION
@@ -354,6 +365,42 @@ async def test_geometry_plan_and_resolver_use_distinct_sequence_zero_snapshot(
     sessions, engine, graph = await _context(postgres_session, tmp_path)
     commands = DemoEditingCommandService(session_factory=sessions)
     try:
+        async with sessions() as session:
+            report = await session.scalar(
+                select(DemoPairScreeningReport).where(DemoPairScreeningReport.status == "PASSED")
+            )
+        assert report is not None
+        unselected_dimension = next(
+            item
+            for item in ("jaw_width", "chin_height", "eye_spacing")
+            if item not in report.selected_dimension_keys
+        )
+        unselected = OperationSpec(
+            engine=OperationEngine.GEOMETRY,
+            operation_type=OperationType.GEOMETRY,
+            parameters={"dimension_key": unselected_dimension, "delta_ppm": -15_000},
+            preserve=(
+                PreserveKey.IDENTITY_REFERENCE_FRAME,
+                PreserveKey.NON_TARGET_GEOMETRY,
+            ),
+            expected_effect={
+                "effect_type": "GEOMETRY",
+                "target_region": "FACE_REGION",
+                "dimension_key": unselected_dimension,
+                "delta_ppm": -15_000,
+            },
+        )
+        async with sessions() as session:
+            with pytest.raises(
+                GeometryAuthorityResolutionError,
+                match="not a selected QuestionBank side",
+            ):
+                await require_geometry_plan_admission(
+                    session,
+                    editing_session_id=graph["editing"].id,
+                    image_version_id=graph["image"].id,
+                    operation=unselected,
+                )
         before = await _count(sessions, DemoEditPlan), await _count(sessions, DemoEditOperation)
         plan = await _plan(commands, graph, "d08-geometry-positive")
         assert (

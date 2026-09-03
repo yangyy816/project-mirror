@@ -11,6 +11,7 @@ from mirror_api.demo_d08_geometry_adapter import (
 )
 from mirror_api.demo_d08_geometry_matrix import (
     GEOMETRY_MATRIX_QUALIFICATION_SCHEMA,
+    GeometryMatrixQualification,
     GeometryMatrixQualificationInputError,
     GeometryTerminalVerification,
     qualify_geometry_matrix,
@@ -28,6 +29,10 @@ def _digest(index: int) -> str:
 
 def _identifier(index: int) -> str:
     return f"{index:032x}"
+
+
+_SELECTED_DIMENSIONS = ("jaw_width", "eye_spacing")
+_SELECTED_PAIR_MANIFEST_DIGEST = _digest(140_000)
 
 
 def _terminal(
@@ -161,10 +166,20 @@ def _matrix() -> list[GeometryTerminalVerification]:
     return [
         _terminal(source, dimension, direction, magnitude)
         for source in range(1, 5)
-        for dimension in ("jaw_width", "chin_height", "eye_spacing")
+        for dimension in _SELECTED_DIMENSIONS
         for direction in ("DECREASE", "INCREASE")
         for magnitude in (15_000, 30_000)
     ]
+
+
+def _qualify(
+    terminals: list[GeometryTerminalVerification],
+) -> GeometryMatrixQualification:
+    return qualify_geometry_matrix(
+        terminals,
+        selected_dimensions=_SELECTED_DIMENSIONS,
+        selected_pair_manifest_digest=_SELECTED_PAIR_MANIFEST_DIGEST,
+    )
 
 
 def _replace(
@@ -182,24 +197,29 @@ def _replace(
 
 
 def test_complete_matrix_has_canonical_pass_evidence() -> None:
-    result = qualify_geometry_matrix(list(reversed(_matrix())))
+    result = _qualify(list(reversed(_matrix())))
     assert result.status == "PASS"
     assert result.evidence["schema_version"] == GEOMETRY_MATRIX_QUALIFICATION_SCHEMA
-    assert len(result.evidence["ordered_terminal_verifications"]) == 48
-    assert len(result.evidence["ordered_repeat_deltas"]) == 144
-    assert len(result.evidence["monotonic_comparisons"]) == 72
+    assert result.evidence["selected_dimension_keys"] == list(_SELECTED_DIMENSIONS)
+    assert result.evidence["selected_pair_manifest_digest"] == (_SELECTED_PAIR_MANIFEST_DIGEST)
+    assert len(result.evidence["ordered_terminal_verifications"]) == 32
+    assert len(result.evidence["ordered_repeat_deltas"]) == 96
+    assert len(result.evidence["monotonic_comparisons"]) == 48
     assert result.evidence["cross_case_digest"] == result.cross_case_digest
 
 
 def test_case_25_targeted_successor_identity_is_qualified_without_global_uniformity() -> None:
     terminals = _matrix()
-    metrics = deepcopy(dict(terminals[24].metrics))
+    target_index = next(
+        index for index, terminal in enumerate(terminals) if terminal.metrics["case_ordinal"] == 25
+    )
+    metrics = deepcopy(dict(terminals[target_index].metrics))
     runtime_identity = cast(dict[str, object], metrics["runtime_identity"])
     runtime_identity["m4_algorithm_version"] = TARGETED_REPAIR_ALGORITHM_VERSION
     runtime_identity["recipe_digest"] = _digest(99)
-    terminals[24] = _replace(terminals[24], metrics=metrics)
+    terminals[target_index] = _replace(terminals[target_index], metrics=metrics)
 
-    result = qualify_geometry_matrix(terminals)
+    result = _qualify(terminals)
 
     assert result.status == "PASS"
 
@@ -213,7 +233,25 @@ def test_targeted_successor_identity_outside_case_25_fails_closed() -> None:
     terminals[0] = _replace(terminals[0], metrics=metrics)
 
     with pytest.raises(GeometryMatrixQualificationInputError, match="exact D08 allowlist"):
-        qualify_geometry_matrix(terminals)
+        _qualify(terminals)
+
+
+@pytest.mark.parametrize(
+    ("dimensions", "digest"),
+    [
+        (("jaw_width", "chin_height", "eye_spacing"), _SELECTED_PAIR_MANIFEST_DIGEST),
+        (_SELECTED_DIMENSIONS, "not-a-digest"),
+    ],
+)
+def test_selected_question_bank_authority_is_required(
+    dimensions: tuple[str, ...], digest: str
+) -> None:
+    with pytest.raises(GeometryMatrixQualificationInputError):
+        qualify_geometry_matrix(
+            _matrix(),
+            selected_dimensions=dimensions,
+            selected_pair_manifest_digest=digest,
+        )
 
 
 @pytest.mark.parametrize(
@@ -240,7 +278,7 @@ def test_invalid_matrix_inputs_fail_closed(mutation: str) -> None:
         metrics["schema_version"] = "wrong"
         terminals[0] = _replace(terminals[0], metrics=metrics)
     with pytest.raises(GeometryMatrixQualificationInputError):
-        qualify_geometry_matrix(terminals)
+        _qualify(terminals)
 
 
 @pytest.mark.parametrize("mutation", ["repeat", "direction", "range", "monotonic"])
@@ -263,5 +301,5 @@ def test_gate_failures_return_fail_evidence(mutation: str) -> None:
         metrics = deepcopy(dict(high.metrics))
         metrics["repeats"][1]["signed_target_delta_ppm"] = 99
         terminals[1] = _replace(high, metrics=metrics)
-    result = qualify_geometry_matrix(terminals)
+    result = _qualify(terminals)
     assert result.status == "FAIL"
