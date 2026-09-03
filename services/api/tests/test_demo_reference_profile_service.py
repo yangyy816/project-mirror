@@ -413,6 +413,11 @@ async def test_populated_d06_downgrade_fails_closed(postgres_session: Session) -
     finally:
         await engine.dispose()
 
+    # This test targets the D06 guard, so remove the unrelated D03 v2 Repeat
+    # fixture before asking Alembic to cross the D03 downgrade.
+    postgres_session.execute(text("TRUNCATE TABLE demo_face_observation_repeats"))
+    postgres_session.commit()
+
     root = Path(__file__).resolve().parents[3]
     config = Config(root / "services" / "api" / "alembic.ini")
     config.set_main_option(
@@ -420,12 +425,15 @@ async def test_populated_d06_downgrade_fails_closed(postgres_session: Session) -
         str(root / "services" / "api" / "migrations"),
     )
     postgres_session.commit()
-    with pytest.raises(ProgrammingError, match="downgrade is forbidden"):
-        alembic_command.downgrade(config, "demo_0015_d02_source_acq_pool")
-    postgres_session.expire_all()
-    assert postgres_session.scalar(text("SELECT version_num FROM alembic_version")) == (
-        "demo_0018_d03_pose_evidence"
-    )
+    try:
+        with pytest.raises(ProgrammingError, match="downgrade is forbidden"):
+            alembic_command.downgrade(config, "demo_0015_d02_source_acq_pool")
+        postgres_session.expire_all()
+        assert postgres_session.scalar(text("SELECT version_num FROM alembic_version")) == (
+            "demo_0018_d03_pose_evidence"
+        )
+    finally:
+        alembic_command.upgrade(config, "demo_0018_d03_pose_evidence")
 
 
 @pytest.mark.asyncio

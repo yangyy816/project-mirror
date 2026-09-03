@@ -5141,6 +5141,10 @@ def test_d07_populated_artifact_authority_blocks_downgrade(
     session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _insert_full_demo_graph(session, include_episode=False)
+    # This test targets the D07 guard, so remove the unrelated D03 v2 Repeat
+    # fixture before asking Alembic to cross the D03 downgrade.
+    session.execute(text("TRUNCATE TABLE demo_face_observation_repeats"))
+    session.commit()
     database_url = os.environ["TEST_DATABASE_URL"]
     monkeypatch.setenv("DATABASE_URL", database_url)
     config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))

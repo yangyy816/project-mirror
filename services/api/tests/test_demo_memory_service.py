@@ -10,7 +10,7 @@ from typing import Any, Literal, cast
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, delete, func, select, update
+from sqlalchemy import create_engine, delete, func, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -763,6 +763,12 @@ async def test_context_queue_populated_downgrade_fails_closed(
 ) -> None:
     graph = _insert_full_demo_graph(postgres_session)
     memory, sessions, engine = _service()
+    root = Path(__file__).resolve().parents[3]
+    config = Config(root / "services" / "api" / "alembic.ini")
+    config.set_main_option(
+        "script_location",
+        str(root / "services" / "api" / "migrations"),
+    )
     try:
         profile = await _rebuild_execute(memory, _rebuild(graph))
         queue = _context_queue(sessions)
@@ -775,13 +781,11 @@ async def test_context_queue_populated_downgrade_fails_closed(
             )
         )
         await engine.dispose()
+        # This test targets the D10 guard, so remove the unrelated D03 v2
+        # Repeat fixture before asking Alembic to cross the D03 downgrade.
+        postgres_session.execute(text("TRUNCATE TABLE demo_face_observation_repeats"))
+        postgres_session.commit()
 
-        root = Path(__file__).resolve().parents[3]
-        config = Config(root / "services" / "api" / "alembic.ini")
-        config.set_main_option(
-            "script_location",
-            str(root / "services" / "api" / "migrations"),
-        )
         with pytest.raises(DBAPIError, match="D10 queued Context authority exists"):
             await asyncio.to_thread(
                 command.downgrade,
@@ -809,6 +813,7 @@ async def test_context_queue_populated_downgrade_fails_closed(
             sync_engine.dispose()
     finally:
         await engine.dispose()
+        command.upgrade(config, "demo_0018_d03_pose_evidence")
 
 
 @pytest.mark.asyncio
