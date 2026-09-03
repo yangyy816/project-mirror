@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from types import MappingProxyType
 from typing import cast
 
+import pytest
 from fastapi.testclient import TestClient
 
 from mirror_api.demo_analysis_dependencies import get_demo_job_service
@@ -19,8 +20,20 @@ from mirror_api.demo_questionnaire_bank import (
     QuestionPairPresentation,
     QuestionSidePresentation,
 )
-from mirror_api.demo_questionnaire_dependencies import get_demo_questionnaire_service
+from mirror_api.demo_questionnaire_dependencies import (
+    get_demo_questionnaire_media_service,
+    get_demo_questionnaire_service,
+)
+from mirror_api.demo_questionnaire_media import (
+    DemoQuestionnaireMedia,
+    DemoQuestionnaireMediaAuthorityCorruption,
+    DemoQuestionnaireMediaBytesUnavailable,
+    DemoQuestionnaireMediaInputError,
+    DemoQuestionnaireMediaService,
+    DemoQuestionnaireMediaUnavailable,
+)
 from mirror_api.demo_questionnaire_service import (
+    CreateDemoAnalysisQuestionnaireRun,
     CreateDemoQuestionnaireResponse,
     CreateDemoQuestionnaireRun,
     DemoQuestionnaireCompleted,
@@ -35,6 +48,7 @@ from mirror_api.main import create_app
 ACTOR_ID = "1" * 32
 SESSION_ID = "2" * 32
 SELF_STATE_ID = "3" * 32
+ANALYSIS_ID = "0" * 32
 RUN_ID = "4" * 32
 JOB_ID = "5" * 32
 STEP_ID = "6" * 32
@@ -117,10 +131,17 @@ class _Questionnaires:
     next_result: DemoQuestionnaireNext | DemoQuestionnaireCompleted
     conflict: bool = False
     create_command: CreateDemoQuestionnaireRun | None = None
+    analysis_command: CreateDemoAnalysisQuestionnaireRun | None = None
     response_command: CreateDemoQuestionnaireResponse | None = None
 
     async def create(self, command: CreateDemoQuestionnaireRun) -> DemoQuestionnaireRunAccepted:
         self.create_command = command
+        return DemoQuestionnaireRunAccepted(JOB_ID, RUN_ID, SESSION_ID, False)
+
+    async def create_for_analysis(
+        self, command: CreateDemoAnalysisQuestionnaireRun
+    ) -> DemoQuestionnaireRunAccepted:
+        self.analysis_command = command
         return DemoQuestionnaireRunAccepted(JOB_ID, RUN_ID, SESSION_ID, False)
 
     async def next(
@@ -154,6 +175,25 @@ class _Jobs:
         return _job()
 
 
+@dataclass
+class _Media:
+    async def load(
+        self, *, demo_actor_id: str, questionnaire_run_id: str, side: str
+    ) -> DemoQuestionnaireMedia:
+        assert demo_actor_id == ACTOR_ID
+        assert questionnaire_run_id == RUN_ID
+        assert side in {"LEFT", "RIGHT"}
+        return DemoQuestionnaireMedia(content=b"canonical-jpeg", byte_size=14, width=2, height=2)
+
+
+@dataclass
+class _FailingMedia:
+    error: Exception
+
+    async def load(self, **_: object) -> DemoQuestionnaireMedia:
+        raise self.error
+
+
 def _actor() -> DemoActor:
     return DemoActor(
         id=ACTOR_ID,
@@ -175,6 +215,9 @@ def test_questionnaire_routes_project_real_service_contracts() -> None:
         DemoQuestionnaireService, questionnaires
     )
     app.dependency_overrides[get_demo_job_service] = lambda: cast(DemoJobService, jobs)
+    app.dependency_overrides[get_demo_questionnaire_media_service] = lambda: cast(
+        DemoQuestionnaireMediaService, _Media()
+    )
 
     with TestClient(app) as client:
         created = client.post(
@@ -201,6 +244,17 @@ def test_questionnaire_routes_project_real_service_contracts() -> None:
         assert questionnaires.create_command.max_questions == 12
         assert questionnaires.create_command.idempotency_key == "questionnaire-create-key"
 
+        analysis_created = client.post(
+            f"/api/v1/demo/analyses/{ANALYSIS_ID}/questionnaire",
+            headers={"Idempotency-Key": "analysis-questionnaire-key"},
+        )
+        assert analysis_created.status_code == 202
+        assert analysis_created.json()["target"]["target_id"] == RUN_ID
+        assert questionnaires.analysis_command is not None
+        assert questionnaires.analysis_command.demo_actor_id == ACTOR_ID
+        assert questionnaires.analysis_command.analysis_run_id == ANALYSIS_ID
+        assert questionnaires.analysis_command.idempotency_key == "analysis-questionnaire-key"
+
         question = client.get(f"/api/v1/demo/questionnaires/runs/{RUN_ID}/next")
         assert question.status_code == 200
         body = question.json()
@@ -214,6 +268,13 @@ def test_questionnaire_routes_project_real_service_contracts() -> None:
         assert body["right"]["result_lineage_digest"] == "2" * 64
         assert body["step_sequence"] == 1
         assert body["run_version"] == 1
+
+        media = client.get(f"/api/v1/demo/questionnaires/runs/{RUN_ID}/presentation-media/LEFT")
+        assert media.status_code == 200
+        assert media.content == b"canonical-jpeg"
+        assert media.headers["content-type"] == "image/jpeg"
+        assert media.headers["cache-control"] == "private, no-store"
+        assert media.headers["x-content-type-options"] == "nosniff"
 
         response = client.post(
             f"/api/v1/demo/questionnaires/runs/{RUN_ID}/responses",
@@ -253,4 +314,46 @@ def test_questionnaire_routes_project_real_service_contracts() -> None:
         assert conflict.status_code == 409
         assert conflict.json()["code"] == "DEMO_QUESTIONNAIRE_STATE_CONFLICT"
 
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_status", "expected_code"),
+    (
+        (
+            DemoQuestionnaireMediaInputError("invalid"),
+            422,
+            "DEMO_QUESTIONNAIRE_MEDIA_REQUEST_INVALID",
+        ),
+        (
+            DemoQuestionnaireMediaUnavailable("unavailable"),
+            404,
+            "DEMO_QUESTIONNAIRE_MEDIA_UNAVAILABLE",
+        ),
+        (
+            DemoQuestionnaireMediaAuthorityCorruption("corrupt"),
+            503,
+            "DEMO_QUESTIONNAIRE_MEDIA_AUTHORITY_UNAVAILABLE",
+        ),
+        (
+            DemoQuestionnaireMediaBytesUnavailable("missing"),
+            503,
+            "DEMO_QUESTIONNAIRE_MEDIA_AUTHORITY_UNAVAILABLE",
+        ),
+    ),
+)
+def test_questionnaire_media_errors_are_redacted(
+    error: Exception, expected_status: int, expected_code: str
+) -> None:
+    app = create_app()
+    app.dependency_overrides[get_demo_actor] = _actor
+    app.dependency_overrides[get_demo_questionnaire_media_service] = lambda: cast(
+        DemoQuestionnaireMediaService, _FailingMedia(error)
+    )
+    with TestClient(app) as client:
+        response = client.get(f"/api/v1/demo/questionnaires/runs/{RUN_ID}/presentation-media/RIGHT")
+    assert response.status_code == expected_status
+    assert response.json()["code"] == expected_code
+    assert "corrupt" not in response.text
+    assert "missing" not in response.text
     app.dependency_overrides.clear()

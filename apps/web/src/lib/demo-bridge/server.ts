@@ -32,6 +32,7 @@ type BoundSession = Readonly<{
   expiresAtMs: number;
   bindingFingerprint: string;
   analysis?: BoundAnalysis;
+  questionnaire?: BoundQuestionnaire;
 }>;
 
 type BoundAnalysis = Readonly<{
@@ -42,6 +43,35 @@ type BoundAnalysis = Readonly<{
   targetAuthorityDigest?: string;
   selfStateId?: string;
   createPromise?: Promise<DemoAnalysisBridgeResult>;
+}>;
+
+type QuestionnaireChoice = "LEFT" | "RIGHT" | "INDISTINGUISHABLE" | "SKIP";
+type QuestionnaireResponsePayload = Readonly<{
+  presentationToken: string;
+  choice: QuestionnaireChoice;
+  responseLatencyMs: number;
+}>;
+type BoundQuestion = Readonly<{
+  stepId: string;
+  pairId: string;
+  stepSequence: number;
+  runVersion: number;
+  presentationToken: string;
+}>;
+type BoundQuestionnaire = Readonly<{
+  createIdempotencyKey: string;
+  jobId?: string;
+  runId?: string;
+  jobBindingDigest?: string;
+  targetAuthorityDigest?: string;
+  question?: BoundQuestion;
+  completed?: true;
+  createPromise?: Promise<DemoQuestionnaireBridgeResult>;
+  response?: Readonly<{
+    payload: QuestionnaireResponsePayload;
+    idempotencyKey: string;
+    promise?: Promise<DemoQuestionnaireBridgeResult>;
+  }>;
 }>;
 
 type BridgeConfiguration = Readonly<{
@@ -89,6 +119,16 @@ export type DemoAnalysisBridgeResult =
       analysisState: "SUPPORTED" | "UNSUPPORTED";
       selfState: "READY";
     }>
+  | Readonly<{ kind: "CANCELLED" | "REJECTED" | "FAILED" }>
+  | Readonly<{ kind: BridgeErrorCode }>;
+
+export type DemoQuestionnaireBridgeResult =
+  | Readonly<{ kind: "PENDING" }>
+  | Readonly<{
+      kind: "QUESTION";
+      presentationToken: string;
+    }>
+  | Readonly<{ kind: "COMPLETED" }>
   | Readonly<{ kind: "CANCELLED" | "REJECTED" | "FAILED" }>
   | Readonly<{ kind: BridgeErrorCode }>;
 
@@ -608,6 +648,432 @@ export async function readBoundDemoRecall(
       evidence_digest: trace.evidence_digest,
     },
   };
+}
+
+function currentQuestionnaireEntry(
+  handle: string,
+  expectedSession: BoundSession,
+  expectedQuestionnaire: BoundQuestionnaire,
+): boolean {
+  const current = currentBoundSession(handle);
+  return (
+    current !== null &&
+    current.session === expectedSession &&
+    current.session.questionnaire === expectedQuestionnaire
+  );
+}
+
+function validPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
+}
+
+function questionIsValid(
+  body: unknown,
+  runId: string,
+): body is Readonly<{
+  kind: "QUESTION";
+  step_id: string;
+  question_pair_id: string;
+  step_sequence: number;
+  run_version: number;
+}> {
+  if (!body || typeof body !== "object") return false;
+  const value = body as Record<string, unknown>;
+  return (
+    value.kind === "QUESTION" &&
+    value.run_id === runId &&
+    validUpstreamId(value.step_id) &&
+    validUpstreamId(value.question_pair_id) &&
+    validPositiveInteger(value.step_sequence) &&
+    validPositiveInteger(value.run_version) &&
+    typeof runId === "string"
+  );
+}
+
+function completedQuestionnaireIsValid(body: unknown, runId: string): boolean {
+  if (!body || typeof body !== "object") return false;
+  const value = body as Record<string, unknown>;
+  return value.kind === "COMPLETED" && value.run_id === runId;
+}
+
+function createdQuestionnaireIsValid(body: unknown): body is Readonly<{
+  job_id: string;
+  status: "PENDING";
+  capability: "P4_QUESTIONNAIRE";
+  job_binding_digest: string;
+  target: Readonly<{
+    target_type: "QUESTIONNAIRE_RUN";
+    target_id: string;
+    authority_digest: string;
+  }>;
+}> {
+  if (!body || typeof body !== "object") return false;
+  const value = body as Record<string, unknown>;
+  const target = value.target;
+  if (!target || typeof target !== "object") return false;
+  const targetValue = target as Record<string, unknown>;
+  return (
+    validUpstreamId(value.job_id) &&
+    value.status === "PENDING" &&
+    value.capability === "P4_QUESTIONNAIRE" &&
+    validUpstreamDigest(value.job_binding_digest) &&
+    targetValue.target_type === "QUESTIONNAIRE_RUN" &&
+    validUpstreamId(targetValue.target_id) &&
+    validUpstreamDigest(targetValue.authority_digest)
+  );
+}
+
+function questionnaireJobIsValid(
+  body: unknown,
+  questionnaire: BoundQuestionnaire,
+): boolean {
+  if (!body || typeof body !== "object") return false;
+  const value = body as Record<string, unknown>;
+  const target = value.target;
+  if (!target || typeof target !== "object") return false;
+  const targetValue = target as Record<string, unknown>;
+  return (
+    value.job_id === questionnaire.jobId &&
+    (value.status === "PENDING" ||
+      value.status === "RUNNING" ||
+      value.status === "COMPLETED" ||
+      value.status === "REJECTED" ||
+      value.status === "FAILED" ||
+      value.status === "CANCELLED") &&
+    value.capability === "P4_QUESTIONNAIRE" &&
+    value.job_binding_digest === questionnaire.jobBindingDigest &&
+    targetValue.target_type === "QUESTIONNAIRE_RUN" &&
+    targetValue.target_id === questionnaire.runId &&
+    targetValue.authority_digest === questionnaire.targetAuthorityDigest
+  );
+}
+
+function questionResult(
+  question: BoundQuestion,
+): DemoQuestionnaireBridgeResult {
+  return { kind: "QUESTION", presentationToken: question.presentationToken };
+}
+
+async function fetchNextQuestion(
+  handle: string,
+  session: BoundSession,
+  questionnaire: BoundQuestionnaire,
+  configuration: BridgeConfiguration,
+): Promise<DemoQuestionnaireBridgeResult> {
+  if (!questionnaire.runId) return { kind: "STALE_RESPONSE" };
+  const client = createMirrorApiClient(serverEnv.API_BASE_URL);
+  const result = await client
+    .GET("/api/v1/demo/questionnaires/runs/{run_id}/next", {
+      cache: "no-store",
+      params: { path: { run_id: questionnaire.runId } },
+      headers: { Authorization: `Bearer ${configuration.bearer}` },
+    })
+    .catch(() => null);
+  if (!currentQuestionnaireEntry(handle, session, questionnaire))
+    return { kind: "DENIED" };
+  if (!result) return { kind: "UNAVAILABLE" };
+  if (result.error) return { kind: errorForStatus(result.response.status) };
+  if (!result.data) return { kind: "STALE_RESPONSE" };
+  if (completedQuestionnaireIsValid(result.data, questionnaire.runId)) {
+    sessions.set(handle, {
+      ...session,
+      questionnaire: {
+        ...questionnaire,
+        completed: true,
+        question: undefined,
+        response: undefined,
+      },
+    });
+    return { kind: "COMPLETED" };
+  }
+  if (!questionIsValid(result.data, questionnaire.runId))
+    return { kind: "STALE_RESPONSE" };
+  const question: BoundQuestion = {
+    stepId: result.data.step_id,
+    pairId: result.data.question_pair_id,
+    stepSequence: result.data.step_sequence,
+    runVersion: result.data.run_version,
+    presentationToken: randomBytes(32).toString("hex"),
+  };
+  sessions.set(handle, {
+    ...session,
+    questionnaire: { ...questionnaire, question, response: undefined },
+  });
+  return questionResult(question);
+}
+
+export async function createBoundDemoQuestionnaire(
+  handle: string | undefined,
+): Promise<DemoQuestionnaireBridgeResult> {
+  const bound = currentBoundSession(handle);
+  if (!bound || !handle) return { kind: "DENIED" };
+  const { session, configuration } = bound;
+  const analysis = session.analysis;
+  if (!analysis?.analysisId || !analysis.selfStateId)
+    return { kind: "NOT_FOUND" };
+  if (session.questionnaire?.createPromise)
+    return session.questionnaire.createPromise;
+  if (session.questionnaire?.jobId) return { kind: "PENDING" };
+  const questionnaire: BoundQuestionnaire = {
+    createIdempotencyKey:
+      session.questionnaire?.createIdempotencyKey ??
+      randomBytes(32).toString("hex"),
+  };
+  const inFlightQuestionnaire = {
+    ...questionnaire,
+    createPromise: null as unknown as Promise<DemoQuestionnaireBridgeResult>,
+  };
+  const inFlightSession: BoundSession = {
+    ...session,
+    questionnaire: inFlightQuestionnaire,
+  };
+  const promise = (async (): Promise<DemoQuestionnaireBridgeResult> => {
+    const client = createMirrorApiClient(serverEnv.API_BASE_URL);
+    const result = await client
+      .POST("/api/v1/demo/analyses/{analysis_id}/questionnaire", {
+        cache: "no-store",
+        params: {
+          path: { analysis_id: analysis.analysisId! },
+          header: { "Idempotency-Key": questionnaire.createIdempotencyKey },
+        },
+        headers: { Authorization: `Bearer ${configuration.bearer}` },
+      })
+      .catch(() => null);
+    if (
+      !currentQuestionnaireEntry(handle, inFlightSession, inFlightQuestionnaire)
+    )
+      return { kind: "DENIED" };
+    if (!result) {
+      sessions.set(handle, { ...inFlightSession, questionnaire });
+      return { kind: "UNAVAILABLE" };
+    }
+    if (result.response.status !== 202 || result.error) {
+      sessions.set(handle, { ...inFlightSession, questionnaire });
+      return { kind: errorForStatus(result.response.status) };
+    }
+    if (!createdQuestionnaireIsValid(result.data)) {
+      sessions.set(handle, { ...inFlightSession, questionnaire });
+      return { kind: "STALE_RESPONSE" };
+    }
+    sessions.set(handle, {
+      ...inFlightSession,
+      questionnaire: {
+        createIdempotencyKey: questionnaire.createIdempotencyKey,
+        jobId: result.data.job_id,
+        runId: result.data.target.target_id,
+        jobBindingDigest: result.data.job_binding_digest,
+        targetAuthorityDigest: result.data.target.authority_digest,
+      },
+    });
+    return { kind: "PENDING" };
+  })();
+  inFlightQuestionnaire.createPromise = promise;
+  if (sessions.get(handle) !== session) return { kind: "DENIED" };
+  sessions.set(handle, inFlightSession);
+  return promise;
+}
+
+export async function readBoundDemoQuestionnaire(
+  handle: string | undefined,
+): Promise<DemoQuestionnaireBridgeResult> {
+  const bound = currentBoundSession(handle);
+  if (!bound || !handle) return { kind: "DENIED" };
+  const { session, configuration } = bound;
+  const questionnaire = session.questionnaire;
+  if (!questionnaire?.jobId || !questionnaire.runId)
+    return { kind: "NOT_FOUND" };
+  if (questionnaire.completed) return { kind: "COMPLETED" };
+  if (questionnaire.question && !questionnaire.response)
+    return questionResult(questionnaire.question);
+  if (questionnaire.response?.promise) return questionnaire.response.promise;
+  const client = createMirrorApiClient(serverEnv.API_BASE_URL);
+  const job = await client
+    .GET("/api/v1/demo/jobs/{job_id}", {
+      cache: "no-store",
+      params: { path: { job_id: questionnaire.jobId } },
+      headers: { Authorization: `Bearer ${configuration.bearer}` },
+    })
+    .catch(() => null);
+  if (!currentQuestionnaireEntry(handle, session, questionnaire))
+    return { kind: "DENIED" };
+  if (!job) return { kind: "UNAVAILABLE" };
+  if (job.error) return { kind: errorForStatus(job.response.status) };
+  if (!job.data || !questionnaireJobIsValid(job.data, questionnaire))
+    return { kind: "STALE_RESPONSE" };
+  const status = job.data.status;
+  if (status === "PENDING" || status === "RUNNING" || status === "COMPLETED")
+    return fetchNextQuestion(handle, session, questionnaire, configuration);
+  return { kind: status };
+}
+
+export function questionnaireProjection(result: DemoQuestionnaireBridgeResult) {
+  if (result.kind === "QUESTION")
+    return {
+      status: "QUESTION" as const,
+      presentation_token: result.presentationToken,
+      left_image_url: `/api/demo/questionnaire/media/${result.presentationToken}/LEFT`,
+      right_image_url: `/api/demo/questionnaire/media/${result.presentationToken}/RIGHT`,
+    };
+  if (result.kind === "COMPLETED") return { status: "COMPLETED" as const };
+  if (result.kind === "PENDING") return { status: "PENDING" as const };
+  if (
+    result.kind === "CANCELLED" ||
+    result.kind === "REJECTED" ||
+    result.kind === "FAILED"
+  )
+    return { status: result.kind };
+  return { code: result.kind };
+}
+
+export async function respondBoundDemoQuestionnaire(
+  handle: string | undefined,
+  payload: QuestionnaireResponsePayload,
+): Promise<DemoQuestionnaireBridgeResult> {
+  const bound = currentBoundSession(handle);
+  if (!bound || !handle) return { kind: "DENIED" };
+  const { session, configuration } = bound;
+  const questionnaire = session.questionnaire;
+  const question = questionnaire?.question;
+  if (!questionnaire || !question || questionnaire.completed)
+    return { kind: "CONFLICT" };
+  if (question.presentationToken !== payload.presentationToken)
+    return { kind: "CONFLICT" };
+  const existing = questionnaire.response;
+  if (existing) {
+    if (JSON.stringify(existing.payload) !== JSON.stringify(payload))
+      return { kind: "CONFLICT" };
+    if (existing.promise) return existing.promise;
+  }
+  const response = existing ?? {
+    payload,
+    idempotencyKey: randomBytes(32).toString("hex"),
+  };
+  const inFlightQuestionnaire = {
+    ...questionnaire,
+    response: {
+      ...response,
+      promise: null as unknown as Promise<DemoQuestionnaireBridgeResult>,
+    },
+  };
+  const inFlightSession: BoundSession = {
+    ...session,
+    questionnaire: inFlightQuestionnaire,
+  };
+  const promise = (async (): Promise<DemoQuestionnaireBridgeResult> => {
+    const client = createMirrorApiClient(serverEnv.API_BASE_URL);
+    const submitted = await client
+      .POST("/api/v1/demo/questionnaires/runs/{run_id}/responses", {
+        cache: "no-store",
+        params: {
+          path: { run_id: questionnaire.runId! },
+          header: { "Idempotency-Key": response.idempotencyKey },
+        },
+        body: {
+          selected_side: payload.choice,
+          expected_step_sequence: question.stepSequence,
+          expected_run_version: question.runVersion,
+          response_latency_ms: payload.responseLatencyMs,
+        },
+        headers: { Authorization: `Bearer ${configuration.bearer}` },
+      })
+      .catch(() => null);
+    if (
+      !currentQuestionnaireEntry(handle, inFlightSession, inFlightQuestionnaire)
+    )
+      return { kind: "DENIED" };
+    if (!submitted) {
+      sessions.set(handle, {
+        ...inFlightSession,
+        questionnaire: { ...questionnaire, response },
+      });
+      return { kind: "UNAVAILABLE" };
+    }
+    if (submitted.response.status !== 201 || submitted.error) {
+      sessions.set(handle, {
+        ...inFlightSession,
+        questionnaire: { ...questionnaire, response },
+      });
+      return { kind: errorForStatus(submitted.response.status) };
+    }
+    const body = submitted.data as Record<string, unknown> | undefined;
+    if (
+      !body ||
+      body.run_id !== questionnaire.runId ||
+      !validUpstreamId(body.step_id) ||
+      body.step_id === question.stepId ||
+      body.event_type !== "RESPONDED" ||
+      body.step_sequence !== question.stepSequence + 1 ||
+      body.run_version !== question.runVersion + 1
+    )
+      return { kind: "STALE_RESPONSE" };
+    const advanced: BoundQuestionnaire = { ...questionnaire, response };
+    const advancedSession: BoundSession = {
+      ...session,
+      questionnaire: advanced,
+    };
+    if (
+      !currentQuestionnaireEntry(handle, inFlightSession, inFlightQuestionnaire)
+    )
+      return { kind: "DENIED" };
+    sessions.set(handle, advancedSession);
+    return fetchNextQuestion(handle, advancedSession, advanced, configuration);
+  })();
+  inFlightQuestionnaire.response.promise = promise;
+  if (sessions.get(handle) !== session) return { kind: "DENIED" };
+  sessions.set(handle, inFlightSession);
+  return promise;
+}
+
+export async function fetchBoundQuestionnaireMedia(
+  handle: string | undefined,
+  presentationToken: string,
+  side: "LEFT" | "RIGHT",
+): Promise<Response | null> {
+  const bound = currentBoundSession(handle);
+  const questionnaire = bound?.session.questionnaire;
+  if (
+    !bound ||
+    !handle ||
+    !questionnaire?.runId ||
+    !questionnaire.question ||
+    questionnaire.question.presentationToken !== presentationToken ||
+    questionnaire.response
+  )
+    return null;
+  const expectedSession = bound.session;
+  const expectedQuestionnaire = questionnaire;
+  const response = await fetch(
+    new URL(
+      `/api/v1/demo/questionnaires/runs/${questionnaire.runId}/presentation-media/${side}`,
+      serverEnv.API_BASE_URL,
+    ),
+    {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${bound.configuration.bearer}` },
+    },
+  ).catch(() => null);
+  if (!response || !response.ok) return null;
+  if (response.headers.get("content-type")?.toLowerCase() !== "image/jpeg")
+    return null;
+  const length = response.headers.get("content-length");
+  if (!length || !/^\d+$/.test(length) || Number(length) > 10 * 1024 * 1024)
+    return null;
+  const content = await response.arrayBuffer().catch(() => null);
+  if (
+    !content ||
+    content.byteLength !== Number(length) ||
+    !currentQuestionnaireEntry(handle, expectedSession, expectedQuestionnaire)
+  )
+    return null;
+  return new Response(content, {
+    status: 200,
+    headers: {
+      "Content-Type": "image/jpeg",
+      "Content-Length": String(content.byteLength),
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
 }
 
 export function sessionCookieOptions(maxAge: number) {
