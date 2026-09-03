@@ -128,7 +128,7 @@ describe("demo bridge server boundary", () => {
     const questionnaireJobId = "7".repeat(32);
     const questionnaireRunId = "8".repeat(32);
     const questionnaireDigest = "e".repeat(64);
-    let responseStepId = "9".repeat(32);
+    let responseStepId = "c".repeat(32);
     const mediaStarted = deferred<void>();
     let mediaController:
       | ReadableStreamDefaultController<Uint8Array<ArrayBuffer>>
@@ -189,7 +189,7 @@ describe("demo bridge server boundary", () => {
         return new Response(
           JSON.stringify({
             job_id: questionnaireJobId,
-            status: "COMPLETED",
+            status: "PENDING",
             capability: "P4_QUESTIONNAIRE",
             job_binding_digest: questionnaireDigest,
             target: {
@@ -250,7 +250,7 @@ describe("demo bridge server boundary", () => {
             step_id: responseStepId,
             run_id: questionnaireRunId,
             event_type: "RESPONDED",
-            step_sequence: 1,
+            step_sequence: 2,
             run_version: 2,
           }),
           { status: 201 },
@@ -306,7 +306,7 @@ describe("demo bridge server boundary", () => {
 
     clearDemoSessionRegistryForTest();
     fetchMock.mockClear();
-    responseStepId = "b".repeat(32);
+    responseStepId = "9".repeat(32);
     const rebound = await createBoundDemoSession(undefined, nowMs + 1);
     expect(await createBoundDemoAnalysis(rebound?.handle)).toEqual({
       kind: "PENDING",

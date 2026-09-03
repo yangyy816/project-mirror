@@ -901,10 +901,9 @@ export async function readBoundDemoQuestionnaire(
   if (!job.data || !questionnaireJobIsValid(job.data, questionnaire))
     return { kind: "STALE_RESPONSE" };
   const status = job.data.status;
-  if (status === "PENDING" || status === "RUNNING") return { kind: "PENDING" };
-  if (status !== "COMPLETED")
-    return { kind: status as "CANCELLED" | "REJECTED" | "FAILED" };
-  return fetchNextQuestion(handle, session, questionnaire, configuration);
+  if (status === "PENDING" || status === "RUNNING" || status === "COMPLETED")
+    return fetchNextQuestion(handle, session, questionnaire, configuration);
+  return { kind: status };
 }
 
 export function questionnaireProjection(result: DemoQuestionnaireBridgeResult) {
@@ -1000,9 +999,10 @@ export async function respondBoundDemoQuestionnaire(
     if (
       !body ||
       body.run_id !== questionnaire.runId ||
-      body.step_id !== question.stepId ||
+      !validUpstreamId(body.step_id) ||
+      body.step_id === question.stepId ||
       body.event_type !== "RESPONDED" ||
-      body.step_sequence !== question.stepSequence ||
+      body.step_sequence !== question.stepSequence + 1 ||
       body.run_version !== question.runVersion + 1
     )
       return { kind: "STALE_RESPONSE" };
