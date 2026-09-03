@@ -902,3 +902,10 @@
   server registry 保留 SelfState authority，浏览器不接收 Session/Job/Run/SelfState/Asset ID 或 digest。
   logout、expiry 和配置轮换后的异步响应不能复活旧 handle；下一产品 slice 是 analysis-scoped D04 问卷与
   same-origin synthetic pair media。
+
+- 2026-09-03：D11 real flow R03 以 questionnaire code `86d281877fc16c8723267e10f2e85d5be8785f9d`、
+  integrated successor `7de0c1352c2ce26cef8961fedc18a56970b05528` 和 run `33755587663` 三 jobs
+  全绿后 `TASK_ACCEPTED`。该 slice 以 R02 SelfState 创建 analysis-scoped D04 run，逐步重放完整 QuestionBank
+  authority，并通过 owner-bound、same-origin、opaque-token JPEG BFF 呈现；浏览器不接收上游 ID 或 digest。
+  初始 run `33746025777` 的唯一失败是固定 15 分钟测试 Session 在 96 分钟套件末尾过期，已由一行未来固定
+  test clock 前向修复，产品代码未改变。下一节点为 R04 interactive questionnaire UI integration。

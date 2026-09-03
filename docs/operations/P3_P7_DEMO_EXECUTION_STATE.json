@@ -2,7 +2,7 @@
   "schema_version": "mirror.demo/P3P7DemoExecutionState/v1",
   "goal_epoch": "P3_P7_COMPLETE_DEMO_EPOCH_02",
   "integration_branch": "codex/p3-p7-product-forward",
-  "integration_head": "f49104254e93ce1f83f4590f0e6cd4ff738d5599",
+  "integration_head": "7de0c1352c2ce26cef8961fedc18a56970b05528",
   "migration_head": "demo_0018_d03_pose_evidence",
   "delivery_policy": "PRODUCT_AND_ALGORITHM_FIRST_RISK_TIERED",
   "evidence_custody_host_binding": "FROZEN_DEFERRED",
@@ -49,9 +49,10 @@
     "D08_REAL_GEOMETRY_SELECTED_SIDE_INTEGRATION",
     "D03_FRESH_M3_RUNTIME_INTEGRATION",
     "D11_REAL_SESSION_BOOTSTRAP",
-    "D11_SESSION_ANALYSIS_FLOW"
+    "D11_SESSION_ANALYSIS_FLOW",
+    "D11_ANALYSIS_SCOPED_QUESTIONNAIRE_FLOW"
   ],
-  "active_checkpoint": "D11_R01_R02_TASK_ACCEPTED_R03_QUESTIONNAIRE_FLOW_EXECUTING",
+  "active_checkpoint": "D11_R03_TASK_ACCEPTED_R04_INTERACTIVE_FLOW_READY_FOR_INTEGRATION",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -87,7 +88,9 @@
     "D03": "3590858a4d7c326bbf920acb240db9e46993acaa",
     "D11_R01_REAL_SESSION_BOOTSTRAP": "f670b6c6dc1aa5b7f20aeec66649af476626d552",
     "D11_R02_SESSION_ANALYSIS_FLOW": "7bd160725fa22e5de7a97b5f6c5b8ae673c76fb1",
-    "D11_R01_R02_INTEGRATION": "f49104254e93ce1f83f4590f0e6cd4ff738d5599"
+    "D11_R01_R02_INTEGRATION": "f49104254e93ce1f83f4590f0e6cd4ff738d5599",
+    "D11_R03_QUESTIONNAIRE_FLOW_CODE": "86d281877fc16c8723267e10f2e85d5be8785f9d",
+    "D11_R03_QUESTIONNAIRE_FLOW_INTEGRATION": "7de0c1352c2ce26cef8961fedc18a56970b05528"
   },
   "implementation_checkpoint_shas": {
     "D03_D04_B_D07_B_DOMAIN_SLICES": "93919f47ea391694d4ed952cec8a3e7d5683dc4a",
@@ -117,7 +120,9 @@
     "D03_FRESH_M3_RUNTIME_INTEGRATION": "3590858a4d7c326bbf920acb240db9e46993acaa",
     "D11_R01_REAL_SESSION_BOOTSTRAP_CODE": "f670b6c6dc1aa5b7f20aeec66649af476626d552",
     "D11_R02_SESSION_ANALYSIS_FLOW_CODE": "7bd160725fa22e5de7a97b5f6c5b8ae673c76fb1",
-    "D11_R01_R02_INTEGRATION": "f49104254e93ce1f83f4590f0e6cd4ff738d5599"
+    "D11_R01_R02_INTEGRATION": "f49104254e93ce1f83f4590f0e6cd4ff738d5599",
+    "D11_R03_QUESTIONNAIRE_FLOW_CODE": "86d281877fc16c8723267e10f2e85d5be8785f9d",
+    "D11_R03_QUESTIONNAIRE_FLOW_INTEGRATION": "7de0c1352c2ce26cef8961fedc18a56970b05528"
   },
   "accepted_ci_runs": {
     "D09": 32701906246,
@@ -145,7 +150,8 @@
     "D04_B_D07_B_REAL_INTEGRATION": 33680811520,
     "D08_REAL_GEOMETRY_INTEGRATION": 33707788291,
     "D03_FRESH_M3_RUNTIME_INTEGRATION": 33723826015,
-    "D11_R01_R02_REAL_FLOW_INTEGRATION": 33733053219
+    "D11_R01_R02_REAL_FLOW_INTEGRATION": 33733053219,
+    "D11_R03_QUESTIONNAIRE_FLOW_INTEGRATION": 33755587663
   },
   "generation_capability_candidate": {
     "authority_id": "P3_P7_D02_R2_GENERATION_CAPABILITY_AUTHORITY_01",
@@ -326,7 +332,10 @@
     "D11_R01": "TASK_ACCEPTED_ADMITTED_IDENTITY_TO_OWNER_BOUND_SESSION",
     "D11_R02": "TASK_ACCEPTED_SESSION_TO_D03_ANALYSIS_AND_SELF_STATE",
     "D11_R01_R02_integration_sha": "f49104254e93ce1f83f4590f0e6cd4ff738d5599",
-    "D11_R01_R02_ci": "PASS_33733053219"
+    "D11_R01_R02_ci": "PASS_33733053219",
+    "D11_R03": "TASK_ACCEPTED_ANALYSIS_SCOPED_QUESTIONNAIRE_AND_OWNER_BOUND_MEDIA",
+    "D11_R03_integration_sha": "7de0c1352c2ce26cef8961fedc18a56970b05528",
+    "D11_R03_ci": "PASS_33755587663"
   },
   "nonaccepted_ci_runs": {
     "D10_CONTEXT_TRACE_EXPLICIT_RECALL_API_01": {
@@ -549,6 +558,15 @@
       "validation": "PASS_POSTGRESQL_45_API_CONTRACT_24_RUFF_STRICT_MYPY_OPENAPI_TYPESCRIPT_DIFF_CHECK",
       "task_acceptance_claimed": false
     },
+    "D11_R03_INITIAL_INTEGRATED_CI": {
+      "run_id": 33746025777,
+      "head_sha": "6a1564313f4a07bd4efbda24467f5361c145833f",
+      "outcome": "FAIL_TIME_BOUND_TEST_FIXTURE_EXPIRED_DURING_96_MINUTE_SUITE",
+      "product_failure": false,
+      "forward_test_repair_sha": "7de0c1352c2ce26cef8961fedc18a56970b05528",
+      "successor_ci": "PASS_33755587663",
+      "task_acceptance_claimed_for_failed_run": false
+    },
     "D11_DEMO_SHELL": {
       "code_sha": "4a293dae91daffee7523442fd70b637aed19daf6",
       "implementation": "READ_ONLY_CAPABILITY_SHELL",
@@ -556,7 +574,7 @@
       "authentication_boundary": "BROWSER_NO_BEARER_SERVER_ONLY_UPSTREAM_AUTHORIZATION",
       "invalid_or_unavailable_api": "FAIL_CLOSED_UNAVAILABLE",
       "execution_semantics": "UI_CONTRACT_ONLY_SYNTHETIC_DEMO_RUNTIME_EVIDENCE_DEFERRED",
-      "real_d02_integration": "PENDING",
+      "real_d02_integration": "TASK_ACCEPTED_UPSTREAM",
       "playwright_complete_flow": "NOT_IMPLEMENTED_NOT_CLAIMED",
       "trace_ui_code_sha": "c89cc16e0b1338004074b0b71a89e314fa61d8cd",
       "trace_ui_integration_head": "7472438fdf29006294355ffd7446dfd9977ce0eb",
@@ -570,6 +588,10 @@
       "real_analysis_flow": "TASK_ACCEPTED_D03_SELF_STATE_SERVER_SIDE_BRIDGE",
       "real_session_analysis_integration_sha": "f49104254e93ce1f83f4590f0e6cd4ff738d5599",
       "real_session_analysis_ci": "PASS_33733053219",
+      "real_questionnaire_flow": "TASK_ACCEPTED_ANALYSIS_SCOPED_D04_AUTHORITY_REPLAY",
+      "real_questionnaire_integration_sha": "7de0c1352c2ce26cef8961fedc18a56970b05528",
+      "real_questionnaire_ci": "PASS_33755587663",
+      "questionnaire_media_boundary": "OWNER_BOUND_SAME_ORIGIN_JPEG_OPAQUE_TOKEN",
       "server_side_credential_bridge": "PASS_BEARER_SERVER_ONLY_BROWSER_OPAQUE_HANDLE",
       "explicit_recall_at": "PASS_IDENTICAL_CONTEXT_AND_TRACE_ANCHOR",
       "browser_storage": "PASS_NO_BEARER_LOCAL_SESSION_INDEXEDDB_OR_DOM",
@@ -634,7 +656,7 @@
     "d02_branch": "codex/p3-p7-d02-final-gate",
     "d02_tracked_checkpoint_sha": "0cd6da58ce111806ed7f56044b270f9b68890f3f",
     "product_branch": "codex/p3-p7-product-forward",
-    "product_code_head": "f49104254e93ce1f83f4590f0e6cd4ff738d5599",
+    "product_code_head": "7de0c1352c2ce26cef8961fedc18a56970b05528",
     "private_execution_owner": "D02_SUBSYSTEM_PRINCIPAL",
     "main_process_d02_access": "FORBIDDEN_PERMANENT_AUTONOMY_BOUNDARY"
   },
