@@ -26,6 +26,7 @@ from mirror_api.demo_d08_geometry_adapter import (
     GeometryExecutionAuthority,
     GeometryJobAttemptBinding,
     operation_spec_digest,
+    qualified_backend_candidate_id,
 )
 from mirror_api.demo_idempotency import canonical_json_bytes
 from mirror_api.demo_measurement_quality import JsonValue, mirror_demo_digest
@@ -47,7 +48,6 @@ from mirror_api.demo_operation_graph import (
     parse_operation_spec,
 )
 from mirror_api.models import Asset, AssetVariant, Job, JobAttempt
-from mirror_api.providers.opencv_geometry import ALGORITHM_VERSION, CANDIDATE_ID
 
 
 class GeometryAuthorityResolutionError(RuntimeError):
@@ -476,6 +476,15 @@ async def resolve_geometry_execution_authority(
         source_asset_sha256=root.sha256,
     )
     try:
+        backend_algorithm_version = cast(str, case["geometry_algorithm_version"])
+        backend_candidate_id = qualified_backend_candidate_id(
+            case_ordinal=cast(int, case["case_ordinal"]),
+            source_ordinal=cast(int, case["source_ordinal"]),
+            dimension_key=dimension,
+            direction=direction,
+            magnitude_ppm=abs(delta),
+            algorithm_version=backend_algorithm_version,
+        )
         fixed = D02FixedGeometryCase(
             case_id=cast(str, case["case_id"]),
             case_record_digest=cast(str, case["record_digest"]),
@@ -493,17 +502,13 @@ async def resolve_geometry_execution_authority(
             source_landmark_digest=source_landmark_digest,
             output_policy_version=cast(str, case["output_policy_version"]),
             determinism_version=cast(str, case["determinism_level"]),
-            backend_candidate_id=CANDIDATE_ID,
-            backend_algorithm_version=cast(str, case["geometry_algorithm_version"]),
+            backend_candidate_id=backend_candidate_id,
+            backend_algorithm_version=backend_algorithm_version,
             backend_runtime_manifest_digest=cast(str, case["runtime_manifest_digest"]),
             backend_configuration_digest=cast(str, case["runtime_config_digest"]),
             output_width=cast(int, case["output_width"]),
             output_height=cast(int, case["output_height"]),
         )
-        if fixed.backend_algorithm_version != ALGORITHM_VERSION:
-            raise GeometryAuthorityResolutionError(
-                "D02_BACKEND_UNQUALIFIED", "D02 case backend is not qualified"
-            )
         fixed = replace(fixed, case_binding_digest=fixed.content_digest())
         authority = GeometryExecutionAuthority(
             editing_session_id=editing.id,

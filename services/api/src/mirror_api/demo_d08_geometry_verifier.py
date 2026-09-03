@@ -22,6 +22,10 @@ from mirror_api.demo_d08_geometry_adapter import (
     D08_VERIFIER_POLICY_VERSION,
     GeometryExecutionAuthority,
 )
+from mirror_api.demo_d08_geometry_runtime_adapter import (
+    reconstruct_d08_executor,
+    validate_d08_executors,
+)
 from mirror_api.demo_editing_service import ExecutionCommand, MaterializedObject
 from mirror_api.demo_effect_verifier import (
     SUPPORTED_DIMENSIONS,
@@ -114,18 +118,8 @@ class IndependentGeometryVerifier:
     """An async ``EditVerifier`` compatible callable for D08 Geometry only."""
 
     def __init__(self, executor: runtime.DemoM3M4Executor) -> None:
-        if not isinstance(executor, runtime.DemoM3M4Executor):
-            raise TypeError("executor must be the accepted DemoM3M4Executor")
         try:
-            self._executor = runtime.reconstruct_executor(
-                executor.manifest,
-                recipe=executor.recipe,
-                model_identity=executor.model_identity,
-                runtime_handle=executor.runtime_handle,
-                model_handle=executor.model_handle,
-                m3_backend=executor.m3_backend,
-                m4_backend=executor.m4_backend,
-            )
+            self._executor = reconstruct_d08_executor(executor)
         except Exception as error:
             raise TypeError("executor does not replay accepted runtime authority") from error
 
@@ -519,6 +513,38 @@ class IndependentGeometryVerifier:
         repeats: Sequence[_RepeatEvidence],
     ) -> EffectVerificationResult:
         return self._result(command, materialized, tuple(repeats))
+
+
+class IndependentGeometryVerifierRouter:
+    """Route fresh M3 verification by the exact admitted per-case algorithm."""
+
+    def __init__(
+        self,
+        executor: runtime.DemoM3M4Executor,
+        additional_executors: Sequence[runtime.DemoM3M4Executor] = (),
+    ) -> None:
+        executors = validate_d08_executors(executor, additional_executors)
+        self._verifiers = {
+            (item.recipe.m4_algorithm_version, item.recipe.runtime_manifest_digest): (
+                IndependentGeometryVerifier(item)
+            )
+            for item in executors.values()
+        }
+        self._fallback = self._verifiers[
+            (executor.recipe.m4_algorithm_version, executor.recipe.runtime_manifest_digest)
+        ]
+
+    async def __call__(
+        self, command: ExecutionCommand, materialized: MaterializedObject
+    ) -> EffectVerificationResult:
+        authority = command.geometry_authority
+        if authority is None:
+            return await self._fallback(command, materialized)
+        case = authority.fixed_case
+        verifier = self._verifiers.get(
+            (case.backend_algorithm_version, case.backend_runtime_manifest_digest)
+        )
+        return await (self._fallback if verifier is None else verifier)(command, materialized)
 
 
 def _m3_gate(

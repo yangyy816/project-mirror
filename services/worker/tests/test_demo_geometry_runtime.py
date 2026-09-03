@@ -72,28 +72,36 @@ def test_tracked_factory_composes_backend_and_verifier_from_same_fresh_bundle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     executor = cast(Any, object())
+    additional = cast(Any, object())
     rows = (cast(dict[str, object], {"case": "public"}),)
-    bundle_factory = _BundleFactory(D02GeometryRuntimeBundle(executor, rows))
+    bundle_factory = _BundleFactory(D02GeometryRuntimeBundle(executor, rows, (additional,)))
     backend, verifier = cast(Any, _Backend()), cast(Any, _Verifier())
     captured: list[tuple[object, object]] = []
 
-    def make_backend(*, executor: object, case_rows: object) -> object:
-        captured.append((executor, case_rows))
+    def make_backend(
+        *, executor: object, case_rows: object, additional_executors: object
+    ) -> object:
+        captured.extend(((executor, case_rows), (additional_executors, "backend-additional")))
         return backend
 
-    def make_verifier(executor: object) -> object:
-        captured.append((executor, "verifier"))
+    def make_verifier(executor: object, additional_executors: object) -> object:
+        captured.extend(((executor, "verifier"), (additional_executors, "verifier-additional")))
         return verifier
 
     monkeypatch.setattr(geometry_module, "D02M4GeometryRuntimeAdapter", make_backend)
-    monkeypatch.setattr(geometry_module, "IndependentGeometryVerifier", make_verifier)
+    monkeypatch.setattr(geometry_module, "IndependentGeometryVerifierRouter", make_verifier)
 
     capability = AcceptedD02GeometryCapabilityFactory(bundle_factory).create()
 
     assert bundle_factory.calls == 1
     assert capability.backend is backend
     assert capability.verifier is verifier
-    assert captured == [(executor, rows), (executor, "verifier")]
+    assert captured == [
+        (executor, rows),
+        ((additional,), "backend-additional"),
+        (executor, "verifier"),
+        ((additional,), "verifier-additional"),
+    ]
 
 
 @pytest.mark.asyncio

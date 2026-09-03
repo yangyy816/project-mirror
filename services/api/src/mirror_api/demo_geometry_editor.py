@@ -24,6 +24,7 @@ from mirror_api.demo_d08_geometry_adapter import (
     GeometryJobAttemptBinding,
     GeometryStableMaterializationCore,
     operation_spec_digest,
+    qualified_backend_candidate_id,
     stable_config_digest,
     stable_engine_digest,
 )
@@ -126,10 +127,20 @@ class GeometryExecutionRequest:
                 "CASE_OPERATION_MISMATCH", "operation does not match the fixed case"
             )
         case = self.authority.fixed_case
-        if (
-            case.backend_candidate_id != M4_QUALIFIED_CANDIDATE_ID
-            or case.backend_algorithm_version != M4_QUALIFIED_ALGORITHM_VERSION
-        ):
+        try:
+            candidate_id = qualified_backend_candidate_id(
+                case_ordinal=case.case_ordinal,
+                source_ordinal=case.source_ordinal,
+                dimension_key=case.dimension_key,
+                direction=case.direction.value,
+                magnitude_ppm=case.magnitude_ppm,
+                algorithm_version=case.backend_algorithm_version,
+            )
+        except GeometryAdapterAuthorityError as exc:
+            raise GeometryExecutionError(
+                "UNQUALIFIED_BACKEND", "authority is not bound to a qualified backend"
+            ) from exc
+        if case.backend_candidate_id != candidate_id:
             raise GeometryExecutionError(
                 "UNQUALIFIED_BACKEND", "authority is not bound to the frozen backend"
             )
@@ -290,7 +301,7 @@ def execute_geometry_operation(
             request_digest, GeometryExecutionState.CAPABILITY_UNAVAILABLE, "BACKEND_MISSING"
         )
     try:
-        if backend.identity != request.required_backend:
+        if _backend_identity(backend, request.authority) != request.required_backend:
             return _failure(
                 request_digest,
                 GeometryExecutionState.CAPABILITY_UNAVAILABLE,
@@ -321,6 +332,16 @@ def execute_geometry_operation(
         reason_code="GEOMETRY_MATERIALIZED_PENDING_VERIFIER",
         success=success,
     )
+
+
+def _backend_identity(
+    backend: GeometryExecutionBackend, authority: GeometryExecutionAuthority
+) -> GeometryBackendIdentity:
+    resolver = getattr(backend, "identity_for", None)
+    identity = resolver(authority=authority) if callable(resolver) else backend.identity
+    if not isinstance(identity, GeometryBackendIdentity):
+        raise TypeError("backend identity is invalid")
+    return identity
 
 
 def _adapter_request(request: GeometryExecutionRequest) -> GeometryAdapterRequest:

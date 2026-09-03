@@ -37,6 +37,7 @@ from mirror_api.demo_operation_graph import (
     OperationType,
     PreserveKey,
 )
+from mirror_api.providers.opencv_geometry import CANDIDATE_ID
 
 
 def _operation() -> OperationSpec:
@@ -79,7 +80,7 @@ def _authority(descriptor: object, executor: object) -> GeometryExecutionAuthori
         source_landmark_digest="6" * 64,
         output_policy_version="output-policy-v1",
         determinism_version="determinism-v1",
-        backend_candidate_id="geometry-candidate-v1",
+        backend_candidate_id=CANDIDATE_ID,
         backend_algorithm_version=runtime_executor.recipe.m4_algorithm_version,
         backend_runtime_manifest_digest=runtime_executor.recipe.runtime_manifest_digest,
         backend_configuration_digest="7" * 64,

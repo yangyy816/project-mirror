@@ -3,22 +3,34 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass
+from io import BytesIO
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Protocol, cast
 
 import pytest
+from PIL import Image
 from test_demo_d02_r2_runtime_forward import _executor, _screen
 from test_demo_d02_r2_runtime_forward import runtime_inputs as runtime_inputs_source
+from test_demo_d02_targeted_m4_repair_execution import _context as _targeted_context
 
 from mirror_api import demo_d02_r2_runtime_forward as runtime
+from mirror_api import demo_d02_targeted_m4_repair_backend as targeted_backend_module
+from mirror_api import demo_d02_targeted_m4_repair_execution as targeted_execution
 from mirror_api.demo_d08_geometry_adapter import (
+    TARGETED_REPAIR_ALGORITHM_VERSION,
+    TARGETED_REPAIR_CANDIDATE_ID,
     D02FixedGeometryCase,
     GeometryDirection,
     GeometryExecutionAuthority,
+    qualified_backend_candidate_id,
 )
 from mirror_api.demo_d08_geometry_runtime_adapter import (
     D02M4GeometryRuntimeAdapter,
     GeometryRuntimeAdapterError,
+    reconstruct_d08_executor,
 )
+from mirror_api.demo_d08_geometry_verifier import IndependentGeometryVerifierRouter
 from mirror_api.demo_geometry_editor import (
     GeometryAdapterRequest,
     GeometryBackendIdentity,
@@ -39,6 +51,75 @@ class _RuntimeContext:
 
 class _CallCountingM4(Protocol):
     calls: int
+
+
+class _TargetedM4:
+    algorithm_version = TARGETED_REPAIR_ALGORITHM_VERSION
+    network_policy = runtime.NETWORK_POLICY
+
+    def __init__(self, runtime_digest: str, config_digest: str) -> None:
+        self.execution_runtime_set_digest = runtime_digest
+        self.config_digest = config_digest
+
+    def transform(
+        self,
+        *,
+        content: bytes,
+        descriptor: runtime.DurableSourceDescriptor,
+        case_entry: Mapping[str, object],
+        replay_index: int,
+    ) -> runtime.BackendM4Result:
+        del case_entry, replay_index
+        with Image.open(BytesIO(content)) as image:
+            image.load()
+            rgb = image.convert("RGB")
+            try:
+                pixel = rgb.getpixel((0, 0))
+                rgb.putpixel((0, 0), ((pixel[0] + 17) % 256, pixel[1], pixel[2]))
+                output = BytesIO()
+                rgb.save(output, format="JPEG", quality=95, subsampling=0, optimize=False)
+            finally:
+                rgb.close()
+        assert image.size == (descriptor.width, descriptor.height)
+        return runtime.BackendM4Result(content=output.getvalue(), changed_pixel_count=1)
+
+
+def _targeted_executor(
+    standard: runtime.DemoM3M4Executor, *, config_digest: str
+) -> runtime.DemoM3M4Executor:
+    recipe = targeted_execution.build_targeted_runtime_recipe(
+        predecessor_recipe=standard.recipe,
+        algorithm_version=TARGETED_REPAIR_ALGORITHM_VERSION,
+    )
+    ordered_ids = cast(
+        tuple[str, str, str, str],
+        tuple(item.source_id for item in standard.manifest.descriptors),
+    )
+    runtime_handle = runtime.M3RuntimeHandle(
+        source_manifest_digest=standard.manifest.manifest_digest,
+        ordered_source_ids=ordered_ids,
+        recipe_version=recipe.recipe_version,
+        recipe_digest=recipe.recipe_digest,
+        runtime_manifest_digest=recipe.runtime_manifest_digest,
+        model_identity_digest=standard.model_identity.identity_digest,
+    )
+    model_handle = runtime.M3ModelHandle(
+        source_manifest_digest=standard.manifest.manifest_digest,
+        ordered_source_ids=ordered_ids,
+        recipe_digest=recipe.recipe_digest,
+        model_identity_digest=standard.model_identity.identity_digest,
+        model_config_digest=standard.model_identity.config_digest,
+        weights_digest_or_no_weights=standard.model_identity.weights_digest_or_no_weights,
+    )
+    return runtime.DemoM3M4Executor(
+        manifest=standard.manifest,
+        recipe=recipe,
+        model_identity=standard.model_identity,
+        runtime_handle=runtime_handle,
+        model_handle=model_handle,
+        m3_backend=standard.m3_backend,
+        m4_backend=_TargetedM4(recipe.runtime_manifest_digest, config_digest),
+    )
 
 
 @pytest.fixture(scope="module")
@@ -63,6 +144,7 @@ def runtime_context() -> _RuntimeContext:
 def _authority(
     row: Mapping[str, object], source_landmark_digest: str
 ) -> GeometryExecutionAuthority:
+    algorithm_version = cast(str, row["geometry_algorithm_version"])
     fixed = D02FixedGeometryCase(
         case_id=cast(str, row["case_id"]),
         case_record_digest=cast(str, row["record_digest"]),
@@ -80,8 +162,15 @@ def _authority(
         source_landmark_digest=source_landmark_digest,
         output_policy_version=cast(str, row["output_policy_version"]),
         determinism_version=cast(str, row["determinism_level"]),
-        backend_candidate_id="OPENCV_5_0_0_BOUNDED_TRANSITIVE_SOURCE_V2",
-        backend_algorithm_version=cast(str, row["geometry_algorithm_version"]),
+        backend_candidate_id=qualified_backend_candidate_id(
+            case_ordinal=cast(int, row["case_ordinal"]),
+            source_ordinal=cast(int, row["source_ordinal"]),
+            dimension_key=cast(str, row["dimension_key"]),
+            direction=cast(str, row["direction"]),
+            magnitude_ppm=cast(int, row["magnitude_ppm"]),
+            algorithm_version=algorithm_version,
+        ),
+        backend_algorithm_version=algorithm_version,
         backend_runtime_manifest_digest=cast(str, row["runtime_manifest_digest"]),
         backend_configuration_digest=cast(str, row["runtime_config_digest"]),
         output_width=cast(int, row["output_width"]),
@@ -202,3 +291,84 @@ def test_backend_failure_and_historical_output_injection_fail_closed(
     injected[0]["historical_result"] = {"pass": True}
     with pytest.raises(GeometryRuntimeAdapterError, match="case row shape"):
         D02M4GeometryRuntimeAdapter(executor=runtime_context.executor, case_rows=injected)
+
+
+def test_heterogeneous_successor_routes_only_case_25_to_targeted_executor(
+    runtime_context: _RuntimeContext,
+) -> None:
+    rows = [dict(row) for row in runtime_context.rows]
+    target_config_digest = _digest("targeted-config")
+    rows[24]["geometry_algorithm_version"] = TARGETED_REPAIR_ALGORITHM_VERSION
+    rows[24]["runtime_config_digest"] = target_config_digest
+    targeted = _targeted_executor(runtime_context.executor, config_digest=target_config_digest)
+
+    adapter = D02M4GeometryRuntimeAdapter(
+        executor=runtime_context.executor,
+        case_rows=rows,
+        additional_executors=(targeted,),
+    )
+    verifier = IndependentGeometryVerifierRouter(
+        runtime_context.executor,
+        (targeted,),
+    )
+    assert callable(verifier)
+    request = _request(
+        _RuntimeContext(
+            executor=runtime_context.executor,
+            m4=runtime_context.m4,
+            rows=tuple(rows),
+            materials=runtime_context.materials,
+        ),
+        row_index=24,
+    )
+
+    assert request.authority.fixed_case.backend_algorithm_version == (
+        TARGETED_REPAIR_ALGORITHM_VERSION
+    )
+    assert adapter.identity_for(authority=request.authority).candidate_id == (
+        TARGETED_REPAIR_CANDIDATE_ID
+    )
+    result = adapter.execute(request=request)
+    assert result.identity.candidate_id == TARGETED_REPAIR_CANDIDATE_ID
+    assert result.identity.algorithm_version == TARGETED_REPAIR_ALGORITHM_VERSION
+    assert result.content_sha256 != request.authority.root_source_asset_sha256
+
+    with pytest.raises(GeometryRuntimeAdapterError, match="backend is unavailable"):
+        D02M4GeometryRuntimeAdapter(
+            executor=runtime_context.executor,
+            case_rows=rows,
+        )
+
+    forged = [dict(row) for row in rows]
+    forged[0]["geometry_algorithm_version"] = TARGETED_REPAIR_ALGORITHM_VERSION
+    forged[0]["runtime_config_digest"] = cast(str, rows[24]["runtime_config_digest"])
+    with pytest.raises(GeometryRuntimeAdapterError, match="case row is invalid"):
+        D02M4GeometryRuntimeAdapter(
+            executor=runtime_context.executor,
+            case_rows=forged,
+            additional_executors=(targeted,),
+        )
+
+
+def test_real_targeted_repair_executor_replays_accepted_handle_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def decode(content: bytes, *, expected_width: int, expected_height: int) -> object:
+        with Image.open(BytesIO(content)) as image:
+            image.load()
+            rgb = image.convert("RGB")
+            try:
+                assert rgb.size == (expected_width, expected_height)
+                return SimpleNamespace(
+                    bytes_value=rgb.tobytes(),
+                    width=expected_width,
+                    height=expected_height,
+                )
+            finally:
+                rgb.close()
+
+    monkeypatch.setattr(targeted_backend_module, "decode_canonical_rgb_image", decode)
+    context = _targeted_context(tmp_path)
+
+    assert reconstruct_d08_executor(context.executor) is context.executor

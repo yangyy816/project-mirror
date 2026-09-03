@@ -14,7 +14,10 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final
 
+from mirror_api import demo_d02_targeted_m4_repair as targeted_repair
+from mirror_api.demo_d02_targeted_m4_repair_backend import D02TargetedM4RepairBackend
 from mirror_api.demo_operation_graph import OperationSpec, canonical_json_bytes
+from mirror_api.providers.opencv_geometry import ALGORITHM_VERSION, CANDIDATE_ID
 
 D08_SCHEMA_VERSION: Final = "mirror.demo/D08GeometryAdapter/v1"
 D08_VERIFIER_POLICY_VERSION: Final = "d08-independent-geometry-verifier-v1"
@@ -23,6 +26,8 @@ FIXED_GEOMETRY_DIMENSIONS: Final = frozenset({"jaw_width", "chin_height", "eye_s
 FIXED_GEOMETRY_MAGNITUDES_PPM: Final = frozenset({15_000, 30_000})
 FIXED_RESULT_MEDIA_TYPE: Final = "image/jpeg"
 MAX_IMAGE_DIMENSION: Final = 20_000
+TARGETED_REPAIR_ALGORITHM_VERSION: Final = D02TargetedM4RepairBackend.algorithm_version
+TARGETED_REPAIR_CANDIDATE_ID: Final = "D02_TARGETED_JAW_REPAIR_V1"
 
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _ID = re.compile(r"^[0-9a-f]{32}$")
@@ -40,6 +45,38 @@ class GeometryAdapterAuthorityError(ValueError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
+
+
+def qualified_backend_candidate_id(
+    *,
+    case_ordinal: int,
+    source_ordinal: int,
+    dimension_key: str,
+    direction: str,
+    magnitude_ppm: int,
+    algorithm_version: str,
+) -> str:
+    """Resolve the exact tracked backend allowlist for one admitted case.
+
+    The accepted successor universe is deliberately heterogeneous: ordinary
+    cases use the frozen OpenCV backend, while ADR-053 may replace only its
+    exact Case-25 selector with the source-byte-bound repair backend.
+    """
+
+    if algorithm_version == ALGORITHM_VERSION:
+        return CANDIDATE_ID
+    selector = targeted_repair.TARGET_SELECTOR
+    if algorithm_version == TARGETED_REPAIR_ALGORITHM_VERSION and (
+        case_ordinal == targeted_repair.TARGET_CASE_ORDINAL
+        and source_ordinal == targeted_repair.TARGET_SOURCE_ORDINAL
+        and dimension_key == selector["dimension_key"]
+        and direction == selector["direction"]
+        and magnitude_ppm == selector["magnitude_ppm"]
+    ):
+        return TARGETED_REPAIR_CANDIDATE_ID
+    raise GeometryAdapterAuthorityError(
+        "UNQUALIFIED_BACKEND", "case backend is not in the exact D08 allowlist"
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +133,19 @@ class D02FixedGeometryCase:
             "backend_algorithm_version",
         ):
             _opaque(getattr(self, name), name)
+        expected_candidate = qualified_backend_candidate_id(
+            case_ordinal=self.case_ordinal,
+            source_ordinal=self.source_ordinal,
+            dimension_key=self.dimension_key,
+            direction=self.direction.value,
+            magnitude_ppm=self.magnitude_ppm,
+            algorithm_version=self.backend_algorithm_version,
+        )
+        if self.backend_candidate_id != expected_candidate:
+            raise GeometryAdapterAuthorityError(
+                "BACKEND_CANDIDATE_MISMATCH",
+                "backend candidate does not match the admitted case algorithm",
+            )
         _digest(self.case_binding_digest, "case_binding_digest")
         _positive(self.output_width, "output_width", maximum=MAX_IMAGE_DIMENSION)
         _positive(self.output_height, "output_height", maximum=MAX_IMAGE_DIMENSION)

@@ -14,7 +14,7 @@ from typing import Protocol
 
 from mirror_api.demo_d02_r2_runtime_forward import DemoM3M4Executor
 from mirror_api.demo_d08_geometry_runtime_adapter import D02M4GeometryRuntimeAdapter
-from mirror_api.demo_d08_geometry_verifier import IndependentGeometryVerifier
+from mirror_api.demo_d08_geometry_verifier import IndependentGeometryVerifierRouter
 from mirror_api.demo_editing_service import EditVerifier
 from mirror_api.demo_geometry_editor import GeometryExecutionBackend
 
@@ -45,6 +45,7 @@ class D02GeometryRuntimeBundle:
 
     executor: DemoM3M4Executor = field(repr=False)
     case_rows: tuple[Mapping[str, object], ...] = field(repr=False)
+    additional_executors: tuple[DemoM3M4Executor, ...] = field(default=(), repr=False)
 
 
 class D02GeometryRuntimeBundleFactory(Protocol):
@@ -67,8 +68,12 @@ class AcceptedD02GeometryCapabilityFactory:
             backend=D02M4GeometryRuntimeAdapter(
                 executor=bundle.executor,
                 case_rows=bundle.case_rows,
+                additional_executors=bundle.additional_executors,
             ),
-            verifier=IndependentGeometryVerifier(bundle.executor),
+            verifier=IndependentGeometryVerifierRouter(
+                bundle.executor,
+                bundle.additional_executors,
+            ),
         )
 
 

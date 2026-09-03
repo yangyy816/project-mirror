@@ -23,9 +23,12 @@ correctly fail-closed. Historical D02 M4 rows prove that the accepted private
 OpenCV capability executed its frozen synthetic cases; they are not evidence
 that a new D07 editing Job executed or passed an independent verifier.
 
-The accepted D02 backend is not a general geometry editor. Its warp plans bind
-the four admitted source images, their original landmark frames and a fixed
-case matrix. D08 v1 must preserve that boundary.
+The accepted D02 backend set is not a general geometry editor. Its warp plans
+bind the four admitted source images, their original landmark frames and a
+fixed case matrix. The final admitted successor universe is intentionally
+heterogeneous under ADR-053: forty-seven cases retain the accepted OpenCV
+identity and exact Case 25 uses the accepted source-byte-only targeted repair
+identity. D08 v1 must preserve both that boundary and the per-case identity.
 
 ## Frozen v1 scope
 
@@ -47,6 +50,12 @@ the following are true:
 - the sign maps exactly to `INCREASE` or `DECREASE`; and
 - the accepted D02 report contains one unique source/dimension/direction/
   magnitude case.
+
+Backend selection is an exact closed mapping. The frozen OpenCV algorithm is
+eligible for ordinary admitted cases. `d02-targeted-jaw-repair-v1` is eligible
+only for Case 25 (`source 3 / jaw_width / DECREASE / 15000`) and uses its own
+configuration/recipe digest. No third algorithm, alternate selector, fallback
+or matrix-wide configuration coercion is permitted.
 
 The historical case and result rows are eligibility and plan-binding
 authority only. Their bytes, ResultM3 rows and PASS state cannot be replayed as
@@ -79,10 +88,11 @@ The repository reconstructs, from locked PostgreSQL rows, an immutable
 
 The case supplies the accepted algorithm, runtime-manifest and configuration
 digests. The backend candidate ID is not present in the generic D02 report, so
-it comes only from the already accepted tracked
-`providers.opencv_geometry.CANDIDATE_ID` constant. It cannot come from HTTP,
-the task message or an untrusted database scalar, and the installed backend
-must match the resulting complete identity.
+it comes only from the tracked two-entry mapping: the already accepted
+`providers.opencv_geometry.CANDIDATE_ID`, or the ADR-053 targeted candidate for
+the exact Case-25 selector. It cannot come from HTTP, the task message or an
+untrusted database scalar, and the installed per-case backend must match the
+resulting complete identity.
 
 `ExecutionCommand` receives the repository-derived Session, plan, both
 operation digests, input
@@ -177,6 +187,10 @@ cross-case Gate digest. That digest is bound into the D08 integrated acceptance
 result and its policy digest. It is a qualification Gate over the fresh matrix,
 not a database prerequisite for an isolated post-qualification user operation.
 Negative tests must fail the Gate when any repeat violates monotonicity.
+The matrix requires one shared source/M3/model/topology/network authority while
+allowing the two exact case algorithms to retain distinct M4 recipe and
+configuration identities. It never normalizes Case 25 back to the predecessor
+OpenCV identity.
 
 The requested 15k/30k value is warp magnitude, not an assertion that measured
 delta equals that value. Geometry uses its dedicated evaluator and then emits
@@ -206,9 +220,11 @@ D02 Subsystem Principal remains the private-input custodian. Integration
 Principal never reads or receives runtime locators, Prompt, image paths or
 bytes. For the real Gate, D02 Subsystem Principal must verify that its existing
 registry permits the D08 purpose, then install opaque M3/M4 factories inside
-the controlled process. If the registered allowed-task scope does not include
-D08, it returns `PRIVATE_INPUT_SCOPE_EXPANSION_REQUIRED`; no process may scan
-for or infer a locator.
+the controlled process. The bundle contains the shared accepted M3/source
+authority plus exactly the standard OpenCV executor and, when present in the
+admitted matrix, the Case-25 targeted executor. If the registered allowed-task
+scope does not include D08, it returns `PRIVATE_INPUT_SCOPE_EXPANSION_REQUIRED`;
+no process may scan for or infer a locator.
 
 The task message remains reference-only. Missing capability fails before
 source-byte loading and before Job claim. The accepted Windows Demo process

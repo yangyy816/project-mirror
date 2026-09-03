@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from typing import cast
 
 import pytest
 
-from mirror_api.demo_d08_geometry_adapter import D08_VERIFIER_POLICY_VERSION
+from mirror_api.demo_d08_geometry_adapter import (
+    D08_VERIFIER_POLICY_VERSION,
+    TARGETED_REPAIR_ALGORITHM_VERSION,
+)
 from mirror_api.demo_d08_geometry_matrix import (
     GEOMETRY_MATRIX_QUALIFICATION_SCHEMA,
     GeometryMatrixQualificationInputError,
@@ -15,6 +19,7 @@ from mirror_api.demo_d08_geometry_verifier import (
     D08_GEOMETRY_METRICS_SCHEMA,
     D08_GEOMETRY_THRESHOLDS_SCHEMA,
 )
+from mirror_api.providers.opencv_geometry import ALGORITHM_VERSION
 
 
 def _digest(index: int) -> str:
@@ -108,7 +113,7 @@ def _terminal(
             "recipe_digest": _digest(1),
             "runtime_manifest_digest": _digest(2),
             "m3_algorithm_version": "m3-v1",
-            "m4_algorithm_version": "m4-v1",
+            "m4_algorithm_version": ALGORITHM_VERSION,
             "model_identity_digest": _digest(3),
             "model_config_digest": _digest(4),
             "weights_digest_or_no_weights": "NO_WEIGHTS",
@@ -184,6 +189,31 @@ def test_complete_matrix_has_canonical_pass_evidence() -> None:
     assert len(result.evidence["ordered_repeat_deltas"]) == 144
     assert len(result.evidence["monotonic_comparisons"]) == 72
     assert result.evidence["cross_case_digest"] == result.cross_case_digest
+
+
+def test_case_25_targeted_successor_identity_is_qualified_without_global_uniformity() -> None:
+    terminals = _matrix()
+    metrics = deepcopy(dict(terminals[24].metrics))
+    runtime_identity = cast(dict[str, object], metrics["runtime_identity"])
+    runtime_identity["m4_algorithm_version"] = TARGETED_REPAIR_ALGORITHM_VERSION
+    runtime_identity["recipe_digest"] = _digest(99)
+    terminals[24] = _replace(terminals[24], metrics=metrics)
+
+    result = qualify_geometry_matrix(terminals)
+
+    assert result.status == "PASS"
+
+
+def test_targeted_successor_identity_outside_case_25_fails_closed() -> None:
+    terminals = _matrix()
+    metrics = deepcopy(dict(terminals[0].metrics))
+    runtime_identity = cast(dict[str, object], metrics["runtime_identity"])
+    runtime_identity["m4_algorithm_version"] = TARGETED_REPAIR_ALGORITHM_VERSION
+    runtime_identity["recipe_digest"] = _digest(99)
+    terminals[0] = _replace(terminals[0], metrics=metrics)
+
+    with pytest.raises(GeometryMatrixQualificationInputError, match="exact D08 allowlist"):
+        qualify_geometry_matrix(terminals)
 
 
 @pytest.mark.parametrize(

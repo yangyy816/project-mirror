@@ -6,6 +6,8 @@ from dataclasses import dataclass, fields, replace
 import pytest
 
 from mirror_api.demo_d08_geometry_adapter import (
+    TARGETED_REPAIR_ALGORITHM_VERSION,
+    TARGETED_REPAIR_CANDIDATE_ID,
     D02FixedGeometryCase,
     GeometryAdapterAuthorityError,
     GeometryDirection,
@@ -169,6 +171,16 @@ class _Backend:
         return self.result
 
 
+@dataclass
+class _RoutedBackend(_Backend):
+    routed_identity: GeometryBackendIdentity | None = None
+
+    def identity_for(self, *, authority: GeometryExecutionAuthority) -> GeometryBackendIdentity:
+        del authority
+        assert self.routed_identity is not None
+        return self.routed_identity
+
+
 def test_fixed_case_execution_is_pending_verifier_and_never_publishable() -> None:
     request = _request()
     backend = _Backend(_result(request), _identity())
@@ -226,6 +238,48 @@ def test_fixed_case_execution_is_pending_verifier_and_never_publishable() -> Non
     assert _SOURCE.decode() not in repr(backend.received)
     assert _RESULT.decode() not in repr(backend.result)
     assert _RESULT.decode() not in repr(outcome.success)
+
+
+def test_exact_case_25_targeted_backend_uses_case_routed_identity() -> None:
+    operation = _operation(delta=-15_000)
+    standard = _authority(operation)
+    targeted_case = replace(
+        standard.fixed_case,
+        case_ordinal=25,
+        source_ordinal=3,
+        backend_candidate_id=TARGETED_REPAIR_CANDIDATE_ID,
+        backend_algorithm_version=TARGETED_REPAIR_ALGORITHM_VERSION,
+        case_binding_digest="0" * 64,
+    )
+    authority = replace(
+        standard,
+        fixed_case=targeted_case,
+        authority_digest="0" * 64,
+    )
+    request = GeometryExecutionRequest(
+        operation=operation,
+        authority=authority,
+        job_attempt=GeometryJobAttemptBinding(
+            job_id="4" * 32,
+            execution_job_binding_id="5" * 32,
+            job_binding_digest="5" * 64,
+            attempt_id="3" * 32,
+            attempt_digest="6" * 64,
+        ),
+        source_bytes=_SOURCE,
+    )
+    result = replace(_result(request), identity=request.required_backend)
+    backend = _RoutedBackend(
+        result=result,
+        identity=_identity(),
+        routed_identity=request.required_backend,
+    )
+
+    outcome = execute_geometry_operation(request, backend)
+
+    assert outcome.state is GeometryExecutionState.MATERIALIZED
+    assert outcome.success is not None
+    assert outcome.success.backend == request.required_backend
 
 
 def test_stable_core_replays_across_attempts_but_receipts_are_attempt_specific() -> None:

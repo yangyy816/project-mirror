@@ -7,7 +7,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final, cast
 
-from mirror_api.demo_d08_geometry_adapter import D08_VERIFIER_POLICY_VERSION
+from mirror_api.demo_d08_geometry_adapter import (
+    D08_VERIFIER_POLICY_VERSION,
+    GeometryAdapterAuthorityError,
+    qualified_backend_candidate_id,
+)
 from mirror_api.demo_d08_geometry_verifier import (
     D08_GEOMETRY_METRICS_SCHEMA,
     D08_GEOMETRY_THRESHOLDS_SCHEMA,
@@ -472,7 +476,18 @@ def _validate_matrix_membership(terminals: Sequence[dict[str, object]]) -> None:
         )
     sources: dict[int, str] = {}
     source_ordinals: dict[str, int] = {}
-    runtime_identity: Mapping[str, object] | None = None
+    shared_runtime_identity: dict[str, object] | None = None
+    recipe_by_algorithm: dict[str, str] = {}
+    shared_runtime_fields = (
+        "runtime_manifest_digest",
+        "m3_algorithm_version",
+        "model_identity_digest",
+        "model_config_digest",
+        "weights_digest_or_no_weights",
+        "topology_digest",
+        "measurement_config_digest",
+        "network_policy",
+    )
     expected_keys = {
         (source, dimension, direction, magnitude)
         for source in _SOURCES
@@ -495,11 +510,31 @@ def _validate_matrix_membership(terminals: Sequence[dict[str, object]]) -> None:
                 "source asset maps to multiple source ordinals"
             )
         current_runtime = cast(Mapping[str, object], metrics["runtime_identity"])
-        if runtime_identity is None:
-            runtime_identity = current_runtime
-        elif current_runtime != runtime_identity:
+        algorithm = cast(str, current_runtime["m4_algorithm_version"])
+        try:
+            qualified_backend_candidate_id(
+                case_ordinal=cast(int, metrics["case_ordinal"]),
+                source_ordinal=source,
+                dimension_key=cast(str, metrics["dimension_key"]),
+                direction=cast(str, metrics["direction"]),
+                magnitude_ppm=cast(int, metrics["magnitude_ppm"]),
+                algorithm_version=algorithm,
+            )
+        except GeometryAdapterAuthorityError as exc:
             raise GeometryMatrixQualificationInputError(
-                "runtime identity differs across matrix cases"
+                "matrix case backend is not in the exact D08 allowlist"
+            ) from exc
+        current_shared = {field: current_runtime[field] for field in shared_runtime_fields}
+        if shared_runtime_identity is None:
+            shared_runtime_identity = current_shared
+        elif current_shared != shared_runtime_identity:
+            raise GeometryMatrixQualificationInputError(
+                "shared M3/model/runtime identity differs across matrix cases"
+            )
+        recipe_digest = cast(str, current_runtime["recipe_digest"])
+        if recipe_by_algorithm.setdefault(algorithm, recipe_digest) != recipe_digest:
+            raise GeometryMatrixQualificationInputError(
+                "runtime recipe differs within one case algorithm"
             )
         key = (
             source,

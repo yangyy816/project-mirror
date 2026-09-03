@@ -6,6 +6,8 @@ from dataclasses import fields, replace
 import pytest
 
 from mirror_api.demo_d08_geometry_adapter import (
+    TARGETED_REPAIR_ALGORITHM_VERSION,
+    TARGETED_REPAIR_CANDIDATE_ID,
     D02FixedGeometryCase,
     GeometryAdapterAuthorityError,
     GeometryAttemptExecutionEvidence,
@@ -14,6 +16,7 @@ from mirror_api.demo_d08_geometry_adapter import (
     GeometryJobAttemptBinding,
     GeometryStableMaterializationCore,
 )
+from mirror_api.providers.opencv_geometry import ALGORITHM_VERSION, CANDIDATE_ID
 
 
 def _case() -> D02FixedGeometryCase:
@@ -34,8 +37,8 @@ def _case() -> D02FixedGeometryCase:
         source_landmark_digest="7" * 64,
         output_policy_version="output-policy-v1",
         determinism_version="determinism-v1",
-        backend_candidate_id="opencv-5-fixed",
-        backend_algorithm_version="algorithm-v1",
+        backend_candidate_id=CANDIDATE_ID,
+        backend_algorithm_version=ALGORITHM_VERSION,
         backend_runtime_manifest_digest="8" * 64,
         backend_configuration_digest="9" * 64,
         output_width=10,
@@ -87,6 +90,25 @@ def test_typed_authority_replays_and_rejects_forged_case_or_source_lineage() -> 
         replace(authority.fixed_case, case_ordinal=49)
     with pytest.raises(GeometryAdapterAuthorityError):
         replace(authority.fixed_case, source_ordinal=5)
+
+
+def test_targeted_backend_is_allowed_only_for_the_exact_case_25_selector() -> None:
+    targeted = replace(
+        _case(),
+        case_ordinal=25,
+        source_ordinal=3,
+        direction=GeometryDirection.DECREASE,
+        backend_candidate_id=TARGETED_REPAIR_CANDIDATE_ID,
+        backend_algorithm_version=TARGETED_REPAIR_ALGORITHM_VERSION,
+        case_binding_digest="0" * 64,
+    )
+    assert targeted.case_binding_digest == targeted.content_digest()
+    with pytest.raises(GeometryAdapterAuthorityError, match="exact D08 allowlist"):
+        replace(
+            targeted,
+            source_ordinal=2,
+            case_binding_digest="0" * 64,
+        )
 
 
 def test_stable_and_attempt_surfaces_are_separate_and_canonical() -> None:
