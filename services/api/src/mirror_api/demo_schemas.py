@@ -183,6 +183,15 @@ class DemoProfileCompileRequest(StrictContractModel):
     compiler_version: str = Field(min_length=1, max_length=64)
 
 
+class DemoProfileCompilationJobResultResponse(StrictContractModel):
+    status: Literal["PROFILE_READY"]
+    job_id: DemoId
+    session_id: DemoId
+    profile_id: DemoId
+    job_binding_digest: DemoDigest
+    compilation_digest: DemoDigest
+
+
 class DemoProfileResponse(StrictContractModel):
     profile_id: DemoId
     generation: int = Field(ge=1)
@@ -288,9 +297,14 @@ class DemoEditingSessionCreateRequest(StrictContractModel):
     session_id: DemoId
     source_image_version_id: DemoId | None = None
     source_asset_id: DemoId | None = None
+    source_selector: Literal["SESSION_CANONICAL_ASSET"] | None = None
 
     @model_validator(mode="after")
     def require_exactly_one_source(self) -> Self:
+        if self.source_selector == "SESSION_CANONICAL_ASSET":
+            if self.source_image_version_id is not None or self.source_asset_id is not None:
+                raise ValueError("session source selector forbids explicit source IDs")
+            return self
         if (self.source_image_version_id is None) == (self.source_asset_id is None):
             raise ValueError("exactly one editing source selector is required")
         return self
@@ -314,6 +328,27 @@ class DemoEditPlanCreateRequest(StrictContractModel):
 class DemoEditPlanExecuteRequest(StrictContractModel):
     execution_mode: Literal["DETERMINISTIC_RASTER", "GEOMETRY", "MAKEUP", "GENERATIVE"]
     expected_plan_digest: DemoDigest
+
+
+class DemoEditExecutionResultResponse(StrictContractModel):
+    status: Literal["IMAGE_VERSION_READY"]
+    job_id: DemoId
+    session_id: DemoId
+    editing_session_id: DemoId
+    edit_plan_id: DemoId
+    job_binding_digest: DemoDigest
+    plan_digest: DemoDigest
+    tool_run_id: DemoId
+    tool_run_digest: DemoDigest
+    verification_result_id: DemoId
+    verifier_digest: DemoDigest
+    image_version_id: DemoId
+    image_version_digest: DemoDigest
+    version_kind: Literal["EDITED", "RESTORED", "ROLLED_BACK"]
+    sequence: int = Field(ge=1)
+    parent_image_version_id: DemoId
+    result_asset_id: DemoId
+    result_asset_sha256: DemoDigest
 
 
 class DemoToolRunResponse(StrictContractModel):

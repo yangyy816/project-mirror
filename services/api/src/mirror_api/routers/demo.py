@@ -34,6 +34,8 @@ from mirror_api.demo_editing_commands import (
     DemoEditingCommandAuthorityCorruption,
     DemoEditingCommandInputError,
     DemoEditingCommandUnavailable,
+    DemoEditResultNotReady,
+    DemoEditResultTerminal,
     ExecuteDemoEditPlan,
     RestoreDemoImageVersion,
 )
@@ -100,6 +102,14 @@ from mirror_api.demo_profile_coordinator import DemoProfileCoordinator
 from mirror_api.demo_profile_dependencies import (
     get_demo_profile_commands,
     get_demo_profile_coordinator,
+    get_demo_profile_results,
+)
+from mirror_api.demo_profile_service import (
+    DemoProfileAuthorityCorruption,
+    DemoProfileCompilationService,
+    DemoProfileResultNotReady,
+    DemoProfileResultTerminal,
+    DemoProfileUnavailable,
 )
 from mirror_api.demo_questionnaire_dependencies import (
     get_demo_questionnaire_media_service,
@@ -148,6 +158,7 @@ from mirror_api.demo_schemas import (
     DemoConstraintsCreateRequest,
     DemoContextCompileRequest,
     DemoContextResponse,
+    DemoEditExecutionResultResponse,
     DemoEditingSessionCreateRequest,
     DemoEditPlanCreateRequest,
     DemoEditPlanExecuteRequest,
@@ -160,6 +171,7 @@ from mirror_api.demo_schemas import (
     DemoJobCancelRequest,
     DemoJobResponse,
     DemoPreferenceEventResponse,
+    DemoProfileCompilationJobResultResponse,
     DemoProfileCompileRequest,
     DemoProfileRebuildRequest,
     DemoProfileResponse,
@@ -475,6 +487,36 @@ def _raise_profile_error(error: Exception) -> NoReturn:
     ) from error
 
 
+def _raise_profile_result_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoProfileResultNotReady):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="DEMO_PROFILE_RESULT_NOT_READY",
+            message="Profile 编译结果尚未就绪。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoProfileResultTerminal):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="DEMO_PROFILE_RESULT_TERMINAL",
+            message="Profile 编译任务已终止且没有可用结果。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoProfileUnavailable):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_PROFILE_AUTHORITY_UNAVAILABLE",
+            message="Profile authority 不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise APIError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="DEMO_PROFILE_AUTHORITY_CORRUPT",
+        message="Profile authority 无法安全读取。",
+        details={"track": "DEMO_PROTOTYPE"},
+    ) from error
+
+
 def _raise_reference_profile_error(error: Exception) -> NoReturn:
     if isinstance(error, DemoReferenceProfileConflict):
         raise APIError(
@@ -593,6 +635,36 @@ def _raise_editing_error(error: Exception) -> NoReturn:
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         code="DEMO_EDITING_AUTHORITY_CORRUPT",
         message="编辑 authority 无法安全读取。",
+        details={"track": "DEMO_PROTOTYPE"},
+    ) from error
+
+
+def _raise_edit_result_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoEditResultNotReady):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="DEMO_EDIT_RESULT_NOT_READY",
+            message="编辑结果尚未完成发布。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoEditResultTerminal):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="DEMO_EDIT_RESULT_TERMINAL",
+            message="编辑任务已终止且没有可用发布结果。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoEditingCommandUnavailable):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_EDIT_RESULT_UNAVAILABLE",
+            message="编辑结果不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise APIError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="DEMO_EDIT_RESULT_AUTHORITY_CORRUPT",
+        message="编辑结果 authority 无法安全读取。",
         details={"track": "DEMO_PROTOTYPE"},
     ) from error
 
@@ -1235,6 +1307,40 @@ async def compile_profile(
 
 
 @router.get(
+    "/profiles/compilation-jobs/{job_id}/result",
+    response_model=DemoProfileCompilationJobResultResponse,
+    operation_id="demoGetProfileCompilationResultByJob",
+    openapi_extra=DEMO_OPENAPI,
+    responses=DEMO_ERRORS,
+)
+async def get_profile_compilation_result(
+    job_id: DemoId,
+    actor: DemoActor = Depends(get_demo_actor),
+    results: DemoProfileCompilationService = Depends(get_demo_profile_results),
+) -> DemoProfileCompilationJobResultResponse:
+    try:
+        result = await results.read_completed_result(
+            demo_actor_id=actor.id,
+            job_id=job_id,
+        )
+    except (
+        DemoProfileResultNotReady,
+        DemoProfileResultTerminal,
+        DemoProfileUnavailable,
+        DemoProfileAuthorityCorruption,
+    ) as exc:
+        _raise_profile_result_error(exc)
+    return DemoProfileCompilationJobResultResponse(
+        status="PROFILE_READY",
+        job_id=result.job_id,
+        session_id=result.session_id,
+        profile_id=result.profile_id,
+        job_binding_digest=result.job_binding_digest,
+        compilation_digest=result.compilation_digest,
+    )
+
+
+@router.get(
     "/profiles/active",
     response_model=DemoActiveProfilesResponse,
     operation_id="demoGetActiveProfiles",
@@ -1470,6 +1576,7 @@ async def create_editing_session(
                 demo_session_id=payload.session_id,
                 source_asset_id=payload.source_asset_id,
                 source_image_version_id=payload.source_image_version_id,
+                source_selector=payload.source_selector,
                 idempotency_key=idempotency_key,
                 request_id=str(request.state.request_id),
             )
@@ -1568,6 +1675,52 @@ async def execute_edit_plan(
     ) as exc:
         _raise_editing_error(exc)
     return _job_accepted(result.job)
+
+
+@router.get(
+    "/edit-plans/execution-jobs/{job_id}/result",
+    response_model=DemoEditExecutionResultResponse,
+    operation_id="demoGetEditExecutionResultByJob",
+    openapi_extra=DEMO_OPENAPI,
+    responses=DEMO_ERRORS,
+)
+async def get_edit_execution_result(
+    job_id: DemoId,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoEditingCoordinator = Depends(get_demo_editing_coordinator),
+) -> DemoEditExecutionResultResponse:
+    try:
+        result = await coordinator.read_execution_result(
+            demo_actor_id=actor.id,
+            job_id=job_id,
+        )
+    except (
+        DemoEditResultNotReady,
+        DemoEditResultTerminal,
+        DemoEditingCommandUnavailable,
+        DemoEditingCommandAuthorityCorruption,
+    ) as exc:
+        _raise_edit_result_error(exc)
+    return DemoEditExecutionResultResponse(
+        status="IMAGE_VERSION_READY",
+        job_id=result.job_id,
+        session_id=result.session_id,
+        editing_session_id=result.editing_session_id,
+        edit_plan_id=result.edit_plan_id,
+        job_binding_digest=result.job_binding_digest,
+        plan_digest=result.plan_digest,
+        tool_run_id=result.tool_run_id,
+        tool_run_digest=result.tool_run_digest,
+        verification_result_id=result.verification_result_id,
+        verifier_digest=result.verifier_digest,
+        image_version_id=result.image_version_id,
+        image_version_digest=result.image_version_digest,
+        version_kind=result.version_kind,
+        sequence=result.sequence,
+        parent_image_version_id=result.parent_image_version_id,
+        result_asset_id=result.result_asset_id,
+        result_asset_sha256=result.result_asset_sha256,
+    )
 
 
 @router.get(

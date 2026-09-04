@@ -53,9 +53,19 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
     assert operation_matrix == {
         ("GET", "/api/v1/demo/analyses/{analysis_id}", "demoGetAnalysis"),
         ("GET", "/api/v1/demo/capabilities", "demoGetCapabilities"),
+        (
+            "GET",
+            "/api/v1/demo/edit-plans/execution-jobs/{job_id}/result",
+            "demoGetEditExecutionResultByJob",
+        ),
         ("GET", "/api/v1/demo/identities", "demoListIdentities"),
         ("GET", "/api/v1/demo/jobs/{job_id}", "demoGetJob"),
         ("GET", "/api/v1/demo/profiles/active", "demoGetActiveProfiles"),
+        (
+            "GET",
+            "/api/v1/demo/profiles/compilation-jobs/{job_id}/result",
+            "demoGetProfileCompilationResultByJob",
+        ),
         (
             "GET",
             "/api/v1/demo/questionnaires/runs/{run_id}/next",
@@ -137,8 +147,8 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
         ),
         ("POST", "/api/v1/demo/style-feedback", "demoCreateStyleFeedback"),
     }
-    assert len(operations) == 29
-    assert sum(operation["operationId"].startswith("demo") for operation in operations) == 29
+    assert len(operations) == 31
+    assert sum(operation["operationId"].startswith("demo") for operation in operations) == 31
     assert all(operation["x-demo-only"] is True for operation in operations)
     posts = [
         operation
@@ -187,6 +197,34 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
         }
         for parameter in idempotency_headers
     )
+    profile_result = paths["/api/v1/demo/profiles/compilation-jobs/{job_id}/result"]["get"]
+    assert "requestBody" not in profile_result
+    assert {parameter["name"] for parameter in profile_result["parameters"]} == {"job_id"}
+    assert profile_result["responses"]["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/DemoProfileCompilationJobResultResponse"
+    }
+    profile_result_schema = schema["components"]["schemas"][
+        "DemoProfileCompilationJobResultResponse"
+    ]
+    assert set(profile_result_schema["required"]) == {
+        "status",
+        "job_id",
+        "session_id",
+        "profile_id",
+        "job_binding_digest",
+        "compilation_digest",
+    }
+    edit_result = paths["/api/v1/demo/edit-plans/execution-jobs/{job_id}/result"]["get"]
+    assert "requestBody" not in edit_result
+    assert {parameter["name"] for parameter in edit_result["parameters"]} == {"job_id"}
+    assert edit_result["responses"]["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/DemoEditExecutionResultResponse"
+    }
+    editing_request = schema["components"]["schemas"]["DemoEditingSessionCreateRequest"]
+    assert editing_request["properties"]["source_selector"]["anyOf"] == [
+        {"type": "string", "const": "SESSION_CANONICAL_ASSET"},
+        {"type": "null"},
+    ]
 
     accepted_job = schema["components"]["schemas"]["DemoJobAcceptedResponse"]
     job = schema["components"]["schemas"]["DemoJobResponse"]
@@ -420,7 +458,7 @@ def test_frozen_demo_mutation_contracts_require_explicit_intent_and_precondition
 def test_main_application_exposes_the_complete_demo_contract() -> None:
     schema = create_app().openapi()
     paths = [path for path in schema["paths"] if path.startswith("/api/v1/demo")]
-    assert len(paths) == 29
+    assert len(paths) == 31
     assert schema["paths"]["/api/v1/demo/jobs/{job_id}/cancel"]["post"]["requestBody"]
     assert schema["paths"]["/api/v1/demo/reference-profiles/compile"]["post"]["requestBody"]
     assert schema["paths"]["/api/v1/demo/sessions/{session_id}/context/compile"]["post"][

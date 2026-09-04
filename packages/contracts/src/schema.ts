@@ -670,6 +670,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/demo/profiles/compilation-jobs/{job_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Profile Compilation Result */
+        get: operations["demoGetProfileCompilationResultByJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/demo/profiles/active": {
         parameters: {
             query?: never;
@@ -800,6 +817,23 @@ export interface paths {
         put?: never;
         /** Execute Edit Plan */
         post: operations["demoExecuteEditPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/demo/edit-plans/execution-jobs/{job_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Edit Execution Result */
+        get: operations["demoGetEditExecutionResultByJob"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1243,6 +1277,51 @@ export interface components {
              */
             expires_at: string;
         };
+        /** DemoEditExecutionResultResponse */
+        DemoEditExecutionResultResponse: {
+            /**
+             * Status
+             * @constant
+             */
+            status: "IMAGE_VERSION_READY";
+            /** Job Id */
+            job_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Editing Session Id */
+            editing_session_id: string;
+            /** Edit Plan Id */
+            edit_plan_id: string;
+            /** Job Binding Digest */
+            job_binding_digest: string;
+            /** Plan Digest */
+            plan_digest: string;
+            /** Tool Run Id */
+            tool_run_id: string;
+            /** Tool Run Digest */
+            tool_run_digest: string;
+            /** Verification Result Id */
+            verification_result_id: string;
+            /** Verifier Digest */
+            verifier_digest: string;
+            /** Image Version Id */
+            image_version_id: string;
+            /** Image Version Digest */
+            image_version_digest: string;
+            /**
+             * Version Kind
+             * @enum {string}
+             */
+            version_kind: "EDITED" | "RESTORED" | "ROLLED_BACK";
+            /** Sequence */
+            sequence: number;
+            /** Parent Image Version Id */
+            parent_image_version_id: string;
+            /** Result Asset Id */
+            result_asset_id: string;
+            /** Result Asset Sha256 */
+            result_asset_sha256: string;
+        };
         /** DemoEditPlanCreateRequest */
         DemoEditPlanCreateRequest: {
             /**
@@ -1271,6 +1350,8 @@ export interface components {
             source_image_version_id?: string | null;
             /** Source Asset Id */
             source_asset_id?: string | null;
+            /** Source Selector */
+            source_selector?: "SESSION_CANONICAL_ASSET" | null;
         };
         /** DemoExecutionEvidenceResponse */
         DemoExecutionEvidenceResponse: {
@@ -1433,6 +1514,24 @@ export interface components {
             event_type: "EXPLICIT_STYLE_SELECTION" | "MAXIMUM_INTENSITY_CHANGED" | "IMAGE_ACCEPTED" | "IMAGE_REJECTED" | "IMAGE_ADJUSTED";
             /** Event Digest */
             event_digest: string;
+        };
+        /** DemoProfileCompilationJobResultResponse */
+        DemoProfileCompilationJobResultResponse: {
+            /**
+             * Status
+             * @constant
+             */
+            status: "PROFILE_READY";
+            /** Job Id */
+            job_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Profile Id */
+            profile_id: string;
+            /** Job Binding Digest */
+            job_binding_digest: string;
+            /** Compilation Digest */
+            compilation_digest: string;
         };
         /** DemoProfileCompileRequest */
         DemoProfileCompileRequest: {
@@ -4460,6 +4559,82 @@ export interface operations {
             };
         };
     };
+    demoGetProfileCompilationResultByJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoProfileCompilationJobResultResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     demoGetActiveProfiles: {
         parameters: {
             query?: never;
@@ -5034,6 +5209,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DemoJobAcceptedResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    demoGetEditExecutionResultByJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoEditExecutionResultResponse"];
                 };
             };
             /** @description Unauthorized */

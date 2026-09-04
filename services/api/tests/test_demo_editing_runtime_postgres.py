@@ -31,8 +31,11 @@ from mirror_api.demo_editing_commands import (
     CreateDemoEditingSession,
     CreateDemoEditPlan,
     DemoEditingCommandAccepted,
+    DemoEditingCommandAuthorityCorruption,
     DemoEditingCommandService,
     DemoEditingCommandUnavailable,
+    DemoEditResultNotReady,
+    DemoEditResultTerminal,
     ExecuteDemoEditPlan,
     RestoreDemoImageVersion,
 )
@@ -51,6 +54,7 @@ from mirror_api.demo_idempotency import DemoIdempotencyPayloadConflict
 from mirror_api.demo_models import (
     D02SelectedSourceManifest,
     DemoEditArtifact,
+    DemoEditArtifactEvent,
     DemoEditingSession,
     DemoIdentityConstraints,
     DemoImageVersion,
@@ -63,6 +67,13 @@ from mirror_api.demo_operation_graph import OperationType
 from mirror_api.models import Asset, Job, new_id, utcnow
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(scope="module")
+def event_loop_policy() -> Any:
+    if os.name == "nt":
+        return asyncio.WindowsSelectorEventLoopPolicy()
+    return asyncio.DefaultEventLoopPolicy()
 
 
 class _FailOnceOriginalStorage(DemoLocalPrivateObjectStorage):
@@ -423,6 +434,16 @@ async def test_command_admission_runtime_restore_and_replay_are_postgresql_autho
                 "d07-execution-request",
             )
         )
+        with pytest.raises(DemoEditResultNotReady):
+            await commands.read_execution_result(
+                demo_actor_id=actor_id,
+                job_id=execution.job_id,
+            )
+        with pytest.raises(DemoEditingCommandUnavailable):
+            await commands.read_execution_result(
+                demo_actor_id=new_id(),
+                job_id=execution.job_id,
+            )
         executed = await runtime.run(_message(actor_id, execution, "edit_plan.execute"))
         assert executed.status == "COMPLETED"
         assert (
@@ -447,6 +468,46 @@ async def test_command_admission_runtime_restore_and_replay_are_postgresql_autho
             )
             >= 2
         )
+
+        result_counts_before = (
+            postgres_session.scalar(select(func.count()).select_from(Job)),
+            postgres_session.scalar(select(func.count()).select_from(DemoEditArtifact)),
+            postgres_session.scalar(select(func.count()).select_from(DemoToolRun)),
+            postgres_session.scalar(select(func.count()).select_from(DemoVerificationResult)),
+            postgres_session.scalar(select(func.count()).select_from(DemoEditArtifactEvent)),
+            postgres_session.scalar(select(func.count()).select_from(DemoImageVersion)),
+        )
+        published = await commands.read_execution_result(
+            demo_actor_id=actor_id,
+            job_id=execution.job_id,
+        )
+        replayed_publication = await commands.read_execution_result(
+            demo_actor_id=actor_id,
+            job_id=execution.job_id,
+        )
+        postgres_session.expire_all()
+        result_counts_after = (
+            postgres_session.scalar(select(func.count()).select_from(Job)),
+            postgres_session.scalar(select(func.count()).select_from(DemoEditArtifact)),
+            postgres_session.scalar(select(func.count()).select_from(DemoToolRun)),
+            postgres_session.scalar(select(func.count()).select_from(DemoVerificationResult)),
+            postgres_session.scalar(select(func.count()).select_from(DemoEditArtifactEvent)),
+            postgres_session.scalar(select(func.count()).select_from(DemoImageVersion)),
+        )
+        assert replayed_publication == published
+        assert result_counts_after == result_counts_before
+        assert published.job_id == execution.job_id
+        assert published.session_id == session_id
+        assert published.editing_session_id == accepted.target_id
+        assert published.edit_plan_id == result_plan.id
+        assert published.plan_digest == result_plan.content_digest
+        assert published.version_kind == "EDITED"
+        assert published.sequence == 1
+        assert published.image_version_id == versions[1].id
+        assert published.image_version_digest == versions[1].content_digest
+        assert published.parent_image_version_id == versions[0].id
+        assert published.result_asset_id == versions[1].result_asset_id
+        assert published.result_asset_sha256 == versions[1].result_asset_sha256
 
         original, current = versions
         restore = await commands.restore_image_version(
@@ -516,6 +577,39 @@ async def test_command_admission_runtime_restore_and_replay_are_postgresql_autho
         assert (
             await runtime.run(_message(actor_id, restore, "image_version.restore"))
         ).replayed is True
+
+        terminal_execution = await commands.execute_edit_plan(
+            ExecuteDemoEditPlan(
+                actor_id,
+                plan.target_id,
+                "DETERMINISTIC_RASTER",
+                result_plan.content_digest,
+                "d07-terminal-execution-key",
+                "d07-terminal-execution-request",
+            )
+        )
+        for terminal_status in ("REJECTED", "FAILED", "CANCELLED"):
+            postgres_session.execute(
+                update(Job)
+                .where(Job.id == terminal_execution.job_id)
+                .values(status=terminal_status, finalized_at=utcnow())
+            )
+            postgres_session.commit()
+            with pytest.raises(DemoEditResultTerminal):
+                await commands.read_execution_result(
+                    demo_actor_id=actor_id,
+                    job_id=terminal_execution.job_id,
+                )
+
+        postgres_session.execute(
+            update(Job).where(Job.id == execution.job_id).values(payload={"invalid": True})
+        )
+        postgres_session.commit()
+        with pytest.raises(DemoEditingCommandAuthorityCorruption):
+            await commands.read_execution_result(
+                demo_actor_id=actor_id,
+                job_id=execution.job_id,
+            )
 
         editing_rows = postgres_session.scalars(
             select(DemoEditingSession).where(

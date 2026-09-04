@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Badge, Button } from "@mirror/ui";
 
-type Phase = "analysis" | "questionnaire";
+type Phase = "analysis" | "questionnaire" | "profile";
 type Choice = "LEFT" | "RIGHT" | "INDISTINGUISHABLE" | "SKIP";
 type Question = Readonly<{
   presentationToken: string;
@@ -31,6 +31,9 @@ type State =
   | { kind: "QUESTION"; question: Question; shownAt: number }
   | { kind: "RESPONSE_SUBMITTING"; question: Question; shownAt: number }
   | { kind: "COMPLETED" }
+  | { kind: "PROFILE_STARTING" }
+  | { kind: "PROFILE_PENDING" }
+  | { kind: "PROFILE_READY" }
   | {
       kind: "ERROR";
       phase: Phase | "session";
@@ -80,6 +83,12 @@ function describe(state: State) {
       return "正在提交本题选择。";
     case "COMPLETED":
       return "偏好问卷已完成。";
+    case "PROFILE_STARTING":
+      return "正在生成偏好档案。";
+    case "PROFILE_PENDING":
+      return "偏好档案正在准备。";
+    case "PROFILE_READY":
+      return "偏好档案已准备完成。";
     case "ERROR":
       return errorMessages[state.code] ?? "请求未完成，请重试。";
   }
@@ -132,6 +141,10 @@ function completedAnalysis(body: Record<string, unknown> | null) {
   );
 }
 
+function completedProfile(body: Record<string, unknown> | null) {
+  return body?.status === "PROFILE_READY";
+}
+
 function isRecoverableError(code: string) {
   return [
     "UNAVAILABLE",
@@ -174,6 +187,12 @@ export function DemoRealFlowWorkspace() {
       void poll(phase, token);
     }, 1000);
   }
+  function advanceToProfile(token: number) {
+    if (generation.current !== token) return;
+    activePhase.current = null;
+    setState({ kind: "PROFILE_STARTING" });
+    void startPhase("profile", token);
+  }
   async function poll(phase: Phase, token: number) {
     if (generation.current !== token || activePhase.current !== phase) return;
     pollCount.current += 1;
@@ -202,8 +221,12 @@ export function DemoRealFlowWorkspace() {
         return;
       }
       if (phase === "questionnaire" && body?.status === "COMPLETED") {
+        advanceToProfile(token);
+        return;
+      }
+      if (phase === "profile" && completedProfile(body)) {
         activePhase.current = null;
-        setState({ kind: "COMPLETED" });
+        setState({ kind: "PROFILE_READY" });
         return;
       }
       error(phase, codeFrom(response, body), token);
@@ -225,7 +248,11 @@ export function DemoRealFlowWorkspace() {
       if (body?.status === "PENDING") {
         setState({
           kind:
-            phase === "analysis" ? "ANALYSIS_PENDING" : "QUESTIONNAIRE_PENDING",
+            phase === "analysis"
+              ? "ANALYSIS_PENDING"
+              : phase === "questionnaire"
+                ? "QUESTIONNAIRE_PENDING"
+                : "PROFILE_PENDING",
         });
         return schedulePoll(phase, token);
       }
@@ -242,8 +269,12 @@ export function DemoRealFlowWorkspace() {
         return;
       }
       if (phase === "questionnaire" && body?.status === "COMPLETED") {
+        advanceToProfile(token);
+        return;
+      }
+      if (phase === "profile" && completedProfile(body)) {
         activePhase.current = null;
-        setState({ kind: "COMPLETED" });
+        setState({ kind: "PROFILE_READY" });
         return;
       }
       error(phase, codeFrom(response, body), token);
@@ -310,7 +341,7 @@ export function DemoRealFlowWorkspace() {
         return error("questionnaire", code, token, submission);
       }
       if (body?.status === "COMPLETED") {
-        setState({ kind: "COMPLETED" });
+        advanceToProfile(token);
         return;
       }
       const nextQuestion = questionFrom(body);
@@ -392,7 +423,9 @@ export function DemoRealFlowWorkspace() {
       kind:
         state.phase === "analysis"
           ? "ANALYSIS_STARTING"
-          : "QUESTIONNAIRE_STARTING",
+          : state.phase === "questionnaire"
+            ? "QUESTIONNAIRE_STARTING"
+            : "PROFILE_STARTING",
     });
     void startPhase(state.phase, token);
   }
@@ -410,7 +443,7 @@ export function DemoRealFlowWorkspace() {
             SYNTHETIC DEMO
           </p>
           <h2 className="mt-2 text-xl font-semibold" id="demo-real-flow-title">
-            偏好问卷演示
+            偏好问卷与档案演示
           </h2>
         </div>
         <Badge tone={state.kind === "ERROR" ? "warning" : "success"}>

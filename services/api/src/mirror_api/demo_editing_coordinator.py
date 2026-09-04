@@ -15,6 +15,7 @@ from typing import Literal, cast
 from mirror_api.demo_editing_commands import (
     CreateDemoEditingSession,
     CreateDemoEditPlan,
+    DemoEditExecutionResult,
     DemoEditingCommandAccepted,
     DemoEditingCommandService,
     DemoOwnedToolRun,
@@ -92,6 +93,14 @@ class DemoEditingCoordinator:
         return await self._commands.get_tool_run(
             demo_actor_id=demo_actor_id,
             tool_run_id=tool_run_id,
+        )
+
+    async def read_execution_result(
+        self, *, demo_actor_id: str, job_id: str
+    ) -> DemoEditExecutionResult:
+        return await self._commands.read_execution_result(
+            demo_actor_id=demo_actor_id,
+            job_id=job_id,
         )
 
     async def reconcile(self, *, limit: int = 100) -> tuple[str, ...]:

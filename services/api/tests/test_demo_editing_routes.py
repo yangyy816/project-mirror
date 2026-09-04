@@ -3,12 +3,20 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+import pytest
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 
 from mirror_api.demo_dependencies import get_demo_actor
-from mirror_api.demo_editing_commands import DemoOwnedToolRun
+from mirror_api.demo_editing_commands import (
+    DemoEditExecutionResult,
+    DemoEditingCommandAuthorityCorruption,
+    DemoEditingCommandUnavailable,
+    DemoEditResultNotReady,
+    DemoEditResultTerminal,
+    DemoOwnedToolRun,
+)
 from mirror_api.demo_editing_coordinator import DemoEditingCreateResult
 from mirror_api.demo_editing_dependencies import get_demo_editing_coordinator
 from mirror_api.demo_idempotency import DemoIdempotencyPayloadConflict
@@ -71,6 +79,29 @@ class _Coordinator:
             raise self.failure
         return DemoOwnedToolRun(_TARGET_ID, "contrast", _JOB_ID, "COMPLETED", _DIGEST)
 
+    async def read_execution_result(self, **_: str) -> DemoEditExecutionResult:
+        if self.failure is not None:
+            raise self.failure
+        return DemoEditExecutionResult(
+            job_id=_JOB_ID,
+            session_id=_SESSION_ID,
+            editing_session_id=_TARGET_ID,
+            edit_plan_id="1" * 32,
+            job_binding_digest=_DIGEST,
+            plan_digest="2" * 64,
+            tool_run_id="3" * 32,
+            tool_run_digest="4" * 64,
+            verification_result_id="5" * 32,
+            verifier_digest="6" * 64,
+            image_version_id="7" * 32,
+            image_version_digest="8" * 64,
+            version_kind="EDITED",
+            sequence=1,
+            parent_image_version_id="9" * 32,
+            result_asset_id="a" * 32,
+            result_asset_sha256="b" * 64,
+        )
+
 
 def _actor() -> DemoActor:
     return DemoActor(
@@ -131,14 +162,25 @@ def test_d07_create_routes_use_owner_bound_commands_without_session_in_target_re
                 "expected_current_image_version_digest": _DIGEST,
             },
         ),
+        _post(
+            client,
+            "/api/v1/demo/editing-sessions",
+            {
+                "session_id": _SESSION_ID,
+                "source_selector": "SESSION_CANONICAL_ASSET",
+            },
+        ),
     )
-    assert [response.status_code for response in responses] == [202, 202, 202, 202]
+    assert [response.status_code for response in responses] == [202, 202, 202, 202, 202]
     assert all(response.json()["job_id"] == _JOB_ID for response in responses)
-    assert len(coordinator.commands) == 4
+    assert len(coordinator.commands) == 5
     assert all(command.request_id == "request-0001" for command in coordinator.commands)
     assert not hasattr(coordinator.commands[1], "demo_session_id")
     assert not hasattr(coordinator.commands[2], "demo_session_id")
     assert not hasattr(coordinator.commands[3], "demo_session_id")
+    assert coordinator.commands[4].source_selector == "SESSION_CANONICAL_ASSET"
+    assert coordinator.commands[4].source_asset_id is None
+    assert coordinator.commands[4].source_image_version_id is None
 
 
 def test_d07_tool_run_is_owner_bound_and_returns_terminal_job_state() -> None:
@@ -150,6 +192,56 @@ def test_d07_tool_run_is_owner_bound_and_returns_terminal_job_state() -> None:
         "status": "COMPLETED",
         "output_digest": _DIGEST,
     }
+
+
+def test_d08_execution_result_route_returns_exact_published_authority() -> None:
+    response = _client(_Coordinator()).get(
+        f"/api/v1/demo/edit-plans/execution-jobs/{_JOB_ID}/result"
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "IMAGE_VERSION_READY",
+        "job_id": _JOB_ID,
+        "session_id": _SESSION_ID,
+        "editing_session_id": _TARGET_ID,
+        "edit_plan_id": "1" * 32,
+        "job_binding_digest": _DIGEST,
+        "plan_digest": "2" * 64,
+        "tool_run_id": "3" * 32,
+        "tool_run_digest": "4" * 64,
+        "verification_result_id": "5" * 32,
+        "verifier_digest": "6" * 64,
+        "image_version_id": "7" * 32,
+        "image_version_digest": "8" * 64,
+        "version_kind": "EDITED",
+        "sequence": 1,
+        "parent_image_version_id": "9" * 32,
+        "result_asset_id": "a" * 32,
+        "result_asset_sha256": "b" * 64,
+    }
+
+
+@pytest.mark.parametrize(
+    ("error", "status_code", "code"),
+    [
+        (DemoEditResultNotReady("pending"), 409, "DEMO_EDIT_RESULT_NOT_READY"),
+        (DemoEditResultTerminal("failed"), 409, "DEMO_EDIT_RESULT_TERMINAL"),
+        (DemoEditingCommandUnavailable("foreign"), 404, "DEMO_EDIT_RESULT_UNAVAILABLE"),
+        (
+            DemoEditingCommandAuthorityCorruption("invalid"),
+            503,
+            "DEMO_EDIT_RESULT_AUTHORITY_CORRUPT",
+        ),
+    ],
+)
+def test_d08_execution_result_route_maps_safe_failures(
+    error: Exception, status_code: int, code: str
+) -> None:
+    response = _client(_Coordinator(failure=error)).get(
+        f"/api/v1/demo/edit-plans/execution-jobs/{_JOB_ID}/result"
+    )
+    assert response.status_code == status_code
+    assert response.json()["code"] == code
 
 
 def test_d07_routes_preserve_validation_and_idempotency_conflict_errors() -> None:

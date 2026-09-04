@@ -95,6 +95,12 @@ class DemoSessionSnapshot:
 
 
 @dataclass(frozen=True)
+class DemoSessionCanonicalSource:
+    asset_id: str
+    asset_sha256: str
+
+
+@dataclass(frozen=True)
 class CreateDemoSession:
     demo_actor_id: str
     synthetic_identity_id: str
@@ -368,7 +374,22 @@ async def _identity_snapshot(
     )
 
 
-async def _verify_session(session: AsyncSession, row: DemoSession, actor_id: str) -> None:
+async def resolve_demo_session_canonical_source(
+    session: AsyncSession,
+    *,
+    row: DemoSession,
+    actor_id: str,
+) -> DemoSessionCanonicalSource:
+    identity = await _verify_session(session, row, actor_id)
+    return DemoSessionCanonicalSource(
+        asset_id=identity.formal_canonical_asset_id,
+        asset_sha256=identity.formal_canonical_asset_sha256,
+    )
+
+
+async def _verify_session(
+    session: AsyncSession, row: DemoSession, actor_id: str
+) -> DemoSyntheticIdentity:
     await _require_active_actor(session, actor_id)
     config = row.config
     if (
@@ -395,6 +416,7 @@ async def _verify_session(session: AsyncSession, row: DemoSession, actor_id: str
         raise DemoSessionAuthorityUnavailable("Demo Session authority does not replay")
     identity = await _load_identity(session, cast(str, config["synthetic_identity_id"]))
     await _identity_snapshot(session, identity)
+    return identity
 
 
 def _session_snapshot(row: DemoSession) -> DemoSessionSnapshot:
@@ -466,9 +488,11 @@ __all__ = [
     "DemoIdentitySnapshot",
     "DemoSessionActorUnavailable",
     "DemoSessionAuthorityUnavailable",
+    "DemoSessionCanonicalSource",
     "DemoSessionInputError",
     "DemoSessionPayloadConflict",
     "DemoSessionService",
     "DemoSessionSnapshot",
     "DemoSyntheticIdentityUnavailable",
+    "resolve_demo_session_canonical_source",
 ]

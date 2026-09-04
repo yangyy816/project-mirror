@@ -40,6 +40,7 @@ function reset() {
     demoAnalysisPolls: 0,
     demoQuestionnairePolls: 0,
     demoQuestionStep: 0,
+    demoProfilePolls: 0,
     failNextDemoAnalysis: false,
     delayNextDemoSession: false,
   };
@@ -322,6 +323,72 @@ const server = createServer(async (request, response) => {
             },
           ]
         : [],
+    });
+    return;
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === "/api/v1/demo/profiles/compile"
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    const body = await jsonBody(request);
+    if (
+      body.session_id !== demoSessionId ||
+      body.compiler_version !== "demo-profile-compiler-v1" ||
+      !/^[a-f0-9]{64}$/.test(request.headers["idempotency-key"] ?? "")
+    )
+      return error(response, 422, "invalid_profile_request");
+    send(response, 202, {
+      job_id: "c".repeat(32),
+      status: "PENDING",
+      capability: "P5_COMPILER",
+      job_binding_digest: "d".repeat(64),
+      target: {
+        target_type: "DEMO_ACTOR",
+        target_id: "e".repeat(32),
+        authority_digest: "a".repeat(64),
+      },
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/demo/jobs/${"c".repeat(32)}`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    state.demoProfilePolls += 1;
+    send(response, 200, {
+      job_id: "c".repeat(32),
+      status: state.demoProfilePolls > 0 ? "COMPLETED" : "RUNNING",
+      capability: "P5_COMPILER",
+      job_binding_digest: "d".repeat(64),
+      target: {
+        target_type: "DEMO_ACTOR",
+        target_id: "e".repeat(32),
+        authority_digest: "a".repeat(64),
+      },
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname ===
+      `/api/v1/demo/profiles/compilation-jobs/${"c".repeat(32)}/result`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    send(response, 200, {
+      status: "PROFILE_READY",
+      job_id: "c".repeat(32),
+      session_id: demoSessionId,
+      profile_id: "b".repeat(32),
+      job_binding_digest: "d".repeat(64),
+      compilation_digest: "1".repeat(64),
     });
     return;
   }

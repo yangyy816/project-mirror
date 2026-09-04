@@ -38,6 +38,8 @@ from mirror_api.demo_idempotency import (
 from mirror_api.demo_models import (
     DemoActor,
     DemoDesiredDeltaProfile,
+    DemoEditArtifact,
+    DemoEditArtifactEvent,
     DemoEditingSession,
     DemoEditOperation,
     DemoEditPlan,
@@ -57,6 +59,12 @@ from mirror_api.demo_operation_graph import (
     PreserveKey,
     plan_restore_transition,
 )
+from mirror_api.demo_session_service import (
+    DemoSessionActorUnavailable,
+    DemoSessionAuthorityUnavailable,
+    DemoSyntheticIdentityUnavailable,
+    resolve_demo_session_canonical_source,
+)
 from mirror_api.demo_tool_registry import (
     TOOL_REGISTRY_VERSION,
     DemoToolRegistryError,
@@ -64,7 +72,7 @@ from mirror_api.demo_tool_registry import (
     resolve_persisted_tool,
     resolve_tool,
 )
-from mirror_api.models import Asset, Job, new_id, utcnow
+from mirror_api.models import Asset, Job, JobAttempt, new_id, utcnow
 
 EDITING_CONTRACT_VERSION = "demo-editing-product-contract-v1"
 PLANNER_VERSION = "demo-edit-planner-v1"
@@ -90,6 +98,14 @@ class DemoEditingCommandAuthorityCorruption(DemoEditingCommandError):
     pass
 
 
+class DemoEditResultNotReady(DemoEditingCommandError):
+    pass
+
+
+class DemoEditResultTerminal(DemoEditingCommandError):
+    pass
+
+
 @dataclass(frozen=True)
 class CreateDemoEditingSession:
     demo_actor_id: str
@@ -98,11 +114,19 @@ class CreateDemoEditingSession:
     request_id: str
     source_asset_id: str | None = None
     source_image_version_id: str | None = None
+    source_selector: Literal["SESSION_CANONICAL_ASSET"] | None = None
 
     def validate(self) -> None:
         _require_id(self.demo_actor_id, "demo_actor_id")
         _require_id(self.demo_session_id, "demo_session_id")
-        if (self.source_asset_id is None) == (self.source_image_version_id is None):
+        if self.source_selector not in {None, "SESSION_CANONICAL_ASSET"}:
+            raise DemoEditingCommandInputError("source selector is unsupported")
+        if self.source_selector == "SESSION_CANONICAL_ASSET":
+            if self.source_asset_id is not None or self.source_image_version_id is not None:
+                raise DemoEditingCommandInputError(
+                    "session source selector forbids explicit source IDs"
+                )
+        elif (self.source_asset_id is None) == (self.source_image_version_id is None):
             raise DemoEditingCommandInputError("exactly one source selector is required")
         if self.source_asset_id is not None:
             _require_id(self.source_asset_id, "source_asset_id")
@@ -205,6 +229,27 @@ class DemoOwnedToolRun:
     output_digest: str | None
 
 
+@dataclass(frozen=True)
+class DemoEditExecutionResult:
+    job_id: str
+    session_id: str
+    editing_session_id: str
+    edit_plan_id: str
+    job_binding_digest: str
+    plan_digest: str
+    tool_run_id: str
+    tool_run_digest: str
+    verification_result_id: str
+    verifier_digest: str
+    image_version_id: str
+    image_version_digest: str
+    version_kind: Literal["EDITED", "RESTORED", "ROLLED_BACK"]
+    sequence: int
+    parent_image_version_id: str
+    result_asset_id: str
+    result_asset_sha256: str
+
+
 class DemoEditingCommandService:
     """Admit D07 commands through PostgreSQL authority only."""
 
@@ -227,6 +272,8 @@ class DemoEditingCommandService:
             "source_asset_id": command.source_asset_id,
             "source_image_version_id": command.source_image_version_id,
         }
+        if command.source_selector is not None:
+            request["source_selector"] = command.source_selector
         return await self._create_or_replay(
             command.demo_actor_id,
             operation,
@@ -325,6 +372,281 @@ class DemoEditingCommandService:
                 job.id,
                 job.status,
                 verification.output_asset_sha256,
+            )
+
+    async def read_execution_result(
+        self, *, demo_actor_id: str, job_id: str
+    ) -> DemoEditExecutionResult:
+        _require_id(demo_actor_id, "demo_actor_id")
+        _require_id(job_id, "job_id")
+        async with self._sessions() as session:
+            job = await session.get(Job, job_id)
+            binding = cast(
+                DemoJobBinding | None,
+                await session.scalar(select(DemoJobBinding).where(DemoJobBinding.job_id == job_id)),
+            )
+            if job is None or binding is None or binding.demo_actor_id != demo_actor_id:
+                raise DemoEditingCommandUnavailable("edit execution result is unavailable")
+            _validate_winner(
+                binding,
+                job,
+                actor_id=demo_actor_id,
+                endpoint="edit_plan.execute",
+                key_hash=binding.idempotency_key_hash,
+                request_digest=binding.request_digest,
+            )
+            if binding.demo_session_id is None:
+                raise DemoEditingCommandAuthorityCorruption(
+                    "edit execution Job has no Session authority"
+                )
+            if job.status in {"PENDING", "RUNNING"}:
+                raise DemoEditResultNotReady("edit execution result is not ready")
+            if job.status in {"REJECTED", "FAILED", "CANCELLED"}:
+                raise DemoEditResultTerminal("edit execution ended without a published result")
+            if (
+                job.status != "COMPLETED"
+                or job.result_code != "EDIT_EXECUTION_COMPLETED"
+                or job.finalized_at is None
+                or job.attempt_count < 1
+            ):
+                raise DemoEditingCommandAuthorityCorruption(
+                    "completed edit execution Job is invalid"
+                )
+
+            artifacts = tuple(
+                (
+                    await session.scalars(
+                        select(DemoEditArtifact).where(
+                            DemoEditArtifact.execution_job_binding_id == binding.id
+                        )
+                    )
+                ).all()
+            )
+            if len(artifacts) != 1:
+                raise DemoEditingCommandAuthorityCorruption(
+                    "completed edit execution does not have one exact artifact"
+                )
+            artifact = artifacts[0]
+            tools = tuple(
+                (
+                    await session.scalars(
+                        select(DemoToolRun).where(
+                            DemoToolRun.demo_job_binding_id == binding.id,
+                            DemoToolRun.demo_edit_artifact_id == artifact.id,
+                        )
+                    )
+                ).all()
+            )
+            verification = cast(
+                DemoVerificationResult | None,
+                await session.scalar(
+                    select(DemoVerificationResult).where(
+                        DemoVerificationResult.demo_edit_artifact_id == artifact.id
+                    )
+                ),
+            )
+            if len(tools) != 1 or verification is None:
+                raise DemoEditingCommandAuthorityCorruption(
+                    "completed edit execution has no exact verification chain"
+                )
+            tool = tools[0]
+            attempt = await session.get(JobAttempt, artifact.formal_job_attempt_id)
+            verifier_binding = await session.get(DemoJobBinding, verification.demo_job_binding_id)
+            verifier_attempt = await session.get(JobAttempt, verification.formal_job_attempt_id)
+            plan = await session.get(DemoEditPlan, binding.target_id)
+            image = (
+                None
+                if verification.image_version_id is None
+                else await session.get(DemoImageVersion, verification.image_version_id)
+            )
+            result_asset = (
+                None
+                if verification.output_asset_id is None
+                else await session.get(Asset, verification.output_asset_id)
+            )
+            verifier_job = (
+                None
+                if verifier_binding is None
+                else await session.get(Job, verifier_binding.job_id)
+            )
+            if (
+                attempt is None
+                or verifier_binding is None
+                or verifier_attempt is None
+                or verifier_job is None
+                or plan is None
+                or image is None
+            ):
+                raise DemoEditingCommandAuthorityCorruption(
+                    "edit execution result graph is incomplete"
+                )
+            operation = await session.get(DemoEditOperation, artifact.edit_operation_id)
+            event = cast(
+                DemoEditArtifactEvent | None,
+                await session.scalar(
+                    select(DemoEditArtifactEvent).where(
+                        DemoEditArtifactEvent.demo_edit_artifact_id == artifact.id,
+                        DemoEditArtifactEvent.event_type == "PROMOTED",
+                    )
+                ),
+            )
+            if operation is None or event is None or result_asset is None:
+                raise DemoEditingCommandAuthorityCorruption(
+                    "edit execution publication graph is incomplete"
+                )
+            if not all(
+                _authority_row_digest_is_valid(row)
+                for row in (
+                    plan,
+                    operation,
+                    artifact,
+                    tool,
+                    verifier_binding,
+                    verification,
+                    image,
+                    event,
+                )
+            ):
+                raise DemoEditingCommandAuthorityCorruption(
+                    "edit execution authority digest is invalid"
+                )
+            session_id = binding.demo_session_id
+            verification_request_digest = verification.metrics.get("request_digest")
+            if not isinstance(verification_request_digest, str):
+                raise DemoEditingCommandAuthorityCorruption(
+                    "edit verification request digest is invalid"
+                )
+            verifier_key_hash = hashlib.sha256(f"tool.verify/{tool.id}".encode()).hexdigest()
+            verifier_request_digest = semantic_request_digest(
+                {
+                    "tool_run_digest": tool.content_digest,
+                    "verification_request_digest": verification_request_digest,
+                }
+            )
+            if (
+                plan.id != binding.target_id
+                or plan.record_kind != "RESULT"
+                or plan.demo_actor_id != demo_actor_id
+                or plan.demo_session_id != session_id
+                or operation.edit_plan_id != plan.id
+                or operation.demo_actor_id != demo_actor_id
+                or operation.demo_session_id != session_id
+                or len(plan.operation_specs) != 1
+                or artifact.engine != operation.engine
+                or artifact.execution_job_binding_id != binding.id
+                or artifact.formal_job_attempt_id != attempt.id
+                or artifact.edit_operation_id != operation.id
+                or artifact.demo_actor_id != demo_actor_id
+                or artifact.demo_session_id != session_id
+                or attempt.job_id != job.id
+                or attempt.attempt != job.attempt_count
+                or attempt.status != "COMPLETED"
+                or attempt.result_code != "EDIT_EXECUTION_COMPLETED"
+                or attempt.error_code is not None
+                or attempt.finished_at is None
+                or attempt.finished_at != job.finalized_at
+                or tool.demo_job_binding_id != binding.id
+                or tool.formal_job_attempt_id != attempt.id
+                or tool.demo_edit_artifact_id != artifact.id
+                or tool.edit_operation_id != operation.id
+                or tool.edit_operation_digest != operation.content_digest
+                or tool.demo_actor_id != demo_actor_id
+                or tool.demo_session_id != session_id
+                or tool.outcome != "COMPLETED"
+                or tool.output_asset_id is not None
+                or tool.output_asset_sha256 is not None
+                or verification.tool_run_id != tool.id
+                or verification.demo_job_binding_id != verifier_binding.id
+                or verification.demo_edit_artifact_id != artifact.id
+                or verification.formal_job_attempt_id != verifier_attempt.id
+                or verification.demo_actor_id != demo_actor_id
+                or verification.demo_session_id != session_id
+                or verification.outcome != "PASS"
+                or verification.reason_codes != []
+                or verification.metrics.get("publishable") is not True
+                or verification.image_version_id != image.id
+                or verification.output_asset_id != result_asset.id
+                or verification.output_asset_sha256 != result_asset.sha256
+                or verifier_binding.demo_actor_id != demo_actor_id
+                or verifier_binding.demo_session_id != session_id
+                or verifier_binding.endpoint_operation != "tool.verify"
+                or verifier_binding.target_type != "TOOL_RUN"
+                or verifier_binding.target_id != tool.id
+                or verifier_binding.idempotency_key_hash != verifier_key_hash
+                or verifier_binding.request_digest != verifier_request_digest
+                or verifier_binding.schema_version != DEMO_JOB_BINDING_SCHEMA
+                or verifier_binding.canonical_payload != _job_binding_payload(verifier_binding)
+                or verifier_job.id != verifier_binding.job_id
+                or verifier_job.job_type != "demo_p3_p7.tool.verify"
+                or verifier_job.idempotency_key_hash
+                != _formal_key(
+                    demo_actor_id,
+                    "tool.verify",
+                    verifier_binding.idempotency_key_hash,
+                )
+                or verifier_job.payload != {}
+                or verifier_job.owner_user_id is not None
+                or verifier_job.ingestion_upload_intent_id is not None
+                or verifier_job.result_asset_id is not None
+                or verifier_job.status != "COMPLETED"
+                or verifier_job.result_code != "VERIFICATION_PASS"
+                or verifier_job.attempt_count != 1
+                or verifier_job.finalized_at is None
+                or verifier_attempt.job_id != verifier_job.id
+                or verifier_attempt.attempt != 1
+                or verifier_attempt.status != "COMPLETED"
+                or verifier_attempt.result_code != "VERIFICATION_PASS"
+                or verifier_attempt.error_code is not None
+                or verifier_attempt.finished_at != verifier_job.finalized_at
+                or image.demo_actor_id != demo_actor_id
+                or image.demo_session_id != session_id
+                or image.editing_session_id != plan.editing_session_id
+                or image.version_kind not in {"EDITED", "RESTORED", "ROLLED_BACK"}
+                or image.parent_version_id is None
+                or image.sequence < 1
+                or image.plan_digest != plan.content_digest
+                or image.tool_run_digest != tool.content_digest
+                or image.verifier_digest != verification.content_digest
+                or image.source_asset_id != tool.input_asset_id
+                or image.source_asset_sha256 != tool.input_asset_sha256
+                or image.result_asset_id != result_asset.id
+                or image.result_asset_sha256 != result_asset.sha256
+                or result_asset.deleted_at is not None
+                or not result_asset.synthetic
+                or result_asset.asset_role != "derived"
+                or result_asset.owner_user_id is not None
+                or result_asset.internal_purpose is not None
+                or not result_asset.is_ai_modified
+                or event.demo_actor_id != demo_actor_id
+                or event.demo_session_id != session_id
+                or event.demo_edit_artifact_id != artifact.id
+                or event.sequence != 2
+                or event.verification_result_id != verification.id
+                or event.image_version_id != image.id
+                or event.promoted_asset_id != result_asset.id
+                or event.promoted_asset_variant_id != image.result_asset_variant_id
+            ):
+                raise DemoEditingCommandAuthorityCorruption(
+                    "edit execution publication authority is inconsistent"
+                )
+            return DemoEditExecutionResult(
+                job_id=job.id,
+                session_id=session_id,
+                editing_session_id=plan.editing_session_id,
+                edit_plan_id=plan.id,
+                job_binding_digest=binding.content_digest,
+                plan_digest=plan.content_digest,
+                tool_run_id=tool.id,
+                tool_run_digest=tool.content_digest,
+                verification_result_id=verification.id,
+                verifier_digest=verification.content_digest,
+                image_version_id=image.id,
+                image_version_digest=image.content_digest,
+                version_kind=cast(Literal["EDITED", "RESTORED", "ROLLED_BACK"], image.version_kind),
+                sequence=image.sequence,
+                parent_image_version_id=image.parent_version_id,
+                result_asset_id=result_asset.id,
+                result_asset_sha256=result_asset.sha256,
             )
 
     async def reconciliation_candidates(
@@ -461,7 +783,7 @@ class DemoEditingCommandService:
         self, session: AsyncSession, c: CreateDemoEditingSession, _: str, request_digest: str
     ) -> tuple[str, str]:
         demo_session = await self._lock_context(session, c.demo_actor_id, c.demo_session_id)
-        source = await self._source_asset(session, c)
+        source = await self._source_asset(session, c, demo_session)
         desired, style, persistent, override = await self._profiles(
             session, c.demo_actor_id, c.demo_session_id
         )
@@ -838,7 +1160,39 @@ class DemoEditingCommandService:
             raise DemoEditingCommandUnavailable("editing Session is unavailable")
         return row
 
-    async def _source_asset(self, session: AsyncSession, c: CreateDemoEditingSession) -> Asset:
+    async def _source_asset(
+        self,
+        session: AsyncSession,
+        c: CreateDemoEditingSession,
+        demo_session: DemoSession,
+    ) -> Asset:
+        if c.source_selector == "SESSION_CANONICAL_ASSET":
+            try:
+                resolved = await resolve_demo_session_canonical_source(
+                    session,
+                    row=demo_session,
+                    actor_id=c.demo_actor_id,
+                )
+            except (DemoSessionActorUnavailable, DemoSyntheticIdentityUnavailable) as exc:
+                raise DemoEditingCommandUnavailable(
+                    "Demo Session canonical source is unavailable"
+                ) from exc
+            except DemoSessionAuthorityUnavailable as exc:
+                raise DemoEditingCommandAuthorityCorruption(
+                    "Demo Session canonical source authority is invalid"
+                ) from exc
+            asset = await session.get(Asset, resolved.asset_id)
+            if (
+                asset is None
+                or asset.deleted_at is not None
+                or not asset.synthetic
+                or asset.sha256 != resolved.asset_sha256
+            ):
+                raise DemoEditingCommandAuthorityCorruption(
+                    "Demo Session canonical source Asset is invalid"
+                )
+            await _require_d02_source_authority(session, asset)
+            return asset
         if c.source_asset_id is not None:
             asset = await session.get(Asset, c.source_asset_id)
             if asset is None or not asset.synthetic or asset.deleted_at is not None:
@@ -982,6 +1336,27 @@ def _authority_digest(schema: str, payload: Mapping[str, Any]) -> str:
     return hashlib.sha256(schema.encode() + b"\n" + canonical_json_bytes(payload)).hexdigest()
 
 
+def _authority_row_digest_is_valid(row: Any) -> bool:
+    return bool(
+        isinstance(row.schema_version, str)
+        and isinstance(row.canonical_payload, Mapping)
+        and row.content_digest == _authority_digest(row.schema_version, row.canonical_payload)
+    )
+
+
+def _job_binding_payload(binding: DemoJobBinding) -> dict[str, Any]:
+    return {
+        "demo_actor_id": binding.demo_actor_id,
+        "demo_session_id": binding.demo_session_id,
+        "endpoint_operation": binding.endpoint_operation,
+        "idempotency_key_hash": binding.idempotency_key_hash,
+        "job_id": binding.job_id,
+        "request_digest": binding.request_digest,
+        "target_id": binding.target_id,
+        "target_type": binding.target_type,
+    }
+
+
 def _digest(payload: Mapping[str, Any]) -> str:
     return hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
@@ -1117,6 +1492,9 @@ def _version_ref(row: DemoImageVersion) -> ImageVersionReference:
 __all__ = [
     "CreateDemoEditPlan",
     "CreateDemoEditingSession",
+    "DemoEditExecutionResult",
+    "DemoEditResultNotReady",
+    "DemoEditResultTerminal",
     "DemoEditingCommandAccepted",
     "DemoEditingCommandAuthorityCorruption",
     "DemoEditingCommandError",
