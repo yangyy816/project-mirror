@@ -916,3 +916,12 @@
   选择、固定有界轮询、uncertain answer exact retry、logout/creation 串行与 stale-response suppression；浏览器
   不接收 bearer、上游 ID/digest 或私有 locator。初始 run `33765310163` 的唯一失败是旧路由测试仍期待
   `P3_FACE_ANALYSIS=NOT_IMPLEMENTED`，一行前向同步后闭环；下一产品 wave 为 D05 Profile 与 D08 edit authority。
+
+- 2026-09-04：D11 R05–R08 profile/edit authority wave 已 `TASK_ACCEPTED`：Profile code
+  `ec1f1ee9bef057931e3321c4f6a0678024a3d36e` 精确重放 Job→ProfileCompilationBundle；edit result code
+  `c9b9f65cea9eb757b76489ae2a180270ad883cb2` 精确重放 Job/Binding/ToolRun/PASS verifier/EDITED ImageVersion；
+  source code `06df2af81d73ee59d42564f4c76d467d1b439bd7` 以 Session→current identity→D02 canonical Asset
+  提供 owner-bound `SESSION_CANONICAL_ASSET`。代码 merge `6921de2e090aacacb6d5078d53c7d43cad153776`
+  的首个 run `33833437025` 仅因一个旧测试漏传新增 DemoSession 参数失败；前向测试修复 successor
+  `929550d5e5d331697f3f426dc102cee7296db22d` 的 run `33839740445` 三 jobs、2909 Python、104 Web、
+  10 Playwright、contract、Docker 与 Gitleaks 全绿。下一集成候选为 R09 deterministic edit flow。
