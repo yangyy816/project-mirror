@@ -40,6 +40,7 @@ from mirror_api.demo_editing_commands import (
     DemoEditResultTerminal,
     ExecuteDemoEditPlan,
     RestoreDemoImageVersion,
+    _integer_deltas,
 )
 from mirror_api.demo_editing_repository import (
     DemoEditingRepositoryError,
@@ -102,6 +103,52 @@ class _FailOnceOriginalStorage(DemoLocalPrivateObjectStorage):
             content=content,
             sha256=sha256,
         )
+
+
+@pytest.mark.parametrize(
+    ("dimensions", "expected"),
+    (
+        ({"jaw_width": {"desired_delta_ppm": 25_000}}, {"jaw_width": 25_000}),
+        ({"jaw_width": {"delta_ppm": 25_000}}, {"jaw_width": 25_000}),
+        (
+            {"jaw_width": {"desired_delta_ppm": 25_000, "delta_ppm": 25_000}},
+            {"jaw_width": 25_000},
+        ),
+    ),
+    ids=("canonical-only", "compact-only", "equal-projections"),
+)
+def test_integer_deltas_accepts_valid_projection_forms(
+    dimensions: dict[str, object], expected: dict[str, int]
+) -> None:
+    assert _integer_deltas(dimensions) == expected
+
+
+@pytest.mark.parametrize(
+    "dimensions",
+    (
+        {"jaw_width": {"desired_delta_ppm": None, "delta_ppm": 25_000}},
+        {"jaw_width": {"desired_delta_ppm": 25_000, "delta_ppm": None}},
+        {"jaw_width": {"desired_delta_ppm": True}},
+        {"jaw_width": {"delta_ppm": "25000"}},
+        {"jaw_width": {"desired_delta_ppm": 25_000, "delta_ppm": 30_000}},
+        {"jaw_width": {"dimension_key": "jaw_width"}},
+        {"jaw_width": {"desired_delta_ppm": 25_000, "dimension_key": "eye_spacing"}},
+    ),
+    ids=(
+        "canonical-null",
+        "compact-null",
+        "canonical-bool",
+        "compact-string",
+        "conflicting-projections",
+        "both-missing",
+        "dimension-key-conflict",
+    ),
+)
+def test_integer_deltas_fails_closed_for_malformed_structured_dimensions(
+    dimensions: dict[str, object],
+) -> None:
+    with pytest.raises(DemoEditingCommandAuthorityCorruption):
+        _integer_deltas(dimensions)
 
 
 @pytest.fixture
@@ -444,15 +491,18 @@ async def test_command_admission_runtime_restore_and_replay_are_postgresql_autho
         assert request_plan is not None and editing is not None and plan_binding is not None
         assert request_plan.instruction_digest == editing.instruction_digest
         assert result_plan.instruction_digest == editing.instruction_digest
-        assert plan_binding.request_digest == hashlib.sha256(
-            canonical_json_bytes(
-                {
-                    "editing_session_id": accepted.target_id,
-                    "operation": OperationType.EXPOSURE.value,
-                    "value_ppm": 250_000,
-                }
-            )
-        ).hexdigest()
+        assert (
+            plan_binding.request_digest
+            == hashlib.sha256(
+                canonical_json_bytes(
+                    {
+                        "editing_session_id": accepted.target_id,
+                        "operation": OperationType.EXPOSURE.value,
+                        "value_ppm": 250_000,
+                    }
+                )
+            ).hexdigest()
+        )
         assert plan_binding.request_digest != editing.instruction_digest
         execution = await commands.execute_edit_plan(
             ExecuteDemoEditPlan(
@@ -579,22 +629,23 @@ async def test_command_admission_runtime_restore_and_replay_are_postgresql_autho
         )
         assert restore_binding is not None and restore_request_plan is not None
         restore_result_plan = postgres_session.scalar(
-            select(DemoEditPlan).where(
-                DemoEditPlan.request_plan_id == restore_request_plan.id
-            )
+            select(DemoEditPlan).where(DemoEditPlan.request_plan_id == restore_request_plan.id)
         )
         assert restore_result_plan is not None
         assert restore_request_plan.instruction_digest == editing.instruction_digest
         assert restore_result_plan.instruction_digest == editing.instruction_digest
-        assert restore_binding.request_digest == hashlib.sha256(
-            canonical_json_bytes(
-                {
-                    "target_image_version_id": original.id,
-                    "expected_current_image_version_id": current.id,
-                    "expected_current_image_version_digest": current.content_digest,
-                }
-            )
-        ).hexdigest()
+        assert (
+            restore_binding.request_digest
+            == hashlib.sha256(
+                canonical_json_bytes(
+                    {
+                        "target_image_version_id": original.id,
+                        "expected_current_image_version_id": current.id,
+                        "expected_current_image_version_digest": current.content_digest,
+                    }
+                )
+            ).hexdigest()
+        )
         assert restore_binding.request_digest != editing.instruction_digest
         restore_message = _message(actor_id, restore, "image_version.restore")
         parent_claim = await runtime._claim(restore_message)

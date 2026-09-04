@@ -198,6 +198,20 @@ The exact Reference Profile result endpoint must replay JobBinding → immutable
 compile request → compile result → ReferenceProfile. Active/latest fallback is
 forbidden.
 
+For this automatic accepted-result path, `DemoReferenceSource.view=FRONT` is a
+categorical Reference Profile presentation slot, not measured pose authority.
+It is inherited only from the exact admitted D02 source through the terminal
+D08 Geometry lineage; the result must first replay the public D02 admission,
+selected case and accepted D06/D09 authority. It must never satisfy a D03 pose
+Gate, be exposed as a fresh pose observation, or be inferred for an arbitrary
+Asset. Missing or mismatched public lineage fails closed before Reference
+Profile admission.
+
+The deterministic Reference queue key may derive from the accepted D06 result,
+but only inside the one-way idempotency boundary. Its operational `request_id`
+is an unrelated opaque correlation value, and Reference dispatch events omit
+the real Job ID and all D06/D09/Reference authority identifiers and digests.
+
 ## Atomic user outcome
 
 Publishing or displaying an image never means acceptance. The user must first

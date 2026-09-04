@@ -12,8 +12,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mirror_api.demo_idempotency import (
+    DEMO_COMMAND_BINDING_SCHEMA_VERSION,
     DemoIdempotencyTarget,
     DemoSemanticIdempotencyCoordinator,
+    binding_content_digest,
     idempotency_key_hash,
     semantic_request_digest,
 )
@@ -42,7 +44,7 @@ from mirror_api.demo_preference_ledger import (
     finalize_demo_accepted_visual_episode,
     preference_event_content_digest,
 )
-from mirror_api.models import utcnow
+from mirror_api.models import new_id, utcnow
 
 DEMO_IMAGE_FEEDBACK_OPERATION = "image_version.feedback"
 
@@ -110,6 +112,14 @@ class DemoImageFeedbackResult:
     event_digest: str
     final_save: bool
     replayed: bool
+
+
+@dataclass(frozen=True)
+class DemoImageFinalSaveInSessionResult:
+    """The exact D09 event/episode pair for a caller-owned transaction."""
+
+    feedback: DemoImageFeedbackResult
+    episode_id: str
 
 
 class DemoImageFeedbackService:
@@ -255,6 +265,125 @@ class DemoImageFeedbackService:
             event_digest=result.value.content_digest,
             final_save=command.acceptance_kind == "FINAL_SAVE",
             replayed=result.replayed,
+        )
+
+    async def create_final_save_in_session(
+        self, session: AsyncSession, command: CreateDemoImageFeedback
+    ) -> DemoImageFinalSaveInSessionResult:
+        """Create/replay FINAL_SAVE without owning the enclosing transaction.
+
+        D06 acceptance uses this seam so the immutable D09 winner and the
+        self-transfer terminal authority share a single PostgreSQL commit.
+        """
+
+        command.validate()
+        if command.acceptance_kind != "FINAL_SAVE":
+            raise DemoImageFeedbackInputError("in-session acceptance requires FINAL_SAVE")
+        semantic_request = _semantic_request(command)
+        key_hash = idempotency_key_hash(command.idempotency_key)
+        request_digest = semantic_request_digest(semantic_request)
+        event_type, signal = _event_semantics(command)
+        await acquire_demo_preference_actor_lock(session, command.demo_actor_id)
+        image = await _owned_image(
+            session,
+            demo_actor_id=command.demo_actor_id,
+            image_version_id=command.image_version_id,
+            lock=True,
+        )
+        existing_binding = await session.scalar(
+            select(DemoCommandBinding).where(
+                DemoCommandBinding.demo_actor_id == command.demo_actor_id,
+                DemoCommandBinding.endpoint_operation == DEMO_IMAGE_FEEDBACK_OPERATION,
+                DemoCommandBinding.idempotency_key_hash == key_hash,
+            )
+        )
+        if existing_binding is not None:
+            if (
+                existing_binding.request_digest != request_digest
+                or existing_binding.response_type != "PREFERENCE_EVENT"
+                or existing_binding.response_status != 201
+                or existing_binding.demo_session_id != image.demo_session_id
+            ):
+                raise DemoImageFeedbackConflict(
+                    "Final Save idempotency key is bound to another request"
+                )
+            event = await session.get(DemoPreferenceEvent, existing_binding.response_id)
+            episode = await _episode_for_event(session, existing_binding.response_id, lock=True)
+            if event is None or episode is None:
+                raise DemoImageFeedbackAuthorityCorruption(
+                    "Final Save command winner is incomplete"
+                )
+            _validate_feedback_event(
+                event,
+                command=command,
+                image=image,
+                event_type=event_type,
+                signal=signal,
+            )
+            _validate_final_save_episode(episode, event=event, image=image)
+            return DemoImageFinalSaveInSessionResult(
+                _feedback_result(event, final_save=True, replayed=True), episode.id
+            )
+        existing = await _existing_final_save_event(
+            session,
+            command=command,
+            image=image,
+            event_type=event_type,
+            signal=signal,
+            key_hash=key_hash,
+            request_digest=request_digest,
+        )
+        if existing is not None:
+            episode = await _episode_for_event(session, existing.id, lock=True)
+            if episode is None:
+                raise DemoImageFeedbackAuthorityCorruption("Final Save winner lacks its episode")
+            return DemoImageFinalSaveInSessionResult(
+                _feedback_result(existing, final_save=True, replayed=True), episode.id
+            )
+        finalized = await finalize_demo_accepted_visual_episode(
+            session,
+            FinalizeDemoAcceptedVisualEpisode(
+                demo_actor_id=command.demo_actor_id,
+                demo_session_id=image.demo_session_id,
+                editing_session_id=image.editing_session_id,
+                accepted_image_version_id=image.id,
+                source_type=DemoPreferenceSourceType.EDIT_FEEDBACK,
+                signal=signal,
+                occurred_at=self._normalized_now(),
+            ),
+        )
+        event = finalized.preference_event
+        binding_payload = {
+            "demo_actor_id": command.demo_actor_id,
+            "demo_session_id": image.demo_session_id,
+            "endpoint_operation": DEMO_IMAGE_FEEDBACK_OPERATION,
+            "idempotency_key_hash": key_hash,
+            "request_digest": request_digest,
+            "response_id": event.id,
+            "response_status": 201,
+            "response_type": "PREFERENCE_EVENT",
+        }
+        session.add(
+            DemoCommandBinding(
+                id=new_id(),
+                schema_version=DEMO_COMMAND_BINDING_SCHEMA_VERSION,
+                canonical_payload=binding_payload,
+                content_digest=binding_content_digest(binding_payload),
+                created_at=self._normalized_now(),
+                demo_actor_id=command.demo_actor_id,
+                demo_session_id=image.demo_session_id,
+                endpoint_operation=DEMO_IMAGE_FEEDBACK_OPERATION,
+                idempotency_key_hash=key_hash,
+                request_digest=request_digest,
+                response_type="PREFERENCE_EVENT",
+                response_id=event.id,
+                response_status=201,
+            )
+        )
+        await session.flush()
+        return DemoImageFinalSaveInSessionResult(
+            _feedback_result(event, final_save=True, replayed=False),
+            finalized.accepted_visual_episode.id,
         )
 
     def _normalized_now(self) -> datetime:
@@ -436,6 +565,20 @@ def _semantic_request(command: CreateDemoImageFeedback) -> dict[str, Any]:
     }
 
 
+def _feedback_result(
+    event: DemoPreferenceEvent, *, final_save: bool, replayed: bool
+) -> DemoImageFeedbackResult:
+    return DemoImageFeedbackResult(
+        event_id=event.id,
+        event_type=cast(
+            Literal["IMAGE_ACCEPTED", "IMAGE_REJECTED", "IMAGE_ADJUSTED"], event.event_type
+        ),
+        event_digest=event.content_digest,
+        final_save=final_save,
+        replayed=replayed,
+    )
+
+
 def _event_semantics(
     command: CreateDemoImageFeedback,
 ) -> tuple[DemoPreferenceEventType, dict[str, Any]]:
@@ -474,4 +617,5 @@ __all__ = [
     "DemoImageFeedbackResult",
     "DemoImageFeedbackService",
     "DemoImageFeedbackUnavailable",
+    "DemoImageFinalSaveInSessionResult",
 ]

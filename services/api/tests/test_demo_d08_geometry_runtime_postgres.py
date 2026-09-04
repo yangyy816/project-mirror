@@ -137,7 +137,10 @@ async def _count(sessions: async_sessionmaker[AsyncSession], model: type[Any]) -
 
 
 async def _context(
-    db: Session, tmp_path: Path
+    db: Session,
+    tmp_path: Path,
+    *,
+    desired_dimensions: dict[str, Any] | None = None,
 ) -> tuple[async_sessionmaker[AsyncSession], Any, dict[str, Any]]:
     bundle = _bundle(db, tmp_path)
     db.commit()
@@ -182,7 +185,7 @@ async def _context(
         as_of_event_sequence=1,
         compilation_watermark=event.content_digest,
         compiler_version="d08-pg-profile-v1",
-        dimensions={"jaw_width": {"delta_ppm": 15_000}},
+        dimensions=desired_dimensions or {"jaw_width": {"delta_ppm": 15_000}},
         evidence_digests=[event.content_digest],
         restraint={"max_ppm": 30_000},
     )

@@ -1465,11 +1465,38 @@ def _locks(value: Mapping[str, Any]) -> dict[str, str]:
 
 
 def _integer_deltas(value: Mapping[str, Any]) -> dict[str, int]:
-    return {
-        key: cast(int, item.get("delta_ppm", 0))
-        for key, item in value.items()
-        if isinstance(item, Mapping) and type(item.get("delta_ppm", 0)) is int
-    }
+    deltas: dict[str, int] = {}
+    for key, item in value.items():
+        if not isinstance(item, Mapping):
+            # Historical scalar projections were never Geometry planner input.
+            continue
+        canonical_present = "desired_delta_ppm" in item
+        compact_present = "delta_ppm" in item
+        if not canonical_present and not compact_present:
+            raise DemoEditingCommandAuthorityCorruption(
+                "DesiredDeltaProfile dimension lacks an integer delta"
+            )
+        canonical = item.get("desired_delta_ppm")
+        compact = item.get("delta_ppm")
+        if canonical_present and type(canonical) is not int:
+            raise DemoEditingCommandAuthorityCorruption(
+                "DesiredDeltaProfile canonical delta is invalid"
+            )
+        if compact_present and type(compact) is not int:
+            raise DemoEditingCommandAuthorityCorruption(
+                "DesiredDeltaProfile compact delta is invalid"
+            )
+        if canonical_present and compact_present and canonical != compact:
+            raise DemoEditingCommandAuthorityCorruption(
+                "DesiredDeltaProfile delta projections conflict"
+            )
+        dimension = item.get("dimension_key", key)
+        if dimension != key:
+            raise DemoEditingCommandAuthorityCorruption(
+                "DesiredDeltaProfile dimension projection conflicts"
+            )
+        deltas[key] = cast(int, canonical if canonical_present else compact)
+    return deltas
 
 
 def _version_ref(row: DemoImageVersion) -> ImageVersionReference:
