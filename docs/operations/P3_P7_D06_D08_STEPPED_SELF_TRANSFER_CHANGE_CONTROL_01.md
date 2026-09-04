@@ -31,6 +31,28 @@ This change adds one explicit profile-guided Geometry preview. It preserves the
 existing raster flow, ordinary Geometry request semantics, D08 selected-case
 authority, D06 v1 replay and all existing public requests byte-for-byte.
 
+## EditPlan instruction provenance repair
+
+D09's frozen Final Save authority requires:
+
+```text
+AcceptedVisualEpisode.instruction_digest
+= DemoEditingSession.instruction_digest
+= terminal RESULT DemoEditPlan.instruction_digest
+```
+
+The repository path already follows this rule, but the command-service path
+incorrectly stores the per-plan semantic request digest as the EditPlan
+instruction digest. That request digest already belongs to the exact
+`DemoJobBinding.request_digest`; it is not the user/session instruction
+authority.
+
+The command-service repair must make `_persist_plan` inherit
+`DemoEditingSession.instruction_digest` for ordinary and transition plans and
+must retain the plan command digest only in its JobBinding. No historical row
+is rewritten. Any plan whose instruction differs from its EditingSession
+continues to fail closed at Final Save.
+
 ## Fixed selection policy
 
 ```text
@@ -221,14 +243,16 @@ Geometry integration Gate and does not reopen D02, D03, D08 or historical M3/M4.
 ## Implementation order
 
 1. The one schema-version constraint migration and matching ORM expression.
-2. Pure selector and D06 v2 parsing/replay, preserving v1.
-3. In-session D09 + D06 atomic coordinator and post-commit Reference queue
+2. Correct command-created EditPlan instruction inheritance while preserving
+   its distinct JobBinding request digest.
+3. Pure selector and D06 v2 parsing/replay, preserving v1.
+4. In-session D09 + D06 atomic coordinator and post-commit Reference queue
    ensure.
-4. Additive schemas/routes, exact media and Reference result reads, OpenAPI and
+5. Additive schemas/routes, exact media and Reference result reads, OpenAPI and
    generated client.
-5. Controlled Worker factory-present fresh synthetic Geometry Gate.
-6. D11 BFF/UI and browser privacy flow.
-7. Principal integrated review and one wave-level CI.
+6. Controlled Worker factory-present fresh synthetic Geometry Gate.
+7. D11 BFF/UI and browser privacy flow.
+8. Principal integrated review and one wave-level CI.
 
 Migration, domain and API contract ownership are serial. Web work starts only
 after the generated contract and runtime Gate are stable. No task may modify
@@ -246,6 +270,9 @@ beyond the exact self-transfer schema-version constraint authorized above.
 - migration: fresh/forward upgrade, single head, v1 preservation, v2 admission,
   unknown-version rejection, populated downgrade fail-closed and clean
   downgrade/re-upgrade;
+- provenance: command-created raster/Geometry/transition RESULT plans inherit
+  the exact EditingSession instruction while their JobBindings retain the
+  distinct request digest; a drifted plan remains Final Save-ineligible;
 - atomic outcome: D09/D06 rollback, exact Final Save binding, lost-response
   replay and one unique winner;
 - Reference queue: deterministic ensure, dispatch loss, reconciliation,
