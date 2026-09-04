@@ -925,3 +925,14 @@
   的首个 run `33833437025` 仅因一个旧测试漏传新增 DemoSession 参数失败；前向测试修复 successor
   `929550d5e5d331697f3f426dc102cee7296db22d` 的 run `33839740445` 三 jobs、2909 Python、104 Web、
   10 Playwright、contract、Docker 与 Gitleaks 全绿。下一集成候选为 R09 deterministic edit flow。
+
+- 2026-09-05：D11 R09 deterministic raster edit flow 以 code `746f210418182672126718bc3043124e8e931f5e`、
+  integration `970f40bc24e96728b7cdf0f2e93b5f81939d9273` 和 run `33848264963` attempt 3 全绿后
+  `TASK_ACCEPTED`；attempt 1/2 的唯一失败均为 npm advisory endpoint 超时，不是产品失败。D06 stepped
+  self-transfer 与 D11 profile-guided before/after/Final Save Web flow 随后以 integration successor
+  `34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683`、migration head `demo_0019_d06_stepped_transfer` 和 run
+  `33886813328` 三 jobs 全绿集成。浏览器只接收安全 step、九态和短时 opaque media token；JSON upstream
+  使用 generated client，二进制媒体才使用 raw server fetch；Reference READY 必须重放 exact retained Job/result。
+  该 stepped flow 仅为 `IMPLEMENTATION_INTEGRATED_CI_PASS`：受控真实 Geometry Worker factory 因 D02 private
+  allowed-task scope 未授权而保持 `DEFERRED_RUNTIME_GATE`，因此 D06/D11 stepped final acceptance 与 D12 real E2E
+  均未宣称 PASS，项目主线保持 `ACTIVE_WITH_DEFERRED_RUNTIME_GATE`。

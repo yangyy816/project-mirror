@@ -2,8 +2,8 @@
   "schema_version": "mirror.demo/P3P7DemoExecutionState/v1",
   "goal_epoch": "P3_P7_COMPLETE_DEMO_EPOCH_02",
   "integration_branch": "codex/p3-p7-product-forward",
-  "integration_head": "929550d5e5d331697f3f426dc102cee7296db22d",
-  "migration_head": "demo_0018_d03_pose_evidence",
+  "integration_head": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683",
+  "migration_head": "demo_0019_d06_stepped_transfer",
   "delivery_policy": "PRODUCT_AND_ALGORITHM_FIRST_RISK_TIERED",
   "evidence_custody_host_binding": "FROZEN_DEFERRED",
   "closed_checkpoints": [
@@ -52,9 +52,10 @@
     "D11_SESSION_ANALYSIS_FLOW",
     "D11_ANALYSIS_SCOPED_QUESTIONNAIRE_FLOW",
     "D11_INTERACTIVE_QUESTIONNAIRE_UI_FLOW",
-    "D11_PROFILE_AND_EDIT_AUTHORITY_WAVE"
+    "D11_PROFILE_AND_EDIT_AUTHORITY_WAVE",
+    "D11_R09_DETERMINISTIC_EDIT_FLOW_INTEGRATION"
   ],
-  "active_checkpoint": "D11_R05_R08_TASK_ACCEPTED_R09_READY_FOR_INTEGRATION",
+  "active_checkpoint": "D11_R09_TASK_ACCEPTED_D06_D11_STEPPED_IMPLEMENTATION_INTEGRATED_RUNTIME_GATE_DEFERRED",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -99,7 +100,9 @@
     "D11_R06_EXACT_EDIT_RESULT_CODE": "c9b9f65cea9eb757b76489ae2a180270ad883cb2",
     "D11_R08_SESSION_CANONICAL_ASSET_CODE": "06df2af81d73ee59d42564f4c76d467d1b439bd7",
     "D11_R05_R08_CODE_MERGE": "6921de2e090aacacb6d5078d53c7d43cad153776",
-    "D11_R05_R08_INTEGRATION": "929550d5e5d331697f3f426dc102cee7296db22d"
+    "D11_R05_R08_INTEGRATION": "929550d5e5d331697f3f426dc102cee7296db22d",
+    "D11_R09_DETERMINISTIC_EDIT_FLOW_CODE": "746f210418182672126718bc3043124e8e931f5e",
+    "D11_R09_DETERMINISTIC_EDIT_FLOW_INTEGRATION": "970f40bc24e96728b7cdf0f2e93b5f81939d9273"
   },
   "implementation_checkpoint_shas": {
     "D03_D04_B_D07_B_DOMAIN_SLICES": "93919f47ea391694d4ed952cec8a3e7d5683dc4a",
@@ -138,7 +141,13 @@
     "D11_R06_EXACT_EDIT_RESULT_CODE": "c9b9f65cea9eb757b76489ae2a180270ad883cb2",
     "D11_R08_SESSION_CANONICAL_ASSET_CODE": "06df2af81d73ee59d42564f4c76d467d1b439bd7",
     "D11_R05_R08_CODE_MERGE": "6921de2e090aacacb6d5078d53c7d43cad153776",
-    "D11_R05_R08_VALIDATION_SUCCESSOR": "929550d5e5d331697f3f426dc102cee7296db22d"
+    "D11_R05_R08_VALIDATION_SUCCESSOR": "929550d5e5d331697f3f426dc102cee7296db22d",
+    "D11_R09_DETERMINISTIC_EDIT_FLOW_CODE": "746f210418182672126718bc3043124e8e931f5e",
+    "D11_R09_DETERMINISTIC_EDIT_FLOW_INTEGRATION": "970f40bc24e96728b7cdf0f2e93b5f81939d9273",
+    "D06_STEPPED_SELF_TRANSFER_CODE": "9ff07072cc1119988a1a5a2d52db2ded954c383e",
+    "D11_PROFILE_GUIDED_SELF_TRANSFER_WEB_CODE": "bc3522a8c08442e7066ef753ea1ba55888cc317d",
+    "D06_D11_STEPPED_INTEGRATION": "dfd958ef1704485f8950dc1ddeff02856c7cb1ec",
+    "D06_D11_MIGRATION_HEAD_REPAIR": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683"
   },
   "accepted_ci_runs": {
     "D09": 32701906246,
@@ -169,7 +178,8 @@
     "D11_R01_R02_REAL_FLOW_INTEGRATION": 33733053219,
     "D11_R03_QUESTIONNAIRE_FLOW_INTEGRATION": 33755587663,
     "D11_R04_INTERACTIVE_FLOW_INTEGRATION": 33775840750,
-    "D11_R05_R08_PROFILE_EDIT_AUTHORITY_INTEGRATION": 33839740445
+    "D11_R05_R08_PROFILE_EDIT_AUTHORITY_INTEGRATION": 33839740445,
+    "D11_R09_DETERMINISTIC_EDIT_FLOW_INTEGRATION": 33848264963
   },
   "generation_capability_candidate": {
     "authority_id": "P3_P7_D02_R2_GENERATION_CAPABILITY_AUTHORITY_01",
@@ -335,7 +345,7 @@
     "d02_final_gate": "TASK_ACCEPTED"
   },
   "implementation_wave": {
-    "status": "D03_D04_B_D07_B_D08_TASK_ACCEPTED_D11_R05_R08_ACCEPTED_R09_READY",
+    "status": "D03_D04_B_D07_B_D08_D11_R09_TASK_ACCEPTED_D06_D11_STEPPED_IMPLEMENTATION_INTEGRATED_RUNTIME_GATE_DEFERRED",
     "D03": "TASK_ACCEPTED_REAL_D02_SOURCE_FRESH_M3_RUNTIME",
     "D04_B": "TASK_ACCEPTED_REAL_D02_QUESTION_BANK_READ_INTEGRATION",
     "D07_B": "TASK_ACCEPTED_REAL_D02_SOURCE_ASSET_AND_M4_AUTHORITY_INTEGRATION",
@@ -364,7 +374,18 @@
     "D11_R05_R08_validation_successor_sha": "929550d5e5d331697f3f426dc102cee7296db22d",
     "D11_R05_R08_ci": "PASS_33839740445",
     "D11_R05_R08_validation": "PASS_2909_PYTHON_104_WEB_10_PLAYWRIGHT_RUFF_STRICT_MYPY_CONTRACTS_DOCKER_GITLEAKS",
-    "D11_R05_R08_task_acceptance_claimed": true
+    "D11_R05_R08_task_acceptance_claimed": true,
+    "D11_R09": "TASK_ACCEPTED_DETERMINISTIC_RASTER_EDIT_FLOW",
+    "D11_R09_code_sha": "746f210418182672126718bc3043124e8e931f5e",
+    "D11_R09_integration_sha": "970f40bc24e96728b7cdf0f2e93b5f81939d9273",
+    "D11_R09_ci": "PASS_33848264963_ATTEMPT_3",
+    "D06_D11_stepped_implementation": "INTEGRATED_CI_PASS_RUNTIME_GATE_DEFERRED",
+    "D06_D11_stepped_integration_sha": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683",
+    "D06_D11_stepped_ci": "PASS_33886813328",
+    "D06_D11_stepped_validation": "PASS_2986_PYTHON_1_SKIPPED_130_WEB_11_PLAYWRIGHT_RUFF_STRICT_MYPY_CONTRACTS_DOCKER_GITLEAKS",
+    "D06_D11_risk_review": "PASS_AFTER_THREE_BLOCKING_FINDINGS_REPAIRED",
+    "controlled_geometry_runtime_gate": "DEFERRED_RUNTIME_GATE_BLOCKED_BY_D02_PRIVATE_ALLOWED_TASK_SCOPE",
+    "D06_D11_stepped_task_acceptance_claimed": false
   },
   "nonaccepted_ci_runs": {
     "D10_CONTEXT_TRACE_EXPLICIT_RECALL_API_01": {
@@ -452,6 +473,26 @@
       "forward_test_repair_sha": "929550d5e5d331697f3f426dc102cee7296db22d",
       "successor_ci": "PASS_33839740445",
       "task_acceptance_claimed_for_failed_run": false
+    },
+    "D06_D11_STEPPED_INTEGRATION_01": {
+      "run_id": 33874432662,
+      "head_sha": "dfd958ef1704485f8950dc1ddeff02856c7cb1ec",
+      "outcome": "FAIL_D02_FORWARD_MIGRATION_HEAD_ALLOWLIST_MISSING_DEMO_0019",
+      "python_summary": "2974_PASSED_1_SKIPPED_11_FAILED",
+      "product_or_persistence_failure": false,
+      "forward_repair_sha": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683",
+      "successor_ci": "PASS_33886813328",
+      "task_acceptance_claimed_for_failed_run": false
+    },
+    "D06_D11_STEPPED_INTEGRATION_SUCCESSOR": {
+      "run_id": 33886813328,
+      "head_sha": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683",
+      "outcome": "PASS_INTEGRATED_CODE_RUNTIME_GATE_DEFERRED",
+      "quality_and_integration": "PASS",
+      "secret_scan": "PASS",
+      "docker_validation": "PASS",
+      "final_acceptance": "NOT_VERIFIED_CONTROLLED_GEOMETRY_RUNTIME_GATE_DEFERRED",
+      "task_acceptance_claimed": false
     }
   },
   "local_product_candidates": {
@@ -625,7 +666,7 @@
       "invalid_or_unavailable_api": "FAIL_CLOSED_UNAVAILABLE",
       "execution_semantics": "UI_CONTRACT_ONLY_SYNTHETIC_DEMO_RUNTIME_EVIDENCE_DEFERRED",
       "real_d02_integration": "TASK_ACCEPTED_UPSTREAM",
-      "playwright_complete_flow": "NOT_IMPLEMENTED_NOT_CLAIMED",
+      "playwright_complete_flow": "PASS_BROWSER_CONTRACT_REAL_GEOMETRY_RUNTIME_DEFERRED",
       "trace_ui_code_sha": "c89cc16e0b1338004074b0b71a89e314fa61d8cd",
       "trace_ui_integration_head": "7472438fdf29006294355ffd7446dfd9977ce0eb",
       "trace_ui_integration_ci": "PASS_33384367990",
@@ -655,6 +696,16 @@
       "session_canonical_asset_code_sha": "06df2af81d73ee59d42564f4c76d467d1b439bd7",
       "profile_edit_wave_integration_sha": "929550d5e5d331697f3f426dc102cee7296db22d",
       "profile_edit_wave_ci": "PASS_33839740445",
+      "deterministic_edit_flow": "TASK_ACCEPTED_R09",
+      "deterministic_edit_code_sha": "746f210418182672126718bc3043124e8e931f5e",
+      "deterministic_edit_integration_sha": "970f40bc24e96728b7cdf0f2e93b5f81939d9273",
+      "deterministic_edit_ci": "PASS_33848264963_ATTEMPT_3",
+      "profile_guided_self_transfer": "IMPLEMENTATION_INTEGRATED_CI_PASS_RUNTIME_GATE_DEFERRED",
+      "profile_guided_web_code_sha": "bc3522a8c08442e7066ef753ea1ba55888cc317d",
+      "profile_guided_integration_sha": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683",
+      "profile_guided_ci": "PASS_33886813328",
+      "profile_guided_browser_boundary": "PASS_GENERATED_CLIENT_JSON_BINARY_MEDIA_ONLY_OPAQUE_TOKEN_EXACT_REFERENCE_RESULT",
+      "controlled_geometry_runtime_gate": "DEFERRED_RUNTIME_GATE_BLOCKED_BY_D02_PRIVATE_ALLOWED_TASK_SCOPE",
       "server_side_credential_bridge": "PASS_BEARER_SERVER_ONLY_BROWSER_OPAQUE_HANDLE",
       "explicit_recall_at": "PASS_IDENTICAL_CONTEXT_AND_TRACE_ANCHOR",
       "browser_storage": "PASS_NO_BEARER_LOCAL_SESSION_INDEXEDDB_OR_DOM",
@@ -719,14 +770,25 @@
     "d02_branch": "codex/p3-p7-d02-final-gate",
     "d02_tracked_checkpoint_sha": "0cd6da58ce111806ed7f56044b270f9b68890f3f",
     "product_branch": "codex/p3-p7-product-forward",
-    "product_code_head": "929550d5e5d331697f3f426dc102cee7296db22d",
+    "product_code_head": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683",
     "private_execution_owner": "D02_SUBSYSTEM_PRINCIPAL",
     "main_process_d02_access": "FORBIDDEN_PERMANENT_AUTONOMY_BOUNDARY"
   },
-  "current_blockers": {},
-  "next_ready_nodes": ["D11_R09_DETERMINISTIC_EDIT_FLOW_INTEGRATION"],
-  "runtime_evidence_blocked_nodes": ["D12_COMPLETE_RUNTIME_E2E"],
-  "project_status": "ACTIVE",
+  "current_blockers": {
+    "CONTROLLED_GEOMETRY_RUNTIME_GATE": {
+      "status": "DEFERRED_RUNTIME_GATE",
+      "blocker": "D02_PRIVATE_ALLOWED_TASK_SCOPE",
+      "scope": "D06_D11_PROFILE_GUIDED_RUNTIME_AND_D12_ONLY",
+      "project_level_blocked": false
+    }
+  },
+  "next_ready_nodes": [],
+  "runtime_evidence_blocked_nodes": [
+    "D06_CONTROLLED_GEOMETRY_RUNTIME_GATE",
+    "D11_PROFILE_GUIDED_REAL_RUNTIME_E2E",
+    "D12_COMPLETE_RUNTIME_E2E"
+  ],
+  "project_status": "ACTIVE_WITH_DEFERRED_RUNTIME_GATE",
   "project_mainline": "ACTIVE",
   "d02_real_integration": "TASK_ACCEPTED_INTEGRATED",
   "production_release": "NOT_AUTHORIZED",
