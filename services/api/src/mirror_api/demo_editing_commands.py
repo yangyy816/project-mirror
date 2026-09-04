@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -59,6 +59,16 @@ from mirror_api.demo_operation_graph import (
     PreserveKey,
     plan_restore_transition,
 )
+from mirror_api.demo_profile_geometry_selector import (
+    DEMO_PROFILE_GUIDED_STEP_POLICY_DIGEST,
+    DEMO_PROFILE_GUIDED_STEP_POLICY_VERSION,
+    DemoProfileGeometrySelection,
+)
+from mirror_api.demo_self_transfer_service import (
+    DemoSelfTransferService,
+    DemoSelfTransferServiceError,
+    DemoSelfTransferUnavailable,
+)
 from mirror_api.demo_session_service import (
     DemoSessionActorUnavailable,
     DemoSessionAuthorityUnavailable,
@@ -92,6 +102,12 @@ class DemoEditingCommandInputError(DemoEditingCommandError):
 
 class DemoEditingCommandUnavailable(DemoEditingCommandError):
     pass
+
+
+class DemoProfileGeometryStepUnavailable(DemoEditingCommandUnavailable):
+    """The exact owner context is valid but has no eligible selected D08 step."""
+
+    code = "DEMO_PROFILE_GEOMETRY_STEP_UNAVAILABLE"
 
 
 class DemoEditingCommandAuthorityCorruption(DemoEditingCommandError):
@@ -158,6 +174,23 @@ class CreateDemoEditPlan:
 
 
 @dataclass(frozen=True)
+class CreateProfileGuidedGeometryPlan:
+    demo_actor_id: str
+    editing_session_id: str
+    selection_policy_version: str
+    idempotency_key: str
+    request_id: str
+
+    def validate(self) -> None:
+        _require_id(self.demo_actor_id, "demo_actor_id")
+        _require_id(self.editing_session_id, "editing_session_id")
+        if self.selection_policy_version != DEMO_PROFILE_GUIDED_STEP_POLICY_VERSION:
+            raise DemoEditingCommandInputError("profile geometry selection policy is unsupported")
+        idempotency_key_hash(self.idempotency_key)
+        _require_request_id(self.request_id)
+
+
+@dataclass(frozen=True)
 class ExecuteDemoEditPlan:
     demo_actor_id: str
     edit_plan_id: str
@@ -207,6 +240,18 @@ class DemoEditingCommandAccepted:
     job_id: str
     target_id: str
     request_id: str
+    replayed: bool
+
+
+@dataclass(frozen=True)
+class DemoProfileGuidedGeometryPlanAccepted:
+    job_id: str
+    target_id: str
+    request_id: str
+    dimension_key: str
+    direction: Literal["INCREASE", "DECREASE"]
+    execution_delta_ppm: int
+    policy_version: str
     replayed: bool
 
 
@@ -298,6 +343,27 @@ class DemoEditingCommandService:
             request,
             lambda s, h, d: self._create_plan(s, command, h, d),
             command.request_id,
+        )
+
+    async def create_profile_guided_geometry_plan(
+        self, command: CreateProfileGuidedGeometryPlan
+    ) -> DemoProfileGuidedGeometryPlanAccepted:
+        command.validate()
+        accepted = await self._create_or_replay(
+            command.demo_actor_id,
+            "edit_plan.create",
+            command.idempotency_key,
+            {
+                "editing_session_id": command.editing_session_id,
+                "selection_policy_version": command.selection_policy_version,
+            },
+            lambda s, h, d: self._create_profile_guided_geometry_plan(s, command, h, d),
+            command.request_id,
+        )
+        return await self._profile_guided_preview(
+            demo_actor_id=command.demo_actor_id,
+            accepted=accepted,
+            policy_version=command.selection_policy_version,
         )
 
     async def execute_edit_plan(self, command: ExecuteDemoEditPlan) -> DemoEditingCommandAccepted:
@@ -707,6 +773,10 @@ class DemoEditingCommandService:
         digest = semantic_request_digest(request)
         async with self._sessions() as session:
             async with session.begin():
+                lock_key = f"mirror.demo.editing-command/{actor_id}/{endpoint}/{key_hash}"
+                await session.execute(
+                    select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0)))
+                )
                 winner = await session.scalar(
                     select(DemoJobBinding).where(
                         DemoJobBinding.demo_actor_id == actor_id,
@@ -868,9 +938,211 @@ class DemoEditingCommandService:
                     "geometry plan authority is unavailable"
                 ) from exc
         result_id = await self._persist_plan(
-            session, c.demo_actor_id, demo_session_id, editing, image, (spec,), request_digest
+            session, c.demo_actor_id, demo_session_id, editing, image, (spec,)
         )
         return result_id, result_id
+
+    async def _create_profile_guided_geometry_plan(
+        self,
+        session: AsyncSession,
+        command: CreateProfileGuidedGeometryPlan,
+        _: str,
+        __: str,
+    ) -> tuple[str, str]:
+        editing = await self._editing(session, command.demo_actor_id, command.editing_session_id)
+        image = await session.scalar(
+            select(DemoImageVersion)
+            .where(
+                DemoImageVersion.editing_session_id == editing.id,
+                DemoImageVersion.demo_actor_id == command.demo_actor_id,
+                DemoImageVersion.demo_session_id == editing.demo_session_id,
+            )
+            .order_by(DemoImageVersion.sequence.desc())
+            .limit(1)
+            .with_for_update()
+        )
+        if image is None:
+            raise DemoEditingCommandUnavailable("profile-guided editing authority is unavailable")
+        selection = await self._select_profile_guided_geometry_step(
+            session,
+            editing=editing,
+            demo_actor_id=command.demo_actor_id,
+            policy_version=command.selection_policy_version,
+        )
+        spec = _profile_guided_geometry_spec(selection.dimension_key, selection.execution_delta_ppm)
+        try:
+            await require_geometry_plan_admission(
+                session,
+                editing_session_id=editing.id,
+                image_version_id=image.id,
+                operation=spec,
+            )
+        except GeometryAuthorityResolutionError as exc:
+            raise DemoEditingCommandUnavailable("profile geometry case is unavailable") from exc
+        result_id = await self._persist_plan(
+            session, command.demo_actor_id, editing.demo_session_id, editing, image, (spec,)
+        )
+        return result_id, result_id
+
+    async def _profile_guided_preview(
+        self,
+        *,
+        demo_actor_id: str,
+        accepted: DemoEditingCommandAccepted,
+        policy_version: str,
+    ) -> DemoProfileGuidedGeometryPlanAccepted:
+        async with self._sessions() as session:
+            plan = await session.get(DemoEditPlan, accepted.target_id)
+            operations = tuple(
+                await session.scalars(
+                    select(DemoEditOperation)
+                    .where(DemoEditOperation.edit_plan_id == accepted.target_id)
+                    .order_by(DemoEditOperation.operation_index, DemoEditOperation.id)
+                )
+            )
+            editing = (
+                None
+                if plan is None
+                else await session.scalar(
+                    select(DemoEditingSession)
+                    .where(DemoEditingSession.id == plan.editing_session_id)
+                    .with_for_update()
+                )
+            )
+            request_plan = (
+                None
+                if plan is None or plan.request_plan_id is None
+                else await session.get(DemoEditPlan, plan.request_plan_id)
+            )
+            image = (
+                None
+                if plan is None
+                else await session.get(DemoImageVersion, plan.input_image_version_id)
+            )
+            if (
+                plan is None
+                or editing is None
+                or request_plan is None
+                or image is None
+                or len(operations) != 1
+                or operations[0].operation_index != 0
+                or plan.demo_actor_id != demo_actor_id
+                or plan.demo_session_id != editing.demo_session_id
+                or plan.editing_session_id != editing.id
+                or plan.record_kind != "RESULT"
+                or request_plan.demo_actor_id != demo_actor_id
+                or request_plan.demo_session_id != editing.demo_session_id
+                or request_plan.editing_session_id != editing.id
+                or request_plan.record_kind != "REQUEST"
+                or request_plan.request_plan_id is not None
+                or request_plan.operation_specs != []
+                or plan.request_plan_id != request_plan.id
+                or plan.plan_version != request_plan.plan_version
+                or plan.input_image_version_id != request_plan.input_image_version_id
+                or image.demo_actor_id != demo_actor_id
+                or image.demo_session_id != editing.demo_session_id
+                or image.editing_session_id != editing.id
+                or plan.desired_delta_profile_digest != editing.desired_delta_profile_digest
+                or request_plan.desired_delta_profile_digest != editing.desired_delta_profile_digest
+                or plan.style_profile_digest != editing.style_profile_digest
+                or request_plan.style_profile_digest != editing.style_profile_digest
+                or plan.identity_constraints_digest != editing.identity_constraints_digest
+                or request_plan.identity_constraints_digest != editing.identity_constraints_digest
+                or plan.instruction_digest != editing.instruction_digest
+                or request_plan.instruction_digest != editing.instruction_digest
+                or plan.planner_version != PLANNER_VERSION
+                or request_plan.planner_version != PLANNER_VERSION
+                or plan.tool_registry_version != TOOL_REGISTRY_VERSION
+                or request_plan.tool_registry_version != TOOL_REGISTRY_VERSION
+                or not _authority_row_digest_is_valid(plan)
+                or not _authority_row_digest_is_valid(request_plan)
+                or not _authority_row_digest_is_valid(operations[0])
+            ):
+                raise DemoEditingCommandAuthorityCorruption("profile geometry preview is invalid")
+            selection = await self._select_profile_guided_geometry_step(
+                session,
+                editing=editing,
+                demo_actor_id=demo_actor_id,
+                policy_version=policy_version,
+            )
+            expected = _profile_guided_geometry_spec(
+                selection.dimension_key, selection.execution_delta_ppm
+            )
+            operation = operations[0]
+            operation_payload = {
+                "engine": operation.engine,
+                "operation_type": operation.operation_type,
+                "parameters": operation.parameters,
+                "preserve": operation.preserve,
+                "expected_effect": operation.expected_effect,
+            }
+            if (
+                plan.operation_specs != [expected.canonical_payload()]
+                or operation_payload != expected.canonical_payload()
+            ):
+                raise DemoEditingCommandAuthorityCorruption("profile geometry preview is invalid")
+            try:
+                await require_geometry_plan_admission(
+                    session,
+                    editing_session_id=editing.id,
+                    image_version_id=image.id,
+                    operation=expected,
+                )
+            except GeometryAuthorityResolutionError as exc:
+                raise DemoEditingCommandUnavailable("profile geometry case is unavailable") from exc
+            return DemoProfileGuidedGeometryPlanAccepted(
+                accepted.job_id,
+                accepted.target_id,
+                accepted.request_id,
+                selection.dimension_key,
+                "INCREASE" if selection.execution_delta_ppm > 0 else "DECREASE",
+                selection.execution_delta_ppm,
+                policy_version,
+                accepted.replayed,
+            )
+
+    async def _select_profile_guided_geometry_step(
+        self,
+        session: AsyncSession,
+        *,
+        editing: DemoEditingSession,
+        demo_actor_id: str,
+        policy_version: str,
+    ) -> DemoProfileGeometrySelection:
+        desired_profiles = tuple(
+            await session.scalars(
+                select(DemoDesiredDeltaProfile).where(
+                    DemoDesiredDeltaProfile.demo_actor_id == demo_actor_id,
+                    DemoDesiredDeltaProfile.demo_session_id == editing.demo_session_id,
+                    DemoDesiredDeltaProfile.content_digest == editing.desired_delta_profile_digest,
+                )
+            )
+        )
+        if len(desired_profiles) != 1:
+            raise DemoEditingCommandUnavailable("profile-guided editing authority is unavailable")
+        selector = DemoSelfTransferService(session_factory=self._sessions)
+        try:
+            return await selector.select_profile_geometry_step_in_session(
+                session,
+                demo_actor_id=demo_actor_id,
+                demo_session_id=editing.demo_session_id,
+                source_asset_id=editing.source_asset_id,
+                desired_delta_profile_id=desired_profiles[0].id,
+                policy_version=policy_version,
+                policy_digest=DEMO_PROFILE_GUIDED_STEP_POLICY_DIGEST,
+            )
+        except DemoSelfTransferUnavailable as exc:
+            raise DemoEditingCommandUnavailable(
+                "profile-guided geometry selection is unavailable"
+            ) from exc
+        except DemoSelfTransferServiceError as exc:
+            if exc.code == "DEMO_PROFILE_GEOMETRY_STEP_UNAVAILABLE":
+                raise DemoProfileGeometryStepUnavailable(
+                    "profile-guided geometry selection is unavailable"
+                ) from exc
+            raise DemoEditingCommandAuthorityCorruption(
+                "profile-guided geometry selection authority is invalid"
+            ) from exc
 
     async def _execute_plan(
         self, session: AsyncSession, c: ExecuteDemoEditPlan, _: str, __: str
@@ -975,7 +1247,6 @@ class DemoEditingCommandService:
             editing,
             current,
             (spec,),
-            request_digest,
             deterministic_seed=job_id,
         )
         # Frozen D01-B ownership trigger binds a restore Job to the historical target,
@@ -1047,7 +1318,6 @@ class DemoEditingCommandService:
         editing: DemoEditingSession,
         image: DemoImageVersion,
         specs: Sequence[OperationSpec],
-        instruction_digest: str,
         *,
         deterministic_seed: str | None = None,
     ) -> str:
@@ -1074,7 +1344,7 @@ class DemoEditingCommandService:
             "desired_delta_profile_digest": editing.desired_delta_profile_digest,
             "style_profile_digest": editing.style_profile_digest,
             "identity_constraints_digest": editing.identity_constraints_digest,
-            "instruction_digest": instruction_digest,
+            "instruction_digest": editing.instruction_digest,
             "planner_version": PLANNER_VERSION,
             "tool_registry_version": TOOL_REGISTRY_VERSION,
         }
@@ -1467,11 +1737,53 @@ def _locks(value: Mapping[str, Any]) -> dict[str, str]:
 
 
 def _integer_deltas(value: Mapping[str, Any]) -> dict[str, int]:
-    return {
-        key: cast(int, item.get("delta_ppm", 0))
-        for key, item in value.items()
-        if isinstance(item, Mapping) and type(item.get("delta_ppm", 0)) is int
-    }
+    deltas: dict[str, int] = {}
+    for key, item in value.items():
+        if not isinstance(item, Mapping):
+            # Historical scalar projections were never Geometry planner input.
+            continue
+        canonical_present = "desired_delta_ppm" in item
+        compact_present = "delta_ppm" in item
+        if not canonical_present and not compact_present:
+            raise DemoEditingCommandAuthorityCorruption(
+                "DesiredDeltaProfile dimension lacks an integer delta"
+            )
+        canonical = item.get("desired_delta_ppm")
+        compact = item.get("delta_ppm")
+        if canonical_present and type(canonical) is not int:
+            raise DemoEditingCommandAuthorityCorruption(
+                "DesiredDeltaProfile canonical delta is invalid"
+            )
+        if compact_present and type(compact) is not int:
+            raise DemoEditingCommandAuthorityCorruption(
+                "DesiredDeltaProfile compact delta is invalid"
+            )
+        if canonical_present and compact_present and canonical != compact:
+            raise DemoEditingCommandAuthorityCorruption(
+                "DesiredDeltaProfile delta projections conflict"
+            )
+        dimension = item.get("dimension_key", key)
+        if dimension != key:
+            raise DemoEditingCommandAuthorityCorruption(
+                "DesiredDeltaProfile dimension projection conflicts"
+            )
+        deltas[key] = cast(int, canonical if canonical_present else compact)
+    return deltas
+
+
+def _profile_guided_geometry_spec(dimension_key: str, delta_ppm: int) -> OperationSpec:
+    parameters = {"dimension_key": dimension_key, "delta_ppm": delta_ppm}
+    return OperationSpec(
+        OperationEngine.GEOMETRY,
+        OperationType.GEOMETRY,
+        parameters,
+        (PreserveKey.IDENTITY_REFERENCE_FRAME, PreserveKey.NON_TARGET_GEOMETRY),
+        {
+            "effect_type": "GEOMETRY",
+            "target_region": "FACE_REGION",
+            **parameters,
+        },
+    )
 
 
 def _version_ref(row: DemoImageVersion) -> ImageVersionReference:
@@ -1492,6 +1804,7 @@ def _version_ref(row: DemoImageVersion) -> ImageVersionReference:
 __all__ = [
     "CreateDemoEditPlan",
     "CreateDemoEditingSession",
+    "CreateProfileGuidedGeometryPlan",
     "DemoEditExecutionResult",
     "DemoEditResultNotReady",
     "DemoEditResultTerminal",
@@ -1503,6 +1816,8 @@ __all__ = [
     "DemoEditingCommandUnavailable",
     "DemoEditingPendingJob",
     "DemoOwnedToolRun",
+    "DemoProfileGeometryStepUnavailable",
+    "DemoProfileGuidedGeometryPlanAccepted",
     "ExecuteDemoEditPlan",
     "RestoreDemoImageVersion",
     "restore_operation_id",

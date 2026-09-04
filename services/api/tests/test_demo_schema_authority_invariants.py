@@ -98,7 +98,7 @@ _LEGACY_DEMO_GRAPH_TABLE_NAMES = set(DEMO_TABLE_NAMES) - {
     "demo_context_compile_results",
 }
 
-DEMO_REVISION = "demo_0018_d03_pose_evidence"
+DEMO_REVISION = "demo_0019_d06_stepped_transfer"
 D02_RECOVERED_QA_DOWN_REVISION = "demo_0006_d02_private_exec"
 D02_PRIVATE_EXEC_DOWN_REVISION = "demo_0005_d02_quality_auth"
 D02_QUALITY_DOWN_REVISION = "demo_0004_d09_episode_prov"

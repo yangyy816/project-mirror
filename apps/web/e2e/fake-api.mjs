@@ -17,6 +17,11 @@ const demoBearer = "x".repeat(32);
 const refreshCookie =
   "mirror_refresh=synthetic-refresh; HttpOnly; SameSite=Lax; Path=/";
 const csrfCookie = "mirror_csrf=synthetic-csrf; SameSite=Lax; Path=/";
+// A tiny synthetic JPEG used only by the browser fake; no user or provider bytes.
+const syntheticJpeg = Buffer.from(
+  "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/Aaf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/Aaf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAY/Ap//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/IX//2gAMAwEAAgADAAAAEP/EABQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQMBAT8QH//EABQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQIBAT8QH//EABQQAQAAAAAAAAAAAAAAAAAAABD/2gAIAQEAAT8QH//Z",
+  "base64",
+);
 
 let state;
 
@@ -41,6 +46,8 @@ function reset() {
     demoQuestionnairePolls: 0,
     demoQuestionStep: 0,
     demoProfilePolls: 0,
+    demoReferencePolls: 0,
+    demoGeometryNoCompatibleCase: false,
     failNextDemoAnalysis: false,
     delayNextDemoSession: false,
   };
@@ -249,6 +256,209 @@ const server = createServer(async (request, response) => {
 
   if (
     request.method === "POST" &&
+    url.pathname ===
+      `/api/v1/demo/editing-sessions/${"e".repeat(32)}/profile-geometry-plans`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    const body = await jsonBody(request);
+    if (body.selection_policy_version !== "demo-profile-guided-d08-step-v1")
+      return error(response, 422, "invalid_geometry_plan_request");
+    if (state.demoGeometryNoCompatibleCase)
+      return error(response, 409, "DEMO_PROFILE_GEOMETRY_STEP_UNAVAILABLE");
+    send(response, 202, {
+      job_id: "b".repeat(32),
+      status: "PENDING",
+      capability: "P6_EDITING",
+      job_binding_digest: "c".repeat(64),
+      target: {
+        target_type: "EDIT_PLAN",
+        target_id: "d".repeat(32),
+        authority_digest: "e".repeat(64),
+      },
+      preview: {
+        dimension_key: "jaw_width",
+        direction: "DECREASE",
+        step_ppm: 15000,
+      },
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/demo/jobs/${"b".repeat(32)}`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    send(response, 200, {
+      job_id: "b".repeat(32),
+      status: "COMPLETED",
+      capability: "P6_EDITING",
+      job_binding_digest: "c".repeat(64),
+      target: {
+        target_type: "EDIT_PLAN",
+        target_id: "d".repeat(32),
+        authority_digest: "e".repeat(64),
+      },
+      result_code: "EDIT_PLAN_READY",
+    });
+    return;
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === `/api/v1/demo/edit-plans/${"d".repeat(32)}/executions`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    const body = await jsonBody(request);
+    if (
+      body.execution_mode !== "GEOMETRY" ||
+      body.expected_plan_digest !== "e".repeat(64)
+    )
+      return error(response, 422, "invalid_geometry_execution_request");
+    send(response, 202, {
+      job_id: "f".repeat(32),
+      status: "PENDING",
+      capability: "P6_EDITING",
+      job_binding_digest: "0".repeat(64),
+      target: {
+        target_type: "EDIT_PLAN",
+        target_id: "d".repeat(32),
+        authority_digest: "e".repeat(64),
+      },
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/demo/jobs/${"f".repeat(32)}`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    send(response, 200, {
+      job_id: "f".repeat(32),
+      status: "COMPLETED",
+      capability: "P6_EDITING",
+      job_binding_digest: "0".repeat(64),
+      target: {
+        target_type: "EDIT_PLAN",
+        target_id: "d".repeat(32),
+        authority_digest: "e".repeat(64),
+      },
+      result_code: "EDIT_EXECUTION_COMPLETED",
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname ===
+      `/api/v1/demo/edit-plans/execution-jobs/${"f".repeat(32)}/result`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    send(response, 200, {
+      status: "IMAGE_VERSION_READY",
+      job_id: "f".repeat(32),
+      session_id: demoSessionId,
+      editing_session_id: "e".repeat(32),
+      edit_plan_id: "d".repeat(32),
+      job_binding_digest: "0".repeat(64),
+      plan_digest: "e".repeat(64),
+      tool_run_id: "1".repeat(32),
+      tool_run_digest: "2".repeat(64),
+      verification_result_id: "3".repeat(32),
+      verifier_digest: "4".repeat(64),
+      image_version_id: "5".repeat(32),
+      image_version_digest: "6".repeat(64),
+      version_kind: "EDITED",
+      sequence: 1,
+      parent_image_version_id: "7".repeat(32),
+      result_asset_id: "8".repeat(32),
+      result_asset_sha256: "9".repeat(64),
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    /\/api\/v1\/demo\/edit-plans\/execution-jobs\/[f]{32}\/media\/(INPUT|RESULT)$/.test(
+      url.pathname,
+    )
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    response.writeHead(200, {
+      ...corsHeaders(),
+      "Content-Type": "image/jpeg",
+      "Content-Length": String(syntheticJpeg.byteLength),
+    });
+    response.end(syntheticJpeg);
+    return;
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname ===
+      `/api/v1/demo/edit-plans/execution-jobs/${"f".repeat(32)}/accept-as-reference`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    const body = await jsonBody(request);
+    if (body.outcome !== "FINAL_SAVE_AND_USE_AS_REFERENCE")
+      return error(response, 422, "invalid_reference_acceptance");
+    send(response, 202, {
+      status: "REFERENCE_PROFILE_PENDING",
+      reference_profile_job_id: "7".repeat(32),
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/demo/jobs/${"7".repeat(32)}`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    state.demoReferencePolls += 1;
+    send(response, 200, {
+      job_id: "7".repeat(32),
+      status: state.demoReferencePolls > 1 ? "COMPLETED" : "RUNNING",
+      capability: "P5_REFERENCE_PROFILE",
+      job_binding_digest: "8".repeat(64),
+      target: {
+        target_type: "REFERENCE_PROFILE_REQUEST",
+        target_id: "9".repeat(32),
+        authority_digest: "a".repeat(64),
+      },
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname ===
+      `/api/v1/demo/reference-profiles/compilation-jobs/${"7".repeat(32)}/result`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    send(response, 200, {
+      status: "REFERENCE_PROFILE_READY",
+      job_id: "7".repeat(32),
+      session_id: demoSessionId,
+      reference_profile_id: "b".repeat(32),
+      job_binding_digest: "8".repeat(64),
+      compilation_digest: "c".repeat(64),
+      profile_digest: "d".repeat(64),
+    });
+    return;
+  }
+
+  if (
+    request.method === "POST" &&
     url.pathname === `/api/v1/demo/editing-sessions/${"e".repeat(32)}/plans`
   ) {
     if (request.headers.authorization !== `Bearer ${demoBearer}`)
@@ -419,6 +629,8 @@ const server = createServer(async (request, response) => {
     if (body.target === "demo-digest-mismatch") state.demoDigestMismatch = true;
     if (body.target === "demo-analysis") state.failNextDemoAnalysis = true;
     if (body.target === "demo-session-delay") state.delayNextDemoSession = true;
+    if (body.target === "demo-geometry-no-compatible")
+      state.demoGeometryNoCompatibleCase = true;
     send(response, 204, null);
     return;
   }

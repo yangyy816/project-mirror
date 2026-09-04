@@ -92,8 +92,10 @@ def test_ci_evidence_tracks_current_migration_head() -> None:
     d02_boundary = workflow.split("- name: Validate D02 autonomy bootstrap evidence boundary", 1)[
         1
     ].split("- name: Generate Phase 1 CI evidence", 1)[0]
-    assert demo_boundary.count("demo_0018_d03_pose_evidence") == 3
-    assert "demo_0017_d10_context_queue -> demo_0018_d03_pose_evidence (head)" in demo_boundary
+    assert demo_boundary.count("demo_0019_d06_stepped_transfer") == 3
+    assert demo_boundary.count("demo_0018_d03_pose_evidence") == 2
+    assert "demo_0018_d03_pose_evidence -> demo_0019_d06_stepped_transfer (head)" in demo_boundary
+    assert "demo_0017_d10_context_queue -> demo_0018_d03_pose_evidence," in demo_boundary
     assert "demo_0016_d06_ref_profile_queue -> demo_0017_d10_context_queue," in demo_boundary
     assert d02_boundary.count("demo_0015_d02_source_acq_pool") == 3
     assert "TRACK: D02_AUTONOMY_BOOTSTRAP" in workflow

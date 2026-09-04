@@ -6,8 +6,10 @@ import pytest
 
 from mirror_api.demo_editing_commands import (
     CreateDemoEditingSession,
+    CreateProfileGuidedGeometryPlan,
     DemoEditingCommandAccepted,
     DemoEditingPendingJob,
+    DemoProfileGuidedGeometryPlanAccepted,
 )
 from mirror_api.demo_editing_coordinator import DemoEditingCoordinator
 from mirror_api.demo_editing_task_contract import DemoEditingTaskMessage
@@ -39,6 +41,20 @@ class _Commands:
             job_id="e" * 32,
             target_id="f" * 32,
             request_id="authority-request-01",
+            replayed=self.replayed,
+        )
+
+    async def create_profile_guided_geometry_plan(
+        self, _: object
+    ) -> DemoProfileGuidedGeometryPlanAccepted:
+        return DemoProfileGuidedGeometryPlanAccepted(
+            job_id="e" * 32,
+            target_id="f" * 32,
+            request_id="authority-request-01",
+            dimension_key="jaw_width",
+            direction="INCREASE",
+            execution_delta_ppm=30_000,
+            policy_version="demo-profile-guided-d08-step-v1",
             replayed=self.replayed,
         )
 
@@ -82,6 +98,16 @@ def _session_command() -> CreateDemoEditingSession:
     )
 
 
+def _profile_geometry_command() -> CreateProfileGuidedGeometryPlan:
+    return CreateProfileGuidedGeometryPlan(
+        demo_actor_id=_ID,
+        editing_session_id="b" * 32,
+        selection_policy_version="demo-profile-guided-d08-step-v1",
+        idempotency_key="profile-geometry-idempotency-01",
+        request_id="profile-geometry-request-01",
+    )
+
+
 @pytest.mark.asyncio
 async def test_create_uses_authority_request_id_for_replay() -> None:
     dispatcher = _Dispatcher()
@@ -99,6 +125,31 @@ async def test_dispatch_failure_keeps_accepted_result() -> None:
     result = await _coordinator(dispatcher).create_editing_session(_session_command())
     assert result.job.status == "PENDING"
     assert len(dispatcher.messages) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fail", (False, True), ids=("success", "deferred"))
+async def test_profile_geometry_dispatches_as_edit_plan_create_and_keeps_safe_preview(
+    fail: bool,
+) -> None:
+    dispatcher = _Dispatcher(fail=fail)
+    result = await _coordinator(dispatcher).create_profile_guided_geometry_plan(
+        _profile_geometry_command()
+    )
+    assert result.job.status == "PENDING"
+    assert result.target_id == "f" * 32
+    assert result.dimension_key == "jaw_width"
+    assert result.direction == "INCREASE"
+    assert result.execution_delta_ppm == 30_000
+    assert result.policy_version == "demo-profile-guided-d08-step-v1"
+    assert dispatcher.messages == [
+        DemoEditingTaskMessage(
+            demo_actor_id=_ID,
+            job_id="e" * 32,
+            operation="edit_plan.create",
+            request_id="authority-request-01",
+        )
+    ]
 
 
 @pytest.mark.asyncio

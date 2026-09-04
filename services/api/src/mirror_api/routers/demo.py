@@ -31,16 +31,28 @@ from mirror_api.demo_dependencies import get_demo_actor, get_demo_session_servic
 from mirror_api.demo_editing_commands import (
     CreateDemoEditingSession,
     CreateDemoEditPlan,
+    CreateProfileGuidedGeometryPlan,
     DemoEditingCommandAuthorityCorruption,
     DemoEditingCommandInputError,
     DemoEditingCommandUnavailable,
     DemoEditResultNotReady,
     DemoEditResultTerminal,
+    DemoProfileGeometryStepUnavailable,
     ExecuteDemoEditPlan,
     RestoreDemoImageVersion,
 )
 from mirror_api.demo_editing_coordinator import DemoEditingCoordinator
-from mirror_api.demo_editing_dependencies import get_demo_editing_coordinator
+from mirror_api.demo_editing_dependencies import (
+    get_demo_editing_coordinator,
+    get_demo_editing_media_service,
+)
+from mirror_api.demo_editing_media import (
+    DemoEditingMediaAuthorityCorruption,
+    DemoEditingMediaBytesUnavailable,
+    DemoEditingMediaInputError,
+    DemoEditingMediaService,
+    DemoEditingMediaUnavailable,
+)
 from mirror_api.demo_idempotency import (
     DemoIdempotencyAuthorityCorruption,
     DemoIdempotencyInputError,
@@ -104,6 +116,14 @@ from mirror_api.demo_profile_dependencies import (
     get_demo_profile_coordinator,
     get_demo_profile_results,
 )
+from mirror_api.demo_profile_geometry_acceptance import (
+    AcceptProfileGeometryExecution,
+    DemoProfileGeometryAcceptanceError,
+    DemoProfileGeometryAcceptanceFacade,
+)
+from mirror_api.demo_profile_geometry_dependencies import (
+    get_demo_profile_geometry_acceptance_facade,
+)
 from mirror_api.demo_profile_service import (
     DemoProfileAuthorityCorruption,
     DemoProfileCompilationService,
@@ -145,10 +165,14 @@ from mirror_api.demo_reference_profile_service import (
     DemoReferenceProfileAuthorityCorruption,
     DemoReferenceProfileConflict,
     DemoReferenceProfileInputError,
+    DemoReferenceProfileResultNotReady,
+    DemoReferenceProfileResultTerminal,
     DemoReferenceProfileService,
     DemoReferenceProfileUnavailable,
 )
 from mirror_api.demo_schemas import (
+    DemoAcceptEditExecutionAsReferenceRequest,
+    DemoAcceptEditExecutionAsReferenceResponse,
     DemoActiveProfilesResponse,
     DemoActiveReferenceProfilesResponse,
     DemoAnalysisCreateRequest,
@@ -173,6 +197,9 @@ from mirror_api.demo_schemas import (
     DemoPreferenceEventResponse,
     DemoProfileCompilationJobResultResponse,
     DemoProfileCompileRequest,
+    DemoProfileGeometryPlanAcceptedResponse,
+    DemoProfileGeometryPlanRequest,
+    DemoProfileGeometryPreviewResponse,
     DemoProfileRebuildRequest,
     DemoProfileResponse,
     DemoQuestionCompletedResponse,
@@ -182,6 +209,7 @@ from mirror_api.demo_schemas import (
     DemoQuestionNextResponse,
     DemoQuestionResponseRequest,
     DemoQuestionSideResponse,
+    DemoReferenceProfileCompilationJobResultResponse,
     DemoReferenceProfileCompileRequest,
     DemoReferenceProfileResponse,
     DemoRestoreRequest,
@@ -192,7 +220,14 @@ from mirror_api.demo_schemas import (
     DemoToolRunResponse,
     DemoTraceResponse,
 )
-from mirror_api.demo_self_transfer_service import DemoReferenceSource
+from mirror_api.demo_self_transfer_acceptance import DemoSteppedSelfTransferAcceptanceError
+from mirror_api.demo_self_transfer_service import (
+    DemoReferenceSource,
+    DemoSelfTransferAuthorityCorruption,
+    DemoSelfTransferConflict,
+    DemoSelfTransferInputError,
+    DemoSelfTransferUnavailable,
+)
 from mirror_api.demo_session_service import (
     CreateDemoSession,
     DemoSessionActorUnavailable,
@@ -442,6 +477,29 @@ def _raise_questionnaire_media_error(error: Exception) -> NoReturn:
     ) from error
 
 
+def _raise_editing_media_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoEditingMediaInputError):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="DEMO_EDIT_MEDIA_REQUEST_INVALID",
+            message="编辑图片请求不符合 Demo contract。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoEditingMediaUnavailable):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_EDIT_MEDIA_UNAVAILABLE",
+            message="编辑图片不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise APIError(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="DEMO_EDIT_MEDIA_AUTHORITY_UNAVAILABLE",
+        message="编辑图片 authority 无法安全读取。",
+        details={"track": "DEMO_PROTOTYPE"},
+    ) from error
+
+
 def _raise_profile_error(error: Exception) -> NoReturn:
     if isinstance(error, DemoIdempotencyPayloadConflict):
         raise APIError(
@@ -547,6 +605,24 @@ def _raise_reference_profile_error(error: Exception) -> NoReturn:
     ) from error
 
 
+def _raise_reference_profile_result_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoReferenceProfileResultNotReady):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="DEMO_REFERENCE_PROFILE_RESULT_NOT_READY",
+            message="Reference Profile 编译结果尚未就绪。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, DemoReferenceProfileResultTerminal):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code="DEMO_REFERENCE_PROFILE_RESULT_TERMINAL",
+            message="Reference Profile 编译任务已终止且没有可用结果。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    _raise_reference_profile_error(error)
+
+
 def _raise_memory_error(error: Exception) -> NoReturn:
     if isinstance(error, DemoMemoryConflict):
         raise APIError(
@@ -610,6 +686,13 @@ def _raise_context_queue_error(error: Exception) -> NoReturn:
 
 
 def _raise_editing_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoProfileGeometryStepUnavailable):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code=error.code,
+            message="当前档案暂无可用的安全几何步骤。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
     if isinstance(error, DemoIdempotencyPayloadConflict):
         raise APIError(
             status_code=status.HTTP_409_CONFLICT,
@@ -667,6 +750,86 @@ def _raise_edit_result_error(error: Exception) -> NoReturn:
         message="编辑结果 authority 无法安全读取。",
         details={"track": "DEMO_PROTOTYPE"},
     ) from error
+
+
+def _raise_profile_geometry_acceptance_error(error: Exception) -> NoReturn:
+    if isinstance(
+        error,
+        (
+            DemoIdempotencyPayloadConflict,
+            DemoSelfTransferConflict,
+            DemoImageFeedbackConflict,
+        ),
+    ):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code=getattr(error, "code", "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD"),
+            message="该编辑结果的接受状态与既有不可变 authority 冲突。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(error, (DemoEditResultNotReady, DemoEditResultTerminal)):
+        _raise_edit_result_error(error)
+    if isinstance(error, DemoProfileGeometryAcceptanceError):
+        status_code = (
+            status.HTTP_422_UNPROCESSABLE_CONTENT
+            if error.code.startswith("INVALID_")
+            else status.HTTP_409_CONFLICT
+        )
+        raise APIError(
+            status_code=status_code,
+            code=error.code,
+            message="Profile-guided Geometry 接受请求无法完成。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(
+        error,
+        (
+            DemoSelfTransferInputError,
+            DemoSteppedSelfTransferAcceptanceError,
+            DemoImageFeedbackInputError,
+            DemoIdempotencyInputError,
+        ),
+    ):
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="DEMO_PROFILE_GEOMETRY_ACCEPTANCE_INVALID",
+            message="Profile-guided Geometry 接受请求不符合 Demo contract。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(
+        error,
+        (
+            DemoEditingCommandUnavailable,
+            DemoSelfTransferUnavailable,
+            DemoImageFeedbackUnavailable,
+            DemoReferenceProfileUnavailable,
+            DemoJobUnavailable,
+        ),
+    ):
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="DEMO_PROFILE_GEOMETRY_ACCEPTANCE_UNAVAILABLE",
+            message="可接受的 Profile-guided Geometry 结果不存在或当前 actor 无权访问。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    if isinstance(
+        error,
+        (
+            DemoEditingCommandAuthorityCorruption,
+            DemoSelfTransferAuthorityCorruption,
+            DemoImageFeedbackAuthorityCorruption,
+            DemoReferenceProfileAuthorityCorruption,
+            DemoJobAuthorityCorruption,
+            DemoIdempotencyAuthorityCorruption,
+        ),
+    ):
+        raise APIError(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="DEMO_PROFILE_GEOMETRY_ACCEPTANCE_AUTHORITY_CORRUPT",
+            message="Profile-guided Geometry authority 无法安全读取。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
+    raise error
 
 
 def _raise_image_feedback_error(error: Exception) -> NoReturn:
@@ -1416,6 +1579,41 @@ async def compile_reference_profile(
 
 
 @router.get(
+    "/reference-profiles/compilation-jobs/{job_id}/result",
+    response_model=DemoReferenceProfileCompilationJobResultResponse,
+    operation_id="demoGetReferenceProfileCompilationResultByJob",
+    openapi_extra=DEMO_OPENAPI,
+    responses=DEMO_ERRORS,
+)
+async def get_reference_profile_compilation_result(
+    job_id: DemoId,
+    actor: DemoActor = Depends(get_demo_actor),
+    service: DemoReferenceProfileService = Depends(get_demo_reference_profile_service),
+) -> DemoReferenceProfileCompilationJobResultResponse:
+    try:
+        result = await service.read_completed_result(
+            demo_actor_id=actor.id,
+            job_id=job_id,
+        )
+    except (
+        DemoReferenceProfileResultNotReady,
+        DemoReferenceProfileResultTerminal,
+        DemoReferenceProfileUnavailable,
+        DemoReferenceProfileAuthorityCorruption,
+    ) as exc:
+        _raise_reference_profile_result_error(exc)
+    return DemoReferenceProfileCompilationJobResultResponse(
+        status="REFERENCE_PROFILE_READY",
+        job_id=result.job_id,
+        session_id=result.demo_session_id,
+        reference_profile_id=result.reference_profile_id,
+        job_binding_digest=result.job_binding_digest,
+        compilation_digest=result.compile_result_digest,
+        profile_digest=result.profile_digest,
+    )
+
+
+@router.get(
     "/reference-profiles/active",
     response_model=DemoActiveReferenceProfilesResponse,
     operation_id="demoGetActiveReferenceProfiles",
@@ -1637,6 +1835,61 @@ async def create_edit_plan(
 
 
 @router.post(
+    "/editing-sessions/{editing_session_id}/profile-geometry-plans",
+    status_code=202,
+    response_model=DemoProfileGeometryPlanAcceptedResponse,
+    operation_id="demoCreateProfileGeometryPlan",
+    openapi_extra=DEMO_OPENAPI,
+    responses=DEMO_ERRORS,
+)
+async def create_profile_geometry_plan(
+    editing_session_id: DemoId,
+    payload: DemoProfileGeometryPlanRequest,
+    request: Request,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    coordinator: DemoEditingCoordinator = Depends(get_demo_editing_coordinator),
+) -> DemoProfileGeometryPlanAcceptedResponse:
+    try:
+        result = await coordinator.create_profile_guided_geometry_plan(
+            CreateProfileGuidedGeometryPlan(
+                demo_actor_id=actor.id,
+                editing_session_id=editing_session_id,
+                selection_policy_version=payload.selection_policy_version,
+                idempotency_key=idempotency_key,
+                request_id=str(request.state.request_id),
+            )
+        )
+    except (
+        DemoEditingCommandInputError,
+        DemoEditingCommandUnavailable,
+        DemoEditingCommandAuthorityCorruption,
+        DemoIdempotencyInputError,
+        DemoIdempotencyPayloadConflict,
+        DemoIdempotencyAuthorityCorruption,
+        DemoJobUnavailable,
+        DemoJobAuthorityCorruption,
+    ) as exc:
+        _raise_editing_error(exc)
+    base = _job_accepted(result.job)
+    return DemoProfileGeometryPlanAcceptedResponse(
+        **base.model_dump(),
+        preview=DemoProfileGeometryPreviewResponse(
+            dimension_key=cast(
+                Literal["chin_height", "eye_spacing", "jaw_width"],
+                result.dimension_key,
+            ),
+            direction=result.direction,
+            step_ppm=cast(Literal[15000, 30000], abs(result.execution_delta_ppm)),
+            selection_policy_version=cast(
+                Literal["demo-profile-guided-d08-step-v1"],
+                result.policy_version,
+            ),
+        ),
+    )
+
+
+@router.post(
     "/edit-plans/{edit_plan_id}/executions",
     status_code=202,
     response_model=DemoJobAcceptedResponse,
@@ -1720,6 +1973,111 @@ async def get_edit_execution_result(
         parent_image_version_id=result.parent_image_version_id,
         result_asset_id=result.result_asset_id,
         result_asset_sha256=result.result_asset_sha256,
+    )
+
+
+@router.get(
+    "/edit-plans/execution-jobs/{job_id}/media/{side}",
+    response_class=Response,
+    operation_id="demoGetEditExecutionMedia",
+    openapi_extra=DEMO_OPENAPI,
+    responses={
+        **DEMO_ERRORS,
+        200: {
+            "description": "Exact owner-bound synthetic edit execution media.",
+            "content": {
+                "image/jpeg": {
+                    "schema": {"type": "string", "format": "binary"},
+                }
+            },
+        },
+    },
+)
+async def get_edit_execution_media(
+    job_id: DemoId,
+    side: Literal["INPUT", "RESULT"],
+    actor: DemoActor = Depends(get_demo_actor),
+    media_service: DemoEditingMediaService = Depends(get_demo_editing_media_service),
+) -> Response:
+    try:
+        media = await media_service.load(
+            demo_actor_id=actor.id,
+            job_id=job_id,
+            side=side,
+        )
+    except (
+        DemoEditingMediaInputError,
+        DemoEditingMediaUnavailable,
+        DemoEditingMediaAuthorityCorruption,
+        DemoEditingMediaBytesUnavailable,
+    ) as exc:
+        _raise_editing_media_error(exc)
+    return Response(
+        content=media.content,
+        media_type=media.media_type,
+        headers={
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.post(
+    "/edit-plans/execution-jobs/{job_id}/accept-as-reference",
+    status_code=202,
+    response_model=DemoAcceptEditExecutionAsReferenceResponse,
+    operation_id="demoAcceptEditExecutionAsReference",
+    openapi_extra=DEMO_OPENAPI,
+    responses=DEMO_ERRORS,
+)
+async def accept_edit_execution_as_reference(
+    job_id: DemoId,
+    payload: DemoAcceptEditExecutionAsReferenceRequest,
+    idempotency_key: IdempotencyKey,
+    actor: DemoActor = Depends(get_demo_actor),
+    facade: DemoProfileGeometryAcceptanceFacade = Depends(
+        get_demo_profile_geometry_acceptance_facade
+    ),
+) -> DemoAcceptEditExecutionAsReferenceResponse:
+    try:
+        result = await facade.accept(
+            AcceptProfileGeometryExecution(
+                demo_actor_id=actor.id,
+                execution_job_id=job_id,
+                idempotency_key=idempotency_key,
+                outcome=payload.outcome,
+            )
+        )
+    except (
+        DemoProfileGeometryAcceptanceError,
+        DemoEditingCommandInputError,
+        DemoEditingCommandUnavailable,
+        DemoEditingCommandAuthorityCorruption,
+        DemoEditResultNotReady,
+        DemoEditResultTerminal,
+        DemoSelfTransferInputError,
+        DemoSelfTransferUnavailable,
+        DemoSelfTransferConflict,
+        DemoSelfTransferAuthorityCorruption,
+        DemoSteppedSelfTransferAcceptanceError,
+        DemoImageFeedbackInputError,
+        DemoImageFeedbackUnavailable,
+        DemoImageFeedbackConflict,
+        DemoImageFeedbackAuthorityCorruption,
+        DemoReferenceProfileUnavailable,
+        DemoReferenceProfileConflict,
+        DemoReferenceProfileAuthorityCorruption,
+        DemoIdempotencyInputError,
+        DemoIdempotencyPayloadConflict,
+        DemoIdempotencyAuthorityCorruption,
+        DemoJobUnavailable,
+        DemoJobAuthorityCorruption,
+    ) as exc:
+        _raise_profile_geometry_acceptance_error(exc)
+    return DemoAcceptEditExecutionAsReferenceResponse(
+        status=result.status,
+        reference_profile_job_id=result.reference_profile_job_id,
+        queue_state=result.queue_state,
     )
 
 

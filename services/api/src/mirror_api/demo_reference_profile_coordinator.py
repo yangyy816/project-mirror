@@ -15,6 +15,7 @@ from mirror_api.demo_reference_profile_task_contract import (
 from mirror_api.logging import OperationalEvent, emit_operational_event
 
 logger = logging.getLogger(__name__)
+_REFERENCE_DISPATCH_CORRELATION = "d06-reference-dispatch"
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,8 +88,7 @@ class DemoReferenceProfileCoordinator:
                     event_name="job.dispatch.completed",
                     outcome="deferred",
                     operation="demo_reference_profile",
-                    job_id=message.job_id,
-                    request_id=message.request_id,
+                    request_id=_REFERENCE_DISPATCH_CORRELATION,
                 ),
             )
             if raise_on_failure:
@@ -100,8 +100,7 @@ class DemoReferenceProfileCoordinator:
                     event_name="job.dispatch.completed",
                     outcome="succeeded",
                     operation="demo_reference_profile",
-                    job_id=message.job_id,
-                    request_id=message.request_id,
+                    request_id=_REFERENCE_DISPATCH_CORRELATION,
                 ),
             )
 

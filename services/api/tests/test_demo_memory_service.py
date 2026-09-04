@@ -800,7 +800,7 @@ async def test_context_queue_populated_downgrade_fails_closed(
                     connection.exec_driver_sql(
                         "SELECT version_num FROM alembic_version"
                     ).scalar_one()
-                    == "demo_0018_d03_pose_evidence"
+                    == "demo_0019_d06_stepped_transfer"
                 )
                 assert (
                     connection.exec_driver_sql(
@@ -813,7 +813,7 @@ async def test_context_queue_populated_downgrade_fails_closed(
             sync_engine.dispose()
     finally:
         await engine.dispose()
-        command.upgrade(config, "demo_0018_d03_pose_evidence")
+        command.upgrade(config, "demo_0019_d06_stepped_transfer")
 
 
 @pytest.mark.asyncio

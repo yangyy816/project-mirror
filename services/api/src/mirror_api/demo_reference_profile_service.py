@@ -20,11 +20,19 @@ from mirror_api.demo_idempotency import (
     semantic_request_digest,
 )
 from mirror_api.demo_models import (
+    DemoAcceptedVisualEpisode,
     DemoActor,
+    DemoDesiredDeltaProfile,
+    DemoEditingSession,
+    DemoIdentityConstraints,
+    DemoImageVersion,
     DemoJobBinding,
     DemoReferenceProfile,
     DemoReferenceProfileCompileRequest,
     DemoReferenceProfileCompileResult,
+    DemoSelfTransferRun,
+    DemoStyleProfile,
+    DemoVerificationResult,
 )
 from mirror_api.demo_self_transfer_service import (
     DEMO_REFERENCE_COMPILER_VERSION,
@@ -86,6 +94,14 @@ class DemoReferenceProfileConflict(DemoReferenceProfileError):
 
 class DemoReferenceProfileAuthorityCorruption(DemoReferenceProfileError):
     """Persisted queue authority cannot be safely replayed."""
+
+
+class DemoReferenceProfileResultNotReady(DemoReferenceProfileError):
+    """The exact Reference Profile compilation is still pending."""
+
+
+class DemoReferenceProfileResultTerminal(DemoReferenceProfileError):
+    """The exact Reference Profile compilation ended without a result."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,6 +187,16 @@ class DemoReferenceProfileSnapshot:
     version: int
     content_digest: str
     source_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class DemoReferenceProfileCompletedResult:
+    job_id: str
+    demo_session_id: str
+    reference_profile_id: str
+    job_binding_digest: str
+    compile_result_digest: str
+    profile_digest: str
 
 
 class DemoReferenceProfileService:
@@ -418,6 +444,182 @@ class DemoReferenceProfileService:
                     None,
                 )
 
+    async def command_for_accepted_stepped_result(
+        self, *, demo_actor_id: str, result_run_id: str
+    ) -> CreateDemoReferenceProfileCompilation:
+        """Derive the one deterministic queue command from immutable v2 evidence.
+
+        This runs only after D09/D06 has committed.  It intentionally derives
+        every source/profile reference from the persisted result instead of
+        accepting a caller supplied compile command.
+        """
+
+        _require_id(demo_actor_id, "demo_actor_id")
+        _require_id(result_run_id, "result_run_id")
+        async with self._sessions() as session:
+            result = await session.get(DemoSelfTransferRun, result_run_id)
+            if (
+                result is None
+                or result.demo_actor_id != demo_actor_id
+                or result.schema_version != "mirror.demo/DemoSelfTransferRun/v2"
+                or result.record_kind != "RESULT"
+                or result.user_outcome != "ACCEPTED"
+                or result.request_run_id is None
+                or result.result_asset_id is None
+                or result.verifier_digest is None
+            ):
+                raise DemoReferenceProfileUnavailable(
+                    "STEPPED_RESULT_UNAVAILABLE",
+                    "accepted stepped self-transfer result is unavailable",
+                )
+            try:
+                replayed_result = await self._compiler.revalidate_stepped_result_in_session(
+                    session,
+                    demo_actor_id=demo_actor_id,
+                    result_run_id=result_run_id,
+                )
+            except DemoSelfTransferInputError as exc:
+                raise DemoReferenceProfileInputError(exc.code, str(exc)) from exc
+            except DemoSelfTransferUnavailable as exc:
+                raise DemoReferenceProfileUnavailable(exc.code, str(exc)) from exc
+            except DemoSelfTransferConflict as exc:
+                raise DemoReferenceProfileConflict(exc.code, str(exc)) from exc
+            except DemoSelfTransferAuthorityCorruption as exc:
+                raise DemoReferenceProfileAuthorityCorruption(exc.code, str(exc)) from exc
+            if (
+                replayed_result.id != result.id
+                or replayed_result.content_digest != result.content_digest
+            ):
+                raise DemoReferenceProfileAuthorityCorruption(
+                    "STEPPED_RESULT_REPLAY_MISMATCH",
+                    "accepted stepped result does not replay exactly",
+                )
+            request = await session.get(DemoSelfTransferRun, result.request_run_id)
+            if (
+                request is None
+                or request.schema_version != result.schema_version
+                or request.record_kind != "REQUEST"
+                or request.demo_actor_id != result.demo_actor_id
+                or request.demo_session_id != result.demo_session_id
+                or request.desired_delta_profile_id != result.desired_delta_profile_id
+                or request.requested_delta != result.requested_delta
+            ):
+                raise DemoReferenceProfileAuthorityCorruption(
+                    "STEPPED_RESULT_REQUEST_INVALID",
+                    "accepted stepped self-transfer result cannot replay its request",
+                )
+            result_image_version_id = request.requested_delta.get("result_image_version_id")
+            if not isinstance(result_image_version_id, str):
+                raise DemoReferenceProfileAuthorityCorruption(
+                    "STEPPED_RESULT_IMAGE_INVALID",
+                    "accepted stepped result lacks its exact ImageVersion",
+                )
+            _require_id(result_image_version_id, "result_image_version_id")
+            image = await session.get(DemoImageVersion, result_image_version_id)
+            editing = (
+                None
+                if image is None
+                else await session.get(DemoEditingSession, image.editing_session_id)
+            )
+            desired = await session.get(DemoDesiredDeltaProfile, result.desired_delta_profile_id)
+            verifier = (
+                None
+                if image is None or image.verifier_digest is None
+                else await session.scalar(
+                    select(DemoVerificationResult).where(
+                        DemoVerificationResult.content_digest == image.verifier_digest
+                    )
+                )
+            )
+            episode = await session.scalar(
+                select(DemoAcceptedVisualEpisode).where(
+                    DemoAcceptedVisualEpisode.demo_actor_id == demo_actor_id,
+                    DemoAcceptedVisualEpisode.demo_session_id == result.demo_session_id,
+                    DemoAcceptedVisualEpisode.accepted_image_version_id == result_image_version_id,
+                )
+            )
+            if (
+                image is None
+                or editing is None
+                or desired is None
+                or verifier is None
+                or episode is None
+                or image.demo_actor_id != demo_actor_id
+                or image.demo_session_id != result.demo_session_id
+                or image.version_kind != "EDITED"
+                or image.result_asset_id != result.result_asset_id
+                or image.verifier_digest != result.verifier_digest
+                or verifier.demo_actor_id != demo_actor_id
+                or verifier.demo_session_id != result.demo_session_id
+                or verifier.image_version_id != image.id
+                or verifier.output_asset_id != image.result_asset_id
+                or verifier.output_asset_sha256 != image.result_asset_sha256
+                or verifier.outcome != "PASS"
+                or desired.demo_actor_id != demo_actor_id
+                or desired.demo_session_id != result.demo_session_id
+                or editing.demo_actor_id != demo_actor_id
+                or editing.demo_session_id != result.demo_session_id
+                or editing.id != image.editing_session_id
+                or editing.source_asset_id != result.source_asset_id
+                or editing.desired_delta_profile_digest != desired.content_digest
+                or episode.editing_session_id != editing.id
+                or episode.accepted_image_version_id != image.id
+                or episode.verification_result_id != verifier.id
+                or episode.source_asset_id != result.source_asset_id
+                or episode.final_asset_id != result.result_asset_id
+                or episode.final_asset_sha256 != image.result_asset_sha256
+                or episode.profile_digest != desired.content_digest
+                or episode.instruction_digest != editing.instruction_digest
+            ):
+                raise DemoReferenceProfileAuthorityCorruption(
+                    "STEPPED_RESULT_LINEAGE_INVALID",
+                    "accepted stepped result lineage is invalid",
+                )
+            styles = tuple(
+                await session.scalars(
+                    select(DemoStyleProfile).where(
+                        DemoStyleProfile.demo_actor_id == demo_actor_id,
+                        DemoStyleProfile.demo_session_id == result.demo_session_id,
+                        DemoStyleProfile.content_digest == editing.style_profile_digest,
+                    )
+                )
+            )
+            constraints = tuple(
+                await session.scalars(
+                    select(DemoIdentityConstraints).where(
+                        DemoIdentityConstraints.demo_actor_id == demo_actor_id,
+                        or_(
+                            DemoIdentityConstraints.demo_session_id == result.demo_session_id,
+                            DemoIdentityConstraints.demo_session_id.is_(None),
+                        ),
+                        DemoIdentityConstraints.content_digest
+                        == editing.identity_constraints_digest,
+                    )
+                )
+            )
+            if len(styles) != 1 or len(constraints) != 1:
+                raise DemoReferenceProfileAuthorityCorruption(
+                    "STEPPED_RESULT_PROFILE_CONTEXT_INVALID",
+                    "accepted stepped result does not have one profile context",
+                )
+            stable_key = f"d06-stepped-reference-{result.content_digest}"
+            return CreateDemoReferenceProfileCompilation(
+                demo_actor_id=demo_actor_id,
+                demo_session_id=result.demo_session_id,
+                desired_delta_profile_id=desired.id,
+                style_profile_id=styles[0].id,
+                identity_constraints_id=constraints[0].id,
+                # FRONT is a categorical D02 presentation slot inherited
+                # through the exact public stepped-result replay above.  It is
+                # deliberately not fresh D03 pose evidence.
+                sources=(DemoReferenceSource(result.result_asset_id, "FRONT"),),
+                idempotency_key=stable_key,
+                # The deterministic authority key remains inside the one-way
+                # idempotency boundary.  Operational correlation must not
+                # expose the accepted D06 result digest.
+                request_id=f"d06-reference-{new_id()}",
+            )
+
     async def execute_task(
         self,
         *,
@@ -526,6 +728,75 @@ class DemoReferenceProfileService:
                     profile.content_digest,
                     len(profile.source_assets),
                 ),
+            )
+
+    async def read_completed_result(
+        self, *, demo_actor_id: str, job_id: str
+    ) -> DemoReferenceProfileCompletedResult:
+        """Replay exactly one completed compile envelope; never select a latest profile."""
+
+        _require_id(demo_actor_id, "demo_actor_id")
+        _require_id(job_id, "job_id")
+        async with self._sessions() as session:
+            binding = await session.scalar(
+                select(DemoJobBinding).where(
+                    DemoJobBinding.demo_actor_id == demo_actor_id,
+                    DemoJobBinding.job_id == job_id,
+                    DemoJobBinding.endpoint_operation == DEMO_REFERENCE_PROFILE_OPERATION,
+                    DemoJobBinding.target_type == "REFERENCE_PROFILE_REQUEST",
+                )
+            )
+            if binding is None:
+                raise DemoReferenceProfileUnavailable(
+                    "RESULT_UNAVAILABLE", "Reference Profile compilation is unavailable"
+                )
+            request, replayed_binding, job = await self._execution_context(
+                session,
+                demo_actor_id=demo_actor_id,
+                job_id=job_id,
+                compile_request_id=binding.target_id,
+                lock_job=False,
+            )
+            if replayed_binding.id != binding.id:
+                raise DemoReferenceProfileAuthorityCorruption(
+                    "RESULT_BINDING_MISMATCH", "Reference Profile binding does not replay exactly"
+                )
+            if job.status in {"PENDING", "RUNNING"}:
+                raise DemoReferenceProfileResultNotReady(
+                    "RESULT_NOT_READY", "Reference Profile compilation is not complete"
+                )
+            if job.status != "COMPLETED":
+                if job.status not in _TERMINAL:
+                    raise DemoReferenceProfileAuthorityCorruption(
+                        "RESULT_JOB_INVALID", "Reference Profile Job status is invalid"
+                    )
+                await self._terminal_result_in_session(
+                    session, request=request, binding=replayed_binding, job=job
+                )
+                raise DemoReferenceProfileResultTerminal(
+                    "RESULT_TERMINAL", "Reference Profile compilation has no completed result"
+                )
+            terminal = await self._terminal_result_in_session(
+                session, request=request, binding=replayed_binding, job=job
+            )
+            result = await self._result_for_request(session, request.id)
+            if (
+                result is None
+                or terminal.reference_profile_id is None
+                or terminal.profile_digest is None
+                or result.reference_profile_id != terminal.reference_profile_id
+                or result.reference_profile_digest != terminal.profile_digest
+            ):
+                raise DemoReferenceProfileAuthorityCorruption(
+                    "RESULT_REPLAY_INVALID", "Reference Profile result cannot replay exactly"
+                )
+            return DemoReferenceProfileCompletedResult(
+                job.id,
+                request.demo_session_id,
+                terminal.reference_profile_id,
+                replayed_binding.content_digest,
+                result.content_digest,
+                terminal.profile_digest,
             )
 
     async def _finalize_reservation(
@@ -1095,11 +1366,14 @@ __all__ = [
     "CreateDemoReferenceProfileCompilation",
     "DemoReferenceProfileAuthorityCorruption",
     "DemoReferenceProfileCompilationAccepted",
+    "DemoReferenceProfileCompletedResult",
     "DemoReferenceProfileConflict",
     "DemoReferenceProfileExecutionResult",
     "DemoReferenceProfileInputError",
     "DemoReferenceProfileReconciliationCandidate",
     "DemoReferenceProfileReservation",
+    "DemoReferenceProfileResultNotReady",
+    "DemoReferenceProfileResultTerminal",
     "DemoReferenceProfileService",
     "DemoReferenceProfileSnapshot",
     "DemoReferenceProfileUnavailable",
