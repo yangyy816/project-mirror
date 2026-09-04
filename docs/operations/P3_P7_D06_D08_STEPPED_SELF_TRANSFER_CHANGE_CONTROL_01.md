@@ -53,6 +53,20 @@ must retain the plan command digest only in its JobBinding. No historical row
 is rewritten. Any plan whose instruction differs from its EditingSession
 continues to fail closed at Final Save.
 
+## Canonical D05 delta projection repair
+
+The real D05 compiler stores each structured dimension as
+`desired_delta_ppm`; the older D08 PostgreSQL fixture uses compact
+`delta_ppm`. The command planner must read the canonical D05 field and retain
+the compact field only as a backward-compatible projection. When both fields
+exist they must be equal, and an explicitly structured dimension with neither
+valid integer field is authority corruption. It must never default a malformed
+or unknown structured dimension to zero.
+
+This correction changes no posterior, magnitude or selection policy. It only
+prevents a valid non-zero D05 DesiredDelta from being silently presented to the
+D08 planner as zero.
+
 ## Fixed selection policy
 
 ```text
@@ -243,8 +257,8 @@ Geometry integration Gate and does not reopen D02, D03, D08 or historical M3/M4.
 ## Implementation order
 
 1. The one schema-version constraint migration and matching ORM expression.
-2. Correct command-created EditPlan instruction inheritance while preserving
-   its distinct JobBinding request digest.
+2. Correct command-created EditPlan instruction inheritance and canonical D05
+   delta projection while preserving the distinct JobBinding request digest.
 3. Pure selector and D06 v2 parsing/replay, preserving v1.
 4. In-session D09 + D06 atomic coordinator and post-commit Reference queue
    ensure.
@@ -273,6 +287,9 @@ beyond the exact self-transfer schema-version constraint authorized above.
 - provenance: command-created raster/Geometry/transition RESULT plans inherit
   the exact EditingSession instruction while their JobBindings retain the
   distinct request digest; a drifted plan remains Final Save-ineligible;
+- profile compatibility: canonical `desired_delta_ppm` and matching compact
+  `delta_ppm` produce the same plan input; conflict/missing/malformed structured
+  deltas fail closed and never become implicit zero;
 - atomic outcome: D09/D06 rollback, exact Final Save binding, lost-response
   replay and one unique winner;
 - Reference queue: deterministic ensure, dispatch loss, reconciliation,
