@@ -31,7 +31,10 @@ from mirror_api.demo_models import (
 )
 from mirror_api.demo_reference_profile_service import (
     CreateDemoReferenceProfileCompilation,
+    DemoReferenceProfileAuthorityCorruption,
     DemoReferenceProfileConflict,
+    DemoReferenceProfileResultNotReady,
+    DemoReferenceProfileResultTerminal,
     DemoReferenceProfileService,
     DemoReferenceProfileUnavailable,
 )
@@ -146,6 +149,16 @@ async def test_admit_replay_collision_and_one_atomic_envelope(postgres_session: 
         assert first.job_id == second.job_id
         assert first.compile_request_id == second.compile_request_id
         assert sorted((first.replayed, second.replayed)) == [False, True]
+        with pytest.raises(DemoReferenceProfileResultNotReady):
+            await service.read_completed_result(
+                demo_actor_id=graph["actor"].id,
+                job_id=first.job_id,
+            )
+        with pytest.raises(DemoReferenceProfileUnavailable):
+            await service.read_completed_result(
+                demo_actor_id="f" * 32,
+                job_id=first.job_id,
+            )
 
         with pytest.raises(DemoReferenceProfileConflict, match="idempotency key"):
             await service.admit(
@@ -281,6 +294,11 @@ async def test_cancelled_pending_or_running_job_cannot_publish_result(
             )
             assert cancelled.status == "CANCELLED"
             assert result.status == "CANCELLED" and result.reference_profile_id is None
+            with pytest.raises(DemoReferenceProfileResultTerminal):
+                await service.read_completed_result(
+                    demo_actor_id=graph["actor"].id,
+                    job_id=accepted.job_id,
+                )
             async with service._sessions() as session:
                 assert (
                     await session.scalar(
@@ -365,6 +383,16 @@ async def test_execute_creates_one_result_and_terminal_redelivery_replays(
         assert replay.status == "COMPLETED"
         assert replay.reference_profile_id == result.reference_profile_id
         assert replay.replayed is True
+        completed = await service.read_completed_result(
+            demo_actor_id=graph["actor"].id,
+            job_id=accepted.job_id,
+        )
+        assert completed.job_id == accepted.job_id
+        assert completed.demo_session_id == graph["session"].id
+        assert completed.reference_profile_id == result.reference_profile_id
+        assert completed.job_binding_digest
+        assert completed.compile_result_digest
+        assert completed.profile_digest == result.profile_digest
 
         postgres_session.expire_all()
         job = postgres_session.get(Job, accepted.job_id)
@@ -388,6 +416,70 @@ async def test_execute_creates_one_result_and_terminal_redelivery_replays(
             )
             == 1
         )
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_exact_result_rejects_compile_result_substitution(
+    postgres_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    graph = _insert_full_demo_graph(postgres_session)
+    service, engine = _service()
+    try:
+        source_asset_id = await _accepted_reference_source(
+            postgres_session,
+            graph,
+            service,
+            case="result-substitution",
+        )
+        accepted = await service.admit(
+            _command(
+                graph,
+                source_asset_id=source_asset_id,
+                case="result-substitution",
+            )
+        )
+        executed = await service.execute_task(
+            demo_actor_id=graph["actor"].id,
+            job_id=accepted.job_id,
+            compile_request_id=accepted.compile_request_id,
+        )
+        assert executed.reference_profile_id is not None
+        persisted = postgres_session.scalar(
+            select(DemoReferenceProfileCompileResult).where(
+                DemoReferenceProfileCompileResult.compile_request_id == accepted.compile_request_id
+            )
+        )
+        assert persisted is not None
+        substituted = DemoReferenceProfileCompileResult(
+            id=persisted.id,
+            schema_version=persisted.schema_version,
+            canonical_payload=dict(persisted.canonical_payload),
+            content_digest=persisted.content_digest,
+            created_at=persisted.created_at,
+            demo_actor_id=persisted.demo_actor_id,
+            demo_session_id=persisted.demo_session_id,
+            compile_request_id=persisted.compile_request_id,
+            demo_job_binding_id=persisted.demo_job_binding_id,
+            reference_profile_id=persisted.reference_profile_id,
+            reference_profile_digest="f" * 64,
+            input_digest=persisted.input_digest,
+            result_code=persisted.result_code,
+        )
+
+        async def substituted_result(
+            _session: Any, _compile_request_id: str
+        ) -> DemoReferenceProfileCompileResult:
+            return substituted
+
+        monkeypatch.setattr(service, "_result_for_request", substituted_result)
+        with pytest.raises(DemoReferenceProfileAuthorityCorruption):
+            await service.read_completed_result(
+                demo_actor_id=graph["actor"].id,
+                job_id=accepted.job_id,
+            )
     finally:
         await engine.dispose()
 

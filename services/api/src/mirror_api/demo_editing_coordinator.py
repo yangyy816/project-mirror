@@ -15,6 +15,7 @@ from typing import Literal, cast
 from mirror_api.demo_editing_commands import (
     CreateDemoEditingSession,
     CreateDemoEditPlan,
+    CreateProfileGuidedGeometryPlan,
     DemoEditExecutionResult,
     DemoEditingCommandAccepted,
     DemoEditingCommandService,
@@ -36,6 +37,17 @@ _Operation = Literal[
 class DemoEditingCreateResult:
     job: DemoJobSnapshot
     target_id: str
+    replayed: bool
+
+
+@dataclass(frozen=True)
+class DemoProfileGuidedGeometryCreateResult:
+    job: DemoJobSnapshot
+    target_id: str
+    dimension_key: str
+    direction: Literal["INCREASE", "DECREASE"]
+    execution_delta_ppm: int
+    policy_version: str
     replayed: bool
 
 
@@ -69,6 +81,27 @@ class DemoEditingCoordinator:
             actor_id=command.demo_actor_id,
             accepted=accepted,
             operation="edit_plan.create",
+        )
+
+    async def create_profile_guided_geometry_plan(
+        self, command: CreateProfileGuidedGeometryPlan
+    ) -> DemoProfileGuidedGeometryCreateResult:
+        accepted = await self._commands.create_profile_guided_geometry_plan(command)
+        base = await self._accepted(
+            actor_id=command.demo_actor_id,
+            accepted=DemoEditingCommandAccepted(
+                accepted.job_id, accepted.target_id, accepted.request_id, accepted.replayed
+            ),
+            operation="edit_plan.create",
+        )
+        return DemoProfileGuidedGeometryCreateResult(
+            base.job,
+            accepted.target_id,
+            accepted.dimension_key,
+            accepted.direction,
+            accepted.execution_delta_ppm,
+            accepted.policy_version,
+            accepted.replayed,
         )
 
     async def execute_edit_plan(self, command: ExecuteDemoEditPlan) -> DemoEditingCreateResult:
@@ -171,4 +204,8 @@ class DemoEditingCoordinator:
             )
 
 
-__all__ = ["DemoEditingCoordinator", "DemoEditingCreateResult"]
+__all__ = [
+    "DemoEditingCoordinator",
+    "DemoEditingCreateResult",
+    "DemoProfileGuidedGeometryCreateResult",
+]

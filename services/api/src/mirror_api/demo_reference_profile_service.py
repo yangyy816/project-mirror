@@ -96,6 +96,14 @@ class DemoReferenceProfileAuthorityCorruption(DemoReferenceProfileError):
     """Persisted queue authority cannot be safely replayed."""
 
 
+class DemoReferenceProfileResultNotReady(DemoReferenceProfileError):
+    """The exact Reference Profile compilation is still pending."""
+
+
+class DemoReferenceProfileResultTerminal(DemoReferenceProfileError):
+    """The exact Reference Profile compilation ended without a result."""
+
+
 @dataclass(frozen=True, slots=True)
 class CreateDemoReferenceProfileCompilation:
     demo_actor_id: str
@@ -179,6 +187,16 @@ class DemoReferenceProfileSnapshot:
     version: int
     content_digest: str
     source_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class DemoReferenceProfileCompletedResult:
+    job_id: str
+    demo_session_id: str
+    reference_profile_id: str
+    job_binding_digest: str
+    compile_result_digest: str
+    profile_digest: str
 
 
 class DemoReferenceProfileService:
@@ -710,6 +728,75 @@ class DemoReferenceProfileService:
                     profile.content_digest,
                     len(profile.source_assets),
                 ),
+            )
+
+    async def read_completed_result(
+        self, *, demo_actor_id: str, job_id: str
+    ) -> DemoReferenceProfileCompletedResult:
+        """Replay exactly one completed compile envelope; never select a latest profile."""
+
+        _require_id(demo_actor_id, "demo_actor_id")
+        _require_id(job_id, "job_id")
+        async with self._sessions() as session:
+            binding = await session.scalar(
+                select(DemoJobBinding).where(
+                    DemoJobBinding.demo_actor_id == demo_actor_id,
+                    DemoJobBinding.job_id == job_id,
+                    DemoJobBinding.endpoint_operation == DEMO_REFERENCE_PROFILE_OPERATION,
+                    DemoJobBinding.target_type == "REFERENCE_PROFILE_REQUEST",
+                )
+            )
+            if binding is None:
+                raise DemoReferenceProfileUnavailable(
+                    "RESULT_UNAVAILABLE", "Reference Profile compilation is unavailable"
+                )
+            request, replayed_binding, job = await self._execution_context(
+                session,
+                demo_actor_id=demo_actor_id,
+                job_id=job_id,
+                compile_request_id=binding.target_id,
+                lock_job=False,
+            )
+            if replayed_binding.id != binding.id:
+                raise DemoReferenceProfileAuthorityCorruption(
+                    "RESULT_BINDING_MISMATCH", "Reference Profile binding does not replay exactly"
+                )
+            if job.status in {"PENDING", "RUNNING"}:
+                raise DemoReferenceProfileResultNotReady(
+                    "RESULT_NOT_READY", "Reference Profile compilation is not complete"
+                )
+            if job.status != "COMPLETED":
+                if job.status not in _TERMINAL:
+                    raise DemoReferenceProfileAuthorityCorruption(
+                        "RESULT_JOB_INVALID", "Reference Profile Job status is invalid"
+                    )
+                await self._terminal_result_in_session(
+                    session, request=request, binding=replayed_binding, job=job
+                )
+                raise DemoReferenceProfileResultTerminal(
+                    "RESULT_TERMINAL", "Reference Profile compilation has no completed result"
+                )
+            terminal = await self._terminal_result_in_session(
+                session, request=request, binding=replayed_binding, job=job
+            )
+            result = await self._result_for_request(session, request.id)
+            if (
+                result is None
+                or terminal.reference_profile_id is None
+                or terminal.profile_digest is None
+                or result.reference_profile_id != terminal.reference_profile_id
+                or result.reference_profile_digest != terminal.profile_digest
+            ):
+                raise DemoReferenceProfileAuthorityCorruption(
+                    "RESULT_REPLAY_INVALID", "Reference Profile result cannot replay exactly"
+                )
+            return DemoReferenceProfileCompletedResult(
+                job.id,
+                request.demo_session_id,
+                terminal.reference_profile_id,
+                replayed_binding.content_digest,
+                result.content_digest,
+                terminal.profile_digest,
             )
 
     async def _finalize_reservation(
@@ -1279,11 +1366,14 @@ __all__ = [
     "CreateDemoReferenceProfileCompilation",
     "DemoReferenceProfileAuthorityCorruption",
     "DemoReferenceProfileCompilationAccepted",
+    "DemoReferenceProfileCompletedResult",
     "DemoReferenceProfileConflict",
     "DemoReferenceProfileExecutionResult",
     "DemoReferenceProfileInputError",
     "DemoReferenceProfileReconciliationCandidate",
     "DemoReferenceProfileReservation",
+    "DemoReferenceProfileResultNotReady",
+    "DemoReferenceProfileResultTerminal",
     "DemoReferenceProfileService",
     "DemoReferenceProfileSnapshot",
     "DemoReferenceProfileUnavailable",

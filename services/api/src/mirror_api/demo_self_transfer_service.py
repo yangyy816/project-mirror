@@ -322,6 +322,13 @@ class _SteppedD02Authority:
 
 
 @dataclass(frozen=True, slots=True)
+class _ProfileGeometrySelectionContext:
+    demo_actor_id: str
+    demo_session_id: str
+    source_asset_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class _AcceptedReferenceAuthority:
     source_asset: Asset
     image_version: DemoImageVersion
@@ -1500,7 +1507,14 @@ class DemoSelfTransferService:
         )
         case_id = geometry_metrics.get("case_id") if isinstance(geometry_metrics, Mapping) else None
         matches: list[Mapping[str, Any]] = []
-        d02_authority = await self._stepped_d02_report(session, request=request)
+        d02_authority = await self._stepped_d02_report(
+            session,
+            context=_ProfileGeometrySelectionContext(
+                request.demo_actor_id,
+                request.demo_session_id,
+                request.source_asset_id,
+            ),
+        )
         reports = (d02_authority.report,)
         direction = "INCREASE" if selection.execution_delta_ppm > 0 else "DECREASE"
         for report in reports:
@@ -1587,9 +1601,63 @@ class DemoSelfTransferService:
         """Rebuild the frozen selector from public D05/D02 authority facts."""
 
         selection = _stepped_envelope(request)
-        d02_authority = await self._stepped_d02_report(session, request=request)
+        selected = await self.select_profile_geometry_step_in_session(
+            session,
+            demo_actor_id=request.demo_actor_id,
+            demo_session_id=request.demo_session_id,
+            source_asset_id=request.source_asset_id,
+            desired_delta_profile_id=request.desired_delta_profile_id,
+            policy_version=selection.selection_policy_version,
+            policy_digest=selection.selection_policy_digest,
+        )
+        if selected != selection:
+            raise DemoSelfTransferConflict(
+                "STEPPED_SELECTOR_MISMATCH",
+                "stepped request does not equal the authoritative selector result",
+            )
+        return selected
+
+    async def select_profile_geometry_step_in_session(
+        self,
+        session: AsyncSession,
+        *,
+        demo_actor_id: str,
+        demo_session_id: str,
+        source_asset_id: str,
+        desired_delta_profile_id: str,
+        policy_version: str,
+        policy_digest: str,
+    ) -> DemoProfileGeometrySelection:
+        """Derive the frozen D05/D02 geometry step without a transfer request."""
+
+        for name, value in (
+            ("demo_actor_id", demo_actor_id),
+            ("demo_session_id", demo_session_id),
+            ("source_asset_id", source_asset_id),
+            ("desired_delta_profile_id", desired_delta_profile_id),
+        ):
+            _require_id(value, name)
+        owner_session = await session.get(DemoSession, demo_session_id)
+        if (
+            owner_session is None
+            or owner_session.demo_actor_id != demo_actor_id
+            or owner_session.tombstoned_at is not None
+            or owner_session.closed_at is not None
+        ):
+            raise DemoSelfTransferUnavailable("SESSION_UNAVAILABLE", "Demo session is unavailable")
+        profile = await session.get(DemoDesiredDeltaProfile, desired_delta_profile_id)
+        if (
+            profile is None
+            or profile.demo_actor_id != demo_actor_id
+            or profile.demo_session_id != demo_session_id
+        ):
+            raise DemoSelfTransferUnavailable(
+                "PROFILE_UNAVAILABLE", "DesiredDeltaProfile is unavailable"
+            )
+        context = _ProfileGeometrySelectionContext(demo_actor_id, demo_session_id, source_asset_id)
+        d02_authority = await self._stepped_d02_report(session, context=context)
         report = d02_authority.report
-        persistent, override = await self._stepped_constraints(session, request=request)
+        persistent, override = await self._stepped_constraints(session, context=context)
         prohibited = set(persistent.prohibited_operations)
         if override is not None:
             prohibited.update(override.prohibited_operations)
@@ -1626,35 +1694,26 @@ class DemoSelfTransferService:
                     current_session_allow_change=override_mode == "ALLOW_CHANGE",
                 )
             )
-        cases = await self._stepped_cases(
-            session,
-            request=request,
-            authority=d02_authority,
-        )
+        cases = await self._stepped_cases(session, context=context, authority=d02_authority)
         try:
             selected = select_profile_guided_geometry_step(
                 dimensions=dimensions,
                 cases=cases,
-                policy_version=selection.selection_policy_version,
-                policy_digest=selection.selection_policy_digest,
+                policy_version=policy_version,
+                policy_digest=policy_digest,
             )
         except DemoProfileGeometrySelectionError as exc:
             raise DemoSelfTransferAuthorityCorruption(exc.code, str(exc)) from exc
-        if selected != selection:
-            raise DemoSelfTransferConflict(
-                "STEPPED_SELECTOR_MISMATCH",
-                "stepped request does not equal the authoritative selector result",
-            )
         return selected
 
     @staticmethod
     async def _stepped_constraints(
-        session: AsyncSession, *, request: DemoSelfTransferRun
+        session: AsyncSession, *, context: _ProfileGeometrySelectionContext
     ) -> tuple[DemoIdentityConstraints, DemoIdentityConstraints | None]:
         persistent = await session.scalar(
             select(DemoIdentityConstraints)
             .where(
-                DemoIdentityConstraints.demo_actor_id == request.demo_actor_id,
+                DemoIdentityConstraints.demo_actor_id == context.demo_actor_id,
                 DemoIdentityConstraints.constraint_scope == "PERSISTENT",
             )
             .order_by(DemoIdentityConstraints.version.desc(), DemoIdentityConstraints.id.desc())
@@ -1663,8 +1722,8 @@ class DemoSelfTransferService:
         override = await session.scalar(
             select(DemoIdentityConstraints)
             .where(
-                DemoIdentityConstraints.demo_actor_id == request.demo_actor_id,
-                DemoIdentityConstraints.demo_session_id == request.demo_session_id,
+                DemoIdentityConstraints.demo_actor_id == context.demo_actor_id,
+                DemoIdentityConstraints.demo_session_id == context.demo_session_id,
                 DemoIdentityConstraints.constraint_scope == "SESSION_OVERRIDE",
             )
             .order_by(DemoIdentityConstraints.version.desc(), DemoIdentityConstraints.id.desc())
@@ -1678,9 +1737,24 @@ class DemoSelfTransferService:
 
     @staticmethod
     async def _stepped_d02_report(
-        session: AsyncSession, *, request: DemoSelfTransferRun
+        session: AsyncSession,
+        *,
+        context: _ProfileGeometrySelectionContext | None = None,
+        request: DemoSelfTransferRun | None = None,
     ) -> _SteppedD02Authority:
         """Resolve one generic D02 source → manifest → admission → report chain."""
+
+        if (context is None) == (request is None):
+            raise DemoSelfTransferAuthorityCorruption(
+                "STEPPED_CONTEXT_INVALID", "stepped D02 context is ambiguous"
+            )
+        if context is None:
+            assert request is not None
+            context = _ProfileGeometrySelectionContext(
+                request.demo_actor_id,
+                request.demo_session_id,
+                request.source_asset_id,
+            )
 
         from mirror_api import demo_d02_generic_admission as d02_generic
         from mirror_api import demo_d02_generic_screening as d02_screening
@@ -1691,7 +1765,7 @@ class DemoSelfTransferService:
             _canonical_authority_matches,
         )
 
-        source = await session.get(Asset, request.source_asset_id)
+        source = await session.get(Asset, context.source_asset_id)
         if source is None:
             raise DemoSelfTransferAuthorityCorruption(
                 "STEPPED_SOURCE_MISMATCH", "stepped source authority is inconsistent"
@@ -1774,7 +1848,7 @@ class DemoSelfTransferService:
     async def _stepped_cases(
         session: AsyncSession,
         *,
-        request: DemoSelfTransferRun,
+        context: _ProfileGeometrySelectionContext,
         authority: _SteppedD02Authority,
     ) -> tuple[DemoProfileGeometryCase, ...]:
         from mirror_api.demo_d08_geometry_authority import _is_selected_question_pair_side
@@ -1785,7 +1859,7 @@ class DemoSelfTransferService:
             raise DemoSelfTransferAuthorityCorruption(
                 "D02_CASE_MANIFEST_INVALID", "D02 case manifest is invalid"
             )
-        source = await session.get(Asset, request.source_asset_id)
+        source = await session.get(Asset, context.source_asset_id)
         if source is None:
             raise DemoSelfTransferAuthorityCorruption(
                 "D02_CASE_AUTHORITY_UNAVAILABLE", "D02 selected case authority is unavailable"

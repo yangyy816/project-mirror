@@ -172,6 +172,22 @@ POST /api/v1/demo/edit-plans/execution-jobs/{job_id}/accept-as-reference
 GET  /api/v1/demo/reference-profiles/compilation-jobs/{job_id}/result
 ```
 
+The trusted FastAPI projection is frozen as follows. The profile-plan request
+body is exactly
+`{"selection_policy_version":"demo-profile-guided-d08-step-v1"}` and returns
+HTTP 202 with the existing Job fields plus a `preview` object containing only
+`dimension_key`, `direction`, positive `step_ppm` and
+`selection_policy_version`. The accept request body is exactly the outcome
+shown below and returns HTTP 202 with only `status`, an optional exact
+`reference_profile_job_id`, and `queue_state`; it does not return D06/D09
+authority. The Reference result GET returns HTTP 200 only for the exact
+completed Job and projects `status`, `job_id`, `session_id`,
+`reference_profile_id`, `job_binding_digest`, `compilation_digest` and
+`profile_digest`. Pending or terminal Jobs fail with the existing explicit 409
+pattern. These are trusted server-to-BFF contracts; D11 must replace their IDs
+and digests with its random session/generation-bound handles before any browser
+response.
+
 The profile-geometry request accepts only the fixed policy version and an
 `Idempotency-Key`. The server selects the dimension and step; callers cannot
 override them. It returns the existing trusted Job projection plus safe preview
