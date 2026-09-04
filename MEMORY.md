@@ -909,3 +909,10 @@
   authority，并通过 owner-bound、same-origin、opaque-token JPEG BFF 呈现；浏览器不接收上游 ID 或 digest。
   初始 run `33746025777` 的唯一失败是固定 15 分钟测试 Session 在 96 分钟套件末尾过期，已由一行未来固定
   test clock 前向修复，产品代码未改变。下一节点为 R04 interactive questionnaire UI integration。
+
+- 2026-09-04：D11 real flow R04 以 interactive code `537c21b240ad169dbf410d582daf5955c3b3d4c5`、
+  integrated successor `42275233ee08acbea145f406309951c6b9754da2` 和 run `33775840750` 三 jobs
+  全绿后 `TASK_ACCEPTED`。`/demo` 现真实驱动 Session→D03→D04→same-origin media→completed，支持四种
+  选择、固定有界轮询、uncertain answer exact retry、logout/creation 串行与 stale-response suppression；浏览器
+  不接收 bearer、上游 ID/digest 或私有 locator。初始 run `33765310163` 的唯一失败是旧路由测试仍期待
+  `P3_FACE_ANALYSIS=NOT_IMPLEMENTED`，一行前向同步后闭环；下一产品 wave 为 D05 Profile 与 D08 edit authority。

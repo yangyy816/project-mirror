@@ -2,7 +2,7 @@
   "schema_version": "mirror.demo/P3P7DemoExecutionState/v1",
   "goal_epoch": "P3_P7_COMPLETE_DEMO_EPOCH_02",
   "integration_branch": "codex/p3-p7-product-forward",
-  "integration_head": "7de0c1352c2ce26cef8961fedc18a56970b05528",
+  "integration_head": "42275233ee08acbea145f406309951c6b9754da2",
   "migration_head": "demo_0018_d03_pose_evidence",
   "delivery_policy": "PRODUCT_AND_ALGORITHM_FIRST_RISK_TIERED",
   "evidence_custody_host_binding": "FROZEN_DEFERRED",
@@ -50,9 +50,10 @@
     "D03_FRESH_M3_RUNTIME_INTEGRATION",
     "D11_REAL_SESSION_BOOTSTRAP",
     "D11_SESSION_ANALYSIS_FLOW",
-    "D11_ANALYSIS_SCOPED_QUESTIONNAIRE_FLOW"
+    "D11_ANALYSIS_SCOPED_QUESTIONNAIRE_FLOW",
+    "D11_INTERACTIVE_QUESTIONNAIRE_UI_FLOW"
   ],
-  "active_checkpoint": "D11_R03_TASK_ACCEPTED_R04_INTERACTIVE_FLOW_READY_FOR_INTEGRATION",
+  "active_checkpoint": "D11_R04_TASK_ACCEPTED_POST_QUESTIONNAIRE_WAVE_READY_FOR_INTEGRATION",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -90,7 +91,9 @@
     "D11_R02_SESSION_ANALYSIS_FLOW": "7bd160725fa22e5de7a97b5f6c5b8ae673c76fb1",
     "D11_R01_R02_INTEGRATION": "f49104254e93ce1f83f4590f0e6cd4ff738d5599",
     "D11_R03_QUESTIONNAIRE_FLOW_CODE": "86d281877fc16c8723267e10f2e85d5be8785f9d",
-    "D11_R03_QUESTIONNAIRE_FLOW_INTEGRATION": "7de0c1352c2ce26cef8961fedc18a56970b05528"
+    "D11_R03_QUESTIONNAIRE_FLOW_INTEGRATION": "7de0c1352c2ce26cef8961fedc18a56970b05528",
+    "D11_R04_INTERACTIVE_FLOW_CODE": "537c21b240ad169dbf410d582daf5955c3b3d4c5",
+    "D11_R04_INTERACTIVE_FLOW_INTEGRATION": "42275233ee08acbea145f406309951c6b9754da2"
   },
   "implementation_checkpoint_shas": {
     "D03_D04_B_D07_B_DOMAIN_SLICES": "93919f47ea391694d4ed952cec8a3e7d5683dc4a",
@@ -122,7 +125,9 @@
     "D11_R02_SESSION_ANALYSIS_FLOW_CODE": "7bd160725fa22e5de7a97b5f6c5b8ae673c76fb1",
     "D11_R01_R02_INTEGRATION": "f49104254e93ce1f83f4590f0e6cd4ff738d5599",
     "D11_R03_QUESTIONNAIRE_FLOW_CODE": "86d281877fc16c8723267e10f2e85d5be8785f9d",
-    "D11_R03_QUESTIONNAIRE_FLOW_INTEGRATION": "7de0c1352c2ce26cef8961fedc18a56970b05528"
+    "D11_R03_QUESTIONNAIRE_FLOW_INTEGRATION": "7de0c1352c2ce26cef8961fedc18a56970b05528",
+    "D11_R04_INTERACTIVE_FLOW_CODE": "537c21b240ad169dbf410d582daf5955c3b3d4c5",
+    "D11_R04_INTERACTIVE_FLOW_INTEGRATION": "42275233ee08acbea145f406309951c6b9754da2"
   },
   "accepted_ci_runs": {
     "D09": 32701906246,
@@ -151,7 +156,8 @@
     "D08_REAL_GEOMETRY_INTEGRATION": 33707788291,
     "D03_FRESH_M3_RUNTIME_INTEGRATION": 33723826015,
     "D11_R01_R02_REAL_FLOW_INTEGRATION": 33733053219,
-    "D11_R03_QUESTIONNAIRE_FLOW_INTEGRATION": 33755587663
+    "D11_R03_QUESTIONNAIRE_FLOW_INTEGRATION": 33755587663,
+    "D11_R04_INTERACTIVE_FLOW_INTEGRATION": 33775840750
   },
   "generation_capability_candidate": {
     "authority_id": "P3_P7_D02_R2_GENERATION_CAPABILITY_AUTHORITY_01",
@@ -335,7 +341,10 @@
     "D11_R01_R02_ci": "PASS_33733053219",
     "D11_R03": "TASK_ACCEPTED_ANALYSIS_SCOPED_QUESTIONNAIRE_AND_OWNER_BOUND_MEDIA",
     "D11_R03_integration_sha": "7de0c1352c2ce26cef8961fedc18a56970b05528",
-    "D11_R03_ci": "PASS_33755587663"
+    "D11_R03_ci": "PASS_33755587663",
+    "D11_R04": "TASK_ACCEPTED_INTERACTIVE_SESSION_ANALYSIS_QUESTIONNAIRE_UI",
+    "D11_R04_integration_sha": "42275233ee08acbea145f406309951c6b9754da2",
+    "D11_R04_ci": "PASS_33775840750"
   },
   "nonaccepted_ci_runs": {
     "D10_CONTEXT_TRACE_EXPLICIT_RECALL_API_01": {
@@ -567,6 +576,15 @@
       "successor_ci": "PASS_33755587663",
       "task_acceptance_claimed_for_failed_run": false
     },
+    "D11_R04_INITIAL_INTEGRATED_CI": {
+      "run_id": 33765310163,
+      "head_sha": "4d77743d4f4f95dad0b27f9c16fe6f4dd64756b1",
+      "outcome": "FAIL_STALE_P3_CAPABILITY_TEST_EXPECTATION",
+      "product_failure": false,
+      "forward_test_repair_sha": "42275233ee08acbea145f406309951c6b9754da2",
+      "successor_ci": "PASS_33775840750",
+      "task_acceptance_claimed_for_failed_run": false
+    },
     "D11_DEMO_SHELL": {
       "code_sha": "4a293dae91daffee7523442fd70b637aed19daf6",
       "implementation": "READ_ONLY_CAPABILITY_SHELL",
@@ -592,6 +610,11 @@
       "real_questionnaire_integration_sha": "7de0c1352c2ce26cef8961fedc18a56970b05528",
       "real_questionnaire_ci": "PASS_33755587663",
       "questionnaire_media_boundary": "OWNER_BOUND_SAME_ORIGIN_JPEG_OPAQUE_TOKEN",
+      "interactive_questionnaire_flow": "TASK_ACCEPTED_REAL_SESSION_ANALYSIS_QUESTIONNAIRE_UI",
+      "interactive_questionnaire_code_sha": "537c21b240ad169dbf410d582daf5955c3b3d4c5",
+      "interactive_questionnaire_integration_sha": "42275233ee08acbea145f406309951c6b9754da2",
+      "interactive_questionnaire_ci": "PASS_33775840750",
+      "interactive_questionnaire_validation": "PASS_WEB_99_PLAYWRIGHT_10_RUFF_MYPY_CONTRACTS_GITLEAKS_AND_EXACT_SHA_CI",
       "server_side_credential_bridge": "PASS_BEARER_SERVER_ONLY_BROWSER_OPAQUE_HANDLE",
       "explicit_recall_at": "PASS_IDENTICAL_CONTEXT_AND_TRACE_ANCHOR",
       "browser_storage": "PASS_NO_BEARER_LOCAL_SESSION_INDEXEDDB_OR_DOM",
@@ -656,7 +679,7 @@
     "d02_branch": "codex/p3-p7-d02-final-gate",
     "d02_tracked_checkpoint_sha": "0cd6da58ce111806ed7f56044b270f9b68890f3f",
     "product_branch": "codex/p3-p7-product-forward",
-    "product_code_head": "7de0c1352c2ce26cef8961fedc18a56970b05528",
+    "product_code_head": "42275233ee08acbea145f406309951c6b9754da2",
     "private_execution_owner": "D02_SUBSYSTEM_PRINCIPAL",
     "main_process_d02_access": "FORBIDDEN_PERMANENT_AUTONOMY_BOUNDARY"
   },
