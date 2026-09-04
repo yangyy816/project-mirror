@@ -231,7 +231,9 @@ describe("DemoRealFlowWorkspace", () => {
       .mockResolvedValueOnce(response({ code: "CONFLICT" }, 409))
       .mockResolvedValueOnce(response({ status: "COMPLETED" }))
       .mockResolvedValueOnce(response({ status: "PENDING" }, 202))
-      .mockResolvedValueOnce(response({ status: "PROFILE_READY" }));
+      .mockResolvedValueOnce(response({ status: "PROFILE_READY" }))
+      .mockResolvedValueOnce(response({ status: "PENDING" }, 202))
+      .mockResolvedValueOnce(response({ status: "IMAGE_VERSION_READY" }));
     vi.stubGlobal("fetch", fetchMock);
     render(<DemoRealFlowWorkspace />);
     fireEvent.click(screen.getByRole("button", { name: "开始 Demo" }));
@@ -263,6 +265,94 @@ describe("DemoRealFlowWorkspace", () => {
     );
     expect(attempts).toHaveLength(2);
     expect(attempts[1]?.[1]?.body).toBe(first);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "编辑操作" }), {
+      target: { value: "TEMPERATURE" },
+    });
+    fireEvent.change(screen.getByRole("slider", { name: "调整强度" }), {
+      target: { value: "400000" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发布一次合成编辑" }));
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText("一版合成编辑结果已通过验证并发布。"),
+        ).toBeVisible(),
+      { timeout: 2_500 },
+    );
+    const edit = fetchMock.mock.calls.find(
+      ([path, init]) => path === "/api/demo/edit" && init?.method === "POST",
+    );
+    expect(JSON.parse(edit?.[1]?.body as string)).toEqual({
+      operation: "TEMPERATURE",
+      value_ppm: 400_000,
+    });
+  });
+
+  it("uses operation-aware edit ranges and retries a recoverable edit admission", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ status: "SESSION_READY" }, 201))
+      .mockResolvedValueOnce(response({ status: "PENDING" }, 202))
+      .mockResolvedValueOnce(
+        response({
+          status: "COMPLETED",
+          analysis_state: "SUPPORTED",
+          self_state: "READY",
+        }),
+      )
+      .mockResolvedValueOnce(response({ status: "COMPLETED" }))
+      .mockResolvedValueOnce(response({ status: "PENDING" }, 202))
+      .mockResolvedValueOnce(response({ status: "PROFILE_READY" }))
+      .mockResolvedValueOnce(response({ code: "UNAVAILABLE" }, 503))
+      .mockResolvedValueOnce(response({ status: "PENDING" }, 202))
+      .mockResolvedValueOnce(response({ status: "IMAGE_VERSION_READY" }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<DemoRealFlowWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "开始 Demo" }));
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole("button", { name: "开始偏好问卷" }),
+        ).toBeVisible(),
+      { timeout: 2_000 },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "开始偏好问卷" }));
+    await waitFor(
+      () => expect(screen.getByText("偏好档案已准备完成。")).toBeVisible(),
+      { timeout: 2_500 },
+    );
+
+    const slider = screen.getByRole("slider", { name: "调整强度" });
+    expect(slider).toHaveAttribute("min", "-1000000");
+    expect(slider).toHaveAttribute("max", "1000000");
+    fireEvent.change(screen.getByRole("combobox", { name: "编辑操作" }), {
+      target: { value: "CROP" },
+    });
+    expect(slider).toHaveAttribute("min", "1");
+    expect(slider).toHaveAttribute("max", "250000");
+    expect(slider).toHaveAttribute("value", "125000");
+    fireEvent.change(slider, { target: { value: "250000" } });
+    fireEvent.click(screen.getByRole("button", { name: "发布一次合成编辑" }));
+    await waitFor(() =>
+      expect(screen.getByText(/服务暂时不可用/)).toBeVisible(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "重试当前步骤" }));
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText("一版合成编辑结果已通过验证并发布。"),
+        ).toBeVisible(),
+      { timeout: 2_500 },
+    );
+    const editPosts = fetchMock.mock.calls.filter(
+      ([path, init]) => path === "/api/demo/edit" && init?.method === "POST",
+    );
+    expect(editPosts).toHaveLength(2);
+    expect(editPosts.map(([, init]) => init?.body)).toEqual([
+      JSON.stringify({ operation: "CROP", value_ppm: 250_000 }),
+      JSON.stringify({ operation: "CROP", value_ppm: 250_000 }),
+    ]);
   });
 
   it("renders a terminal profile result without creating another job", async () => {

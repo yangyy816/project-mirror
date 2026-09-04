@@ -6,7 +6,14 @@ import { useEffect, useRef, useState } from "react";
 
 import { Badge, Button } from "@mirror/ui";
 
-type Phase = "analysis" | "questionnaire" | "profile";
+type Phase = "analysis" | "questionnaire" | "profile" | "edit";
+type EditOperation =
+  | "CROP"
+  | "ROTATE"
+  | "EXPOSURE"
+  | "CONTRAST"
+  | "SATURATION"
+  | "TEMPERATURE";
 type Choice = "LEFT" | "RIGHT" | "INDISTINGUISHABLE" | "SKIP";
 type Question = Readonly<{
   presentationToken: string;
@@ -34,6 +41,9 @@ type State =
   | { kind: "PROFILE_STARTING" }
   | { kind: "PROFILE_PENDING" }
   | { kind: "PROFILE_READY" }
+  | { kind: "EDIT_STARTING" }
+  | { kind: "EDIT_PENDING" }
+  | { kind: "IMAGE_VERSION_READY" }
   | {
       kind: "ERROR";
       phase: Phase | "session";
@@ -89,6 +99,12 @@ function describe(state: State) {
       return "偏好档案正在准备。";
     case "PROFILE_READY":
       return "偏好档案已准备完成。";
+    case "EDIT_STARTING":
+      return "正在提交合成编辑。";
+    case "EDIT_PENDING":
+      return "合成编辑正在执行和验证。";
+    case "IMAGE_VERSION_READY":
+      return "一版合成编辑结果已通过验证并发布。";
     case "ERROR":
       return errorMessages[state.code] ?? "请求未完成，请重试。";
   }
@@ -162,6 +178,8 @@ export function DemoRealFlowWorkspace() {
   const pollCount = useRef(0);
   const activePhase = useRef<Phase | null>(null);
   const sessionCreation = useRef<Promise<Response> | null>(null);
+  const [editOperation, setEditOperation] = useState<EditOperation>("EXPOSURE");
+  const [editValuePpm, setEditValuePpm] = useState(250_000);
 
   function invalidate() {
     generation.current += 1;
@@ -229,6 +247,11 @@ export function DemoRealFlowWorkspace() {
         setState({ kind: "PROFILE_READY" });
         return;
       }
+      if (phase === "edit" && body?.status === "IMAGE_VERSION_READY") {
+        activePhase.current = null;
+        setState({ kind: "IMAGE_VERSION_READY" });
+        return;
+      }
       error(phase, codeFrom(response, body), token);
     } catch {
       error(phase, "UNAVAILABLE", token);
@@ -280,6 +303,38 @@ export function DemoRealFlowWorkspace() {
       error(phase, codeFrom(response, body), token);
     } catch {
       error(phase, "UNAVAILABLE", token);
+    }
+  }
+  async function startEdit(token: number) {
+    activePhase.current = "edit";
+    pollCount.current = 0;
+    try {
+      const response = await request("/api/demo/edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation: editOperation,
+          value_ppm: editValuePpm,
+        }),
+      });
+      const body = (await response.json().catch(() => null)) as Record<
+        string,
+        unknown
+      > | null;
+      if (generation.current !== token) return;
+      if (!response.ok) return error("edit", codeFrom(response, body), token);
+      if (body?.status === "PENDING") {
+        setState({ kind: "EDIT_PENDING" });
+        return schedulePoll("edit", token);
+      }
+      if (body?.status === "IMAGE_VERSION_READY") {
+        activePhase.current = null;
+        setState({ kind: "IMAGE_VERSION_READY" });
+        return;
+      }
+      error("edit", codeFrom(response, body), token);
+    } catch {
+      error("edit", "UNAVAILABLE", token);
     }
   }
   async function startDemo() {
@@ -419,13 +474,20 @@ export function DemoRealFlowWorkspace() {
       void submitAnswer(state.answerSubmission, token, true);
       return;
     }
+    if (state.phase === "edit") {
+      setState({ kind: "EDIT_STARTING" });
+      void startEdit(token);
+      return;
+    }
     setState({
       kind:
         state.phase === "analysis"
           ? "ANALYSIS_STARTING"
           : state.phase === "questionnaire"
             ? "QUESTIONNAIRE_STARTING"
-            : "PROFILE_STARTING",
+            : state.phase === "profile"
+              ? "PROFILE_STARTING"
+              : "EDIT_STARTING",
     });
     void startPhase(state.phase, token);
   }
@@ -443,7 +505,7 @@ export function DemoRealFlowWorkspace() {
             SYNTHETIC DEMO
           </p>
           <h2 className="mt-2 text-xl font-semibold" id="demo-real-flow-title">
-            偏好问卷与档案演示
+            偏好问卷、档案与编辑演示
           </h2>
         </div>
         <Badge tone={state.kind === "ERROR" ? "warning" : "success"}>
@@ -473,6 +535,52 @@ export function DemoRealFlowWorkspace() {
         >
           开始偏好问卷
         </Button>
+      ) : null}
+      {state.kind === "PROFILE_READY" ? (
+        <div className="mt-5 grid gap-4 rounded-2xl border border-black/10 p-4 sm:grid-cols-2">
+          <label className="grid gap-2 text-sm font-medium">
+            编辑操作
+            <select
+              className="rounded-xl border border-black/20 bg-white px-3 py-2"
+              onChange={(event) => {
+                const operation = event.target.value as EditOperation;
+                setEditOperation(operation);
+                setEditValuePpm(operation === "CROP" ? 125_000 : 250_000);
+              }}
+              value={editOperation}
+            >
+              <option value="EXPOSURE">曝光</option>
+              <option value="CONTRAST">对比度</option>
+              <option value="SATURATION">饱和度</option>
+              <option value="TEMPERATURE">色温</option>
+              <option value="ROTATE">旋转</option>
+              <option value="CROP">裁剪</option>
+            </select>
+          </label>
+          <label className="grid gap-2 text-sm font-medium">
+            调整强度
+            <input
+              aria-valuetext={`${editValuePpm} ppm`}
+              max={editOperation === "CROP" ? 250_000 : 1_000_000}
+              min={editOperation === "CROP" ? 1 : -1_000_000}
+              onChange={(event) => setEditValuePpm(Number(event.target.value))}
+              step={editOperation === "CROP" ? 1_000 : 50_000}
+              type="range"
+              value={editValuePpm}
+            />
+          </label>
+          <Button
+            className="sm:col-span-2"
+            onClick={() => {
+              const token = ++generation.current;
+              setState({ kind: "EDIT_STARTING" });
+              void startEdit(token);
+            }}
+            type="button"
+          >
+            发布一次合成编辑
+          </Button>
+        </div>
       ) : null}
       {state.kind === "ERROR" && isRecoverableError(state.code) ? (
         <Button className="mt-5" onClick={retry} type="button">
