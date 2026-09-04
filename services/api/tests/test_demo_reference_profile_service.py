@@ -430,10 +430,10 @@ async def test_populated_d06_downgrade_fails_closed(postgres_session: Session) -
             alembic_command.downgrade(config, "demo_0015_d02_source_acq_pool")
         postgres_session.expire_all()
         assert postgres_session.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "demo_0018_d03_pose_evidence"
+            "demo_0019_d06_stepped_transfer"
         )
     finally:
-        alembic_command.upgrade(config, "demo_0018_d03_pose_evidence")
+        alembic_command.upgrade(config, "demo_0019_d06_stepped_transfer")
 
 
 @pytest.mark.asyncio
