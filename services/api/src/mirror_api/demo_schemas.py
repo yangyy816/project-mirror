@@ -219,6 +219,16 @@ class DemoReferenceProfileCompileRequest(StrictContractModel):
     )
 
 
+class DemoReferenceProfileCompilationJobResultResponse(StrictContractModel):
+    status: Literal["REFERENCE_PROFILE_READY"]
+    job_id: DemoId
+    session_id: DemoId
+    reference_profile_id: DemoId
+    job_binding_digest: DemoDigest
+    compilation_digest: DemoDigest
+    profile_digest: DemoDigest
+
+
 class DemoReferenceProfileResponse(StrictContractModel):
     reference_profile_id: DemoId
     version: int = Field(ge=1)
@@ -328,6 +338,33 @@ class DemoEditPlanCreateRequest(StrictContractModel):
 class DemoEditPlanExecuteRequest(StrictContractModel):
     execution_mode: Literal["DETERMINISTIC_RASTER", "GEOMETRY", "MAKEUP", "GENERATIVE"]
     expected_plan_digest: DemoDigest
+
+
+class DemoProfileGeometryPlanRequest(StrictContractModel):
+    selection_policy_version: Literal["demo-profile-guided-d08-step-v1"] = (
+        "demo-profile-guided-d08-step-v1"
+    )
+
+
+class DemoProfileGeometryPreviewResponse(StrictContractModel):
+    dimension_key: Literal["chin_height", "eye_spacing", "jaw_width"]
+    direction: Literal["INCREASE", "DECREASE"]
+    step_ppm: Literal[15000, 30000]
+    selection_policy_version: Literal["demo-profile-guided-d08-step-v1"]
+
+
+class DemoProfileGeometryPlanAcceptedResponse(DemoJobAcceptedResponse):
+    preview: DemoProfileGeometryPreviewResponse
+
+
+class DemoAcceptEditExecutionAsReferenceRequest(StrictContractModel):
+    outcome: Literal["FINAL_SAVE_AND_USE_AS_REFERENCE"]
+
+
+class DemoAcceptEditExecutionAsReferenceResponse(StrictContractModel):
+    status: Literal["REFERENCE_PROFILE_PENDING", "REFERENCE_PROFILE_READY"]
+    reference_profile_job_id: DemoId | None = None
+    queue_state: Literal["PENDING", "READY", "RECOVERY_REQUIRED"]
 
 
 class DemoEditExecutionResultResponse(StrictContractModel):

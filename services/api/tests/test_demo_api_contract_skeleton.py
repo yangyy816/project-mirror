@@ -55,6 +55,11 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
         ("GET", "/api/v1/demo/capabilities", "demoGetCapabilities"),
         (
             "GET",
+            "/api/v1/demo/edit-plans/execution-jobs/{job_id}/media/{side}",
+            "demoGetEditExecutionMedia",
+        ),
+        (
+            "GET",
             "/api/v1/demo/edit-plans/execution-jobs/{job_id}/result",
             "demoGetEditExecutionResultByJob",
         ),
@@ -78,6 +83,11 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
         ),
         (
             "GET",
+            "/api/v1/demo/reference-profiles/compilation-jobs/{job_id}/result",
+            "demoGetReferenceProfileCompilationResultByJob",
+        ),
+        (
+            "GET",
             "/api/v1/demo/reference-profiles/active",
             "demoGetActiveReferenceProfiles",
         ),
@@ -97,10 +107,20 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
         ("POST", "/api/v1/demo/constraints", "demoCreateConstraints"),
         (
             "POST",
+            "/api/v1/demo/edit-plans/execution-jobs/{job_id}/accept-as-reference",
+            "demoAcceptEditExecutionAsReference",
+        ),
+        (
+            "POST",
             "/api/v1/demo/edit-plans/{edit_plan_id}/executions",
             "demoExecuteEditPlan",
         ),
         ("POST", "/api/v1/demo/editing-sessions", "demoCreateEditingSession"),
+        (
+            "POST",
+            "/api/v1/demo/editing-sessions/{editing_session_id}/profile-geometry-plans",
+            "demoCreateProfileGeometryPlan",
+        ),
         (
             "POST",
             "/api/v1/demo/editing-sessions/{editing_session_id}/plans",
@@ -147,8 +167,8 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
         ),
         ("POST", "/api/v1/demo/style-feedback", "demoCreateStyleFeedback"),
     }
-    assert len(operations) == 31
-    assert sum(operation["operationId"].startswith("demo") for operation in operations) == 31
+    assert len(operations) == 35
+    assert sum(operation["operationId"].startswith("demo") for operation in operations) == 35
     assert all(operation["x-demo-only"] is True for operation in operations)
     posts = [
         operation
@@ -168,14 +188,16 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
             "demoCreateConstraints",
             "demoCreateEditingSession",
             "demoCreateEditPlan",
+            "demoCreateProfileGeometryPlan",
             "demoExecuteEditPlan",
+            "demoAcceptEditExecutionAsReference",
             "demoCreateImageVersionFeedback",
             "demoRestoreImageVersion",
             "demoRebuildProfiles",
             "demoCancelJob",
         }
     ]
-    assert len(posts) == 18
+    assert len(posts) == 20
     assert all("DemoBearerAuth" in operation["security"][0] for operation in operations)
     idempotency_headers = [
         next(
@@ -219,6 +241,35 @@ def test_demo_router_has_exact_frozen_operation_matrix_and_security() -> None:
     assert {parameter["name"] for parameter in edit_result["parameters"]} == {"job_id"}
     assert edit_result["responses"]["200"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/DemoEditExecutionResultResponse"
+    }
+    edit_media = paths["/api/v1/demo/edit-plans/execution-jobs/{job_id}/media/{side}"]["get"]
+    assert "requestBody" not in edit_media
+    assert {parameter["name"] for parameter in edit_media["parameters"]} == {
+        "job_id",
+        "side",
+    }
+    assert edit_media["responses"]["200"]["content"]["image/jpeg"]["schema"] == {
+        "type": "string",
+        "format": "binary",
+    }
+    profile_geometry = paths[
+        "/api/v1/demo/editing-sessions/{editing_session_id}/profile-geometry-plans"
+    ]["post"]
+    assert profile_geometry["requestBody"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/DemoProfileGeometryPlanRequest"
+    }
+    accept_reference = paths["/api/v1/demo/edit-plans/execution-jobs/{job_id}/accept-as-reference"][
+        "post"
+    ]
+    assert accept_reference["requestBody"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/DemoAcceptEditExecutionAsReferenceRequest"
+    }
+    reference_result = paths["/api/v1/demo/reference-profiles/compilation-jobs/{job_id}/result"][
+        "get"
+    ]
+    assert "requestBody" not in reference_result
+    assert reference_result["responses"]["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/DemoReferenceProfileCompilationJobResultResponse"
     }
     editing_request = schema["components"]["schemas"]["DemoEditingSessionCreateRequest"]
     assert editing_request["properties"]["source_selector"]["anyOf"] == [
@@ -458,7 +509,7 @@ def test_frozen_demo_mutation_contracts_require_explicit_intent_and_precondition
 def test_main_application_exposes_the_complete_demo_contract() -> None:
     schema = create_app().openapi()
     paths = [path for path in schema["paths"] if path.startswith("/api/v1/demo")]
-    assert len(paths) == 31
+    assert len(paths) == 35
     assert schema["paths"]["/api/v1/demo/jobs/{job_id}/cancel"]["post"]["requestBody"]
     assert schema["paths"]["/api/v1/demo/reference-profiles/compile"]["post"]["requestBody"]
     assert schema["paths"]["/api/v1/demo/sessions/{session_id}/context/compile"]["post"][

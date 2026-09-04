@@ -721,6 +721,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/demo/reference-profiles/compilation-jobs/{job_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Reference Profile Compilation Result */
+        get: operations["demoGetReferenceProfileCompilationResultByJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/demo/reference-profiles/active": {
         parameters: {
             query?: never;
@@ -806,6 +823,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/demo/editing-sessions/{editing_session_id}/profile-geometry-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Profile Geometry Plan */
+        post: operations["demoCreateProfileGeometryPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/demo/edit-plans/{edit_plan_id}/executions": {
         parameters: {
             query?: never;
@@ -834,6 +868,40 @@ export interface paths {
         get: operations["demoGetEditExecutionResultByJob"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/demo/edit-plans/execution-jobs/{job_id}/media/{side}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Edit Execution Media */
+        get: operations["demoGetEditExecutionMedia"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/demo/edit-plans/execution-jobs/{job_id}/accept-as-reference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept Edit Execution As Reference */
+        post: operations["demoAcceptEditExecutionAsReference"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1171,6 +1239,29 @@ export interface components {
             ready_at?: string | null;
             /** Expires At */
             expires_at?: string | null;
+        };
+        /** DemoAcceptEditExecutionAsReferenceRequest */
+        DemoAcceptEditExecutionAsReferenceRequest: {
+            /**
+             * Outcome
+             * @constant
+             */
+            outcome: "FINAL_SAVE_AND_USE_AS_REFERENCE";
+        };
+        /** DemoAcceptEditExecutionAsReferenceResponse */
+        DemoAcceptEditExecutionAsReferenceResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "REFERENCE_PROFILE_PENDING" | "REFERENCE_PROFILE_READY";
+            /** Reference Profile Job Id */
+            reference_profile_job_id?: string | null;
+            /**
+             * Queue State
+             * @enum {string}
+             */
+            queue_state: "PENDING" | "READY" | "RECOVERY_REQUIRED";
         };
         /** DemoActiveProfilesResponse */
         DemoActiveProfilesResponse: {
@@ -1540,6 +1631,54 @@ export interface components {
             /** Compiler Version */
             compiler_version: string;
         };
+        /** DemoProfileGeometryPlanAcceptedResponse */
+        DemoProfileGeometryPlanAcceptedResponse: {
+            /** Job Id */
+            job_id: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "PENDING";
+            /** Capability */
+            capability: string;
+            /** Job Binding Digest */
+            job_binding_digest: string;
+            target: components["schemas"]["DemoJobTargetResponse"];
+            preview: components["schemas"]["DemoProfileGeometryPreviewResponse"];
+        };
+        /** DemoProfileGeometryPlanRequest */
+        DemoProfileGeometryPlanRequest: {
+            /**
+             * Selection Policy Version
+             * @default demo-profile-guided-d08-step-v1
+             * @constant
+             */
+            selection_policy_version: "demo-profile-guided-d08-step-v1";
+        };
+        /** DemoProfileGeometryPreviewResponse */
+        DemoProfileGeometryPreviewResponse: {
+            /**
+             * Dimension Key
+             * @enum {string}
+             */
+            dimension_key: "chin_height" | "eye_spacing" | "jaw_width";
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "INCREASE" | "DECREASE";
+            /**
+             * Step Ppm
+             * @enum {integer}
+             */
+            step_ppm: 15000 | 30000;
+            /**
+             * Selection Policy Version
+             * @constant
+             */
+            selection_policy_version: "demo-profile-guided-d08-step-v1";
+        };
         /** DemoProfileRebuildRequest */
         DemoProfileRebuildRequest: {
             /**
@@ -1667,6 +1806,26 @@ export interface components {
             step_sequence: number;
             /** Run Version */
             run_version: number;
+        };
+        /** DemoReferenceProfileCompilationJobResultResponse */
+        DemoReferenceProfileCompilationJobResultResponse: {
+            /**
+             * Status
+             * @constant
+             */
+            status: "REFERENCE_PROFILE_READY";
+            /** Job Id */
+            job_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Reference Profile Id */
+            reference_profile_id: string;
+            /** Job Binding Digest */
+            job_binding_digest: string;
+            /** Compilation Digest */
+            compilation_digest: string;
+            /** Profile Digest */
+            profile_digest: string;
         };
         /** DemoReferenceProfileCompileRequest */
         DemoReferenceProfileCompileRequest: {
@@ -4789,6 +4948,82 @@ export interface operations {
             };
         };
     };
+    demoGetReferenceProfileCompilationResultByJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoReferenceProfileCompilationJobResultResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     demoGetActiveReferenceProfiles: {
         parameters: {
             query?: never;
@@ -5185,6 +5420,88 @@ export interface operations {
             };
         };
     };
+    demoCreateProfileGeometryPlan: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                editing_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DemoProfileGeometryPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoProfileGeometryPlanAcceptedResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     demoExecuteEditPlan: {
         parameters: {
             query?: never;
@@ -5285,6 +5602,165 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DemoEditExecutionResultResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    demoGetEditExecutionMedia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+                side: "INPUT" | "RESULT";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exact owner-bound synthetic edit execution media. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    demoAcceptEditExecutionAsReference: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DemoAcceptEditExecutionAsReferenceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoAcceptEditExecutionAsReferenceResponse"];
                 };
             };
             /** @description Unauthorized */
