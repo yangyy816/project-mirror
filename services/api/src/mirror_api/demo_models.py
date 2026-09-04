@@ -2197,7 +2197,13 @@ class DemoSelfTransferRun(DemoAuthorityMixin, Base):
     user_outcome: Mapped[str | None] = mapped_column(String(24))
 
     __table_args__ = (
-        *_authority_constraints(__tablename__),
+        *_authority_constraints(
+            __tablename__,
+            schema_version_expression=(
+                "schema_version IN ('mirror.demo/DemoSelfTransferRun/v1',"
+                "'mirror.demo/DemoSelfTransferRun/v2')"
+            ),
+        ),
         ForeignKeyConstraint(
             ["demo_session_id", "demo_actor_id"],
             ["demo_sessions.id", "demo_sessions.demo_actor_id"],
