@@ -37,6 +37,7 @@ from mirror_api.demo_editing_commands import (
     DemoEditingCommandUnavailable,
     DemoEditResultNotReady,
     DemoEditResultTerminal,
+    DemoProfileGeometryStepUnavailable,
     ExecuteDemoEditPlan,
     RestoreDemoImageVersion,
 )
@@ -685,6 +686,13 @@ def _raise_context_queue_error(error: Exception) -> NoReturn:
 
 
 def _raise_editing_error(error: Exception) -> NoReturn:
+    if isinstance(error, DemoProfileGeometryStepUnavailable):
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            code=error.code,
+            message="当前档案暂无可用的安全几何步骤。",
+            details={"track": "DEMO_PROTOTYPE"},
+        ) from error
     if isinstance(error, DemoIdempotencyPayloadConflict):
         raise APIError(
             status_code=status.HTTP_409_CONFLICT,

@@ -104,6 +104,12 @@ class DemoEditingCommandUnavailable(DemoEditingCommandError):
     pass
 
 
+class DemoProfileGeometryStepUnavailable(DemoEditingCommandUnavailable):
+    """The exact owner context is valid but has no eligible selected D08 step."""
+
+    code = "DEMO_PROFILE_GEOMETRY_STEP_UNAVAILABLE"
+
+
 class DemoEditingCommandAuthorityCorruption(DemoEditingCommandError):
     pass
 
@@ -1131,7 +1137,7 @@ class DemoEditingCommandService:
             ) from exc
         except DemoSelfTransferServiceError as exc:
             if exc.code == "DEMO_PROFILE_GEOMETRY_STEP_UNAVAILABLE":
-                raise DemoEditingCommandUnavailable(
+                raise DemoProfileGeometryStepUnavailable(
                     "profile-guided geometry selection is unavailable"
                 ) from exc
             raise DemoEditingCommandAuthorityCorruption(
@@ -1810,6 +1816,7 @@ __all__ = [
     "DemoEditingCommandUnavailable",
     "DemoEditingPendingJob",
     "DemoOwnedToolRun",
+    "DemoProfileGeometryStepUnavailable",
     "DemoProfileGuidedGeometryPlanAccepted",
     "ExecuteDemoEditPlan",
     "RestoreDemoImageVersion",

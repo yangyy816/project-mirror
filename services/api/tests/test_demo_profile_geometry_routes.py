@@ -7,6 +7,7 @@ from typing import Any, cast
 from fastapi.testclient import TestClient
 
 from mirror_api.demo_dependencies import get_demo_actor
+from mirror_api.demo_editing_commands import DemoProfileGeometryStepUnavailable
 from mirror_api.demo_editing_coordinator import (
     DemoEditingCoordinator,
     DemoProfileGuidedGeometryCreateResult,
@@ -77,11 +78,14 @@ def _job() -> DemoJobSnapshot:
 @dataclass
 class _Editing:
     command: object | None = None
+    failure: Exception | None = None
 
     async def create_profile_guided_geometry_plan(
         self, command: object
     ) -> DemoProfileGuidedGeometryCreateResult:
         self.command = command
+        if self.failure is not None:
+            raise self.failure
         return DemoProfileGuidedGeometryCreateResult(
             _job(),
             _PLAN_ID,
@@ -189,6 +193,14 @@ def test_profile_geometry_plan_route_has_only_safe_preview() -> None:
             },
         )
         assert invalid.status_code == 422
+        editing.failure = DemoProfileGeometryStepUnavailable("no eligible step")
+        unavailable = client.post(
+            f"/api/v1/demo/editing-sessions/{_EDITING_ID}/profile-geometry-plans",
+            headers={"Idempotency-Key": "test-plan-key-00000002"},
+            json={"selection_policy_version": "demo-profile-guided-d08-step-v1"},
+        )
+        assert unavailable.status_code == 409
+        assert unavailable.json()["code"] == "DEMO_PROFILE_GEOMETRY_STEP_UNAVAILABLE"
     finally:
         app.dependency_overrides.clear()
 
