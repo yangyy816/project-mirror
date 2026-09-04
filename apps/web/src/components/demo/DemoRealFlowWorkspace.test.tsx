@@ -232,8 +232,17 @@ describe("DemoRealFlowWorkspace", () => {
       .mockResolvedValueOnce(response({ status: "COMPLETED" }))
       .mockResolvedValueOnce(response({ status: "PENDING" }, 202))
       .mockResolvedValueOnce(response({ status: "PROFILE_READY" }))
-      .mockResolvedValueOnce(response({ status: "PENDING" }, 202))
-      .mockResolvedValueOnce(response({ status: "IMAGE_VERSION_READY" }));
+      .mockResolvedValueOnce(response({ code: "UNAVAILABLE" }, 503))
+      .mockResolvedValueOnce(
+        response({
+          status: "PREVIEW_READY",
+          input_image_url: `/api/demo/self-transfer/media/${"b".repeat(64)}/INPUT`,
+          result_image_url: `/api/demo/self-transfer/media/${"b".repeat(64)}/RESULT`,
+          dimension_key: "chin_height",
+          direction: "INCREASE",
+          step_ppm: 30000,
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
     render(<DemoRealFlowWorkspace />);
     fireEvent.click(screen.getByRole("button", { name: "开始 Demo" }));
@@ -266,30 +275,27 @@ describe("DemoRealFlowWorkspace", () => {
     expect(attempts).toHaveLength(2);
     expect(attempts[1]?.[1]?.body).toBe(first);
 
-    fireEvent.change(screen.getByRole("combobox", { name: "编辑操作" }), {
-      target: { value: "TEMPERATURE" },
-    });
-    fireEvent.change(screen.getByRole("slider", { name: "调整强度" }), {
-      target: { value: "400000" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "发布一次合成编辑" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "生成档案引导的几何预览" }),
+    );
     await waitFor(
-      () =>
-        expect(
-          screen.getByText("一版合成编辑结果已通过验证并发布。"),
-        ).toBeVisible(),
+      () => expect(screen.getByText(/服务暂时不可用/)).toBeVisible(),
       { timeout: 2_500 },
     );
-    const edit = fetchMock.mock.calls.find(
-      ([path, init]) => path === "/api/demo/edit" && init?.method === "POST",
+    fireEvent.click(screen.getByRole("button", { name: "重试当前步骤" }));
+    await screen.findByRole("img", { name: "编辑前合成图" });
+    const previewPosts = fetchMock.mock.calls.filter(
+      ([path, init]) =>
+        path === "/api/demo/self-transfer" && init?.method === "POST",
     );
-    expect(JSON.parse(edit?.[1]?.body as string)).toEqual({
-      operation: "TEMPERATURE",
-      value_ppm: 400_000,
-    });
+    expect(previewPosts).toHaveLength(2);
+    expect(previewPosts.map(([, init]) => init?.body)).toEqual([
+      JSON.stringify({ action: "PROFILE_GUIDED_GEOMETRY_PREVIEW" }),
+      JSON.stringify({ action: "PROFILE_GUIDED_GEOMETRY_PREVIEW" }),
+    ]);
   });
 
-  it("uses operation-aware edit ranges and retries a recoverable edit admission", async () => {
+  it("retries a recoverable profile-guided preview admission", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(response({ status: "SESSION_READY" }, 201))
@@ -305,8 +311,16 @@ describe("DemoRealFlowWorkspace", () => {
       .mockResolvedValueOnce(response({ status: "PENDING" }, 202))
       .mockResolvedValueOnce(response({ status: "PROFILE_READY" }))
       .mockResolvedValueOnce(response({ code: "UNAVAILABLE" }, 503))
-      .mockResolvedValueOnce(response({ status: "PENDING" }, 202))
-      .mockResolvedValueOnce(response({ status: "IMAGE_VERSION_READY" }));
+      .mockResolvedValueOnce(
+        response({
+          status: "PREVIEW_READY",
+          input_image_url: `/api/demo/self-transfer/media/${"c".repeat(64)}/INPUT`,
+          result_image_url: `/api/demo/self-transfer/media/${"c".repeat(64)}/RESULT`,
+          dimension_key: "eye_spacing",
+          direction: "DECREASE",
+          step_ppm: 15000,
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
     render(<DemoRealFlowWorkspace />);
     fireEvent.click(screen.getByRole("button", { name: "开始 Demo" }));
@@ -323,35 +337,23 @@ describe("DemoRealFlowWorkspace", () => {
       { timeout: 2_500 },
     );
 
-    const slider = screen.getByRole("slider", { name: "调整强度" });
-    expect(slider).toHaveAttribute("min", "-1000000");
-    expect(slider).toHaveAttribute("max", "1000000");
-    fireEvent.change(screen.getByRole("combobox", { name: "编辑操作" }), {
-      target: { value: "CROP" },
-    });
-    expect(slider).toHaveAttribute("min", "1");
-    expect(slider).toHaveAttribute("max", "250000");
-    expect(slider).toHaveAttribute("value", "125000");
-    fireEvent.change(slider, { target: { value: "250000" } });
-    fireEvent.click(screen.getByRole("button", { name: "发布一次合成编辑" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "生成档案引导的几何预览" }),
+    );
     await waitFor(() =>
       expect(screen.getByText(/服务暂时不可用/)).toBeVisible(),
     );
     fireEvent.click(screen.getByRole("button", { name: "重试当前步骤" }));
-    await waitFor(
-      () =>
-        expect(
-          screen.getByText("一版合成编辑结果已通过验证并发布。"),
-        ).toBeVisible(),
-      { timeout: 2_500 },
+    await screen.findByRole("img", { name: "编辑后合成图" });
+    expect(screen.queryByRole("slider")).toBeNull();
+    const previewPosts = fetchMock.mock.calls.filter(
+      ([path, init]) =>
+        path === "/api/demo/self-transfer" && init?.method === "POST",
     );
-    const editPosts = fetchMock.mock.calls.filter(
-      ([path, init]) => path === "/api/demo/edit" && init?.method === "POST",
-    );
-    expect(editPosts).toHaveLength(2);
-    expect(editPosts.map(([, init]) => init?.body)).toEqual([
-      JSON.stringify({ operation: "CROP", value_ppm: 250_000 }),
-      JSON.stringify({ operation: "CROP", value_ppm: 250_000 }),
+    expect(previewPosts).toHaveLength(2);
+    expect(previewPosts.map(([, init]) => init?.body)).toEqual([
+      JSON.stringify({ action: "PROFILE_GUIDED_GEOMETRY_PREVIEW" }),
+      JSON.stringify({ action: "PROFILE_GUIDED_GEOMETRY_PREVIEW" }),
     ]);
   });
 
@@ -449,5 +451,126 @@ describe("DemoRealFlowWorkspace", () => {
           path === "/api/demo/analysis" && init?.method !== "POST",
       ),
     ).toHaveLength(120);
+  });
+
+  it("requires both geometry previews to load before an explicit final save", async () => {
+    const mediaToken = "a".repeat(64);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ status: "SESSION_READY" }, 201))
+      .mockResolvedValueOnce(response({ status: "PENDING" }, 202))
+      .mockResolvedValueOnce(
+        response({
+          status: "COMPLETED",
+          analysis_state: "SUPPORTED",
+          self_state: "READY",
+        }),
+      )
+      .mockResolvedValueOnce(response({ status: "COMPLETED" }))
+      .mockResolvedValueOnce(response({ status: "PROFILE_READY" }))
+      .mockResolvedValueOnce(
+        response({
+          status: "PREVIEW_READY",
+          input_image_url: `/api/demo/self-transfer/media/${mediaToken}/INPUT`,
+          result_image_url: `/api/demo/self-transfer/media/${mediaToken}/RESULT`,
+          dimension_key: "jaw_width",
+          direction: "DECREASE",
+          step_ppm: 15000,
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({ status: "REFERENCE_PROFILE_PENDING" }, 202),
+      )
+      .mockResolvedValueOnce(response({ status: "REFERENCE_PROFILE_READY" }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<DemoRealFlowWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "开始 Demo" }));
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole("button", { name: "开始偏好问卷" }),
+        ).toBeVisible(),
+      { timeout: 2_500 },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "开始偏好问卷" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "生成档案引导的几何预览" }),
+      ).toBeVisible(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "生成档案引导的几何预览" }),
+    );
+    const before = await screen.findByRole("img", { name: "编辑前合成图" });
+    const after = screen.getByRole("img", { name: "编辑后合成图" });
+    const accept = screen.getByRole("button", { name: "最终保存并用作参考" });
+    expect(accept).toBeDisabled();
+    expect(screen.queryByRole("slider")).toBeNull();
+    expect(screen.getByText("下颌宽度 · 减少 · 1.5%")).toBeVisible();
+    fireEvent.load(before);
+    fireEvent.load(after);
+    await waitFor(() => expect(accept).toBeEnabled());
+    fireEvent.error(after);
+    expect(accept).toBeDisabled();
+    fireEvent.load(after);
+    await waitFor(() => expect(accept).toBeEnabled());
+    fireEvent.click(accept);
+    await screen.findByText("已保存，参考档案待恢复");
+    await waitFor(
+      () => expect(screen.getByText("已保存并更新参考档案")).toBeVisible(),
+      { timeout: 2_500 },
+    );
+    const acceptRequest = fetchMock.mock.calls.find(
+      ([path, init]) =>
+        path === "/api/demo/self-transfer/accept" && init?.method === "POST",
+    );
+    expect(JSON.parse(acceptRequest?.[1]?.body as string)).toEqual({
+      outcome: "FINAL_SAVE_AND_USE_AS_REFERENCE",
+    });
+    expect(
+      fetchMock.mock.calls.filter(
+        ([path, init]) =>
+          path === "/api/demo/self-transfer/accept" && init?.method === "POST",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("projects no-compatible-case and recovery-required without rendering media", async () => {
+    const profileResponses = [
+      response({ status: "SESSION_READY" }, 201),
+      response({ status: "PENDING" }, 202),
+      response({
+        status: "COMPLETED",
+        analysis_state: "SUPPORTED",
+        self_state: "READY",
+      }),
+      response({ status: "COMPLETED" }),
+      response({ status: "PROFILE_READY" }),
+      response({ status: "NO_COMPATIBLE_CASE" }),
+    ];
+    const fetchMock = vi.fn();
+    for (const item of profileResponses) fetchMock.mockResolvedValueOnce(item);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<DemoRealFlowWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "开始 Demo" }));
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole("button", { name: "开始偏好问卷" }),
+        ).toBeVisible(),
+      { timeout: 2_500 },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "开始偏好问卷" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "生成档案引导的几何预览" }),
+      ).toBeVisible(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "生成档案引导的几何预览" }),
+    );
+    await screen.findByText("当前档案暂无可用的安全几何步骤");
+    expect(screen.queryByRole("img", { name: "编辑前合成图" })).toBeNull();
+    expect(document.body.textContent).not.toMatch(/digest|bearer|locator/i);
   });
 });

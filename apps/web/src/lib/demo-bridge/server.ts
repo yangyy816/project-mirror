@@ -35,6 +35,7 @@ type BoundSession = Readonly<{
   questionnaire?: BoundQuestionnaire;
   profile?: BoundProfile;
   edit?: BoundEdit;
+  selfTransfer?: BoundSelfTransfer;
 }>;
 
 type BoundAnalysis = Readonly<{
@@ -140,6 +141,44 @@ type BoundEdit = Readonly<{
   result?: BoundPublishedEdit;
   terminalStatus?: ProfileTerminalStatus;
   progressPromise?: Promise<DemoEditBridgeResult>;
+}>;
+
+type SelfTransferStage =
+  | "EDIT_SESSION_CREATE"
+  | "EDIT_SESSION_POLL"
+  | "PLAN_CREATE"
+  | "PLAN_POLL"
+  | "EXECUTION_CREATE"
+  | "EXECUTION_POLL"
+  | "RESULT_READ"
+  | "PREVIEW_READY"
+  | "ACCEPTING"
+  | "REFERENCE_PENDING"
+  | "REFERENCE_READY";
+type BoundSelfTransfer = Readonly<{
+  generation: number;
+  stage: SelfTransferStage;
+  editSessionIdempotencyKey: string;
+  planIdempotencyKey: string;
+  executionIdempotencyKey: string;
+  acceptIdempotencyKey: string;
+  editSession?: BoundJobAuthority;
+  plan?: BoundJobAuthority;
+  execution?: BoundJobAuthority;
+  result?: BoundPublishedEdit;
+  preview?: Readonly<{
+    dimensionKey: "chin_height" | "eye_spacing" | "jaw_width";
+    direction: "INCREASE" | "DECREASE";
+    stepPpm: 15000 | 30000;
+  }>;
+  mediaToken?: string;
+  mediaExpiresAtMs?: number;
+  referenceJobId?: string;
+  referenceJobBindingDigest?: string;
+  referenceTargetId?: string;
+  referenceTargetDigest?: string;
+  progressPromise?: Promise<DemoSelfTransferBridgeResult>;
+  acceptPromise?: Promise<DemoSelfTransferBridgeResult>;
 }>;
 
 type BridgeConfiguration = Readonly<{
@@ -1976,4 +2015,708 @@ export function sessionCookieOptions(maxAge: number) {
     maxAge,
     secure: process.env.NODE_ENV === "production",
   };
+}
+
+export type DemoSelfTransferBridgeResult =
+  | Readonly<{ kind: "PENDING" }>
+  | Readonly<{
+      kind: "PREVIEW_READY";
+      dimensionKey: "chin_height" | "eye_spacing" | "jaw_width";
+      direction: "INCREASE" | "DECREASE";
+      stepPpm: 15000 | 30000;
+      mediaToken: string;
+    }>
+  | Readonly<{ kind: "REFERENCE_PROFILE_PENDING" | "REFERENCE_PROFILE_READY" }>
+  | Readonly<{
+      kind:
+        | "NO_COMPATIBLE_CASE"
+        | "FAILED"
+        | "UNAVAILABLE"
+        | "DENIED"
+        | "NOT_FOUND"
+        | "CONFLICT"
+        | "STALE_RESPONSE";
+    }>;
+
+function currentSelfTransferEntry(
+  handle: string,
+  session: BoundSession,
+  transfer: BoundSelfTransfer,
+) {
+  const current = currentBoundSession(handle);
+  return (
+    current?.session === session && current.session.selfTransfer === transfer
+  );
+}
+
+function settleSelfTransfer(
+  handle: string,
+  session: BoundSession,
+  transfer: BoundSelfTransfer,
+  update: Partial<BoundSelfTransfer> = {},
+) {
+  const next: BoundSelfTransfer = {
+    ...transfer,
+    ...update,
+    progressPromise: undefined,
+    acceptPromise: undefined,
+  };
+  sessions.set(handle, { ...session, selfTransfer: next });
+  return next;
+}
+
+function selfTransferState(
+  transfer: BoundSelfTransfer,
+): DemoSelfTransferBridgeResult {
+  if (
+    transfer.stage === "PREVIEW_READY" &&
+    transfer.preview &&
+    transfer.mediaToken
+  )
+    return {
+      kind: "PREVIEW_READY",
+      ...transfer.preview,
+      mediaToken: transfer.mediaToken,
+    };
+  if (transfer.stage === "REFERENCE_PENDING")
+    return { kind: "REFERENCE_PROFILE_PENDING" };
+  if (transfer.stage === "REFERENCE_READY")
+    return { kind: "REFERENCE_PROFILE_READY" };
+  return { kind: "PENDING" };
+}
+
+function profileGeometryPreview(
+  value: unknown,
+): BoundSelfTransfer["preview"] | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  return (item.dimension_key === "chin_height" ||
+    item.dimension_key === "eye_spacing" ||
+    item.dimension_key === "jaw_width") &&
+    (item.direction === "INCREASE" || item.direction === "DECREASE") &&
+    (item.step_ppm === 15000 || item.step_ppm === 30000)
+    ? {
+        dimensionKey: item.dimension_key,
+        direction: item.direction,
+        stepPpm: item.step_ppm,
+      }
+    : null;
+}
+
+type JsonUpstreamResponse = Readonly<{
+  response: Response;
+  data?: unknown;
+  error?: unknown;
+}>;
+
+function upstreamErrorCode(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const code = (value as Record<string, unknown>).code;
+  return typeof code === "string" ? code : null;
+}
+
+/** JSON operations must stay on the generated client.  Binary media is the
+ * sole deliberately raw server-side fetch below. */
+async function selfTransferJson(
+  configuration: BridgeConfiguration,
+  session: BoundSession,
+  transfer: BoundSelfTransfer,
+): Promise<JsonUpstreamResponse | null> {
+  const client = createMirrorApiClient(serverEnv.API_BASE_URL);
+  const headers = { Authorization: `Bearer ${configuration.bearer}` };
+  const cast = (value: unknown) => value as JsonUpstreamResponse;
+  switch (transfer.stage) {
+    case "EDIT_SESSION_CREATE":
+      return client
+        .POST("/api/v1/demo/editing-sessions", {
+          cache: "no-store",
+          params: {
+            header: { "Idempotency-Key": transfer.editSessionIdempotencyKey },
+          },
+          body: {
+            session_id: session.sessionId,
+            source_selector: "SESSION_CANONICAL_ASSET",
+          },
+          headers,
+        })
+        .then(cast)
+        .catch(() => null);
+    case "EDIT_SESSION_POLL":
+    case "PLAN_POLL":
+    case "EXECUTION_POLL": {
+      const authority =
+        transfer.stage === "EDIT_SESSION_POLL"
+          ? transfer.editSession
+          : transfer.stage === "PLAN_POLL"
+            ? transfer.plan
+            : transfer.execution;
+      if (!authority) return null;
+      return client
+        .GET("/api/v1/demo/jobs/{job_id}", {
+          cache: "no-store",
+          params: { path: { job_id: authority.jobId } },
+          headers,
+        })
+        .then(cast)
+        .catch(() => null);
+    }
+    case "PLAN_CREATE":
+      if (!transfer.editSession) return null;
+      return client
+        .POST(
+          "/api/v1/demo/editing-sessions/{editing_session_id}/profile-geometry-plans",
+          {
+            cache: "no-store",
+            params: {
+              path: { editing_session_id: transfer.editSession.targetId },
+              header: { "Idempotency-Key": transfer.planIdempotencyKey },
+            },
+            body: {
+              selection_policy_version: "demo-profile-guided-d08-step-v1",
+            },
+            headers,
+          },
+        )
+        .then(cast)
+        .catch(() => null);
+    case "EXECUTION_CREATE":
+      if (!transfer.plan) return null;
+      return client
+        .POST("/api/v1/demo/edit-plans/{edit_plan_id}/executions", {
+          cache: "no-store",
+          params: {
+            path: { edit_plan_id: transfer.plan.targetId },
+            header: { "Idempotency-Key": transfer.executionIdempotencyKey },
+          },
+          body: {
+            execution_mode: "GEOMETRY",
+            expected_plan_digest: transfer.plan.targetAuthorityDigest,
+          },
+          headers,
+        })
+        .then(cast)
+        .catch(() => null);
+    case "RESULT_READ":
+      if (!transfer.execution) return null;
+      return client
+        .GET("/api/v1/demo/edit-plans/execution-jobs/{job_id}/result", {
+          cache: "no-store",
+          params: { path: { job_id: transfer.execution.jobId } },
+          headers,
+        })
+        .then(cast)
+        .catch(() => null);
+    case "REFERENCE_PENDING":
+      if (!transfer.referenceJobId) return null;
+      return client
+        .GET("/api/v1/demo/jobs/{job_id}", {
+          cache: "no-store",
+          params: { path: { job_id: transfer.referenceJobId } },
+          headers,
+        })
+        .then(cast)
+        .catch(() => null);
+    default:
+      return null;
+  }
+}
+
+async function advanceSelfTransfer(
+  handle: string,
+  session: BoundSession,
+  transfer: BoundSelfTransfer,
+  configuration: BridgeConfiguration,
+): Promise<DemoSelfTransferBridgeResult> {
+  const stage = transfer.stage;
+  if (stage === "PREVIEW_READY" || stage === "REFERENCE_READY")
+    return selfTransferState(transfer);
+  const response = await selfTransferJson(configuration, session, transfer);
+  if (!currentSelfTransferEntry(handle, session, transfer))
+    return { kind: "DENIED" };
+  if (!response) {
+    settleSelfTransfer(handle, session, transfer);
+    return { kind: "UNAVAILABLE" };
+  }
+  const body = response.data ?? null;
+  if (stage === "REFERENCE_PENDING") {
+    const value = body as Record<string, unknown> | null;
+    const target = value?.target as Record<string, unknown> | undefined;
+    if (
+      !value ||
+      value.job_id !== transfer.referenceJobId ||
+      value.capability !== "P5_REFERENCE_PROFILE" ||
+      !validUpstreamDigest(value.job_binding_digest) ||
+      (transfer.referenceJobBindingDigest !== undefined &&
+        value.job_binding_digest !== transfer.referenceJobBindingDigest) ||
+      !target ||
+      target.target_type !== "REFERENCE_PROFILE_REQUEST" ||
+      !validUpstreamId(target.target_id) ||
+      !validUpstreamDigest(target.authority_digest) ||
+      (transfer.referenceTargetId !== undefined &&
+        target.target_id !== transfer.referenceTargetId) ||
+      (transfer.referenceTargetDigest !== undefined &&
+        target.authority_digest !== transfer.referenceTargetDigest)
+    ) {
+      settleSelfTransfer(handle, session, transfer);
+      return { kind: "STALE_RESPONSE" };
+    }
+    if (value.status === "PENDING" || value.status === "RUNNING") {
+      settleSelfTransfer(handle, session, transfer, {
+        referenceJobBindingDigest: value.job_binding_digest,
+        referenceTargetId: target.target_id,
+        referenceTargetDigest: target.authority_digest,
+      });
+      return { kind: "REFERENCE_PROFILE_PENDING" };
+    }
+    if (value.status === "COMPLETED") {
+      const referenceJobId = transfer.referenceJobId;
+      if (!referenceJobId) return { kind: "STALE_RESPONSE" };
+      const resultResponse = await createMirrorApiClient(serverEnv.API_BASE_URL)
+        .GET(
+          "/api/v1/demo/reference-profiles/compilation-jobs/{job_id}/result",
+          {
+            cache: "no-store",
+            params: { path: { job_id: referenceJobId } },
+            headers: { Authorization: `Bearer ${configuration.bearer}` },
+          },
+        )
+        .then((value) => value as JsonUpstreamResponse)
+        .catch(() => null);
+      if (
+        !currentSelfTransferEntry(handle, session, transfer) ||
+        !resultResponse
+      )
+        return { kind: "DENIED" };
+      const result = resultResponse.data as Record<string, unknown> | null;
+      if (
+        resultResponse.error ||
+        !result ||
+        result.status !== "REFERENCE_PROFILE_READY" ||
+        result.job_id !== transfer.referenceJobId ||
+        result.session_id !== session.sessionId ||
+        result.job_binding_digest !== value.job_binding_digest ||
+        !validUpstreamId(result.reference_profile_id) ||
+        !validUpstreamDigest(result.compilation_digest) ||
+        !validUpstreamDigest(result.profile_digest)
+      ) {
+        settleSelfTransfer(handle, session, transfer);
+        return { kind: "STALE_RESPONSE" };
+      }
+      settleSelfTransfer(handle, session, transfer, {
+        stage: "REFERENCE_READY",
+        referenceJobBindingDigest: value.job_binding_digest,
+        referenceTargetId: target.target_id,
+        referenceTargetDigest: target.authority_digest,
+      });
+      return { kind: "REFERENCE_PROFILE_READY" };
+    }
+    settleSelfTransfer(handle, session, transfer);
+    return { kind: "REFERENCE_PROFILE_PENDING" };
+  }
+  if (
+    stage === "PLAN_CREATE" &&
+    response.response.status === 409 &&
+    upstreamErrorCode(response.error) ===
+      "DEMO_PROFILE_GEOMETRY_STEP_UNAVAILABLE"
+  ) {
+    settleSelfTransfer(handle, session, transfer);
+    return { kind: "NO_COMPATIBLE_CASE" };
+  }
+  if (response.error) {
+    settleSelfTransfer(handle, session, transfer);
+    return {
+      kind: response.response.status === 503 ? "UNAVAILABLE" : "FAILED",
+    };
+  }
+  if (
+    stage === "EDIT_SESSION_CREATE" ||
+    stage === "PLAN_CREATE" ||
+    stage === "EXECUTION_CREATE"
+  ) {
+    const authority = acceptedEditJob(
+      body,
+      stage === "EDIT_SESSION_CREATE" ? "EDITING_SESSION" : "EDIT_PLAN",
+      stage === "EXECUTION_CREATE" && transfer.plan
+        ? {
+            id: transfer.plan.targetId,
+            digest: transfer.plan.targetAuthorityDigest,
+          }
+        : undefined,
+    );
+    if (!authority) {
+      settleSelfTransfer(handle, session, transfer);
+      return { kind: "STALE_RESPONSE" };
+    }
+    if (stage === "PLAN_CREATE") {
+      const preview = profileGeometryPreview(
+        (body as Record<string, unknown>).preview,
+      );
+      if (!preview) {
+        settleSelfTransfer(handle, session, transfer);
+        return { kind: "STALE_RESPONSE" };
+      }
+      settleSelfTransfer(handle, session, transfer, {
+        stage: "PLAN_POLL",
+        plan: authority,
+        preview,
+      });
+    } else
+      settleSelfTransfer(
+        handle,
+        session,
+        transfer,
+        stage === "EDIT_SESSION_CREATE"
+          ? { stage: "EDIT_SESSION_POLL", editSession: authority }
+          : { stage: "EXECUTION_POLL", execution: authority },
+      );
+    return { kind: "PENDING" };
+  }
+  if (stage === "RESULT_READ") {
+    const resultAuthority: BoundEdit = {
+      request: { operation: "CROP", valuePpm: 1 },
+      stage: "READY",
+      editSessionIdempotencyKey: "",
+      planIdempotencyKey: "",
+      executionIdempotencyKey: "",
+      editSession: transfer.editSession,
+      plan: transfer.plan,
+      execution: transfer.execution,
+    };
+    if (!publishedEditIsValid(body, session, resultAuthority)) {
+      settleSelfTransfer(handle, session, transfer);
+      return { kind: "STALE_RESPONSE" };
+    }
+    const item = body as Record<string, unknown>;
+    const result: BoundPublishedEdit = {
+      toolRunId: item.tool_run_id as string,
+      toolRunDigest: item.tool_run_digest as string,
+      verificationResultId: item.verification_result_id as string,
+      verifierDigest: item.verifier_digest as string,
+      imageVersionId: item.image_version_id as string,
+      imageVersionDigest: item.image_version_digest as string,
+      sequence: item.sequence as number,
+      parentImageVersionId: item.parent_image_version_id as string,
+      resultAssetId: item.result_asset_id as string,
+      resultAssetSha256: item.result_asset_sha256 as string,
+    };
+    const token = randomBytes(32).toString("hex");
+    const mediaExpiresAtMs = Math.min(
+      Date.now() + 300_000,
+      session.expiresAtMs,
+    );
+    settleSelfTransfer(handle, session, transfer, {
+      stage: "PREVIEW_READY",
+      result,
+      mediaToken: token,
+      mediaExpiresAtMs,
+    });
+    return selfTransferState({
+      ...transfer,
+      stage: "PREVIEW_READY",
+      result,
+      mediaToken: token,
+      mediaExpiresAtMs,
+    });
+  }
+  const authority =
+    stage === "EDIT_SESSION_POLL"
+      ? transfer.editSession
+      : stage === "PLAN_POLL"
+        ? transfer.plan
+        : transfer.execution;
+  const targetType =
+    stage === "EDIT_SESSION_POLL" ? "EDITING_SESSION" : "EDIT_PLAN";
+  const completeCode =
+    stage === "EDIT_SESSION_POLL"
+      ? "EDITING_SESSION_INITIALIZED"
+      : stage === "PLAN_POLL"
+        ? "EDIT_PLAN_READY"
+        : "EDIT_EXECUTION_COMPLETED";
+  if (!authority) {
+    settleSelfTransfer(handle, session, transfer);
+    return { kind: "STALE_RESPONSE" };
+  }
+  const status = editJobStatus(body, authority, targetType, completeCode);
+  if (!status) {
+    settleSelfTransfer(handle, session, transfer);
+    return { kind: "STALE_RESPONSE" };
+  }
+  if (status === "PENDING" || status === "RUNNING") {
+    settleSelfTransfer(handle, session, transfer);
+    return { kind: "PENDING" };
+  }
+  if (status !== "COMPLETED") {
+    settleSelfTransfer(handle, session, transfer);
+    return { kind: "FAILED" };
+  }
+  settleSelfTransfer(handle, session, transfer, {
+    stage:
+      stage === "EDIT_SESSION_POLL"
+        ? "PLAN_CREATE"
+        : stage === "PLAN_POLL"
+          ? "EXECUTION_CREATE"
+          : "RESULT_READ",
+  });
+  return { kind: "PENDING" };
+}
+
+async function progressSelfTransfer(
+  handle: string,
+  session: BoundSession,
+  transfer: BoundSelfTransfer,
+  configuration: BridgeConfiguration,
+) {
+  if (transfer.progressPromise) return transfer.progressPromise;
+  const inFlight = {
+    ...transfer,
+    progressPromise: null as unknown as Promise<DemoSelfTransferBridgeResult>,
+  };
+  const inFlightSession = { ...session, selfTransfer: inFlight };
+  const promise = advanceSelfTransfer(
+    handle,
+    inFlightSession,
+    inFlight,
+    configuration,
+  );
+  inFlight.progressPromise = promise;
+  if (sessions.get(handle) !== session)
+    return { kind: "DENIED" } as DemoSelfTransferBridgeResult;
+  sessions.set(handle, inFlightSession);
+  return promise;
+}
+
+export async function createBoundDemoSelfTransfer(
+  handle: string | undefined,
+): Promise<DemoSelfTransferBridgeResult> {
+  const bound = currentBoundSession(handle);
+  if (!bound || !handle) return { kind: "DENIED" };
+  if (
+    !bound.session.profile?.profileId ||
+    !bound.session.profile.compilationDigest
+  )
+    return { kind: "CONFLICT" };
+  const prior = bound.session.selfTransfer;
+  if (prior)
+    return progressSelfTransfer(
+      handle,
+      bound.session,
+      prior,
+      bound.configuration,
+    );
+  const transfer: BoundSelfTransfer = {
+    generation: 1,
+    stage: "EDIT_SESSION_CREATE",
+    editSessionIdempotencyKey: randomBytes(32).toString("hex"),
+    planIdempotencyKey: randomBytes(32).toString("hex"),
+    executionIdempotencyKey: randomBytes(32).toString("hex"),
+    acceptIdempotencyKey: randomBytes(32).toString("hex"),
+  };
+  return progressSelfTransfer(
+    handle,
+    bound.session,
+    transfer,
+    bound.configuration,
+  );
+}
+
+export async function readBoundDemoSelfTransfer(
+  handle: string | undefined,
+): Promise<DemoSelfTransferBridgeResult> {
+  const bound = currentBoundSession(handle);
+  if (!bound || !handle) return { kind: "DENIED" };
+  const transfer = bound.session.selfTransfer;
+  if (!transfer) return { kind: "NOT_FOUND" };
+  return progressSelfTransfer(
+    handle,
+    bound.session,
+    transfer,
+    bound.configuration,
+  );
+}
+
+export async function acceptBoundDemoSelfTransfer(
+  handle: string | undefined,
+): Promise<DemoSelfTransferBridgeResult> {
+  const bound = currentBoundSession(handle);
+  const transfer = bound?.session.selfTransfer;
+  if (!bound || !handle || !transfer) return { kind: "DENIED" };
+  if (
+    transfer.stage === "REFERENCE_PENDING" ||
+    transfer.stage === "REFERENCE_READY"
+  )
+    return selfTransferState(transfer);
+  if (transfer.acceptPromise) return transfer.acceptPromise;
+  if (
+    transfer.stage !== "PREVIEW_READY" ||
+    !transfer.execution ||
+    !transfer.result
+  )
+    return { kind: "CONFLICT" };
+  const inFlight = {
+    ...transfer,
+    stage: "ACCEPTING" as const,
+    acceptPromise: null as unknown as Promise<DemoSelfTransferBridgeResult>,
+  };
+  const inFlightSession = { ...bound.session, selfTransfer: inFlight };
+  const promise = (async (): Promise<DemoSelfTransferBridgeResult> => {
+    const client = createMirrorApiClient(serverEnv.API_BASE_URL);
+    const postAcceptance = () =>
+      client.POST(
+        "/api/v1/demo/edit-plans/execution-jobs/{job_id}/accept-as-reference",
+        {
+          cache: "no-store",
+          params: {
+            path: { job_id: transfer.execution!.jobId },
+            header: { "Idempotency-Key": transfer.acceptIdempotencyKey },
+          },
+          body: { outcome: "FINAL_SAVE_AND_USE_AS_REFERENCE" },
+          headers: { Authorization: `Bearer ${bound.configuration.bearer}` },
+        },
+      );
+    let response = await postAcceptance()
+      .then((value) => value as JsonUpstreamResponse)
+      .catch(() => null);
+    if (!currentSelfTransferEntry(handle, inFlightSession, inFlight))
+      return { kind: "DENIED" };
+    const body = response?.data ?? null;
+    if (!response || response.error || !body || typeof body !== "object") {
+      settleSelfTransfer(handle, inFlightSession, inFlight, {
+        stage: "PREVIEW_READY",
+      });
+      return {
+        kind:
+          !response || response.response.status === 503
+            ? "UNAVAILABLE"
+            : "FAILED",
+      };
+    }
+    const value = body as Record<string, unknown>;
+    // A recovery response deliberately has no job. Replaying the exact original
+    // idempotency key asks the coordinator to reconcile its already-committed
+    // Final Save, never to create a second acceptance.
+    if (
+      value.status === "REFERENCE_PROFILE_PENDING" &&
+      value.queue_state === "RECOVERY_REQUIRED" &&
+      value.reference_profile_job_id === null
+    ) {
+      response = await postAcceptance()
+        .then((retry) => retry as JsonUpstreamResponse)
+        .catch(() => null);
+      const replay = response?.data ?? null;
+      if (
+        !response ||
+        response.error ||
+        !replay ||
+        typeof replay !== "object"
+      ) {
+        settleSelfTransfer(handle, inFlightSession, inFlight, {
+          stage: "PREVIEW_READY",
+        });
+        return { kind: "UNAVAILABLE" };
+      }
+      Object.assign(value, replay as Record<string, unknown>);
+    }
+    if (
+      (value.status !== "REFERENCE_PROFILE_PENDING" &&
+        value.status !== "REFERENCE_PROFILE_READY") ||
+      !validUpstreamId(value.reference_profile_job_id)
+    ) {
+      settleSelfTransfer(handle, inFlightSession, inFlight, {
+        stage: "PREVIEW_READY",
+      });
+      return { kind: "STALE_RESPONSE" };
+    }
+    settleSelfTransfer(handle, inFlightSession, inFlight, {
+      // An accept response only establishes the retained job. Even an upstream
+      // READY hint must pass the exact job/result authority chain before it can
+      // reach the browser projection.
+      stage: "REFERENCE_PENDING",
+      referenceJobId: value.reference_profile_job_id,
+    });
+    return { kind: "REFERENCE_PROFILE_PENDING" };
+  })();
+  inFlight.acceptPromise = promise;
+  if (sessions.get(handle) !== bound.session) return { kind: "DENIED" };
+  sessions.set(handle, inFlightSession);
+  return promise;
+}
+
+export async function fetchBoundDemoSelfTransferMedia(
+  handle: string | undefined,
+  token: string,
+  side: "INPUT" | "RESULT",
+): Promise<Response | null> {
+  const bound = currentBoundSession(handle);
+  const transfer = bound?.session.selfTransfer;
+  if (
+    !bound ||
+    !handle ||
+    !transfer ||
+    transfer.stage !== "PREVIEW_READY" ||
+    !transfer.execution ||
+    transfer.mediaToken !== token ||
+    !transfer.mediaExpiresAtMs ||
+    transfer.mediaExpiresAtMs <= Date.now() ||
+    !/^[a-f0-9]{64}$/.test(token)
+  )
+    return null;
+  const expectedSession = bound.session;
+  const expectedTransfer = transfer;
+  const expiresAtMs = transfer.mediaExpiresAtMs;
+  const response = await fetch(
+    new URL(
+      `/api/v1/demo/edit-plans/execution-jobs/${transfer.execution.jobId}/media/${side}`,
+      serverEnv.API_BASE_URL,
+    ),
+    {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${bound.configuration.bearer}` },
+    },
+  ).catch(() => null);
+  if (
+    !response ||
+    !response.ok ||
+    response.headers.get("content-type")?.toLowerCase() !== "image/jpeg"
+  )
+    return null;
+  const length = response.headers.get("content-length");
+  if (!length || !/^\d+$/.test(length) || Number(length) > 10 * 1024 * 1024)
+    return null;
+  const content = await response.arrayBuffer().catch(() => null);
+  if (
+    !content ||
+    content.byteLength !== Number(length) ||
+    !expiresAtMs ||
+    expiresAtMs <= Date.now() ||
+    !currentSelfTransferEntry(handle, expectedSession, expectedTransfer)
+  )
+    return null;
+  return new Response(content, {
+    status: 200,
+    headers: {
+      "Content-Type": "image/jpeg",
+      "Content-Length": String(content.byteLength),
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
+export function selfTransferProjection(result: DemoSelfTransferBridgeResult) {
+  if (result.kind === "PREVIEW_READY")
+    return {
+      status: result.kind,
+      dimension_key: result.dimensionKey,
+      direction: result.direction,
+      step_ppm: result.stepPpm,
+      input_image_url: `/api/demo/self-transfer/media/${result.mediaToken}/INPUT`,
+      result_image_url: `/api/demo/self-transfer/media/${result.mediaToken}/RESULT`,
+    };
+  return result.kind === "PENDING" ||
+    result.kind === "REFERENCE_PROFILE_PENDING" ||
+    result.kind === "REFERENCE_PROFILE_READY" ||
+    result.kind === "NO_COMPATIBLE_CASE" ||
+    result.kind === "FAILED"
+    ? { status: result.kind }
+    : { code: result.kind };
 }

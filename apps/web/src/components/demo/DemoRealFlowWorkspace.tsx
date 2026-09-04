@@ -6,14 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Badge, Button } from "@mirror/ui";
 
-type Phase = "analysis" | "questionnaire" | "profile" | "edit";
-type EditOperation =
-  | "CROP"
-  | "ROTATE"
-  | "EXPOSURE"
-  | "CONTRAST"
-  | "SATURATION"
-  | "TEMPERATURE";
+type Phase = "analysis" | "questionnaire" | "profile";
 type Choice = "LEFT" | "RIGHT" | "INDISTINGUISHABLE" | "SKIP";
 type Question = Readonly<{
   presentationToken: string;
@@ -41,14 +34,28 @@ type State =
   | { kind: "PROFILE_STARTING" }
   | { kind: "PROFILE_PENDING" }
   | { kind: "PROFILE_READY" }
-  | { kind: "EDIT_STARTING" }
-  | { kind: "EDIT_PENDING" }
-  | { kind: "IMAGE_VERSION_READY" }
+  | { kind: "SELF_TRANSFER_STARTING" }
+  | { kind: "SELF_TRANSFER_PENDING" }
+  | {
+      kind: "PREVIEW_READY";
+      inputUrl: string;
+      resultUrl: string;
+      dimension: string;
+      direction: string;
+      stepPpm: number;
+      inputLoaded: boolean;
+      resultLoaded: boolean;
+    }
+  | { kind: "SELF_TRANSFER_SAVING" }
+  | { kind: "REFERENCE_PROFILE_PENDING" }
+  | { kind: "REFERENCE_PROFILE_READY" }
+  | { kind: "NO_COMPATIBLE_CASE" }
   | {
       kind: "ERROR";
       phase: Phase | "session";
       code: string;
       answerSubmission?: AnswerSubmission;
+      retrySelfTransfer?: true;
     };
 
 const errorMessages: Record<string, string> = {
@@ -63,6 +70,18 @@ const errorMessages: Record<string, string> = {
   CANCELLED: "处理已取消。",
   POLL_TIMEOUT: "等待时间已到，请重试当前步骤。",
   LOGOUT_UNAVAILABLE: "结束 Demo 尚未完成，请重试清理会话。",
+  RECOVERY_REQUIRED: "该预览需要恢复后才能继续，请重新生成安全预览。",
+};
+
+const geometryDimensionLabels: Record<string, string> = {
+  chin_height: "下巴高度",
+  eye_spacing: "眼距",
+  jaw_width: "下颌宽度",
+};
+
+const geometryDirectionLabels: Record<string, string> = {
+  INCREASE: "增加",
+  DECREASE: "减少",
 };
 
 function currentTimeMs() {
@@ -99,12 +118,20 @@ function describe(state: State) {
       return "偏好档案正在准备。";
     case "PROFILE_READY":
       return "偏好档案已准备完成。";
-    case "EDIT_STARTING":
-      return "正在提交合成编辑。";
-    case "EDIT_PENDING":
-      return "合成编辑正在执行和验证。";
-    case "IMAGE_VERSION_READY":
-      return "一版合成编辑结果已通过验证并发布。";
+    case "SELF_TRANSFER_STARTING":
+      return "正在准备档案引导的几何预览。";
+    case "SELF_TRANSFER_PENDING":
+      return "档案引导的几何编辑正在执行和验证。";
+    case "PREVIEW_READY":
+      return "请确认编辑前后合成图，再决定是否最终保存。";
+    case "SELF_TRANSFER_SAVING":
+      return "正在最终保存并建立参考档案。";
+    case "REFERENCE_PROFILE_PENDING":
+      return "已保存，参考档案待恢复";
+    case "REFERENCE_PROFILE_READY":
+      return "已保存并更新参考档案";
+    case "NO_COMPATIBLE_CASE":
+      return "当前档案暂无可用的安全几何步骤";
     case "ERROR":
       return errorMessages[state.code] ?? "请求未完成，请重试。";
   }
@@ -121,6 +148,7 @@ async function request(path: string, init?: RequestInit) {
 function codeFrom(response: Response, body: unknown) {
   const value = body as { code?: unknown; status?: unknown } | null;
   if (typeof value?.code === "string") return value.code;
+  if (value?.status === "RECOVERY_REQUIRED") return "RECOVERY_REQUIRED";
   if (
     typeof value?.status === "string" &&
     ["FAILED", "REJECTED", "CANCELLED"].includes(value.status)
@@ -178,8 +206,6 @@ export function DemoRealFlowWorkspace() {
   const pollCount = useRef(0);
   const activePhase = useRef<Phase | null>(null);
   const sessionCreation = useRef<Promise<Response> | null>(null);
-  const [editOperation, setEditOperation] = useState<EditOperation>("EXPOSURE");
-  const [editValuePpm, setEditValuePpm] = useState(250_000);
 
   function invalidate() {
     generation.current += 1;
@@ -194,9 +220,16 @@ export function DemoRealFlowWorkspace() {
     code: string,
     token: number,
     answerSubmission?: AnswerSubmission,
+    retrySelfTransfer?: true,
   ) {
     if (generation.current === token)
-      setState({ kind: "ERROR", phase, code, answerSubmission });
+      setState({
+        kind: "ERROR",
+        phase,
+        code,
+        answerSubmission,
+        retrySelfTransfer,
+      });
   }
   function schedulePoll(phase: Phase, token: number) {
     if (generation.current !== token) return;
@@ -245,11 +278,6 @@ export function DemoRealFlowWorkspace() {
       if (phase === "profile" && completedProfile(body)) {
         activePhase.current = null;
         setState({ kind: "PROFILE_READY" });
-        return;
-      }
-      if (phase === "edit" && body?.status === "IMAGE_VERSION_READY") {
-        activePhase.current = null;
-        setState({ kind: "IMAGE_VERSION_READY" });
         return;
       }
       error(phase, codeFrom(response, body), token);
@@ -305,36 +333,125 @@ export function DemoRealFlowWorkspace() {
       error(phase, "UNAVAILABLE", token);
     }
   }
-  async function startEdit(token: number) {
-    activePhase.current = "edit";
+  function selfTransferPreview(body: Record<string, unknown> | null) {
+    const token = body?.input_image_url;
+    const result = body?.result_image_url;
+    if (
+      body?.status !== "PREVIEW_READY" ||
+      typeof token !== "string" ||
+      typeof result !== "string" ||
+      !/^\/api\/demo\/self-transfer\/media\/[a-f0-9]{64}\/INPUT$/.test(token) ||
+      result !== token.replace(/INPUT$/, "RESULT") ||
+      typeof body.dimension_key !== "string" ||
+      !["chin_height", "eye_spacing", "jaw_width"].includes(
+        body.dimension_key,
+      ) ||
+      typeof body.direction !== "string" ||
+      !["INCREASE", "DECREASE"].includes(body.direction) ||
+      (body.step_ppm !== 15000 && body.step_ppm !== 30000)
+    )
+      return null;
+    return {
+      inputUrl: token,
+      resultUrl: result,
+      dimension: body.dimension_key,
+      direction: body.direction,
+      stepPpm: body.step_ppm,
+    };
+  }
+  async function pollSelfTransfer(token: number) {
+    try {
+      const response = await request("/api/demo/self-transfer");
+      const body = (await response.json().catch(() => null)) as Record<
+        string,
+        unknown
+      > | null;
+      if (generation.current !== token) return;
+      const preview = selfTransferPreview(body);
+      if (preview)
+        return setState({
+          kind: "PREVIEW_READY",
+          ...preview,
+          inputLoaded: false,
+          resultLoaded: false,
+        });
+      if (body?.status === "PENDING") return scheduleSelfTransferPoll(token);
+      if (body?.status === "REFERENCE_PROFILE_PENDING") {
+        setState({ kind: "REFERENCE_PROFILE_PENDING" });
+        return scheduleSelfTransferPoll(token);
+      }
+      if (body?.status === "REFERENCE_PROFILE_READY")
+        return setState({ kind: "REFERENCE_PROFILE_READY" });
+      if (body?.status === "NO_COMPATIBLE_CASE")
+        return setState({ kind: "NO_COMPATIBLE_CASE" });
+      return error("profile", codeFrom(response, body), token, undefined, true);
+    } catch {
+      error("profile", "UNAVAILABLE", token, undefined, true);
+    }
+  }
+  function scheduleSelfTransferPoll(token: number) {
+    if (generation.current !== token) return;
+    if (pollCount.current >= 120)
+      return error("profile", "POLL_TIMEOUT", token);
+    pollTimer.current = setTimeout(() => {
+      pollCount.current += 1;
+      void pollSelfTransfer(token);
+    }, 1000);
+  }
+  async function startSelfTransfer(token: number) {
     pollCount.current = 0;
     try {
-      const response = await request("/api/demo/edit", {
+      const response = await request("/api/demo/self-transfer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          operation: editOperation,
-          value_ppm: editValuePpm,
-        }),
+        body: JSON.stringify({ action: "PROFILE_GUIDED_GEOMETRY_PREVIEW" }),
       });
       const body = (await response.json().catch(() => null)) as Record<
         string,
         unknown
       > | null;
       if (generation.current !== token) return;
-      if (!response.ok) return error("edit", codeFrom(response, body), token);
+      const preview = selfTransferPreview(body);
+      if (preview)
+        return setState({
+          kind: "PREVIEW_READY",
+          ...preview,
+          inputLoaded: false,
+          resultLoaded: false,
+        });
       if (body?.status === "PENDING") {
-        setState({ kind: "EDIT_PENDING" });
-        return schedulePoll("edit", token);
+        setState({ kind: "SELF_TRANSFER_PENDING" });
+        return scheduleSelfTransferPoll(token);
       }
-      if (body?.status === "IMAGE_VERSION_READY") {
-        activePhase.current = null;
-        setState({ kind: "IMAGE_VERSION_READY" });
-        return;
-      }
-      error("edit", codeFrom(response, body), token);
+      if (body?.status === "NO_COMPATIBLE_CASE")
+        return setState({ kind: "NO_COMPATIBLE_CASE" });
+      error("profile", codeFrom(response, body), token, undefined, true);
     } catch {
-      error("edit", "UNAVAILABLE", token);
+      error("profile", "UNAVAILABLE", token, undefined, true);
+    }
+  }
+  async function acceptSelfTransfer(token: number) {
+    try {
+      const response = await request("/api/demo/self-transfer/accept", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outcome: "FINAL_SAVE_AND_USE_AS_REFERENCE" }),
+      });
+      const body = (await response.json().catch(() => null)) as Record<
+        string,
+        unknown
+      > | null;
+      if (generation.current !== token) return;
+      if (body?.status === "REFERENCE_PROFILE_PENDING") {
+        setState({ kind: "REFERENCE_PROFILE_PENDING" });
+        pollCount.current = 0;
+        return scheduleSelfTransferPoll(token);
+      }
+      if (body?.status === "REFERENCE_PROFILE_READY")
+        return setState({ kind: "REFERENCE_PROFILE_READY" });
+      error("profile", codeFrom(response, body), token, undefined, true);
+    } catch {
+      error("profile", "UNAVAILABLE", token, undefined, true);
     }
   }
   async function startDemo() {
@@ -474,9 +591,9 @@ export function DemoRealFlowWorkspace() {
       void submitAnswer(state.answerSubmission, token, true);
       return;
     }
-    if (state.phase === "edit") {
-      setState({ kind: "EDIT_STARTING" });
-      void startEdit(token);
+    if (state.retrySelfTransfer) {
+      setState({ kind: "SELF_TRANSFER_STARTING" });
+      void startSelfTransfer(token);
       return;
     }
     setState({
@@ -487,7 +604,7 @@ export function DemoRealFlowWorkspace() {
             ? "QUESTIONNAIRE_STARTING"
             : state.phase === "profile"
               ? "PROFILE_STARTING"
-              : "EDIT_STARTING",
+              : "PROFILE_STARTING",
     });
     void startPhase(state.phase, token);
   }
@@ -537,48 +654,91 @@ export function DemoRealFlowWorkspace() {
         </Button>
       ) : null}
       {state.kind === "PROFILE_READY" ? (
-        <div className="mt-5 grid gap-4 rounded-2xl border border-black/10 p-4 sm:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium">
-            编辑操作
-            <select
-              className="rounded-xl border border-black/20 bg-white px-3 py-2"
-              onChange={(event) => {
-                const operation = event.target.value as EditOperation;
-                setEditOperation(operation);
-                setEditValuePpm(operation === "CROP" ? 125_000 : 250_000);
-              }}
-              value={editOperation}
-            >
-              <option value="EXPOSURE">曝光</option>
-              <option value="CONTRAST">对比度</option>
-              <option value="SATURATION">饱和度</option>
-              <option value="TEMPERATURE">色温</option>
-              <option value="ROTATE">旋转</option>
-              <option value="CROP">裁剪</option>
-            </select>
-          </label>
-          <label className="grid gap-2 text-sm font-medium">
-            调整强度
-            <input
-              aria-valuetext={`${editValuePpm} ppm`}
-              max={editOperation === "CROP" ? 250_000 : 1_000_000}
-              min={editOperation === "CROP" ? 1 : -1_000_000}
-              onChange={(event) => setEditValuePpm(Number(event.target.value))}
-              step={editOperation === "CROP" ? 1_000 : 50_000}
-              type="range"
-              value={editValuePpm}
-            />
-          </label>
+        <div className="mt-5 rounded-2xl border border-black/10 p-4">
           <Button
-            className="sm:col-span-2"
             onClick={() => {
               const token = ++generation.current;
-              setState({ kind: "EDIT_STARTING" });
-              void startEdit(token);
+              setState({ kind: "SELF_TRANSFER_STARTING" });
+              void startSelfTransfer(token);
             }}
             type="button"
           >
-            发布一次合成编辑
+            生成档案引导的几何预览
+          </Button>
+        </div>
+      ) : null}
+      {state.kind === "PREVIEW_READY" ? (
+        <div className="mt-6">
+          <p className="text-sm">
+            {geometryDimensionLabels[state.dimension]} ·{" "}
+            {geometryDirectionLabels[state.direction]} ·{" "}
+            {state.stepPpm === 15000 ? "1.5%" : "3%"}
+          </p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <figure>
+              <img
+                alt="编辑前合成图"
+                className="aspect-square w-full rounded-2xl object-cover"
+                onLoad={() =>
+                  setState((current) =>
+                    current.kind === "PREVIEW_READY" &&
+                    current.inputUrl === state.inputUrl
+                      ? { ...current, inputLoaded: true }
+                      : current,
+                  )
+                }
+                onError={() =>
+                  setState((current) =>
+                    current.kind === "PREVIEW_READY" &&
+                    current.inputUrl === state.inputUrl
+                      ? { ...current, inputLoaded: false }
+                      : current,
+                  )
+                }
+                src={state.inputUrl}
+              />
+              <figcaption className="mt-2 text-center text-sm">
+                编辑前合成图
+              </figcaption>
+            </figure>
+            <figure>
+              <img
+                alt="编辑后合成图"
+                className="aspect-square w-full rounded-2xl object-cover"
+                onLoad={() =>
+                  setState((current) =>
+                    current.kind === "PREVIEW_READY" &&
+                    current.resultUrl === state.resultUrl
+                      ? { ...current, resultLoaded: true }
+                      : current,
+                  )
+                }
+                onError={() =>
+                  setState((current) =>
+                    current.kind === "PREVIEW_READY" &&
+                    current.resultUrl === state.resultUrl
+                      ? { ...current, resultLoaded: false }
+                      : current,
+                  )
+                }
+                src={state.resultUrl}
+              />
+              <figcaption className="mt-2 text-center text-sm">
+                编辑后合成图
+              </figcaption>
+            </figure>
+          </div>
+          <Button
+            className="mt-5"
+            disabled={!state.inputLoaded || !state.resultLoaded}
+            onClick={() => {
+              const token = ++generation.current;
+              setState({ kind: "SELF_TRANSFER_SAVING" });
+              void acceptSelfTransfer(token);
+            }}
+            type="button"
+          >
+            最终保存并用作参考
           </Button>
         </div>
       ) : null}

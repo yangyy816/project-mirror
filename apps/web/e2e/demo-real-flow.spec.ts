@@ -27,9 +27,12 @@ test("completes the same-origin synthetic preference flow without browser author
   page,
 }) => {
   const authorization: string[] = [];
+  const browserPaths: string[] = [];
   page.on("request", (request) => {
-    if (request.url().includes("/api/demo/"))
+    if (request.url().includes("/api/demo/")) {
       authorization.push(request.headers().authorization ?? "");
+      browserPaths.push(new URL(request.url()).pathname);
+    }
   });
   await page.goto("/demo");
   await page.getByRole("button", { name: "开始 Demo" }).click();
@@ -60,14 +63,21 @@ test("completes the same-origin synthetic preference flow without browser author
   await expect(page.getByText("偏好档案已准备完成。")).toBeVisible({
     timeout: 6_000,
   });
-  await page
-    .getByRole("combobox", { name: "编辑操作" })
-    .selectOption("TEMPERATURE");
-  await page.getByRole("slider", { name: "调整强度" }).fill("400000");
-  await page.getByRole("button", { name: "发布一次合成编辑" }).click();
-  await expect(
-    page.getByText("一版合成编辑结果已通过验证并发布。"),
-  ).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: "生成档案引导的几何预览" }).click();
+  const accept = page.getByRole("button", { name: "最终保存并用作参考" });
+  await expect(page.getByRole("img", { name: "编辑前合成图" })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByRole("img", { name: "编辑后合成图" })).toBeVisible();
+  await expect(accept).toBeEnabled({ timeout: 8_000 });
+  await accept.click();
+  await expect(page.getByText("已保存，参考档案待恢复")).toBeVisible();
+  await expect(page.getByText("已保存并更新参考档案")).toBeVisible({
+    timeout: 8_000,
+  });
+  expect(
+    browserPaths.filter((path) => path === "/api/demo/self-transfer/accept"),
+  ).toHaveLength(1);
   expect(authorization).not.toContain(expect.stringMatching(/.+/));
   const content = await page.content();
   for (const value of forbidden) expect(content).not.toContain(value);
@@ -75,6 +85,39 @@ test("completes the same-origin synthetic preference flow without browser author
   expect(
     await page.evaluate(() => localStorage.length + sessionStorage.length),
   ).toBe(0);
+});
+
+test("projects no-compatible geometry safely and invalidates old preview media after logout", async ({
+  page,
+  request,
+}) => {
+  await request.post(`${apiOrigin}/__test/fail-next`, {
+    data: { target: "demo-geometry-no-compatible" },
+  });
+  await page.goto("/demo");
+  await page.getByRole("button", { name: "开始 Demo" }).click();
+  await page.getByRole("button", { name: "开始偏好问卷" }).click({
+    timeout: 8_000,
+  });
+  await page.getByRole("button", { name: "更偏好左侧" }).click({
+    timeout: 8_000,
+  });
+  await page.getByRole("button", { name: "跳过此题" }).click();
+  await page
+    .getByRole("button", { name: "生成档案引导的几何预览" })
+    .click({ timeout: 8_000 });
+  await expect(page.getByText("当前档案暂无可用的安全几何步骤")).toBeVisible({
+    timeout: 8_000,
+  });
+  await page.getByRole("button", { name: "结束 Demo" }).click();
+  await expect(page.getByRole("button", { name: "开始 Demo" })).toBeVisible();
+  expect(
+    await page.evaluate(
+      async () =>
+        (await fetch(`/api/demo/self-transfer/media/${"a".repeat(64)}/INPUT`))
+          .status,
+    ),
+  ).toBe(404);
 });
 
 test("recovers from a redacted analysis failure", async ({ page, request }) => {
