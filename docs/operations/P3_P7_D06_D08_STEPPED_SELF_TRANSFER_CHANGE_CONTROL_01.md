@@ -10,8 +10,10 @@ ENTRY_BASE_SHA: 929550d5e5d331697f3f426dc102cee7296db22d
 R09_CANDIDATE_SHA: 746f210418182672126718bc3043124e8e931f5e
 INTEGRATION_PREREQUISITE: R05_R08_SUCCESSOR_CI_PASS_AND_R09_TASK_ACCEPTED
 PUBLIC_API_CHANGE: ADDITIVE_DEMO_ONLY
-MIGRATION_CHANGE: NONE
-ORM_CHANGE: NONE
+MIGRATION_CHANGE: ONE_FORWARD_DEMO_SCHEMA_VERSION_CONSTRAINT_ONLY
+MIGRATION_REVISION: demo_0019_d06_stepped_transfer
+MIGRATION_PARENT: demo_0018_d03_pose_evidence
+ORM_CHANGE: DEMO_SELF_TRANSFER_RUN_SCHEMA_VERSION_CONSTRAINT_ONLY
 D02_AUTHORITY_CHANGE: NONE
 PRODUCTION_AUTHORIZATION: NONE
 REAL_USER_AUTHORIZATION: NONE
@@ -88,8 +90,20 @@ starts this fixed-step preview. No eligible case returns
 
 Historical `mirror.demo/DemoSelfTransferRun/v1` rows and behavior remain
 unchanged. New stepped acceptance uses
-`mirror.demo/DemoSelfTransferRun/v2` in the existing JSONB columns and requires
-no schema migration.
+`mirror.demo/DemoSelfTransferRun/v2` in the existing JSONB columns.
+
+Real PostgreSQL proved that the inherited v1-only `schema_version` constraint
+rejects v2 before application validation can run. A single forward migration
+from `demo_0018_d03_pose_evidence` must therefore replace only
+`ck_demo_self_transfer_runs_schema_version_shape` with an exact closed set that
+admits v1 and v2. The ORM expression must match it. No column, index, foreign
+key, trigger, table or other Demo authority changes.
+
+Fresh upgrade, `demo_0018` → `demo_0019`, Alembic check/single-head, preserved
+v1 rows, accepted v2 rows, unknown-version rejection, rollback and re-upgrade
+are blocking migration tests. A populated downgrade must fail closed while any
+v2 row exists; after v2 rows are absent it may restore the exact v1-only
+constraint.
 
 The v2 REQUEST and RESULT carry the same immutable request envelope:
 
@@ -206,19 +220,20 @@ Geometry integration Gate and does not reopen D02, D03, D08 or historical M3/M4.
 
 ## Implementation order
 
-1. Pure selector and D06 v2 parsing/replay, preserving v1.
-2. In-session D09 + D06 atomic coordinator and post-commit Reference queue
+1. The one schema-version constraint migration and matching ORM expression.
+2. Pure selector and D06 v2 parsing/replay, preserving v1.
+3. In-session D09 + D06 atomic coordinator and post-commit Reference queue
    ensure.
-3. Additive schemas/routes, exact media and Reference result reads, OpenAPI and
+4. Additive schemas/routes, exact media and Reference result reads, OpenAPI and
    generated client.
-4. Controlled Worker factory-present fresh synthetic Geometry Gate.
-5. D11 BFF/UI and browser privacy flow.
-6. Principal integrated review and one wave-level CI.
+5. Controlled Worker factory-present fresh synthetic Geometry Gate.
+6. D11 BFF/UI and browser privacy flow.
+7. Principal integrated review and one wave-level CI.
 
-Domain and API contract ownership are serial. Web work starts only after the
-generated contract and runtime Gate are stable. No task may modify D02 private
-state, use ImageGen, re-run D02 admission, or add a migration/ORM field without
-returning to the Principal decision boundary.
+Migration, domain and API contract ownership are serial. Web work starts only
+after the generated contract and runtime Gate are stable. No task may modify
+D02 private state, use ImageGen, re-run D02 admission, or add any schema change
+beyond the exact self-transfer schema-version constraint authorized above.
 
 ## Acceptance matrix
 
@@ -228,6 +243,9 @@ returning to the Principal decision boundary.
   `±30000`, `±100000`, sign and tie behavior;
 - PostgreSQL: v1 replay, v2 replay, payload collision, cross-owner/session,
   case/job/image substitution, concurrency and zero partial rows;
+- migration: fresh/forward upgrade, single head, v1 preservation, v2 admission,
+  unknown-version rejection, populated downgrade fail-closed and clean
+  downgrade/re-upgrade;
 - atomic outcome: D09/D06 rollback, exact Final Save binding, lost-response
   replay and one unique winner;
 - Reference queue: deterministic ensure, dispatch loss, reconciliation,
