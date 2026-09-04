@@ -8,6 +8,15 @@ const forbidden = [
   "c".repeat(32),
   "d".repeat(64),
   "f".repeat(64),
+  "e".repeat(32),
+  "0".repeat(32),
+  "9".repeat(32),
+  "5".repeat(32),
+  "7".repeat(32),
+  "6".repeat(64),
+  "7".repeat(64),
+  "8".repeat(64),
+  "9".repeat(64),
 ];
 
 test.beforeEach(async ({ request }) => {
@@ -51,6 +60,14 @@ test("completes the same-origin synthetic preference flow without browser author
   await expect(page.getByText("偏好档案已准备完成。")).toBeVisible({
     timeout: 6_000,
   });
+  await page
+    .getByRole("combobox", { name: "编辑操作" })
+    .selectOption("TEMPERATURE");
+  await page.getByRole("slider", { name: "调整强度" }).fill("400000");
+  await page.getByRole("button", { name: "发布一次合成编辑" }).click();
+  await expect(
+    page.getByText("一版合成编辑结果已通过验证并发布。"),
+  ).toBeVisible({ timeout: 15_000 });
   expect(authorization).not.toContain(expect.stringMatching(/.+/));
   const content = await page.content();
   for (const value of forbidden) expect(content).not.toContain(value);

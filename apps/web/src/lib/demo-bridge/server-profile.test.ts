@@ -3,14 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearDemoSessionRegistryForTest,
   createBoundDemoAnalysis,
+  createBoundDemoEdit,
   createBoundDemoProfile,
   createBoundDemoQuestionnaire,
   createBoundDemoSession,
+  editProjection,
   profileProjection,
   readBoundDemoAnalysis,
+  readBoundDemoEdit,
   readBoundDemoProfile,
   readBoundDemoQuestionnaire,
   removeBoundDemoSession,
+  validDemoEditRequest,
 } from "./server";
 
 const bearer = "x".repeat(32);
@@ -22,9 +26,29 @@ const questionnaireJobId = "4".repeat(32);
 const questionnaireRunId = "5".repeat(32);
 const profileJobId = "6".repeat(32);
 const actorId = "7".repeat(32);
+const editingJobId = "8".repeat(32);
+const editingSessionId = "9".repeat(32);
+const planJobId = "a".repeat(32);
+const planId = "b".repeat(32);
+const executionJobId = "c".repeat(32);
+
+type EditStatuses = {
+  editSession: string;
+  plan: string;
+  execution: string;
+  mismatchedResult?: boolean;
+};
 
 function json(body: object, status = 200) {
   return new Response(JSON.stringify(body), { status });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }
 
 function pathname(input: string | URL | Request) {
@@ -33,7 +57,14 @@ function pathname(input: string | URL | Request) {
   ).pathname;
 }
 
-function upstreamFetch(profileStatus: { value: string }) {
+function upstreamFetch(
+  profileStatus: { value: string },
+  editStatuses: EditStatuses = {
+    editSession: "COMPLETED",
+    plan: "COMPLETED",
+    execution: "COMPLETED",
+  },
+) {
   return vi.fn(async (input: string | URL | Request) => {
     const path = pathname(input);
     const method = input instanceof Request ? input.method : "GET";
@@ -157,6 +188,128 @@ function upstreamFetch(profileStatus: { value: string }) {
         job_binding_digest: "e".repeat(64),
         compilation_digest: "1".repeat(64),
       });
+    if (path === "/api/v1/demo/editing-sessions" && method === "POST")
+      return json(
+        {
+          job_id: editingJobId,
+          status: "PENDING",
+          capability: "P6_EDITING",
+          job_binding_digest: "2".repeat(64),
+          target: {
+            target_type: "EDITING_SESSION",
+            target_id: editingSessionId,
+            authority_digest: "3".repeat(64),
+          },
+        },
+        202,
+      );
+    if (path === `/api/v1/demo/jobs/${editingJobId}`)
+      return json({
+        job_id: editingJobId,
+        status: editStatuses.editSession,
+        capability: "P6_EDITING",
+        job_binding_digest: "2".repeat(64),
+        target: {
+          target_type: "EDITING_SESSION",
+          target_id: editingSessionId,
+          authority_digest: "3".repeat(64),
+        },
+        result_code:
+          editStatuses.editSession === "COMPLETED"
+            ? "EDITING_SESSION_INITIALIZED"
+            : null,
+      });
+    if (
+      path === `/api/v1/demo/editing-sessions/${editingSessionId}/plans` &&
+      method === "POST"
+    )
+      return json(
+        {
+          job_id: planJobId,
+          status: "PENDING",
+          capability: "P6_EDITING",
+          job_binding_digest: "4".repeat(64),
+          target: {
+            target_type: "EDIT_PLAN",
+            target_id: planId,
+            authority_digest: "5".repeat(64),
+          },
+        },
+        202,
+      );
+    if (path === `/api/v1/demo/jobs/${planJobId}`)
+      return json({
+        job_id: planJobId,
+        status: editStatuses.plan,
+        capability: "P6_EDITING",
+        job_binding_digest: "4".repeat(64),
+        target: {
+          target_type: "EDIT_PLAN",
+          target_id: planId,
+          authority_digest: "5".repeat(64),
+        },
+        result_code:
+          editStatuses.plan === "COMPLETED" ? "EDIT_PLAN_READY" : null,
+      });
+    if (
+      path === `/api/v1/demo/edit-plans/${planId}/executions` &&
+      method === "POST"
+    )
+      return json(
+        {
+          job_id: executionJobId,
+          status: "PENDING",
+          capability: "P6_EDITING",
+          job_binding_digest: "6".repeat(64),
+          target: {
+            target_type: "EDIT_PLAN",
+            target_id: planId,
+            authority_digest: "5".repeat(64),
+          },
+        },
+        202,
+      );
+    if (path === `/api/v1/demo/jobs/${executionJobId}`)
+      return json({
+        job_id: executionJobId,
+        status: editStatuses.execution,
+        capability: "P6_EDITING",
+        job_binding_digest: "6".repeat(64),
+        target: {
+          target_type: "EDIT_PLAN",
+          target_id: planId,
+          authority_digest: "5".repeat(64),
+        },
+        result_code:
+          editStatuses.execution === "COMPLETED"
+            ? "EDIT_EXECUTION_COMPLETED"
+            : null,
+      });
+    if (
+      path === `/api/v1/demo/edit-plans/execution-jobs/${executionJobId}/result`
+    )
+      return json({
+        status: "IMAGE_VERSION_READY",
+        job_id: executionJobId,
+        session_id: sessionId,
+        editing_session_id: editingSessionId,
+        edit_plan_id: planId,
+        job_binding_digest: "6".repeat(64),
+        plan_digest: editStatuses.mismatchedResult
+          ? "0".repeat(64)
+          : "5".repeat(64),
+        tool_run_id: "d".repeat(32),
+        tool_run_digest: "7".repeat(64),
+        verification_result_id: "e".repeat(32),
+        verifier_digest: "8".repeat(64),
+        image_version_id: "f".repeat(32),
+        image_version_digest: "9".repeat(64),
+        version_kind: "EDITED",
+        sequence: 1,
+        parent_image_version_id: "0".repeat(32),
+        result_asset_id: "1".repeat(32),
+        result_asset_sha256: "a".repeat(64),
+      });
     return new Response(null, { status: 404 });
   });
 }
@@ -177,6 +330,14 @@ async function completedQuestionnaire() {
     kind: "COMPLETED",
   });
   return created!.handle;
+}
+
+async function completedProfile(profileStatus: { value: string }) {
+  const handle = await completedQuestionnaire();
+  expect(await createBoundDemoProfile(handle)).toEqual({ kind: "PENDING" });
+  profileStatus.value = "COMPLETED";
+  expect(await readBoundDemoProfile(handle)).toEqual({ kind: "PROFILE_READY" });
+  return handle;
 }
 
 beforeEach(() => {
@@ -322,5 +483,343 @@ describe("D11 exact profile bridge", () => {
     expect([query.status, body.status, authorization.status]).toEqual([
       403, 403, 403,
     ]);
+  });
+});
+
+describe("D11 exact edit bridge", () => {
+  it("accepts only frozen deterministic raster request ranges", () => {
+    expect(validDemoEditRequest({ operation: "CROP", valuePpm: 1 })).toBe(true);
+    expect(validDemoEditRequest({ operation: "CROP", valuePpm: 250_000 })).toBe(
+      true,
+    );
+    expect(validDemoEditRequest({ operation: "CROP", valuePpm: 0 })).toBe(
+      false,
+    );
+    expect(validDemoEditRequest({ operation: "CROP", valuePpm: 250_001 })).toBe(
+      false,
+    );
+    expect(
+      validDemoEditRequest({ operation: "ROTATE", valuePpm: -1_000_000 }),
+    ).toBe(true);
+    expect(
+      validDemoEditRequest({ operation: "TEMPERATURE", valuePpm: 1_000_000 }),
+    ).toBe(true);
+    expect(validDemoEditRequest({ operation: "GEOMETRY", valuePpm: 1 })).toBe(
+      false,
+    );
+    expect(validDemoEditRequest({ operation: "EXPOSURE", valuePpm: 1.5 })).toBe(
+      false,
+    );
+  });
+
+  it("advances one immutable request through exact D08 jobs and publication", async () => {
+    const profileStatus = { value: "PENDING" };
+    const fetchMock = upstreamFetch(profileStatus);
+    vi.stubGlobal("fetch", fetchMock);
+    const handle = await completedProfile(profileStatus);
+    const request = { operation: "EXPOSURE" as const, valuePpm: 250_000 };
+
+    expect(
+      await Promise.all([
+        createBoundDemoEdit(handle, request),
+        createBoundDemoEdit(handle, request),
+      ]),
+    ).toEqual([{ kind: "PENDING" }, { kind: "PENDING" }]);
+    for (let index = 0; index < 5; index += 1)
+      expect(await readBoundDemoEdit(handle)).toEqual({ kind: "PENDING" });
+    expect(await readBoundDemoEdit(handle)).toEqual({
+      kind: "IMAGE_VERSION_READY",
+    });
+    expect(await readBoundDemoEdit(handle)).toEqual({
+      kind: "IMAGE_VERSION_READY",
+    });
+    expect(editProjection({ kind: "IMAGE_VERSION_READY" })).toEqual({
+      status: "IMAGE_VERSION_READY",
+    });
+
+    const editPosts = fetchMock.mock.calls
+      .map(([input]) => input)
+      .filter(
+        (input) =>
+          input instanceof Request &&
+          input.method === "POST" &&
+          (pathname(input).includes("editing-sessions") ||
+            pathname(input).includes("edit-plans")),
+      ) as Request[];
+    expect(editPosts).toHaveLength(3);
+    expect(await editPosts[0]!.clone().json()).toEqual({
+      session_id: sessionId,
+      source_selector: "SESSION_CANONICAL_ASSET",
+    });
+    expect(await editPosts[1]!.clone().json()).toEqual({
+      operation: "EXPOSURE",
+      value_ppm: 250_000,
+    });
+    expect(await editPosts[2]!.clone().json()).toEqual({
+      execution_mode: "DETERMINISTIC_RASTER",
+      expected_plan_digest: "5".repeat(64),
+    });
+    const keys = editPosts.map((item) => item.headers.get("Idempotency-Key"));
+    expect(keys).toHaveLength(3);
+    expect(new Set(keys).size).toBe(3);
+    expect(keys.every((item) => /^[a-f0-9]{64}$/.test(item ?? ""))).toBe(true);
+    expect(
+      editPosts.every(
+        (item) => item.headers.get("Authorization") === `Bearer ${bearer}`,
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps terminal and mismatched result states fail closed", async () => {
+    const profileStatus = { value: "PENDING" };
+    const terminalStatuses: EditStatuses = {
+      editSession: "COMPLETED",
+      plan: "FAILED",
+      execution: "COMPLETED",
+    };
+    vi.stubGlobal("fetch", upstreamFetch(profileStatus, terminalStatuses));
+    const handle = await completedProfile(profileStatus);
+    const request = { operation: "CONTRAST" as const, valuePpm: 100_000 };
+    await createBoundDemoEdit(handle, request);
+    expect(
+      await createBoundDemoEdit(handle, { ...request, valuePpm: 200_000 }),
+    ).toEqual({
+      kind: "CONFLICT",
+    });
+    expect(await readBoundDemoEdit(handle)).toEqual({ kind: "PENDING" });
+    expect(await readBoundDemoEdit(handle)).toEqual({ kind: "PENDING" });
+    expect(await readBoundDemoEdit(handle)).toEqual({ kind: "FAILED" });
+    expect(await readBoundDemoEdit(handle)).toEqual({ kind: "FAILED" });
+
+    clearDemoSessionRegistryForTest();
+    const mismatchProfile = { value: "PENDING" };
+    vi.stubGlobal(
+      "fetch",
+      upstreamFetch(mismatchProfile, {
+        editSession: "COMPLETED",
+        plan: "COMPLETED",
+        execution: "COMPLETED",
+        mismatchedResult: true,
+      }),
+    );
+    const mismatchHandle = await completedProfile(mismatchProfile);
+    await createBoundDemoEdit(mismatchHandle, request);
+    for (let index = 0; index < 5; index += 1)
+      await readBoundDemoEdit(mismatchHandle);
+    expect(await readBoundDemoEdit(mismatchHandle)).toEqual({
+      kind: "STALE_RESPONSE",
+    });
+  });
+
+  it("retains the editing admission key after an uncertain response", async () => {
+    const profileStatus = { value: "PENDING" };
+    const baseFetch = upstreamFetch(profileStatus);
+    const keys: string[] = [];
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (
+        pathname(input) === "/api/v1/demo/editing-sessions" &&
+        input instanceof Request
+      ) {
+        keys.push(input.headers.get("Idempotency-Key") ?? "");
+        if (keys.length === 1) return new Response(null, { status: 503 });
+      }
+      return baseFetch(input);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const handle = await completedProfile(profileStatus);
+    const request = { operation: "SATURATION" as const, valuePpm: 300_000 };
+
+    expect(await createBoundDemoEdit(handle, request)).toEqual({
+      kind: "UNAVAILABLE",
+    });
+    expect(await createBoundDemoEdit(handle, request)).toEqual({
+      kind: "PENDING",
+    });
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toMatch(/^[a-f0-9]{64}$/);
+    expect(keys[1]).toBe(keys[0]);
+  });
+
+  it.each([
+    ["plan", "/api/v1/demo/editing-sessions/", 2],
+    ["execution", `/api/v1/demo/edit-plans/${planId}/executions`, 4],
+  ] as const)(
+    "retains the %s admission key after an uncertain response",
+    async (_stage, expectedPath, readsBeforeAdmission) => {
+      const profileStatus = { value: "PENDING" };
+      const baseFetch = upstreamFetch(profileStatus);
+      const keys: string[] = [];
+      const fetchMock = vi.fn(async (input: string | URL | Request) => {
+        if (
+          pathname(input).includes(expectedPath) &&
+          input instanceof Request &&
+          input.method === "POST"
+        ) {
+          keys.push(input.headers.get("Idempotency-Key") ?? "");
+          if (keys.length === 1) return new Response(null, { status: 503 });
+        }
+        return baseFetch(input);
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      const handle = await completedProfile(profileStatus);
+      const request = { operation: "SATURATION" as const, valuePpm: 300_000 };
+
+      expect(await createBoundDemoEdit(handle, request)).toEqual({
+        kind: "PENDING",
+      });
+      for (let index = 0; index < readsBeforeAdmission - 1; index += 1)
+        expect(await readBoundDemoEdit(handle)).toEqual({ kind: "PENDING" });
+      expect(await readBoundDemoEdit(handle)).toEqual({ kind: "UNAVAILABLE" });
+      expect(await readBoundDemoEdit(handle)).toEqual({ kind: "PENDING" });
+      expect(keys).toHaveLength(2);
+      expect(keys[0]).toMatch(/^[a-f0-9]{64}$/);
+      expect(keys[1]).toBe(keys[0]);
+    },
+  );
+
+  it("fails closed when the execution job no longer names its retained plan", async () => {
+    const profileStatus = { value: "PENDING" };
+    const baseFetch = upstreamFetch(profileStatus);
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (pathname(input) === `/api/v1/demo/jobs/${executionJobId}`)
+        return json({
+          job_id: executionJobId,
+          status: "COMPLETED",
+          capability: "P6_EDITING",
+          job_binding_digest: "6".repeat(64),
+          target: {
+            target_type: "EDIT_PLAN",
+            target_id: "0".repeat(32),
+            authority_digest: "5".repeat(64),
+          },
+          result_code: "EDIT_EXECUTION_COMPLETED",
+        });
+      return baseFetch(input);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const handle = await completedProfile(profileStatus);
+
+    await createBoundDemoEdit(handle, {
+      operation: "EXPOSURE",
+      valuePpm: 250_000,
+    });
+    for (let index = 0; index < 4; index += 1)
+      expect(await readBoundDemoEdit(handle)).toEqual({ kind: "PENDING" });
+    expect(await readBoundDemoEdit(handle)).toEqual({ kind: "STALE_RESPONSE" });
+  });
+
+  it("drops an in-flight edit admission after configuration rotation", async () => {
+    const profileStatus = { value: "PENDING" };
+    const baseFetch = upstreamFetch(profileStatus);
+    const admission = deferred<Response>();
+    const started = deferred<void>();
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (pathname(input) === "/api/v1/demo/editing-sessions") {
+        started.resolve();
+        return admission.promise;
+      }
+      return baseFetch(input);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const handle = await completedProfile(profileStatus);
+    const response = await baseFetch(
+      new Request("http://upstream/api/v1/demo/editing-sessions", {
+        method: "POST",
+      }),
+    );
+
+    const pending = createBoundDemoEdit(handle, {
+      operation: "EXPOSURE",
+      valuePpm: 250_000,
+    });
+    await started.promise;
+    process.env.DEMO_BEARER_TOKEN = "y".repeat(32);
+    admission.resolve(response);
+    expect(await pending).toEqual({ kind: "DENIED" });
+  });
+
+  it("projects only edit status and rejects browser authority overrides", async () => {
+    const profileStatus = { value: "PENDING" };
+    vi.stubGlobal("fetch", upstreamFetch(profileStatus));
+    const handle = await completedProfile(profileStatus);
+    const { GET, POST } = await import("../../app/api/demo/edit/route");
+    const headers = {
+      Origin: "https://demo.test",
+      Cookie: `mirror_demo_session=${handle}`,
+    };
+    const started = await POST(
+      new Request("https://demo.test/api/demo/edit", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ operation: "TEMPERATURE", value_ppm: 400_000 }),
+      }),
+    );
+    expect(started.status).toBe(202);
+    expect(await started.json()).toEqual({ status: "PENDING" });
+    for (let index = 0; index < 5; index += 1) {
+      const pending = await GET(
+        new Request("https://demo.test/api/demo/edit", { headers }),
+      );
+      expect(await pending.json()).toEqual({ status: "PENDING" });
+    }
+    const ready = await GET(
+      new Request("https://demo.test/api/demo/edit", { headers }),
+    );
+    expect(ready.status).toBe(200);
+    expect(await ready.json()).toEqual({ status: "IMAGE_VERSION_READY" });
+
+    const invalid = await POST(
+      new Request("https://demo.test/api/demo/edit", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ operation: "GEOMETRY", value_ppm: 1 }),
+      }),
+    );
+    const query = await GET(
+      new Request("https://demo.test/api/demo/edit?job_id=forbidden", {
+        headers,
+      }),
+    );
+    const authorization = await GET(
+      new Request("https://demo.test/api/demo/edit", {
+        headers: { ...headers, Authorization: "Bearer forbidden" },
+      }),
+    );
+    expect([invalid.status, query.status, authorization.status]).toEqual([
+      403, 403, 403,
+    ]);
+  });
+
+  it("drops an in-flight published result after logout", async () => {
+    const profileStatus = { value: "PENDING" };
+    const baseFetch = upstreamFetch(profileStatus);
+    const resultResponse = await baseFetch(
+      new Request(
+        `http://upstream/api/v1/demo/edit-plans/execution-jobs/${executionJobId}/result`,
+      ),
+    );
+    const pendingResult = deferred<Response>();
+    const resultStarted = deferred<void>();
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (pathname(input).includes("/edit-plans/execution-jobs/")) {
+        resultStarted.resolve();
+        return pendingResult.promise;
+      }
+      return baseFetch(input);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const handle = await completedProfile(profileStatus);
+    await createBoundDemoEdit(handle, {
+      operation: "EXPOSURE",
+      valuePpm: 250_000,
+    });
+    for (let index = 0; index < 5; index += 1) await readBoundDemoEdit(handle);
+
+    const pending = readBoundDemoEdit(handle);
+    await resultStarted.promise;
+    removeBoundDemoSession(handle);
+    pendingResult.resolve(resultResponse);
+    expect(await pending).toEqual({ kind: "DENIED" });
+    expect(await readBoundDemoEdit(handle)).toEqual({ kind: "DENIED" });
   });
 });
