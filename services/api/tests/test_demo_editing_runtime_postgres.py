@@ -19,8 +19,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session
 from test_demo_d02_generic_admission import _generic_admission_bundle
 from test_demo_schema_authority_invariants import (
+    _insert_actor,
     _insert_demo_row,
     _insert_full_demo_graph,
+    _insert_session,
     _truncate_demo_authority,
     _truncate_formal_synthetic_fixture_authority,
 )
@@ -193,6 +195,8 @@ async def test_d02_generic_source_authority_is_required_and_revalidated(
         await D02GenericAdmissionCoordinator(session_factory=sessions).admit(
             idempotency_key="d07-generic-source", bundle=bundle
         )
+        actor = _insert_actor(postgres_session, actor_id="a" * 32)
+        demo_session = _insert_session(postgres_session, actor, config={})
         source_id = cast(str, bundle.source_rows[0]["source_asset_id"])
         result_entry = next(
             entry
@@ -216,24 +220,26 @@ async def test_d02_generic_source_authority_is_required_and_revalidated(
             selected = await commands._source_asset(
                 session,
                 CreateDemoEditingSession(
-                    "a" * 32,
-                    "b" * 32,
+                    actor.id,
+                    demo_session.id,
                     "d07-d02-source-selection",
                     "d07-d02-source-selection-request",
                     source_asset_id=source.id,
                 ),
+                demo_session,
             )
             assert selected.id == source.id
             with pytest.raises(DemoEditingCommandUnavailable):
                 await commands._source_asset(
                     session,
                     CreateDemoEditingSession(
-                        "a" * 32,
-                        "b" * 32,
+                        actor.id,
+                        demo_session.id,
                         "d07-d02-result-selection",
                         "d07-d02-result-selection-request",
                         source_asset_id=result.id,
                     ),
+                    demo_session,
                 )
             await repository._require_generic_d02_source_authority(session, source)
             with pytest.raises(DemoEditingRepositoryError) as result_rejected:
