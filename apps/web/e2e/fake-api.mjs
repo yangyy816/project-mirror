@@ -200,6 +200,175 @@ const server = createServer(async (request, response) => {
   }
 
   if (
+    request.method === "POST" &&
+    url.pathname === "/api/v1/demo/editing-sessions"
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    const body = await jsonBody(request);
+    if (
+      body.session_id !== demoSessionId ||
+      body.source_selector !== "SESSION_CANONICAL_ASSET" ||
+      !/^[a-f0-9]{64}$/.test(request.headers["idempotency-key"] ?? "")
+    )
+      return error(response, 422, "invalid_editing_session_request");
+    send(response, 202, {
+      job_id: "d".repeat(32),
+      status: "PENDING",
+      capability: "P6_EDITING",
+      job_binding_digest: "2".repeat(64),
+      target: {
+        target_type: "EDITING_SESSION",
+        target_id: "e".repeat(32),
+        authority_digest: "3".repeat(64),
+      },
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/demo/jobs/${"d".repeat(32)}`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    send(response, 200, {
+      job_id: "d".repeat(32),
+      status: "COMPLETED",
+      capability: "P6_EDITING",
+      job_binding_digest: "2".repeat(64),
+      target: {
+        target_type: "EDITING_SESSION",
+        target_id: "e".repeat(32),
+        authority_digest: "3".repeat(64),
+      },
+      result_code: "EDITING_SESSION_INITIALIZED",
+    });
+    return;
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === `/api/v1/demo/editing-sessions/${"e".repeat(32)}/plans`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    const body = await jsonBody(request);
+    if (body.operation !== "TEMPERATURE" || body.value_ppm !== 400000)
+      return error(response, 422, "invalid_edit_plan_request");
+    send(response, 202, {
+      job_id: "f".repeat(32),
+      status: "PENDING",
+      capability: "P6_EDITING",
+      job_binding_digest: "4".repeat(64),
+      target: {
+        target_type: "EDIT_PLAN",
+        target_id: "0".repeat(32),
+        authority_digest: "5".repeat(64),
+      },
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/demo/jobs/${"f".repeat(32)}`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    send(response, 200, {
+      job_id: "f".repeat(32),
+      status: "COMPLETED",
+      capability: "P6_EDITING",
+      job_binding_digest: "4".repeat(64),
+      target: {
+        target_type: "EDIT_PLAN",
+        target_id: "0".repeat(32),
+        authority_digest: "5".repeat(64),
+      },
+      result_code: "EDIT_PLAN_READY",
+    });
+    return;
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === `/api/v1/demo/edit-plans/${"0".repeat(32)}/executions`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    const body = await jsonBody(request);
+    if (
+      body.execution_mode !== "DETERMINISTIC_RASTER" ||
+      body.expected_plan_digest !== "5".repeat(64)
+    )
+      return error(response, 422, "invalid_edit_execution_request");
+    send(response, 202, {
+      job_id: "9".repeat(32),
+      status: "PENDING",
+      capability: "P6_EDITING",
+      job_binding_digest: "6".repeat(64),
+      target: {
+        target_type: "EDIT_PLAN",
+        target_id: "0".repeat(32),
+        authority_digest: "5".repeat(64),
+      },
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === `/api/v1/demo/jobs/${"9".repeat(32)}`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    send(response, 200, {
+      job_id: "9".repeat(32),
+      status: "COMPLETED",
+      capability: "P6_EDITING",
+      job_binding_digest: "6".repeat(64),
+      target: {
+        target_type: "EDIT_PLAN",
+        target_id: "0".repeat(32),
+        authority_digest: "5".repeat(64),
+      },
+      result_code: "EDIT_EXECUTION_COMPLETED",
+    });
+    return;
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname ===
+      `/api/v1/demo/edit-plans/execution-jobs/${"9".repeat(32)}/result`
+  ) {
+    if (request.headers.authorization !== `Bearer ${demoBearer}`)
+      return error(response, 401);
+    send(response, 200, {
+      status: "IMAGE_VERSION_READY",
+      job_id: "9".repeat(32),
+      session_id: demoSessionId,
+      editing_session_id: "e".repeat(32),
+      edit_plan_id: "0".repeat(32),
+      job_binding_digest: "6".repeat(64),
+      plan_digest: "5".repeat(64),
+      tool_run_id: "3".repeat(32),
+      tool_run_digest: "7".repeat(64),
+      verification_result_id: "4".repeat(32),
+      verifier_digest: "8".repeat(64),
+      image_version_id: "5".repeat(32),
+      image_version_digest: "9".repeat(64),
+      version_kind: "EDITED",
+      sequence: 1,
+      parent_image_version_id: "6".repeat(32),
+      result_asset_id: "7".repeat(32),
+      result_asset_sha256: "a".repeat(64),
+    });
+    return;
+  }
+
+  if (
     request.method === "GET" &&
     url.pathname === `/api/v1/demo/traces/${demoSessionId}`
   ) {

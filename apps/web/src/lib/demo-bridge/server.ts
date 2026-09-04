@@ -34,6 +34,7 @@ type BoundSession = Readonly<{
   analysis?: BoundAnalysis;
   questionnaire?: BoundQuestionnaire;
   profile?: BoundProfile;
+  edit?: BoundEdit;
 }>;
 
 type BoundAnalysis = Readonly<{
@@ -87,6 +88,58 @@ type BoundProfile = Readonly<{
   terminalStatus?: ProfileTerminalStatus;
   createPromise?: Promise<DemoProfileBridgeResult>;
   readPromise?: Promise<DemoProfileBridgeResult>;
+}>;
+
+export type DemoRasterEditOperation =
+  | "CROP"
+  | "ROTATE"
+  | "EXPOSURE"
+  | "CONTRAST"
+  | "SATURATION"
+  | "TEMPERATURE";
+export type DemoEditRequest = Readonly<{
+  operation: DemoRasterEditOperation;
+  valuePpm: number;
+}>;
+type BoundJobAuthority = Readonly<{
+  jobId: string;
+  jobBindingDigest: string;
+  targetId: string;
+  targetAuthorityDigest: string;
+}>;
+type BoundPublishedEdit = Readonly<{
+  toolRunId: string;
+  toolRunDigest: string;
+  verificationResultId: string;
+  verifierDigest: string;
+  imageVersionId: string;
+  imageVersionDigest: string;
+  sequence: number;
+  parentImageVersionId: string;
+  resultAssetId: string;
+  resultAssetSha256: string;
+}>;
+type BoundEditStage =
+  | "EDIT_SESSION_CREATE"
+  | "EDIT_SESSION_POLL"
+  | "PLAN_CREATE"
+  | "PLAN_POLL"
+  | "EXECUTION_CREATE"
+  | "EXECUTION_POLL"
+  | "RESULT_READ"
+  | "READY";
+type BoundEdit = Readonly<{
+  request: DemoEditRequest;
+  stage: BoundEditStage;
+  editSessionIdempotencyKey: string;
+  planIdempotencyKey: string;
+  executionIdempotencyKey: string;
+  editSession?: BoundJobAuthority;
+  plan?: BoundJobAuthority;
+  execution?: BoundJobAuthority;
+  result?: BoundPublishedEdit;
+  terminalStatus?: ProfileTerminalStatus;
+  progressPromise?: Promise<DemoEditBridgeResult>;
 }>;
 
 type BridgeConfiguration = Readonly<{
@@ -149,6 +202,11 @@ export type DemoQuestionnaireBridgeResult =
 
 export type DemoProfileBridgeResult =
   | Readonly<{ kind: "PENDING" | "PROFILE_READY" }>
+  | Readonly<{ kind: ProfileTerminalStatus }>
+  | Readonly<{ kind: BridgeErrorCode }>;
+
+export type DemoEditBridgeResult =
+  | Readonly<{ kind: "PENDING" | "IMAGE_VERSION_READY" }>
   | Readonly<{ kind: ProfileTerminalStatus }>
   | Readonly<{ kind: BridgeErrorCode }>;
 
@@ -1219,6 +1277,544 @@ export function profileProjection(result: DemoProfileBridgeResult) {
   )
     return { status: result.kind };
   return { code: result.kind };
+}
+
+export function validDemoEditRequest(value: unknown): value is DemoEditRequest {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const body = value as Record<string, unknown>;
+  if (
+    Object.keys(body).length !== 2 ||
+    typeof body.operation !== "string" ||
+    typeof body.valuePpm !== "number" ||
+    !Number.isSafeInteger(body.valuePpm)
+  )
+    return false;
+  if (body.operation === "CROP")
+    return body.valuePpm >= 1 && body.valuePpm <= 250_000;
+  return (
+    ["ROTATE", "EXPOSURE", "CONTRAST", "SATURATION", "TEMPERATURE"].includes(
+      body.operation,
+    ) &&
+    body.valuePpm >= -1_000_000 &&
+    body.valuePpm <= 1_000_000
+  );
+}
+
+function currentEditEntry(
+  handle: string,
+  expectedSession: BoundSession,
+  expectedEdit: BoundEdit,
+): boolean {
+  const current = currentBoundSession(handle);
+  return (
+    current !== null &&
+    current.session === expectedSession &&
+    current.session.edit === expectedEdit
+  );
+}
+
+function acceptedEditJob(
+  body: unknown,
+  targetType: "EDITING_SESSION" | "EDIT_PLAN",
+  expectedTarget?: Readonly<{ id: string; digest: string }>,
+): BoundJobAuthority | null {
+  if (!body || typeof body !== "object") return null;
+  const value = body as Record<string, unknown>;
+  const target = value.target;
+  if (!target || typeof target !== "object") return null;
+  const targetValue = target as Record<string, unknown>;
+  if (
+    !validUpstreamId(value.job_id) ||
+    value.status !== "PENDING" ||
+    value.capability !== "P6_EDITING" ||
+    !validUpstreamDigest(value.job_binding_digest) ||
+    targetValue.target_type !== targetType ||
+    !validUpstreamId(targetValue.target_id) ||
+    !validUpstreamDigest(targetValue.authority_digest)
+  )
+    return null;
+  if (
+    expectedTarget &&
+    (targetValue.target_id !== expectedTarget.id ||
+      targetValue.authority_digest !== expectedTarget.digest)
+  )
+    return null;
+  return {
+    jobId: value.job_id,
+    jobBindingDigest: value.job_binding_digest,
+    targetId: targetValue.target_id,
+    targetAuthorityDigest: targetValue.authority_digest,
+  };
+}
+
+type EditJobStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "COMPLETED"
+  | "REJECTED"
+  | "FAILED"
+  | "CANCELLED";
+
+function editJobStatus(
+  body: unknown,
+  authority: BoundJobAuthority,
+  targetType: "EDITING_SESSION" | "EDIT_PLAN",
+  completedCode: string,
+): EditJobStatus | null {
+  if (!body || typeof body !== "object") return null;
+  const value = body as Record<string, unknown>;
+  const target = value.target;
+  if (!target || typeof target !== "object") return null;
+  const targetValue = target as Record<string, unknown>;
+  const status = value.status;
+  if (
+    status !== "PENDING" &&
+    status !== "RUNNING" &&
+    status !== "COMPLETED" &&
+    status !== "REJECTED" &&
+    status !== "FAILED" &&
+    status !== "CANCELLED"
+  )
+    return null;
+  if (
+    value.job_id !== authority.jobId ||
+    value.capability !== "P6_EDITING" ||
+    value.job_binding_digest !== authority.jobBindingDigest ||
+    targetValue.target_type !== targetType ||
+    targetValue.target_id !== authority.targetId ||
+    targetValue.authority_digest !== authority.targetAuthorityDigest ||
+    (status === "COMPLETED" && value.result_code !== completedCode)
+  )
+    return null;
+  return status;
+}
+
+function publishedEditIsValid(
+  body: unknown,
+  session: BoundSession,
+  edit: BoundEdit,
+): body is Readonly<Record<string, unknown>> {
+  if (!body || typeof body !== "object") return false;
+  const value = body as Record<string, unknown>;
+  return (
+    value.status === "IMAGE_VERSION_READY" &&
+    value.job_id === edit.execution?.jobId &&
+    value.session_id === session.sessionId &&
+    value.editing_session_id === edit.editSession?.targetId &&
+    value.edit_plan_id === edit.plan?.targetId &&
+    value.job_binding_digest === edit.execution?.jobBindingDigest &&
+    value.plan_digest === edit.plan?.targetAuthorityDigest &&
+    value.version_kind === "EDITED" &&
+    validUpstreamId(value.tool_run_id) &&
+    validUpstreamDigest(value.tool_run_digest) &&
+    validUpstreamId(value.verification_result_id) &&
+    validUpstreamDigest(value.verifier_digest) &&
+    validUpstreamId(value.image_version_id) &&
+    validUpstreamDigest(value.image_version_digest) &&
+    validPositiveInteger(value.sequence) &&
+    validUpstreamId(value.parent_image_version_id) &&
+    validUpstreamId(value.result_asset_id) &&
+    validUpstreamDigest(value.result_asset_sha256)
+  );
+}
+
+export function editProjection(result: DemoEditBridgeResult) {
+  if (
+    result.kind === "PENDING" ||
+    result.kind === "IMAGE_VERSION_READY" ||
+    result.kind === "REJECTED" ||
+    result.kind === "FAILED" ||
+    result.kind === "CANCELLED"
+  )
+    return { status: result.kind };
+  return { code: result.kind };
+}
+
+function settleEdit(
+  handle: string,
+  session: BoundSession,
+  edit: BoundEdit,
+  update: Partial<BoundEdit> = {},
+): BoundEdit {
+  const next: BoundEdit = { ...edit, ...update, progressPromise: undefined };
+  sessions.set(handle, { ...session, edit: next });
+  return next;
+}
+
+async function advanceBoundEditStage(
+  handle: string,
+  session: BoundSession,
+  edit: BoundEdit,
+  configuration: BridgeConfiguration,
+): Promise<DemoEditBridgeResult> {
+  const client = createMirrorApiClient(serverEnv.API_BASE_URL);
+  const headers = { Authorization: `Bearer ${configuration.bearer}` };
+  if (edit.stage === "EDIT_SESSION_CREATE") {
+    const response = await client
+      .POST("/api/v1/demo/editing-sessions", {
+        cache: "no-store",
+        params: {
+          header: { "Idempotency-Key": edit.editSessionIdempotencyKey },
+        },
+        body: {
+          session_id: session.sessionId,
+          source_selector: "SESSION_CANONICAL_ASSET",
+        },
+        headers,
+      })
+      .catch(() => null);
+    if (!currentEditEntry(handle, session, edit)) return { kind: "DENIED" };
+    if (!response) {
+      settleEdit(handle, session, edit);
+      return { kind: "UNAVAILABLE" };
+    }
+    if (response.response.status !== 202 || response.error) {
+      settleEdit(handle, session, edit);
+      return { kind: errorForStatus(response.response.status) };
+    }
+    const authority = acceptedEditJob(response.data, "EDITING_SESSION");
+    if (!authority) {
+      settleEdit(handle, session, edit);
+      return { kind: "STALE_RESPONSE" };
+    }
+    settleEdit(handle, session, edit, {
+      stage: "EDIT_SESSION_POLL",
+      editSession: authority,
+    });
+    return { kind: "PENDING" };
+  }
+
+  if (edit.stage === "EDIT_SESSION_POLL") {
+    if (!edit.editSession) {
+      settleEdit(handle, session, edit);
+      return { kind: "STALE_RESPONSE" };
+    }
+    const response = await client
+      .GET("/api/v1/demo/jobs/{job_id}", {
+        cache: "no-store",
+        params: { path: { job_id: edit.editSession.jobId } },
+        headers,
+      })
+      .catch(() => null);
+    if (!currentEditEntry(handle, session, edit)) return { kind: "DENIED" };
+    if (!response) {
+      settleEdit(handle, session, edit);
+      return { kind: "UNAVAILABLE" };
+    }
+    if (response.error) {
+      settleEdit(handle, session, edit);
+      return { kind: errorForStatus(response.response.status) };
+    }
+    const status = editJobStatus(
+      response.data,
+      edit.editSession,
+      "EDITING_SESSION",
+      "EDITING_SESSION_INITIALIZED",
+    );
+    if (!status) {
+      settleEdit(handle, session, edit);
+      return { kind: "STALE_RESPONSE" };
+    }
+    if (status === "PENDING" || status === "RUNNING") {
+      settleEdit(handle, session, edit);
+      return { kind: "PENDING" };
+    }
+    if (status !== "COMPLETED") {
+      settleEdit(handle, session, edit, { terminalStatus: status });
+      return { kind: status };
+    }
+    settleEdit(handle, session, edit, { stage: "PLAN_CREATE" });
+    return { kind: "PENDING" };
+  }
+
+  if (edit.stage === "PLAN_CREATE") {
+    if (!edit.editSession) {
+      settleEdit(handle, session, edit);
+      return { kind: "STALE_RESPONSE" };
+    }
+    const response = await client
+      .POST("/api/v1/demo/editing-sessions/{editing_session_id}/plans", {
+        cache: "no-store",
+        params: {
+          path: { editing_session_id: edit.editSession.targetId },
+          header: { "Idempotency-Key": edit.planIdempotencyKey },
+        },
+        body: {
+          operation: edit.request.operation,
+          value_ppm: edit.request.valuePpm,
+        },
+        headers,
+      })
+      .catch(() => null);
+    if (!currentEditEntry(handle, session, edit)) return { kind: "DENIED" };
+    if (!response) {
+      settleEdit(handle, session, edit);
+      return { kind: "UNAVAILABLE" };
+    }
+    if (response.response.status !== 202 || response.error) {
+      settleEdit(handle, session, edit);
+      return { kind: errorForStatus(response.response.status) };
+    }
+    const authority = acceptedEditJob(response.data, "EDIT_PLAN");
+    if (!authority) {
+      settleEdit(handle, session, edit);
+      return { kind: "STALE_RESPONSE" };
+    }
+    settleEdit(handle, session, edit, { stage: "PLAN_POLL", plan: authority });
+    return { kind: "PENDING" };
+  }
+
+  if (edit.stage === "PLAN_POLL") {
+    if (!edit.plan) {
+      settleEdit(handle, session, edit);
+      return { kind: "STALE_RESPONSE" };
+    }
+    const response = await client
+      .GET("/api/v1/demo/jobs/{job_id}", {
+        cache: "no-store",
+        params: { path: { job_id: edit.plan.jobId } },
+        headers,
+      })
+      .catch(() => null);
+    if (!currentEditEntry(handle, session, edit)) return { kind: "DENIED" };
+    if (!response) {
+      settleEdit(handle, session, edit);
+      return { kind: "UNAVAILABLE" };
+    }
+    if (response.error) {
+      settleEdit(handle, session, edit);
+      return { kind: errorForStatus(response.response.status) };
+    }
+    const status = editJobStatus(
+      response.data,
+      edit.plan,
+      "EDIT_PLAN",
+      "EDIT_PLAN_READY",
+    );
+    if (!status) {
+      settleEdit(handle, session, edit);
+      return { kind: "STALE_RESPONSE" };
+    }
+    if (status === "PENDING" || status === "RUNNING") {
+      settleEdit(handle, session, edit);
+      return { kind: "PENDING" };
+    }
+    if (status !== "COMPLETED") {
+      settleEdit(handle, session, edit, { terminalStatus: status });
+      return { kind: status };
+    }
+    settleEdit(handle, session, edit, { stage: "EXECUTION_CREATE" });
+    return { kind: "PENDING" };
+  }
+
+  if (edit.stage === "EXECUTION_CREATE") {
+    if (!edit.plan) {
+      settleEdit(handle, session, edit);
+      return { kind: "STALE_RESPONSE" };
+    }
+    const response = await client
+      .POST("/api/v1/demo/edit-plans/{edit_plan_id}/executions", {
+        cache: "no-store",
+        params: {
+          path: { edit_plan_id: edit.plan.targetId },
+          header: { "Idempotency-Key": edit.executionIdempotencyKey },
+        },
+        body: {
+          execution_mode: "DETERMINISTIC_RASTER",
+          expected_plan_digest: edit.plan.targetAuthorityDigest,
+        },
+        headers,
+      })
+      .catch(() => null);
+    if (!currentEditEntry(handle, session, edit)) return { kind: "DENIED" };
+    if (!response) {
+      settleEdit(handle, session, edit);
+      return { kind: "UNAVAILABLE" };
+    }
+    if (response.response.status !== 202 || response.error) {
+      settleEdit(handle, session, edit);
+      return { kind: errorForStatus(response.response.status) };
+    }
+    const authority = acceptedEditJob(response.data, "EDIT_PLAN", {
+      id: edit.plan.targetId,
+      digest: edit.plan.targetAuthorityDigest,
+    });
+    if (!authority) {
+      settleEdit(handle, session, edit);
+      return { kind: "STALE_RESPONSE" };
+    }
+    settleEdit(handle, session, edit, {
+      stage: "EXECUTION_POLL",
+      execution: authority,
+    });
+    return { kind: "PENDING" };
+  }
+
+  if (edit.stage === "EXECUTION_POLL") {
+    if (!edit.execution) {
+      settleEdit(handle, session, edit);
+      return { kind: "STALE_RESPONSE" };
+    }
+    const response = await client
+      .GET("/api/v1/demo/jobs/{job_id}", {
+        cache: "no-store",
+        params: { path: { job_id: edit.execution.jobId } },
+        headers,
+      })
+      .catch(() => null);
+    if (!currentEditEntry(handle, session, edit)) return { kind: "DENIED" };
+    if (!response) {
+      settleEdit(handle, session, edit);
+      return { kind: "UNAVAILABLE" };
+    }
+    if (response.error) {
+      settleEdit(handle, session, edit);
+      return { kind: errorForStatus(response.response.status) };
+    }
+    const status = editJobStatus(
+      response.data,
+      edit.execution,
+      "EDIT_PLAN",
+      "EDIT_EXECUTION_COMPLETED",
+    );
+    if (!status) {
+      settleEdit(handle, session, edit);
+      return { kind: "STALE_RESPONSE" };
+    }
+    if (status === "PENDING" || status === "RUNNING") {
+      settleEdit(handle, session, edit);
+      return { kind: "PENDING" };
+    }
+    if (status !== "COMPLETED") {
+      settleEdit(handle, session, edit, { terminalStatus: status });
+      return { kind: status };
+    }
+    settleEdit(handle, session, edit, { stage: "RESULT_READ" });
+    return { kind: "PENDING" };
+  }
+
+  if (edit.stage === "RESULT_READ") {
+    if (!edit.execution) {
+      settleEdit(handle, session, edit);
+      return { kind: "STALE_RESPONSE" };
+    }
+    const response = await client
+      .GET("/api/v1/demo/edit-plans/execution-jobs/{job_id}/result", {
+        cache: "no-store",
+        params: { path: { job_id: edit.execution.jobId } },
+        headers,
+      })
+      .catch(() => null);
+    if (!currentEditEntry(handle, session, edit)) return { kind: "DENIED" };
+    if (!response) {
+      settleEdit(handle, session, edit);
+      return { kind: "UNAVAILABLE" };
+    }
+    if (response.error) {
+      settleEdit(handle, session, edit);
+      return { kind: errorForStatus(response.response.status) };
+    }
+    if (!publishedEditIsValid(response.data, session, edit)) {
+      settleEdit(handle, session, edit);
+      return { kind: "STALE_RESPONSE" };
+    }
+    const data = response.data as Record<string, unknown>;
+    settleEdit(handle, session, edit, {
+      stage: "READY",
+      result: {
+        toolRunId: data.tool_run_id as string,
+        toolRunDigest: data.tool_run_digest as string,
+        verificationResultId: data.verification_result_id as string,
+        verifierDigest: data.verifier_digest as string,
+        imageVersionId: data.image_version_id as string,
+        imageVersionDigest: data.image_version_digest as string,
+        sequence: data.sequence as number,
+        parentImageVersionId: data.parent_image_version_id as string,
+        resultAssetId: data.result_asset_id as string,
+        resultAssetSha256: data.result_asset_sha256 as string,
+      },
+    });
+    return { kind: "IMAGE_VERSION_READY" };
+  }
+
+  if (edit.stage === "READY" && edit.result)
+    return { kind: "IMAGE_VERSION_READY" };
+  settleEdit(handle, session, edit);
+  return { kind: "STALE_RESPONSE" };
+}
+
+function boundEditResult(edit: BoundEdit): DemoEditBridgeResult {
+  if (edit.stage === "READY" && edit.result)
+    return { kind: "IMAGE_VERSION_READY" };
+  if (edit.terminalStatus) return { kind: edit.terminalStatus };
+  return { kind: "PENDING" };
+}
+
+async function progressBoundDemoEdit(
+  handle: string,
+  session: BoundSession,
+  edit: BoundEdit,
+  configuration: BridgeConfiguration,
+): Promise<DemoEditBridgeResult> {
+  if (edit.progressPromise) return edit.progressPromise;
+  const inFlightEdit = {
+    ...edit,
+    progressPromise: null as unknown as Promise<DemoEditBridgeResult>,
+  };
+  const inFlightSession: BoundSession = { ...session, edit: inFlightEdit };
+  const promise = advanceBoundEditStage(
+    handle,
+    inFlightSession,
+    inFlightEdit,
+    configuration,
+  );
+  inFlightEdit.progressPromise = promise;
+  if (sessions.get(handle) !== session) return { kind: "DENIED" };
+  sessions.set(handle, inFlightSession);
+  return promise;
+}
+
+export async function createBoundDemoEdit(
+  handle: string | undefined,
+  request: DemoEditRequest,
+): Promise<DemoEditBridgeResult> {
+  if (!validDemoEditRequest(request)) return { kind: "CONFLICT" };
+  const bound = currentBoundSession(handle);
+  if (!bound || !handle) return { kind: "DENIED" };
+  const { session, configuration } = bound;
+  if (!session.profile?.profileId || !session.profile.compilationDigest)
+    return { kind: "CONFLICT" };
+  const existing = session.edit;
+  if (existing) {
+    if (
+      existing.request.operation !== request.operation ||
+      existing.request.valuePpm !== request.valuePpm
+    )
+      return { kind: "CONFLICT" };
+    if (existing.result || existing.terminalStatus)
+      return boundEditResult(existing);
+    return progressBoundDemoEdit(handle, session, existing, configuration);
+  }
+  const edit: BoundEdit = {
+    request,
+    stage: "EDIT_SESSION_CREATE",
+    editSessionIdempotencyKey: randomBytes(32).toString("hex"),
+    planIdempotencyKey: randomBytes(32).toString("hex"),
+    executionIdempotencyKey: randomBytes(32).toString("hex"),
+  };
+  return progressBoundDemoEdit(handle, session, edit, configuration);
+}
+
+export async function readBoundDemoEdit(
+  handle: string | undefined,
+): Promise<DemoEditBridgeResult> {
+  const bound = currentBoundSession(handle);
+  if (!bound || !handle) return { kind: "DENIED" };
+  const { session, configuration } = bound;
+  const edit = session.edit;
+  if (!edit) return { kind: "NOT_FOUND" };
+  if (edit.result || edit.terminalStatus) return boundEditResult(edit);
+  return progressBoundDemoEdit(handle, session, edit, configuration);
 }
 
 export async function respondBoundDemoQuestionnaire(
