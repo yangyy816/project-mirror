@@ -52,12 +52,13 @@ from mirror_api.demo_editing_storage import (
 )
 from mirror_api.demo_editing_task_contract import DemoEditingOperation, DemoEditingTaskMessage
 from mirror_api.demo_editing_verifier_adapter import DemoDeterministicEditVerifier
-from mirror_api.demo_idempotency import DemoIdempotencyPayloadConflict
+from mirror_api.demo_idempotency import DemoIdempotencyPayloadConflict, canonical_json_bytes
 from mirror_api.demo_models import (
     D02SelectedSourceManifest,
     DemoEditArtifact,
     DemoEditArtifactEvent,
     DemoEditingSession,
+    DemoEditPlan,
     DemoIdentityConstraints,
     DemoImageVersion,
     DemoJobBinding,
@@ -66,6 +67,11 @@ from mirror_api.demo_models import (
     DemoVerificationResult,
 )
 from mirror_api.demo_operation_graph import OperationType
+from mirror_api.demo_preference_ledger import (
+    DemoPreferenceSourceType,
+    FinalizeDemoAcceptedVisualEpisode,
+    finalize_demo_accepted_visual_episode,
+)
 from mirror_api.models import Asset, Job, new_id, utcnow
 
 pytestmark = pytest.mark.integration
@@ -430,6 +436,24 @@ async def test_command_admission_runtime_restore_and_replay_are_postgresql_autho
         postgres_session.expire_all()
         result_plan = postgres_session.get(type(graph["result_plan"]), plan.target_id)
         assert result_plan is not None
+        request_plan = postgres_session.get(DemoEditPlan, result_plan.request_plan_id)
+        editing = postgres_session.get(DemoEditingSession, accepted.target_id)
+        plan_binding = postgres_session.scalar(
+            select(DemoJobBinding).where(DemoJobBinding.job_id == plan.job_id)
+        )
+        assert request_plan is not None and editing is not None and plan_binding is not None
+        assert request_plan.instruction_digest == editing.instruction_digest
+        assert result_plan.instruction_digest == editing.instruction_digest
+        assert plan_binding.request_digest == hashlib.sha256(
+            canonical_json_bytes(
+                {
+                    "editing_session_id": accepted.target_id,
+                    "operation": OperationType.EXPOSURE.value,
+                    "value_ppm": 250_000,
+                }
+            )
+        ).hexdigest()
+        assert plan_binding.request_digest != editing.instruction_digest
         execution = await commands.execute_edit_plan(
             ExecuteDemoEditPlan(
                 actor_id,
@@ -515,6 +539,22 @@ async def test_command_admission_runtime_restore_and_replay_are_postgresql_autho
         assert published.result_asset_id == versions[1].result_asset_id
         assert published.result_asset_sha256 == versions[1].result_asset_sha256
 
+        async with sessions() as final_save_session:
+            async with final_save_session.begin():
+                final_save = await finalize_demo_accepted_visual_episode(
+                    final_save_session,
+                    FinalizeDemoAcceptedVisualEpisode(
+                        demo_actor_id=actor_id,
+                        demo_session_id=session_id,
+                        editing_session_id=accepted.target_id,
+                        accepted_image_version_id=versions[1].id,
+                        source_type=DemoPreferenceSourceType.EXPLICIT_USER_ACTION,
+                        signal={"final_save": 1},
+                        occurred_at=utcnow(),
+                    ),
+                )
+        assert final_save.accepted_visual_episode.instruction_digest == editing.instruction_digest
+
         original, current = versions
         restore = await commands.restore_image_version(
             RestoreDemoImageVersion(
@@ -526,6 +566,36 @@ async def test_command_admission_runtime_restore_and_replay_are_postgresql_autho
                 "d07-restore-request",
             )
         )
+        postgres_session.expire_all()
+        restore_binding = postgres_session.scalar(
+            select(DemoJobBinding).where(DemoJobBinding.job_id == restore.job_id)
+        )
+        restore_request_plan = postgres_session.scalar(
+            select(DemoEditPlan).where(
+                DemoEditPlan.editing_session_id == accepted.target_id,
+                DemoEditPlan.record_kind == "REQUEST",
+                DemoEditPlan.input_image_version_id == current.id,
+            )
+        )
+        assert restore_binding is not None and restore_request_plan is not None
+        restore_result_plan = postgres_session.scalar(
+            select(DemoEditPlan).where(
+                DemoEditPlan.request_plan_id == restore_request_plan.id
+            )
+        )
+        assert restore_result_plan is not None
+        assert restore_request_plan.instruction_digest == editing.instruction_digest
+        assert restore_result_plan.instruction_digest == editing.instruction_digest
+        assert restore_binding.request_digest == hashlib.sha256(
+            canonical_json_bytes(
+                {
+                    "target_image_version_id": original.id,
+                    "expected_current_image_version_id": current.id,
+                    "expected_current_image_version_digest": current.content_digest,
+                }
+            )
+        ).hexdigest()
+        assert restore_binding.request_digest != editing.instruction_digest
         restore_message = _message(actor_id, restore, "image_version.restore")
         parent_claim = await runtime._claim(restore_message)
         assert parent_claim is not None

@@ -868,7 +868,7 @@ class DemoEditingCommandService:
                     "geometry plan authority is unavailable"
                 ) from exc
         result_id = await self._persist_plan(
-            session, c.demo_actor_id, demo_session_id, editing, image, (spec,), request_digest
+            session, c.demo_actor_id, demo_session_id, editing, image, (spec,)
         )
         return result_id, result_id
 
@@ -975,7 +975,6 @@ class DemoEditingCommandService:
             editing,
             current,
             (spec,),
-            request_digest,
             deterministic_seed=job_id,
         )
         # Frozen D01-B ownership trigger binds a restore Job to the historical target,
@@ -1047,7 +1046,6 @@ class DemoEditingCommandService:
         editing: DemoEditingSession,
         image: DemoImageVersion,
         specs: Sequence[OperationSpec],
-        instruction_digest: str,
         *,
         deterministic_seed: str | None = None,
     ) -> str:
@@ -1074,7 +1072,7 @@ class DemoEditingCommandService:
             "desired_delta_profile_digest": editing.desired_delta_profile_digest,
             "style_profile_digest": editing.style_profile_digest,
             "identity_constraints_digest": editing.identity_constraints_digest,
-            "instruction_digest": instruction_digest,
+            "instruction_digest": editing.instruction_digest,
             "planner_version": PLANNER_VERSION,
             "tool_registry_version": TOOL_REGISTRY_VERSION,
         }
