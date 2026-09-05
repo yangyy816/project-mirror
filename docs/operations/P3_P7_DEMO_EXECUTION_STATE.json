@@ -2,7 +2,7 @@
   "schema_version": "mirror.demo/P3P7DemoExecutionState/v1",
   "goal_epoch": "P3_P7_COMPLETE_DEMO_EPOCH_02",
   "integration_branch": "codex/p3-p7-product-forward",
-  "integration_head": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683",
+  "integration_head": "75ffda3c3f782f762ffa1db0479c0647c4a67808",
   "migration_head": "demo_0019_d06_stepped_transfer",
   "delivery_policy": "PRODUCT_AND_ALGORITHM_FIRST_RISK_TIERED",
   "evidence_custody_host_binding": "FROZEN_DEFERRED",
@@ -53,9 +53,12 @@
     "D11_ANALYSIS_SCOPED_QUESTIONNAIRE_FLOW",
     "D11_INTERACTIVE_QUESTIONNAIRE_UI_FLOW",
     "D11_PROFILE_AND_EDIT_AUTHORITY_WAVE",
-    "D11_R09_DETERMINISTIC_EDIT_FLOW_INTEGRATION"
+    "D11_R09_DETERMINISTIC_EDIT_FLOW_INTEGRATION",
+    "D06_CONTROLLED_GEOMETRY_RUNTIME_GATE",
+    "D11_PROFILE_GUIDED_REAL_RUNTIME_E2E",
+    "D12_COMPLETE_RUNTIME_E2E"
   ],
-  "active_checkpoint": "D12_RUNTIME_PASS_CAPABILITY_REVOKED_CODE_CI_PENDING",
+  "active_checkpoint": "D12_TASK_ACCEPTED_COMPLETE_DEMO_EPOCH_02",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -147,9 +150,15 @@
     "D06_STEPPED_SELF_TRANSFER_CODE": "9ff07072cc1119988a1a5a2d52db2ded954c383e",
     "D11_PROFILE_GUIDED_SELF_TRANSFER_WEB_CODE": "bc3522a8c08442e7066ef753ea1ba55888cc317d",
     "D06_D11_STEPPED_INTEGRATION": "dfd958ef1704485f8950dc1ddeff02856c7cb1ec",
-    "D06_D11_MIGRATION_HEAD_REPAIR": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683"
+    "D06_D11_MIGRATION_HEAD_REPAIR": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683",
+    "D06_CONTROLLED_GEOMETRY_RUNTIME": "75ffda3c3f782f762ffa1db0479c0647c4a67808",
+    "D11_PROFILE_GUIDED_REAL_RUNTIME_E2E": "75ffda3c3f782f762ffa1db0479c0647c4a67808",
+    "D12_COMPLETE_RUNTIME_E2E": "75ffda3c3f782f762ffa1db0479c0647c4a67808"
   },
   "accepted_ci_runs": {
+    "D06_CONTROLLED_GEOMETRY_RUNTIME": 33953264614,
+    "D11_PROFILE_GUIDED_REAL_RUNTIME_E2E": 33953264614,
+    "D12_COMPLETE_RUNTIME_E2E": 33953264614,
     "D09": 32701906246,
     "D02_R2_R05_IMPLEMENTATION": 33042678958,
     "D02_R2_R05_ACCEPTANCE_STATE": 33067727602,
@@ -588,10 +597,11 @@
       "migration_head": "demo_0016_d06_ref_profile_queue",
       "implementation": "TASK_ACCEPTED_QUEUED_API_WORKER_POSTGRESQL",
       "real_postgresql_integration": "PASS",
-      "published_image_and_verifier_bridge": "PASS_FIXTURE_AUTHORITY",
-      "real_d02_runtime_integration": "DEFERRED_TO_D02_FINAL_GATE",
+      "published_image_and_verifier_bridge": "PASS_REAL_IMAGEVERSION_VERIFIER_AND_REFERENCE_RESULT",
+      "real_d02_runtime_integration": "PASS_CONTROLLED_M3_M4_RUNTIME",
       "public_api_worker_wiring": "PASS_REFERENCE_ONLY_JOB_BINDING_CELERY_LOCAL_RECONCILIATION",
-      "final_acceptance": "NOT_VERIFIED",
+      "final_acceptance": "TASK_ACCEPTED_DEMO_PROTOTYPE",
+      "final_integration_ci": "PASS_33953264614",
       "review": "ONE_BLOCKING_DUPLICATE_DIMENSION_FINDING_REPAIRED_AND_PRINCIPAL_VERIFIED",
       "validation": "PASS_POSTGRESQL_MIGRATION_DRIFT_QUEUE_SERVICE_API_WORKER_CANCEL_REDELIVERY_207_SOURCE_MYPY_RUFF_OPENAPI_PLAYWRIGHT_GITLEAKS",
       "task_acceptance_claimed": true
@@ -625,7 +635,8 @@
       "same_sha_ci_for_implementation_sha": "UNAVAILABLE_NOT_CLAIMED",
       "status": "TASK_ACCEPTED",
       "track": "DEMO_PROTOTYPE",
-      "final_d10_p7_acceptance": "NOT_VERIFIED"
+      "final_d10_p7_acceptance": "TASK_ACCEPTED_DEMO_PROTOTYPE_REAL_RUNTIME",
+      "final_integration_ci": "PASS_33953264614"
     },
     "D09_IMAGE_FEEDBACK_FINAL_SAVE_API": {
       "code_sha": "32cb1e9d62c99d33f898357617264b23c6f7d06d",
@@ -636,9 +647,10 @@
       "openapi_generated_client": "PASS",
       "independent_review": "PASS_FINDINGS_NONE",
       "same_sha_remote_ci": "NOT_PERFORMED",
-      "final_acceptance": "NOT_VERIFIED",
+      "final_acceptance": "TASK_ACCEPTED_DEMO_PROTOTYPE_REAL_FINAL_SAVE",
+      "final_integration_ci": "PASS_33953264614",
       "validation": "PASS_POSTGRESQL_45_API_CONTRACT_24_RUFF_STRICT_MYPY_OPENAPI_TYPESCRIPT_DIFF_CHECK",
-      "task_acceptance_claimed": false
+      "task_acceptance_claimed": true
     },
     "D11_R03_INITIAL_INTEGRATED_CI": {
       "run_id": 33746025777,
@@ -664,9 +676,9 @@
       "real_api_read": "GET_API_V1_DEMO_CAPABILITIES_SERVER_SIDE_PROBE",
       "authentication_boundary": "BROWSER_NO_BEARER_SERVER_ONLY_UPSTREAM_AUTHORIZATION",
       "invalid_or_unavailable_api": "FAIL_CLOSED_UNAVAILABLE",
-      "execution_semantics": "UI_CONTRACT_ONLY_SYNTHETIC_DEMO_RUNTIME_EVIDENCE_DEFERRED",
+      "execution_semantics": "REAL_SYNTHETIC_DEMO_BROWSER_API_WORKER_POSTGRESQL",
       "real_d02_integration": "TASK_ACCEPTED_UPSTREAM",
-      "playwright_complete_flow": "PASS_BROWSER_CONTRACT_REAL_GEOMETRY_RUNTIME_DEFERRED",
+      "playwright_complete_flow": "PASS_CONTRACT_SUITE_AND_SEPARATE_REAL_BROWSER_GEOMETRY_FINAL_SAVE_REFERENCE_FLOW",
       "trace_ui_code_sha": "c89cc16e0b1338004074b0b71a89e314fa61d8cd",
       "trace_ui_integration_head": "7472438fdf29006294355ffd7446dfd9977ce0eb",
       "trace_ui_integration_ci": "PASS_33384367990",
@@ -700,17 +712,18 @@
       "deterministic_edit_code_sha": "746f210418182672126718bc3043124e8e931f5e",
       "deterministic_edit_integration_sha": "970f40bc24e96728b7cdf0f2e93b5f81939d9273",
       "deterministic_edit_ci": "PASS_33848264963_ATTEMPT_3",
-      "profile_guided_self_transfer": "IMPLEMENTATION_INTEGRATED_CI_PASS_RUNTIME_GATE_DEFERRED",
+      "profile_guided_self_transfer": "TASK_ACCEPTED_REAL_RUNTIME_AND_FULL_CODE_CI_PASS",
       "profile_guided_web_code_sha": "bc3522a8c08442e7066ef753ea1ba55888cc317d",
       "profile_guided_integration_sha": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683",
       "profile_guided_ci": "PASS_33886813328",
       "profile_guided_browser_boundary": "PASS_GENERATED_CLIENT_JSON_BINARY_MEDIA_ONLY_OPAQUE_TOKEN_EXACT_REFERENCE_RESULT",
-      "controlled_geometry_runtime_gate": "REPORTED_PASS_PENDING_INTEGRATION_PRINCIPAL_ACCEPTANCE",
+      "controlled_geometry_runtime_gate": "TASK_ACCEPTED_BY_INTEGRATION_PRINCIPAL",
       "server_side_credential_bridge": "PASS_BEARER_SERVER_ONLY_BROWSER_OPAQUE_HANDLE",
       "explicit_recall_at": "PASS_IDENTICAL_CONTEXT_AND_TRACE_ANCHOR",
-      "browser_storage": "PASS_NO_BEARER_LOCAL_SESSION_INDEXEDDB_OR_DOM",
-      "real_e2e_claimed": false,
-      "final_acceptance": "NOT_VERIFIED",
+      "browser_storage": "PASS_LOCAL_SESSION_RUNTIME_OBSERVATIONS_AND_STATIC_NO_INDEXEDDB_BFF_BOUNDARY",
+      "real_e2e_claimed": true,
+      "final_acceptance": "TASK_ACCEPTED_DEMO_PROTOTYPE",
+      "final_integration_ci": "PASS_33953264614",
       "validation": "PASS_WEB_VITEST_80_LINT_TYPECHECK_PRODUCTION_BUILD_PLAYWRIGHT_VERSION_HISTORY_FULL_HISTORY_GITLEAKS_EXACT_SHA_CI",
       "task_acceptance_claimed": true
     }
@@ -770,7 +783,7 @@
     "d02_branch": "codex/p3-p7-d02-final-gate",
     "d02_tracked_checkpoint_sha": "0cd6da58ce111806ed7f56044b270f9b68890f3f",
     "product_branch": "codex/p3-p7-product-forward",
-    "product_code_head": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683",
+    "product_code_head": "75ffda3c3f782f762ffa1db0479c0647c4a67808",
     "private_execution_owner": "D02_SUBSYSTEM_PRINCIPAL",
     "main_process_d02_access": "FORBIDDEN_PERMANENT_AUTONOMY_BOUNDARY"
   },
@@ -809,7 +822,7 @@
     "readiness_product_code_sha": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683",
     "runtime_gate": "REPORTED_PASS_STANDARD_AND_CASE_25",
     "negative_and_replay_gates": "REPORTED_PASS_PRECLAIM_LOCK_RESTRAINT_NO_COMPATIBLE_COMPLETED_REDELIVERY",
-    "d11_real_runtime_e2e": "PASS_PRINCIPAL_BROWSER_OBSERVED_FINAL_ACCEPTANCE_PENDING_CI",
+    "d11_real_runtime_e2e": "TASK_ACCEPTED_PRINCIPAL_BROWSER_RUNTIME_AND_CODE_CI_PASS",
     "d11_observed_runtime": {
       "session_id": "9d64ea4b6edb4024815beb44faf97f21",
       "analysis": "SUPPORTED",
@@ -832,7 +845,7 @@
     "editing_projection_repair_validation": "PASS_47_BFF_TESTS_LINT_TYPESCRIPT_PRODUCTION_BUILD",
     "withdrawn_diagnostic": "POST_COMPLETED_RACE_NOT_CAPTURED_NOT_EVIDENCE_BACKED",
     "questionnaire_contract_runtime": "HTTP_200_QUESTION_AFTER_RUN_ID_PROJECTION_REPAIR",
-    "d12_complete_e2e": "RUNTIME_GATES_PASS_FINAL_ACCEPTANCE_PENDING",
+    "d12_complete_e2e": "TASK_ACCEPTED_DEMO_PROTOTYPE",
     "d12_runtime_checkpoint": {
       "profile_rebuild_job_id": "2bfad55611fd46ab8aff1c09a41e136a",
       "profile_rebuild": "COMPLETED_PROFILE_REBUILT_SAME_KEY_SAME_JOB",
@@ -892,17 +905,27 @@
       "forced_process_kill": false,
       "second_worker_started": false,
       "private_api_operator": "STOPPED_NORMALLY",
-      "independent_final_review": "CONDITIONAL_ONLY_PENDING_CODE_CI_NO_PRODUCT_CORRECTNESS_PRIVACY_BLOCKER",
+      "independent_final_review": "REVIEW_COMPLETE_NO_PRODUCT_CORRECTNESS_PRIVACY_BLOCKER_CI_PREREQUISITE_NOW_FULFILLED",
       "independent_final_reviewer": "SOL_HIGH_PM_FINAL_REVIEWER",
       "runtime_artifact_interpretation": "BROWSER_STORAGE_COUNTER_IS_LOCAL_AND_SESSION_STORAGE_ONLY_PROTECTED_SNAPSHOT_IS_FOUR_CORE_ENTITY_TYPES_ONLY"
     },
     "current_code_ci": {
       "sha": "75ffda3c3f782f762ffa1db0479c0647c4a67808",
       "run": 33953264614,
-      "status": "IN_PROGRESS",
+      "status": "PASS_COMPLETED",
       "docker_validation": "PASS",
       "secret_scan": "PASS",
-      "quality_and_integration": "IN_PROGRESS_PYTHON_TESTS"
+      "quality_and_integration": "PASS",
+      "completed_at": "2026-09-05T09:41:01Z",
+      "artifacts": "FIVE_DOWNLOADED_UNEXPIRED_EXACT_CODE_SHA_BOUND",
+      "gitleaks_sarif_results": 0,
+      "python_tests_passed": 2986,
+      "python_tests_skipped": 1,
+      "strict_mypy_sources": 247,
+      "web_unit_tests_passed": 133,
+      "browser_contract_tests_passed": 11,
+      "single_migration_head": "demo_0019_d06_stepped_transfer",
+      "conditional_skips": "EXPECTED_CLOSED_BOOTSTRAP_AND_FORMAL_GENERATORS_NOT_RUN_ON_DEMO_HEAD"
     },
     "new_imagegen_calls_authorized": 0,
     "new_product_runtime_executions": {
@@ -932,17 +955,28 @@
       "historical_d02_reexecution": false
     }
   },
-  "current_blockers": {
-    "D12_FINAL_ACCEPTANCE": {
-      "status": "RUNTIME_GATES_REVOCATION_AND_INDEPENDENT_REVIEW_COVERAGE_PASS_ONLY_CODE_CI_PENDING",
-      "scope": "D12_FINAL_ACCEPTANCE_ONLY",
-      "owner_runtime_authorization": "VALID",
-      "resume_predicate": "CI_33953264614_ALL_SUCCESS_FOR_75ffda3_THEN_PRINCIPAL_FINAL_ACCEPTANCE_NO_RUNTIME_REEXECUTION",
-      "project_level_blocked": false
-    }
+  "d12_final_acceptance": {
+    "status": "TASK_ACCEPTED",
+    "accepted_by": "INTEGRATION_PRINCIPAL",
+    "code_sha": "75ffda3c3f782f762ffa1db0479c0647c4a67808",
+    "code_ci": 33953264614,
+    "runtime_validation_checkpoint": "ea45f124bd9f5b1848145c256bfcbe3f7cd129ad",
+    "acceptance_document": "docs/operations/P3_P7_D12_ACCEPTANCE.md",
+    "algorithmic_prototype_platform": "PASS",
+    "local_web_agent": "PASS",
+    "real_user_validity": "NOT_EVALUATED",
+    "preference_model_generalization": "NOT_EVALUATED",
+    "real_face_measurement_validity": "NOT_EVALUATED",
+    "real_user_identity_preservation": "NOT_EVALUATED",
+    "product_market_validation": "NOT_EVALUATED",
+    "production_security": "DEFERRED_FOR_FORMAL_PHASE",
+    "production_release": "NOT_AUTHORIZED",
+    "post_acceptance_mode": "READ_ONLY_DISPLAY_TEMPORARY_EXECUTION_CAPABILITY_REVOKED",
+    "metadata_full_ci": "NOT_RUN_NOT_CLAIMED_CODE_SHA_CI_REUSED_PER_OWNER_POLICY"
   },
-  "next_ready_nodes": ["D12_FINAL_ACCEPTANCE"],
-  "runtime_evidence_blocked_nodes": ["D12_FINAL_ACCEPTANCE"],
+  "current_blockers": {},
+  "next_ready_nodes": [],
+  "runtime_evidence_blocked_nodes": [],
   "project_status": "ACTIVE",
   "project_mainline": "ACTIVE",
   "d02_real_integration": "TASK_ACCEPTED_INTEGRATED",

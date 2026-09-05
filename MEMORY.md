@@ -948,3 +948,9 @@
   读取。Context trace 的 `next_session_recall` 只表示 selected evidence 中存在另一 Session 的持久证据，
   被排除的旧 Session temporary override 不会使它变为 true。运行失败恢复先重放已完成 PostgreSQL checkpoint，
   不重跑已完成 Analysis/Profile/Context，不修改过期 Session；剩余用例需要有效 Session 时前向创建隔离对象。
+
+- 2026-09-05：完整 Demo Epoch 02 在产品代码 `75ffda3c3f782f762ffa1db0479c0647c4a67808` 与
+  exact-SHA CI `33953264614` 全绿后，由 Principal 接受 D06 controlled runtime、D11 real browser flow
+  及 D12。独立 Sol 最终审查与真实生命周期、恢复、recall、取消和重复投递均闭环；本波 M3/M4 为 36/3，
+  Provider 增量 0，临时执行工厂已随原 Worker 正常退出撤销。接受仅限本地成年合成 Demo，不产生真实用户
+  有效性、正式 Phase 或生产批准；最终证据见 `docs/operations/P3_P7_D12_ACCEPTANCE.md`。
