@@ -1720,6 +1720,8 @@ export interface components {
              * @enum {string}
              */
             kind: "QUESTION";
+            /** Run Id */
+            run_id: string;
             /** Step Id */
             step_id: string;
             /** Question Pair Id */

@@ -149,6 +149,7 @@ class DemoRoutingComponents(StrictContractModel):
 
 class DemoQuestionNextResponse(StrictContractModel):
     kind: Literal["QUESTION"]
+    run_id: DemoId
     step_id: DemoId
     question_pair_id: DemoId
     question_pair_digest: DemoDigest

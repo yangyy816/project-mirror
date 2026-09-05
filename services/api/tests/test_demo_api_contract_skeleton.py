@@ -369,6 +369,7 @@ def test_frozen_demo_contracts_include_concurrency_and_quantized_authority() -> 
 
     next_question = DemoQuestionNextResponse(
         kind="QUESTION",
+        run_id="e" * 32,
         step_id="1" * 32,
         question_pair_id="2" * 32,
         question_pair_digest="3" * 64,

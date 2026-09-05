@@ -7792,6 +7792,11 @@
             "const": "QUESTION",
             "title": "Kind"
           },
+          "run_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Run Id"
+          },
           "step_id": {
             "type": "string",
             "pattern": "^[0-9a-f]{32}$",
@@ -7869,6 +7874,7 @@
         "type": "object",
         "required": [
           "kind",
+          "run_id",
           "step_id",
           "question_pair_id",
           "question_pair_digest",

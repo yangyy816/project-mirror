@@ -895,6 +895,7 @@ def _questionnaire_next_response(
     presentation = result.presentation
     return DemoQuestionNextResponse(
         kind="QUESTION",
+        run_id=result.snapshot.questionnaire_run_id,
         step_id=result.snapshot.step_id,
         question_pair_id=result.question_pair_id,
         question_pair_digest=presentation.question_pair_digest,

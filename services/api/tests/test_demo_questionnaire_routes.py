@@ -259,6 +259,7 @@ def test_questionnaire_routes_project_real_service_contracts() -> None:
         assert question.status_code == 200
         body = question.json()
         assert body["kind"] == "QUESTION"
+        assert body["run_id"] == RUN_ID
         assert body["question_pair_id"] == PAIR_ID
         assert body["question_pair_digest"] == "b" * 64
         assert body["source_asset_id"] == "c" * 32
