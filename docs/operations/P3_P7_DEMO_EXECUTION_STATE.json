@@ -55,7 +55,7 @@
     "D11_PROFILE_AND_EDIT_AUTHORITY_WAVE",
     "D11_R09_DETERMINISTIC_EDIT_FLOW_INTEGRATION"
   ],
-  "active_checkpoint": "D11_R09_TASK_ACCEPTED_D06_D11_STEPPED_IMPLEMENTATION_INTEGRATED_RUNTIME_GATE_DEFERRED",
+  "active_checkpoint": "D06_D11_D12_CONTROLLED_RUNTIME_AUTHORIZED_AND_DISPATCHED",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -384,7 +384,7 @@
     "D06_D11_stepped_ci": "PASS_33886813328",
     "D06_D11_stepped_validation": "PASS_2986_PYTHON_1_SKIPPED_130_WEB_11_PLAYWRIGHT_RUFF_STRICT_MYPY_CONTRACTS_DOCKER_GITLEAKS",
     "D06_D11_risk_review": "PASS_AFTER_THREE_BLOCKING_FINDINGS_REPAIRED",
-    "controlled_geometry_runtime_gate": "DEFERRED_RUNTIME_GATE_BLOCKED_BY_D02_PRIVATE_ALLOWED_TASK_SCOPE",
+    "controlled_geometry_runtime_gate": "AUTHORIZED_PENDING_ACTUAL_WORKER_INSTALLATION",
     "D06_D11_stepped_task_acceptance_claimed": false
   },
   "nonaccepted_ci_runs": {
@@ -705,7 +705,7 @@
       "profile_guided_integration_sha": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683",
       "profile_guided_ci": "PASS_33886813328",
       "profile_guided_browser_boundary": "PASS_GENERATED_CLIENT_JSON_BINARY_MEDIA_ONLY_OPAQUE_TOKEN_EXACT_REFERENCE_RESULT",
-      "controlled_geometry_runtime_gate": "DEFERRED_RUNTIME_GATE_BLOCKED_BY_D02_PRIVATE_ALLOWED_TASK_SCOPE",
+      "controlled_geometry_runtime_gate": "AUTHORIZED_PENDING_ACTUAL_WORKER_INSTALLATION",
       "server_side_credential_bridge": "PASS_BEARER_SERVER_ONLY_BROWSER_OPAQUE_HANDLE",
       "explicit_recall_at": "PASS_IDENTICAL_CONTEXT_AND_TRACE_ANCHOR",
       "browser_storage": "PASS_NO_BEARER_LOCAL_SESSION_INDEXEDDB_OR_DOM",
@@ -774,21 +774,31 @@
     "private_execution_owner": "D02_SUBSYSTEM_PRINCIPAL",
     "main_process_d02_access": "FORBIDDEN_PERMANENT_AUTONOMY_BOUNDARY"
   },
-  "current_blockers": {
-    "CONTROLLED_GEOMETRY_RUNTIME_GATE": {
-      "status": "DEFERRED_RUNTIME_GATE",
-      "blocker": "D02_PRIVATE_ALLOWED_TASK_SCOPE",
-      "scope": "D06_D11_PROFILE_GUIDED_RUNTIME_AND_D12_ONLY",
-      "project_level_blocked": false
-    }
+  "controlled_runtime_execution": {
+    "task_id": "P3_P7_D06_D11_D12_CONTROLLED_RUNTIME_20260905",
+    "owner_authorized_scope": "D06_D11_PROFILE_GUIDED_GEOMETRY_RUNTIME_AND_D12",
+    "authorization_ack": true,
+    "private_runtime_executor": "D02_SUBSYSTEM_PRINCIPAL",
+    "final_acceptance_owner": "INTEGRATION_PRINCIPAL",
+    "handoff": "OPAQUE_PROCESS_LOCAL_FACTORY_ONLY",
+    "dispatch_state": "SENT_TO_EXISTING_D02_SUBSYSTEM_PRINCIPAL",
+    "worker_capability_installed": "PENDING_EXECUTOR_RESULT",
+    "worker_ready": "PENDING_EXECUTOR_RESULT",
+    "runtime_gate": "NOT_VERIFIED",
+    "d11_real_runtime_e2e": "NOT_VERIFIED",
+    "d12_complete_e2e": "NOT_VERIFIED",
+    "new_imagegen_calls_authorized": 0,
+    "new_product_runtime_executions": null,
+    "historical_d02_reexecution_authorized": false,
+    "temporary_capability_revoked": "PENDING_EXECUTION_COMPLETION"
   },
-  "next_ready_nodes": [],
+  "current_blockers": {},
+  "next_ready_nodes": ["D06_CONTROLLED_GEOMETRY_RUNTIME_GATE"],
   "runtime_evidence_blocked_nodes": [
-    "D06_CONTROLLED_GEOMETRY_RUNTIME_GATE",
     "D11_PROFILE_GUIDED_REAL_RUNTIME_E2E",
     "D12_COMPLETE_RUNTIME_E2E"
   ],
-  "project_status": "ACTIVE_WITH_DEFERRED_RUNTIME_GATE",
+  "project_status": "ACTIVE",
   "project_mainline": "ACTIVE",
   "d02_real_integration": "TASK_ACCEPTED_INTEGRATED",
   "production_release": "NOT_AUTHORIZED",

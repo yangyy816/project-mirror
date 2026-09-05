@@ -936,3 +936,9 @@
   该 stepped flow 仅为 `IMPLEMENTATION_INTEGRATED_CI_PASS`：受控真实 Geometry Worker factory 因 D02 private
   allowed-task scope 未授权而保持 `DEFERRED_RUNTIME_GATE`，因此 D06/D11 stepped final acceptance 与 D12 real E2E
   均未宣称 PASS，项目主线保持 `ACTIVE_WITH_DEFERRED_RUNTIME_GATE`。
+
+- 2026-09-05：Owner 一次性授权 `D06_D11_PROFILE_GUIDED_GEOMETRY_RUNTIME_AND_D12`，解除上述
+  `D02_PRIVATE_ALLOWED_TASK_SCOPE` 暂停，并覆盖同任务失败恢复。D02 Subsystem Principal 是私有 runtime
+  executor，须在实际消费 Geometry Job 的 Worker 进程内安装既有 opaque factory；Integration Principal
+  负责集成与最终接受，仅接收脱敏公开结果。三个阶段不再重复申请相同 scope；不增加 ImageGen、不重做历史
+  D02 生成/筛选/admission，新增产品 M3/M4 与 verifier 单独计数，结束时撤销本任务临时能力。
