@@ -55,7 +55,7 @@
     "D11_PROFILE_AND_EDIT_AUTHORITY_WAVE",
     "D11_R09_DETERMINISTIC_EDIT_FLOW_INTEGRATION"
   ],
-  "active_checkpoint": "D06_REAL_GEOMETRY_REPORTED_PASS_D11_P6_CAPABILITY_REPAIR",
+  "active_checkpoint": "D12_RUNTIME_PASS_CAPABILITY_REVOKED_CODE_CI_PENDING",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -797,7 +797,7 @@
     "private_service_configuration_owner": "D02_SUBSYSTEM_PRINCIPAL",
     "final_acceptance_owner": "INTEGRATION_PRINCIPAL",
     "handoff": "OPAQUE_PROCESS_LOCAL_FACTORY_ONLY",
-    "dispatch_state": "EXECUTOR_ACKNOWLEDGED_AND_CONTINUING",
+    "dispatch_state": "CLOSED_CAPABILITY_REVOKED_NO_NONTERMINAL_JOBS",
     "worker_capability_installed": "YES_DURING_EXECUTION_NOW_REVOKED",
     "worker_ready": "NOT_RUNNING_TASK_SCOPE_CLOSED_AFTER_RUNTIME_GATES",
     "worker_kind": "ACTUAL_CELERY_CONSUMER",
@@ -892,7 +892,9 @@
       "forced_process_kill": false,
       "second_worker_started": false,
       "private_api_operator": "STOPPED_NORMALLY",
-      "independent_final_review": "PENDING_EXISTING_D12_GATE_NOT_A_NEW_GOVERNANCE_LAYER"
+      "independent_final_review": "CONDITIONAL_ONLY_PENDING_CODE_CI_NO_PRODUCT_CORRECTNESS_PRIVACY_BLOCKER",
+      "independent_final_reviewer": "SOL_HIGH_PM_FINAL_REVIEWER",
+      "runtime_artifact_interpretation": "BROWSER_STORAGE_COUNTER_IS_LOCAL_AND_SESSION_STORAGE_ONLY_PROTECTED_SNAPSHOT_IS_FOUR_CORE_ENTITY_TYPES_ONLY"
     },
     "current_code_ci": {
       "sha": "75ffda3c3f782f762ffa1db0479c0647c4a67808",
@@ -932,10 +934,10 @@
   },
   "current_blockers": {
     "D12_FINAL_ACCEPTANCE": {
-      "status": "RUNTIME_GATES_AND_REVOCATION_PASS_CODE_CI_AND_EXISTING_FINAL_REVIEW_PENDING",
+      "status": "RUNTIME_GATES_REVOCATION_AND_INDEPENDENT_REVIEW_COVERAGE_PASS_ONLY_CODE_CI_PENDING",
       "scope": "D12_FINAL_ACCEPTANCE_ONLY",
       "owner_runtime_authorization": "VALID",
-      "resume_predicate": "CLOSE_EXISTING_FINAL_GATES_WITHOUT_REEXECUTING_COMPLETED_RUNTIME_JOBS",
+      "resume_predicate": "CI_33953264614_ALL_SUCCESS_FOR_75ffda3_THEN_PRINCIPAL_FINAL_ACCEPTANCE_NO_RUNTIME_REEXECUTION",
       "project_level_blocked": false
     }
   },
