@@ -942,3 +942,9 @@
   executor，须在实际消费 Geometry Job 的 Worker 进程内安装既有 opaque factory；Integration Principal
   负责集成与最终接受，仅接收脱敏公开结果。三个阶段不再重复申请相同 scope；不增加 ImageGen、不重做历史
   D02 生成/筛选/admission，新增产品 M3/M4 与 verifier 单独计数，结束时撤销本任务临时能力。
+
+- 2026-09-05：真实 D12 验证确认两个易混淆的公开语义：`GET /profiles/active` 的 Profile ID 是 D05
+  compilation bundle，不是 Context compiler 所需的 D10 AestheticProfile ID；后者应沿 rebuild Job/result
+  读取。Context trace 的 `next_session_recall` 只表示 selected evidence 中存在另一 Session 的持久证据，
+  被排除的旧 Session temporary override 不会使它变为 true。运行失败恢复先重放已完成 PostgreSQL checkpoint，
+  不重跑已完成 Analysis/Profile/Context，不修改过期 Session；剩余用例需要有效 Session 时前向创建隔离对象。
