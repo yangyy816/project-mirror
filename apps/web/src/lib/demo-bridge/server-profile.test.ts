@@ -205,7 +205,7 @@ function upstreamFetch(
         {
           job_id: editingJobId,
           status: "PENDING",
-          capability: "P6_EDITING",
+          capability: "P6_EDITING_SESSION",
           job_binding_digest: "2".repeat(64),
           target: {
             target_type: "EDITING_SESSION",
@@ -219,7 +219,7 @@ function upstreamFetch(
       return json({
         job_id: editingJobId,
         status: editStatuses.editSession,
-        capability: "P6_EDITING",
+        capability: "P6_EDITING_SESSION",
         job_binding_digest: "2".repeat(64),
         target: {
           target_type: "EDITING_SESSION",
@@ -239,7 +239,7 @@ function upstreamFetch(
         {
           job_id: planJobId,
           status: "PENDING",
-          capability: "P6_EDITING",
+          capability: "P6_EDIT_PLAN",
           job_binding_digest: "4".repeat(64),
           target: {
             target_type: "EDIT_PLAN",
@@ -258,7 +258,7 @@ function upstreamFetch(
         {
           job_id: planJobId,
           status: "PENDING",
-          capability: "P6_EDITING",
+          capability: "P6_EDIT_PLAN",
           job_binding_digest: "4".repeat(64),
           target: {
             target_type: "EDIT_PLAN",
@@ -277,7 +277,7 @@ function upstreamFetch(
       return json({
         job_id: planJobId,
         status: editStatuses.plan,
-        capability: "P6_EDITING",
+        capability: "P6_EDIT_PLAN",
         job_binding_digest: "4".repeat(64),
         target: {
           target_type: "EDIT_PLAN",
@@ -295,7 +295,7 @@ function upstreamFetch(
         {
           job_id: executionJobId,
           status: "PENDING",
-          capability: "P6_EDITING",
+          capability: "P6_EDIT_EXECUTION",
           job_binding_digest: "6".repeat(64),
           target: {
             target_type: "EDIT_PLAN",
@@ -309,7 +309,7 @@ function upstreamFetch(
       return json({
         job_id: executionJobId,
         status: editStatuses.execution,
-        capability: "P6_EDITING",
+        capability: "P6_EDIT_EXECUTION",
         job_binding_digest: "6".repeat(64),
         target: {
           target_type: "EDIT_PLAN",
@@ -489,6 +489,27 @@ describe("D11 exact profile bridge", () => {
     ).toHaveLength(1);
   });
 
+  it.each(["P6_EDITING", "P6_EDIT_PLAN", "P6_EDIT_EXECUTION"])(
+    "rejects the wrong editing-session capability %s",
+    async (capability) => {
+      const profileStatus = { value: "PENDING" };
+      const baseFetch = upstreamFetch(profileStatus);
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: string | URL | Request) => {
+          const result = await baseFetch(input);
+          if (pathname(input) !== "/api/v1/demo/editing-sessions")
+            return result;
+          return json({ ...(await result.json()), capability }, result.status);
+        }),
+      );
+      const handle = await completedProfile(profileStatus);
+      expect(await createBoundDemoSelfTransfer(handle)).toEqual({
+        kind: "STALE_RESPONSE",
+      });
+    },
+  );
+
   it("keeps profile-guided JSON calls on the generated client and publishes only a safe preview", async () => {
     const profileStatus = { value: "PENDING" };
     const fetchMock = upstreamFetch(profileStatus);
@@ -550,7 +571,7 @@ describe("D11 exact profile bridge", () => {
           JSON.stringify({
             job_id: planJobId,
             status: "PENDING",
-            capability: "P6_EDITING",
+            capability: "P6_EDIT_EXECUTION",
             job_binding_digest: "4".repeat(64),
             target: {
               target_type: "EDIT_PLAN",
@@ -1280,7 +1301,7 @@ describe("D11 exact edit bridge", () => {
         return json({
           job_id: executionJobId,
           status: "COMPLETED",
-          capability: "P6_EDITING",
+          capability: "P6_EDIT_EXECUTION",
           job_binding_digest: "6".repeat(64),
           target: {
             target_type: "EDIT_PLAN",

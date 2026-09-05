@@ -1362,10 +1362,16 @@ function acceptedEditJob(
   const target = value.target;
   if (!target || typeof target !== "object") return null;
   const targetValue = target as Record<string, unknown>;
+  const expectedCapability =
+    targetType === "EDITING_SESSION"
+      ? "P6_EDITING_SESSION"
+      : expectedTarget
+        ? "P6_EDIT_EXECUTION"
+        : "P6_EDIT_PLAN";
   if (
     !validUpstreamId(value.job_id) ||
     value.status !== "PENDING" ||
-    value.capability !== "P6_EDITING" ||
+    value.capability !== expectedCapability ||
     !validUpstreamDigest(value.job_binding_digest) ||
     targetValue.target_type !== targetType ||
     !validUpstreamId(targetValue.target_id) ||
@@ -1417,7 +1423,12 @@ function editJobStatus(
     return null;
   if (
     value.job_id !== authority.jobId ||
-    value.capability !== "P6_EDITING" ||
+    value.capability !==
+      (targetType === "EDITING_SESSION"
+        ? "P6_EDITING_SESSION"
+        : completedCode === "EDIT_EXECUTION_COMPLETED"
+          ? "P6_EDIT_EXECUTION"
+          : "P6_EDIT_PLAN") ||
     value.job_binding_digest !== authority.jobBindingDigest ||
     targetValue.target_type !== targetType ||
     targetValue.target_id !== authority.targetId ||

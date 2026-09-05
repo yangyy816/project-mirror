@@ -222,7 +222,7 @@ const server = createServer(async (request, response) => {
     send(response, 202, {
       job_id: "d".repeat(32),
       status: "PENDING",
-      capability: "P6_EDITING",
+      capability: "P6_EDITING_SESSION",
       job_binding_digest: "2".repeat(64),
       target: {
         target_type: "EDITING_SESSION",
@@ -242,7 +242,7 @@ const server = createServer(async (request, response) => {
     send(response, 200, {
       job_id: "d".repeat(32),
       status: "COMPLETED",
-      capability: "P6_EDITING",
+      capability: "P6_EDITING_SESSION",
       job_binding_digest: "2".repeat(64),
       target: {
         target_type: "EDITING_SESSION",
@@ -269,7 +269,7 @@ const server = createServer(async (request, response) => {
     send(response, 202, {
       job_id: "b".repeat(32),
       status: "PENDING",
-      capability: "P6_EDITING",
+      capability: "P6_EDIT_PLAN",
       job_binding_digest: "c".repeat(64),
       target: {
         target_type: "EDIT_PLAN",
@@ -294,7 +294,7 @@ const server = createServer(async (request, response) => {
     send(response, 200, {
       job_id: "b".repeat(32),
       status: "COMPLETED",
-      capability: "P6_EDITING",
+      capability: "P6_EDIT_PLAN",
       job_binding_digest: "c".repeat(64),
       target: {
         target_type: "EDIT_PLAN",
@@ -321,7 +321,7 @@ const server = createServer(async (request, response) => {
     send(response, 202, {
       job_id: "f".repeat(32),
       status: "PENDING",
-      capability: "P6_EDITING",
+      capability: "P6_EDIT_EXECUTION",
       job_binding_digest: "0".repeat(64),
       target: {
         target_type: "EDIT_PLAN",
@@ -341,7 +341,7 @@ const server = createServer(async (request, response) => {
     send(response, 200, {
       job_id: "f".repeat(32),
       status: "COMPLETED",
-      capability: "P6_EDITING",
+      capability: "P6_EDIT_EXECUTION",
       job_binding_digest: "0".repeat(64),
       target: {
         target_type: "EDIT_PLAN",
@@ -469,7 +469,7 @@ const server = createServer(async (request, response) => {
     send(response, 202, {
       job_id: "f".repeat(32),
       status: "PENDING",
-      capability: "P6_EDITING",
+      capability: "P6_EDIT_PLAN",
       job_binding_digest: "4".repeat(64),
       target: {
         target_type: "EDIT_PLAN",
@@ -489,7 +489,7 @@ const server = createServer(async (request, response) => {
     send(response, 200, {
       job_id: "f".repeat(32),
       status: "COMPLETED",
-      capability: "P6_EDITING",
+      capability: "P6_EDIT_PLAN",
       job_binding_digest: "4".repeat(64),
       target: {
         target_type: "EDIT_PLAN",
@@ -516,7 +516,7 @@ const server = createServer(async (request, response) => {
     send(response, 202, {
       job_id: "9".repeat(32),
       status: "PENDING",
-      capability: "P6_EDITING",
+      capability: "P6_EDIT_EXECUTION",
       job_binding_digest: "6".repeat(64),
       target: {
         target_type: "EDIT_PLAN",
@@ -536,7 +536,7 @@ const server = createServer(async (request, response) => {
     send(response, 200, {
       job_id: "9".repeat(32),
       status: "COMPLETED",
-      capability: "P6_EDITING",
+      capability: "P6_EDIT_EXECUTION",
       job_binding_digest: "6".repeat(64),
       target: {
         target_type: "EDIT_PLAN",

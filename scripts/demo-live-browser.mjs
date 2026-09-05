@@ -146,6 +146,14 @@ async function snapshot() {
             width: i.naturalWidth,
             height: i.naturalHeight,
           })),
+        questionImages: [...document.querySelectorAll("img")]
+          .filter((i) => ["左侧方案", "右侧方案"].includes(i.alt))
+          .map((i) => ({
+            side: i.alt === "左侧方案" ? "LEFT" : "RIGHT",
+            loaded: i.complete && i.naturalWidth > 0,
+            width: i.naturalWidth,
+            height: i.naturalHeight,
+          })),
         storageEntries: localStorage.length + sessionStorage.length,
       };
     })),

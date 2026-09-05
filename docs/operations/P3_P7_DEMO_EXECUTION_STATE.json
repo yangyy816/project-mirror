@@ -55,7 +55,7 @@
     "D11_PROFILE_AND_EDIT_AUTHORITY_WAVE",
     "D11_R09_DETERMINISTIC_EDIT_FLOW_INTEGRATION"
   ],
-  "active_checkpoint": "D06_REAL_GEOMETRY_REPORTED_PASS_D11_QUESTIONNAIRE_MEDIA_DIAGNOSIS",
+  "active_checkpoint": "D06_REAL_GEOMETRY_REPORTED_PASS_D11_P6_CAPABILITY_REPAIR",
   "accepted_task_shas": {
     "D01_A": "68771e2aa2b36e10044c64017015c2885f34f9e1",
     "D01_C": "3523d61f92030e4d30876ee1aa5b4265d4d57200",
@@ -808,7 +808,11 @@
     "readiness_product_code_sha": "34cc95e1c2da8a5ed62302f7ca4c6f17aeb51683",
     "runtime_gate": "REPORTED_PASS_STANDARD_AND_CASE_25",
     "negative_and_replay_gates": "REPORTED_PASS_PRECLAIM_LOCK_RESTRAINT_NO_COMPATIBLE_COMPLETED_REDELIVERY",
-    "d11_real_runtime_e2e": "BLOCKED_QUESTIONNAIRE_MEDIA_HTTP_404",
+    "d11_real_runtime_e2e": "BLOCKED_P6_CAPABILITY_NAME_MISMATCH_REPAIR_VALIDATED",
+    "selected_side_media_ready": "REPORTED_PASS_32_OF_32_BYTE_IDENTICAL_NO_BACKEND_REEXECUTION",
+    "real_questionnaire_browser_progress": "COMPLETED_12_RESPONSES_PROFILE_READY",
+    "editing_projection_repair_validation": "PASS_47_BFF_TESTS_LINT_TYPESCRIPT_PRODUCTION_BUILD",
+    "withdrawn_diagnostic": "POST_COMPLETED_RACE_NOT_CAPTURED_NOT_EVIDENCE_BACKED",
     "questionnaire_contract_runtime": "HTTP_200_QUESTION_AFTER_RUN_ID_PROJECTION_REPAIR",
     "d12_complete_e2e": "NOT_VERIFIED",
     "new_imagegen_calls_authorized": 0,
@@ -827,11 +831,11 @@
     "temporary_capability_revoked": "PENDING_EXECUTION_COMPLETION"
   },
   "current_blockers": {
-    "D11_QUESTIONNAIRE_MEDIA": {
-      "status": "HTTP_404_CAUSE_UNCONFIRMED",
-      "scope": "D11_REAL_PAIR_MEDIA",
+    "D11_P6_CAPABILITY_PROJECTION": {
+      "status": "REAL_OPERATION_SPECIFIC_CAPABILITY_MISMATCH_REPAIR_VALIDATED",
+      "scope": "D11_EDITING_BFF",
       "owner_runtime_authorization": "VALID",
-      "resume_predicate": "OWNER_BOUND_EXISTING_PAIR_IMAGES_LOAD_SUCCESSFULLY",
+      "resume_predicate": "RELOAD_VALIDATED_BFF_AND_RUN_REAL_BROWSER_FLOW",
       "project_level_blocked": false
     }
   },
